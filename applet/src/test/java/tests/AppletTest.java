@@ -14,7 +14,7 @@ import javax.smartcardio.ResponseAPDU;
  * @author xsvenda, Dusan Klinec (ph4r05)
  */
 public class AppletTest extends BaseTest {
-    
+
     public AppletTest() {
         // Change card type here if you want to use physical card
         setCardType(CardType.JCARDSIMLOCAL);

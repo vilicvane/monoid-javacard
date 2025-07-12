@@ -57,7 +57,7 @@ dependencies {
     testImplementation(group: 'com.klinec', name: 'javacard-tools', version: '1.0.4') {
         exclude group: "com.klinec", module: "jcardsim"
     }
-    
+
     // Include plugin as it has bundled GP & other tools.
     // Alternative: include GP manually, but the included
     // version has to be compatible with the plugin.
@@ -135,10 +135,13 @@ javacard {
             // Here you can specify path to the SDK you want to use.
             // Only JC304 and higher are supported for targeting.
             // If JC310b43 is not used, targetsdk cannot be set.
-            targetsdk JC304
+            targetsdk JC305
 
             // Override java bytecode version if needed.
             // javaversion '1.7'
+
+            // Explicitly specify source directory to exclude main package
+            sources 'src/main/java/applet'
 
             //noinspection GroovyAssignabilityCheck
             applet {
