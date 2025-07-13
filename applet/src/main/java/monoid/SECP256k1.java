@@ -1,4 +1,4 @@
-package monoid.lib;
+package monoid;
 
 import javacard.security.*;
 

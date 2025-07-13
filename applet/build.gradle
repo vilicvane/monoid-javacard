@@ -114,46 +114,73 @@ final def JC310b43 = libsSdk + '/jc310b43_kit'
 final def JC_SELECTED = JC310b43
 
 javacard {
+    def MONOID_KEYSTORE_PACKAGE_AID = 'f0:6d:6f:6e:6f:69:64:00'
+    def MONOID_KEYSTORE_AID = MONOID_KEYSTORE_PACKAGE_AID + ':01'
 
-    //noinspection GroovyAssignabilityCheck
+    def MONOID_PACKAGE_AID = 'f0:6d:6f:6e:6f:69:64:01'
+    def MONOID_AID = MONOID_PACKAGE_AID + ':01'
+
     config {
         jckit JC_SELECTED
 
-        // Using custom repo with jcardsim
         debugGpPro true
         addImplicitJcardSim false
         addImplicitJcardSimJunit false
 
-        //noinspection GroovyAssignabilityCheck
         cap {
-            packageName 'applet'
+            packageName 'monoidkeystore'
             version '0.1'
-            aid '01:ff:ff:04:05:06:07:08:09'
-            output 'applet.cap'
+            aid MONOID_KEYSTORE_PACKAGE_AID
+            output 'monoidkeystore.cap'
 
-            // JC310b43 supports compilation targeting for lower API versions.
-            // Here you can specify path to the SDK you want to use.
-            // Only JC304 and higher are supported for targeting.
-            // If JC310b43 is not used, targetsdk cannot be set.
             targetsdk JC305
 
-            // Override java bytecode version if needed.
-            // javaversion '1.7'
+            sources 'src/main/java/monoidkeystore'
 
-            // Explicitly specify source directory to exclude main package
-            sources 'src/main/java/applet'
-
-            //noinspection GroovyAssignabilityCheck
             applet {
-                className 'applet.MainApplet'
-                aid '01:ff:ff:04:05:06:07:08:09:01:02'
+                className 'monoidkeystore.MonoidKeystoreApplet'
+                aid MONOID_KEYSTORE_AID
+            }
+        }
+
+        cap {
+            packageName 'monoid'
+            version '0.1'
+            aid MONOID_PACKAGE_AID
+            output 'monoid.cap'
+
+            targetsdk JC305
+
+            sources 'src/main/java/monoid'
+
+            applet {
+                className 'monoid.MonoidApplet'
+                aid MONOID_AID
             }
 
-            //noinspection GroovyAssignabilityCheck
-            // dependencies {
-            //     remote 'com.klinec:globalplatform:2.1.1'
-            // }
+            dependencies {
+                local {
+                    exps "${buildDir}/javacard/monoidkeystore.exp"
+                    jar "${buildDir}/javacard/monoidkeystore.exp/monoidkeystore.jar"
+                }
+            }
+        }
+    }
+
+    scripts {
+        script {
+            name 'select'
+            apdu '00:a4:04:00:09:' + MONOID_AID + ':00'
+        }
+
+        script {
+            name 'hello'
+            apdu '00:90:00:00'
+        }
+
+        task {
+            name 'hello'
+            scripts 'select', 'hello'
         }
     }
 }
-

@@ -1,17 +1,20 @@
 package monoidkeystore;
 
 import javacard.framework.*;
+import javacard.security.*;
 
 public interface MonoidKeystore extends Shareable {
   public void verifyPIN(byte[] buffer, short offset, byte length);
 
   public void updatePIN(byte[] buffer, short offset, byte length);
 
-  public MonoidKeystoreItem[] getItems();
+  public byte[] getKeyPairTypes();
 
-  public short getItemsLength();
+  public KeyPair[] getKeyPairs();
 
-  public void setItemsLength(short length);
+  public short getKeyPairsLength();
 
-  public void extendItems();
+  public void pushKeyPair(byte type, KeyPair pair);
+
+  public void removeKeyPair(KeyPair pair);
 }

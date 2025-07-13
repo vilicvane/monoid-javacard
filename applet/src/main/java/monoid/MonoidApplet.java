@@ -2,25 +2,14 @@ package monoid;
 
 import javacard.framework.*;
 import javacard.security.*;
-import javacardx.crypto.Cipher;
-import monoid.lib.KeystoreWrapper;
 import monoidkeystore.MonoidKeystore;
-import monoidkeystore.MonoidKeystoreApplet;
 
 public class MonoidApplet extends Applet implements Monoid {
-  private static AID aid;
-
-  public static AID getAID() {
-    return aid;
-  }
-
   public static void install(byte[] bArray, short bOffset, byte bLength) {
     new MonoidApplet();
   }
 
-  // private MonoidKeyPair[] keyPairs;
-
-  // private Signature signature;
+  private static final byte[] PIN = { (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0' };
 
   private KeystoreWrapper keystore;
 
@@ -35,27 +24,37 @@ public class MonoidApplet extends Applet implements Monoid {
   }
 
   public void process(APDU apdu) {
-    if (aid == null) {
-      aid = JCSystem.getAID();
-    }
-
     if (keystore == null) {
       keystore = new KeystoreWrapper(
-          (MonoidKeystore) JCSystem.getAppletShareableInterfaceObject(MonoidKeystoreApplet.getAID(), (byte) 0));
+          (MonoidKeystore) JCSystem.getAppletShareableInterfaceObject(
+              new AID(Constants.MONOID_KEYSTORE_AID, (short) 0, (byte) Constants.MONOID_KEYSTORE_AID.length),
+              (byte) 0));
     }
 
     if (selectingApplet()) {
       return;
     }
 
-    keystore.verifyPIN(new byte[] { (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0' }, (short) 0,
-        (byte) 6);
+    byte[] buffer = apdu.getBuffer();
+
+    try {
+      Util.arrayCopyNonAtomic(PIN, (short) 0, buffer, (short) 0, (short) PIN.length);
+
+      keystore.verifyPIN(buffer, (short) 0, (byte) PIN.length);
+    } catch (SecurityException e) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
 
     KeyPair keyPair = keystore.ensureOneECKeyPair(Monoid.KEY_TYPE_ECDSA_SECP256K1);
 
-    System.out.println(keyPair);
+    // ECPrivateKey privateKey = (ECPrivateKey) keyPair.getPrivate();
+    ECPublicKey publicKey = (ECPublicKey) keyPair.getPublic();
 
-    ISOException.throwIt(ISO7816.SW_NO_ERROR);
+    short publicKeyLength = publicKey.getW(buffer, (short) 0);
+
+    apdu.setOutgoingAndSend((short) 0, publicKeyLength);
+
+    // ISOException.throwIt(ISO7816.SW_NO_ERROR);
 
     // keyPairs = new MonoidKeyPair[1];
     // keyPairs[0] = new MonoidKeyPair(MonoidKeyPair.ALGORITHM_SECP256K1);
