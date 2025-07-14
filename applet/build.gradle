@@ -1,4 +1,4 @@
-group 'test-applet'
+group 'app.monoid'
 version '1.0-SNAPSHOT'
 
 // Buildscript configuration for the javacard-gradle plugin.
@@ -114,11 +114,13 @@ final def JC310b43 = libsSdk + '/jc310b43_kit'
 final def JC_SELECTED = JC310b43
 
 javacard {
-    def MONOID_KEYSTORE_PACKAGE_AID = 'f0:6d:6f:6e:6f:69:64:00'
-    def MONOID_KEYSTORE_AID = MONOID_KEYSTORE_PACKAGE_AID + ':01'
+    def MONOID_STORE_PACKAGE_AID = 'f1:6d:6f:6e:6f:69:64:00'
+    def MONOID_PACKAGE_AID = 'f1:6d:6f:6e:6f:69:64:01'
 
-    def MONOID_PACKAGE_AID = 'f0:6d:6f:6e:6f:69:64:01'
-    def MONOID_AID = MONOID_PACKAGE_AID + ':01'
+    // package id || applet id || major version
+
+    def MONOID_STORE_AID = MONOID_STORE_PACKAGE_AID + ':01' + ':00:01'
+    def MONOID_AID = MONOID_PACKAGE_AID + ':01' + ':00:01'
 
     config {
         jckit JC_SELECTED
@@ -128,18 +130,18 @@ javacard {
         addImplicitJcardSimJunit false
 
         cap {
-            packageName 'monoidkeystore'
+            packageName 'monoidstore'
             version '0.1'
-            aid MONOID_KEYSTORE_PACKAGE_AID
-            output 'monoidkeystore.cap'
+            aid MONOID_STORE_PACKAGE_AID
+            output 'monoidstore.cap'
 
             targetsdk JC305
 
-            sources 'src/main/java/monoidkeystore'
+            sources 'src/main/java/monoidstore'
 
             applet {
-                className 'monoidkeystore.MonoidKeystoreApplet'
-                aid MONOID_KEYSTORE_AID
+                className 'monoidstore.MonoidStoreApplet'
+                aid MONOID_STORE_AID
             }
         }
 
@@ -160,8 +162,8 @@ javacard {
 
             dependencies {
                 local {
-                    exps "${buildDir}/javacard/monoidkeystore.exp"
-                    jar "${buildDir}/javacard/monoidkeystore.exp/monoidkeystore.jar"
+                    exps "${buildDir}/javacard/monoidstore.exp"
+                    jar "${buildDir}/javacard/monoidstore.exp/monoidstore.jar"
                 }
             }
         }
@@ -170,17 +172,41 @@ javacard {
     scripts {
         script {
             name 'select'
-            apdu '00:a4:04:00:09:' + MONOID_AID + ':00'
+            apdu '00a40400' +
+                '0B' + MONOID_AID
         }
 
         script {
             name 'hello'
-            apdu '00:90:00:00'
+            apdu '00900000' + '01' + '01'
+        }
+
+        script {
+            name 'genKey'
+            apdu '00010000'
+        }
+
+        script {
+            name 'sign'
+            apdu '00020000' +
+                '29' + // 9 + 32
+                '0146ff63fe77296ed7' + // index
+                '9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658' // hash
         }
 
         task {
             name 'hello'
             scripts 'select', 'hello'
+        }
+
+        task {
+            name 'genKey'
+            scripts 'select', 'genKey'
+        }
+
+        task {
+            name 'sign'
+            scripts 'select', 'sign'
         }
     }
 }

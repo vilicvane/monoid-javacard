@@ -3,28 +3,28 @@ package monoid;
 import javacard.security.*;
 
 public final class SECP256k1 {
-  static final byte SECP256K1_FP[] = {
+  static final byte FP[] = {
       (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
       (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
       (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
       (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFE, (byte) 0xFF, (byte) 0xFF, (byte) 0xFC, (byte) 0x2F
   };
 
-  static final byte SECP256K1_A[] = {
+  static final byte A[] = {
       (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
       (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
       (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
       (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00
   };
 
-  static final byte SECP256K1_B[] = {
+  static final byte B[] = {
       (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
       (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
       (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
       (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x07
   };
 
-  static final byte SECP256K1_G[] = {
+  static final byte G[] = {
       (byte) 0x04,
       (byte) 0x79, (byte) 0xBE, (byte) 0x66, (byte) 0x7E, (byte) 0xF9, (byte) 0xDC, (byte) 0xBB, (byte) 0xAC,
       (byte) 0x55, (byte) 0xA0, (byte) 0x62, (byte) 0x95, (byte) 0xCE, (byte) 0x87, (byte) 0x0B, (byte) 0x07,
@@ -36,21 +36,25 @@ public final class SECP256k1 {
       (byte) 0x9C, (byte) 0x47, (byte) 0xD0, (byte) 0x8F, (byte) 0xFB, (byte) 0x10, (byte) 0xD4, (byte) 0xB8
   };
 
-  static final byte SECP256K1_R[] = {
+  static final byte R[] = {
       (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
       (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFE,
       (byte) 0xBA, (byte) 0xAE, (byte) 0xDC, (byte) 0xE6, (byte) 0xAF, (byte) 0x48, (byte) 0xA0, (byte) 0x3B,
       (byte) 0xBF, (byte) 0xD2, (byte) 0x5E, (byte) 0x8C, (byte) 0xD0, (byte) 0x36, (byte) 0x41, (byte) 0x41
   };
 
-  static final byte SECP256K1_K = (byte) 0x01;
+  static final byte K = (byte) 0x01;
+
+  static final byte KEY_BYTES = (byte) 32;
+
+  static final short KEY_BITS = (short) KEY_BYTES * 8;
 
   static void setParameters(ECKey key) {
-    key.setFieldFP(SECP256K1_FP, (short) 0x00, (short) SECP256K1_FP.length);
-    key.setA(SECP256K1_A, (short) 0x00, (short) SECP256K1_A.length);
-    key.setB(SECP256K1_B, (short) 0x00, (short) SECP256K1_B.length);
-    key.setG(SECP256K1_G, (short) 0x00, (short) SECP256K1_G.length);
-    key.setR(SECP256K1_R, (short) 0x00, (short) SECP256K1_R.length);
-    key.setK(SECP256K1_K);
+    key.setFieldFP(FP, (short) 0x00, (short) FP.length);
+    key.setA(A, (short) 0x00, (short) A.length);
+    key.setB(B, (short) 0x00, (short) B.length);
+    key.setG(G, (short) 0x00, (short) G.length);
+    key.setR(R, (short) 0x00, (short) R.length);
+    key.setK(K);
   }
 }

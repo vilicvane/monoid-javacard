@@ -7,9 +7,10 @@
   },
   "cSpell.words": [
     "apdu",
+    "gradlew",
     "javacard",
     "Monoid",
-    "monoidkeystore",
+    "monoidstore",
     "SECP",
     "SVDP"
   ]

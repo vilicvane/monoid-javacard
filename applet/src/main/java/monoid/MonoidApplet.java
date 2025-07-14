@@ -1,8 +1,7 @@
 package monoid;
 
 import javacard.framework.*;
-import javacard.security.*;
-import monoidkeystore.MonoidKeystore;
+import monoidstore.MonoidStore;
 
 public class MonoidApplet extends Applet implements Monoid {
   public static void install(byte[] bArray, short bOffset, byte bLength) {
@@ -11,61 +10,65 @@ public class MonoidApplet extends Applet implements Monoid {
 
   private static final byte[] PIN = { (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0' };
 
-  private KeystoreWrapper keystore;
+  private MonoidStore store;
+
+  private Keystore keystore;
 
   public MonoidApplet() {
-    // try {
-    // signature = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
-    // } catch (CryptoException exception) {
-    // ISOException.throwIt(exception.getReason());
-    // }
-
     register();
   }
 
   public void process(APDU apdu) {
-    if (keystore == null) {
-      keystore = new KeystoreWrapper(
-          (MonoidKeystore) JCSystem.getAppletShareableInterfaceObject(
-              new AID(Constants.MONOID_KEYSTORE_AID, (short) 0, (byte) Constants.MONOID_KEYSTORE_AID.length),
-              (byte) 0));
-    }
-
     if (selectingApplet()) {
       return;
     }
 
-    byte[] buffer = apdu.getBuffer();
+    if (store == null) {
+      store = (MonoidStore) JCSystem.getAppletShareableInterfaceObject(
+          JCSystem.lookupAID(Constants.MONOID_STORE_AID, (short) 0, (byte) Constants.MONOID_STORE_AID.length),
+          (byte) 0);
 
-    try {
-      Util.arrayCopyNonAtomic(PIN, (short) 0, buffer, (short) 0, (short) PIN.length);
-
-      keystore.verifyPIN(buffer, (short) 0, (byte) PIN.length);
-    } catch (SecurityException e) {
-      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+      if (store == null) {
+        ISOException.throwIt(ISO7816.SW_FILE_INVALID);
+      }
     }
 
-    KeyPair keyPair = keystore.ensureOneECKeyPair(Monoid.KEY_TYPE_ECDSA_SECP256K1);
+    byte[] pin = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) PIN.length);
 
-    // ECPrivateKey privateKey = (ECPrivateKey) keyPair.getPrivate();
-    ECPublicKey publicKey = (ECPublicKey) keyPair.getPublic();
+    Util.arrayCopyNonAtomic(PIN, (short) 0, pin, (short) 0, (short) PIN.length);
 
-    short publicKeyLength = publicKey.getW(buffer, (short) 0);
+    store.verifyPIN(pin, (short) 0, (byte) PIN.length);
 
-    apdu.setOutgoingAndSend((short) 0, publicKeyLength);
+    if (keystore == null) {
+      keystore = new Keystore(store);
+    }
 
     // ISOException.throwIt(ISO7816.SW_NO_ERROR);
 
-    // keyPairs = new MonoidKeyPair[1];
-    // keyPairs[0] = new MonoidKeyPair(MonoidKeyPair.ALGORITHM_SECP256K1);
-    // // ISOException.throwIt(ISO7816.SW_FILE_INVALID);
+    byte[] buffer = apdu.getBuffer();
 
-    // byte[] buffer = apdu.getBuffer();
+    switch (buffer[ISO7816.OFFSET_INS]) {
+      case 0x01:
+        short publicKeyLength = keystore.genKey(Constants.STORE_ITEM_TYPE_SECP256K1, buffer, (short) 0);
+        apdu.setOutgoingAndSend((short) 0, publicKeyLength);
+        break;
+      case 0x02:
+        short signatureLength = keystore.sign(
+            buffer,
+            ISO7816.OFFSET_CDATA,
+            (short) (ISO7816.OFFSET_CDATA + Keystore.STORE_INDEX_LENGTH), (byte) 32,
+            buffer, (short) 0);
+        apdu.setOutgoingAndSend((short) 0, signatureLength);
+        break;
+      case (byte) 0x90:
+        short length = store.get(buffer, ISO7816.OFFSET_CDATA, (byte) 1);
+        apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, length);
+        break;
+      default:
+        ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+    }
 
-    // short length = keyPairs[0].sign(signature, buffer, (short) 0, (short) 32,
-    // buffer, (short) 0);
-
-    // apdu.setOutgoingAndSend((short) 0, length);
+    // ISOException.throwIt(ISO7816.SW_NO_ERROR);
   }
 
   @Override
