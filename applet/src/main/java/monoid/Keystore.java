@@ -104,8 +104,9 @@ public final class Keystore {
 
     signature.init(privateKey, Signature.MODE_SIGN);
 
-    // Note that this doesn't guarantee low-S signatures, fix it on the client side.
     short length = signature.signPreComputedHash(input, hashOffset, hashLength, output, outputOffset);
+
+    ECDSA.ensureLowS(output, outputOffset);
 
     signature.close();
 
