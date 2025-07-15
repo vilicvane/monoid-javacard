@@ -14,13 +14,8 @@ public final class Keystore {
 
   private MonoidStore store;
 
-  private ECPrivateKey ecPrivateKey;
-
   public Keystore(MonoidStore store) {
     this.store = store;
-
-    ecPrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.ALG_TYPE_EC_FP_PRIVATE,
-        JCSystem.MEMORY_TYPE_TRANSIENT_DESELECT, (short) 256, false);
   }
 
   public short genKey(byte type, byte[] output, short outputOffset) {
@@ -85,7 +80,7 @@ public final class Keystore {
 
     Util.arrayCopyNonAtomic(input, indexOffset, privateKeyBuffer, (short) 0, STORE_INDEX_LENGTH);
 
-    if (store.get(privateKeyBuffer, (short) 0, (byte) STORE_INDEX_LENGTH) != privateKeyBufferLength) {
+    if (store.get(privateKeyBuffer, (short) 0, STORE_INDEX_LENGTH) != privateKeyBufferLength) {
       ISOException.throwIt(ISO7816.SW_FILE_INVALID);
     }
 
@@ -93,9 +88,7 @@ public final class Keystore {
 
     switch (privateKeyBuffer[0]) {
       case TYPE_SECP256K1:
-        SECP256k1.setParameters(ecPrivateKey);
-        ecPrivateKey.setS(privateKeyBuffer, STORE_INDEX_LENGTH, SECP256k1.KEY_BYTES);
-        privateKey = ecPrivateKey;
+        privateKey = SECP256k1.getSharedPrivateKey(privateKeyBuffer, STORE_INDEX_LENGTH);
         break;
       default:
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);

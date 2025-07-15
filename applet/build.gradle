@@ -129,6 +129,22 @@ javacard {
         addImplicitJcardSim false
         addImplicitJcardSimJunit false
 
+        // cap {
+        //     packageName 'applet'
+        //     version '0.1'
+        //     aid 'ff:01:02:03:04:06'
+        //     output 'applet.cap'
+
+        //     targetsdk JC305
+
+        //     sources 'src/main/java/applet'
+
+        //     applet {
+        //         className 'applet.HelloWorldApplet'
+        //         aid 'ff:01:02:03:04:06:00:01'
+        //     }
+        // }
+
         cap {
             packageName 'monoidstore'
             version '0.1'
@@ -194,6 +210,11 @@ javacard {
                 '9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658' // hash
         }
 
+        script {
+            name 'hash'
+            apdu '00030000'
+        }
+
         task {
             name 'hello'
             scripts 'select', 'hello'
@@ -207,6 +228,11 @@ javacard {
         task {
             name 'sign'
             scripts 'select', 'sign'
+        }
+
+        task {
+            name 'hash'
+            scripts 'select', 'hash'
         }
     }
 }
