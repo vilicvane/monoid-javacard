@@ -73,7 +73,7 @@ public final class SECP256k1 {
         return sharedPrivateKey;
     }
 
-    static short derivePublicKey(ECPrivateKey privateKey, byte[] output, short outputOffset) {
+    static short derivePublicKey(ECPrivateKey privateKey, byte[] out, short outOffset) {
         sharedKeyAgreement.init(privateKey);
 
         byte[] publicKey = JCSystem.makeTransientByteArray((short) (KEY_BYTES * 2 + 1),
@@ -81,8 +81,8 @@ public final class SECP256k1 {
 
         sharedKeyAgreement.generateSecret(G, (short) 0, (short) G.length, publicKey, (short) 0);
 
-        output[outputOffset] = (byte) ((publicKey[(short) (KEY_BYTES * 2)] & 1) != 0 ? 0x03 : 0x02);
+        out[outOffset] = (byte) ((publicKey[(short) (KEY_BYTES * 2)] & 1) != 0 ? 0x03 : 0x02);
 
-        return Util.arrayCopyNonAtomic(publicKey, (short) 0, output, (short) (outputOffset + 1), KEY_BYTES);
+        return Util.arrayCopyNonAtomic(publicKey, (short) 1, out, (short) (outOffset + 1), KEY_BYTES);
     }
 }

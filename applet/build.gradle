@@ -212,7 +212,18 @@ javacard {
 
         script {
             name 'hash'
-            apdu '00030000'
+            apdu '00030000' +
+                '45' + // 32 + 1 + 32 + 4
+                '66215D7E6BFC60078F9A2F086C0BCE2180DB69A2D430BE821ABA9A269AD01B90' + // chain code
+                '00' + 'B9FAA9F03F077DA860D85CBFBFF7CB690555FD356A8804E893D46D8B9E4929E5' + '80000000'
+        }
+
+        script {
+            name 'derive'
+            apdu '00040000' +
+                '44' + // 32 + 32 + 4
+                'B9FAA9F03F077DA860D85CBFBFF7CB690555FD356A8804E893D46D8B9E4929E566215D7E6BFC60078F9A2F086C0BCE2180DB69A2D430BE821ABA9A269AD01B90' +
+                '00000000'
         }
 
         task {
@@ -233,6 +244,11 @@ javacard {
         task {
             name 'hash'
             scripts 'select', 'hash'
+        }
+
+        task {
+            name 'derive'
+            scripts 'select', 'derive'
         }
     }
 }

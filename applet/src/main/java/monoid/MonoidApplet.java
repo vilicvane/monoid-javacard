@@ -82,18 +82,35 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
         apdu.setOutgoingAndSend((short) 0, signatureLength);
         break;
       case 0x03:
-        byte[] key = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10 };
-        byte[] data = { 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
-            0x20 };
+        short offset = ISO7816.OFFSET_CDATA;
+
+        byte[] key = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
+
+        Util.arrayCopyNonAtomic(buffer, offset, key, (short) 0, (short) 32);
 
         short digestLength = HmacSHA512.digest(
             // key
-            key, (short) 0, (short) key.length,
+            key, (short) 0, (short) 32,
             // data
-            data, (short) 0, (short) data.length,
+            buffer, (short) (offset + 32), (short) 37,
             buffer, (short) 0);
 
         apdu.setOutgoingAndSend((short) 0, digestLength);
+        break;
+      case 0x04:
+        byte[] privateKeyAndChainCode = JCSystem.makeTransientByteArray((short) (SECP256k1.KEY_BYTES * 2),
+            JCSystem.CLEAR_ON_DESELECT);
+
+        short pathOffset = (short) (ISO7816.OFFSET_CDATA
+            + Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, privateKeyAndChainCode, (short) 0,
+                (short) (SECP256k1.KEY_BYTES * 2)));
+
+        BIP32.deriveChildKey(privateKeyAndChainCode, buffer, pathOffset);
+
+        Util.arrayCopyNonAtomic(privateKeyAndChainCode, (short) 0, buffer, (short) 0,
+            (short) privateKeyAndChainCode.length);
+
+        apdu.setOutgoingAndSend((short) 0, (short) privateKeyAndChainCode.length);
         break;
       case (byte) 0x90:
         short length = store.get(buffer, ISO7816.OFFSET_CDATA, (byte) 1);
