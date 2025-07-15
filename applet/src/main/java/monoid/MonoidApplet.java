@@ -1,6 +1,7 @@
 package monoid;
 
 import javacard.framework.*;
+
 import monoidstore.MonoidStore;
 
 public class MonoidApplet extends Applet implements Monoid {
@@ -49,7 +50,7 @@ public class MonoidApplet extends Applet implements Monoid {
 
     switch (buffer[ISO7816.OFFSET_INS]) {
       case 0x01:
-        short publicKeyLength = keystore.genKey(Constants.STORE_ITEM_TYPE_SECP256K1, buffer, (short) 0);
+        short publicKeyLength = keystore.genKey(Keystore.TYPE_SECP256K1, buffer, (short) 0);
         apdu.setOutgoingAndSend((short) 0, publicKeyLength);
         break;
       case 0x02:
@@ -74,10 +75,5 @@ public class MonoidApplet extends Applet implements Monoid {
   @Override
   public Shareable getShareableInterfaceObject(AID clientAID, byte parameter) {
     return this;
-  }
-
-  @Override
-  public short getId() {
-    return 0x01;
   }
 }

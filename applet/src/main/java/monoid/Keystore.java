@@ -3,9 +3,12 @@ package monoid;
 import javacard.framework.*;
 import javacard.security.*;
 import javacardx.crypto.Cipher;
+
 import monoidstore.*;
 
 public final class Keystore {
+  public static final byte TYPE_SECP256K1 = 0x01;
+
   public static final byte STORE_INDEX_DIGEST_LENGTH = 8;
   public static final byte STORE_INDEX_LENGTH = 1 + STORE_INDEX_DIGEST_LENGTH;
 
@@ -22,7 +25,7 @@ public final class Keystore {
 
   public short genKey(byte type, byte[] output, short outputOffset) {
     switch (type) {
-      case Constants.STORE_ITEM_TYPE_SECP256K1:
+      case TYPE_SECP256K1:
         return genSECP256K1Key(output, outputOffset);
       default:
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
@@ -60,7 +63,7 @@ public final class Keystore {
     byte[] privateKeyBuffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE,
         (short) (STORE_INDEX_LENGTH + SECP256k1.KEY_BYTES));
 
-    privateKeyBuffer[0] = Constants.STORE_ITEM_TYPE_SECP256K1;
+    privateKeyBuffer[0] = TYPE_SECP256K1;
 
     // Copy the first STORE_INDEX_DIGEST_LENGTH bytes of the digest to the private
     // key buffer (as part of the index).
@@ -89,7 +92,7 @@ public final class Keystore {
     Key privateKey;
 
     switch (privateKeyBuffer[0]) {
-      case Constants.STORE_ITEM_TYPE_SECP256K1:
+      case TYPE_SECP256K1:
         SECP256k1.setParameters(ecPrivateKey);
         ecPrivateKey.setS(privateKeyBuffer, STORE_INDEX_LENGTH, SECP256k1.KEY_BYTES);
         privateKey = ecPrivateKey;
