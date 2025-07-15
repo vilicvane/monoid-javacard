@@ -8,7 +8,7 @@ public class MonoidStoreApplet extends Applet implements MonoidStore {
   private static final short ITEM_LENGTH_EXTENSION = 8;
 
   public static void install(byte[] bArray, short bOffset, byte bLength) {
-    new MonoidStoreApplet();
+    new MonoidStoreApplet().register();
   }
 
   private OwnerPIN pin;
@@ -21,8 +21,6 @@ public class MonoidStoreApplet extends Applet implements MonoidStore {
     pin = new OwnerPIN((byte) 10, (byte) 32);
 
     pin.update(INITIAL_PIN, (short) 0, (byte) INITIAL_PIN.length);
-
-    register();
   }
 
   public void process(APDU apdu) {
@@ -182,12 +180,11 @@ public class MonoidStoreApplet extends Applet implements MonoidStore {
     return null;
   }
 
-}
+  class Item {
+    public byte[] data;
 
-class Item {
-  public byte[] data;
-
-  public boolean matches(byte[] buffer, short offset, byte indexLength) {
-    return data.length > indexLength && Util.arrayCompare(data, (short) 0, buffer, offset, indexLength) == 0;
+    public boolean matches(byte[] buffer, short offset, byte indexLength) {
+      return data.length > indexLength && Util.arrayCompare(data, (short) 0, buffer, offset, indexLength) == 0;
+    }
   }
 }

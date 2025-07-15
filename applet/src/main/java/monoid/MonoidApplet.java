@@ -6,7 +6,7 @@ import monoidstore.MonoidStore;
 
 public class MonoidApplet extends Applet implements Monoid {
   public static void install(byte[] bArray, short bOffset, byte bLength) {
-    new MonoidApplet();
+    new MonoidApplet().register();
   }
 
   private static final byte[] PIN = { (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0' };
@@ -14,10 +14,6 @@ public class MonoidApplet extends Applet implements Monoid {
   private MonoidStore store;
 
   private Keystore keystore;
-
-  public MonoidApplet() {
-    register();
-  }
 
   public void process(APDU apdu) {
     if (selectingApplet()) {
