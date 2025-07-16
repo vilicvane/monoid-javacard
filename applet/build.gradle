@@ -42,9 +42,9 @@ repositories {
 
 // Dependencies for your project
 dependencies {
-    jcardsim 'com.klinec:jcardsim:3.0.5.11'
+    jcardsim 'com.klinec:jcardsim:3.0.6.0'
 
-    implementation 'com.klinec:jcardsim:3.0.5.11'
+    implementation 'com.klinec:jcardsim:3.0.6.0'
 
     testImplementation 'org.testng:testng:6.1.1'
     testImplementation 'org.slf4j:slf4j-api:1.7.33'
@@ -193,8 +193,8 @@ javacard {
         }
 
         script {
-            name 'hello'
-            apdu '00900000' + '01' + '01'
+            name 'getKey'
+            apdu '00050000' + '09' + '01' + '00b35e36431d564d'
         }
 
         script {
@@ -206,7 +206,7 @@ javacard {
             name 'sign'
             apdu '00020000' +
                 '29' + // 9 + 32
-                '0146ff63fe77296ed7' + // index
+                '0100b35e36431d564d' + // index
                 '9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658' // hash
         }
 
@@ -223,12 +223,12 @@ javacard {
             apdu '00040000' +
                 '44' + // 32 + 32 + 4
                 'B9FAA9F03F077DA860D85CBFBFF7CB690555FD356A8804E893D46D8B9E4929E566215D7E6BFC60078F9A2F086C0BCE2180DB69A2D430BE821ABA9A269AD01B90' +
-                '00000000'
+                '80000000'
         }
 
         task {
-            name 'hello'
-            scripts 'select', 'hello'
+            name 'getKey'
+            scripts 'select', 'getKey'
         }
 
         task {

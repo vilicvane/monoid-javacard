@@ -11,9 +11,10 @@
     "Hmac",
     "javacard",
     "Monoid",
+    "monoiddemo",
     "monoidstore",
+    "OPAD",
     "SECP",
-    "SVDP",
-    "OPAD"
+    "SVDP"
   ]
 }

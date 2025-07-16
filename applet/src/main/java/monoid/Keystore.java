@@ -2,7 +2,6 @@ package monoid;
 
 import javacard.framework.*;
 import javacard.security.*;
-import javacardx.crypto.Cipher;
 
 import monoidstore.*;
 
@@ -14,8 +13,11 @@ public final class Keystore {
 
   private MonoidStore store;
 
+  private KeyPair keyPair;
+
   public Keystore(MonoidStore store) {
     this.store = store;
+    this.keyPair = new KeyPair(KeyPair.ALG_EC_FP, SECP256k1.KEY_BITS);
   }
 
   public short genKey(byte type, byte[] output, short outputOffset) {
@@ -29,8 +31,6 @@ public final class Keystore {
   }
 
   private short genSECP256K1Key(byte[] output, short outputOffset) {
-    KeyPair keyPair = new KeyPair(KeyPair.ALG_EC_FP, SECP256k1.KEY_BITS);
-
     ECPrivateKey privateKey = (ECPrivateKey) keyPair.getPrivate();
     ECPublicKey publicKey = (ECPublicKey) keyPair.getPublic();
 
@@ -41,19 +41,11 @@ public final class Keystore {
 
     byte[] buffer = JCSystem.makeTransientByteArray((short) 65, JCSystem.CLEAR_ON_DESELECT);
 
-    short wLength = publicKey.getW(buffer, (short) 0);
+    publicKey.getW(buffer, (short) 0);
 
-    short publicKeyLength = (short) (wLength - 1); // First byte is 0x04 (uncompressed).
+    short publicKeyLength = SECP256k1.compressPublicKey(buffer, (short) 0, output, outputOffset);
 
-    Util.arrayCopyNonAtomic(buffer, (short) 1, output, outputOffset, publicKeyLength);
-
-    MessageDigest.OneShot digest = MessageDigest.OneShot.open(MessageDigest.ALG_SHA_256);
-
-    digest.doFinal(
-        buffer, (short) 1, (short) (wLength - 1),
-        buffer, (short) 0);
-
-    digest.close();
+    OneShot.digest(MessageDigest.ALG_SHA_256, output, outputOffset, publicKeyLength, buffer, (short) 0);
 
     byte[] privateKeyBuffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE,
         (short) (STORE_INDEX_LENGTH + SECP256k1.KEY_BYTES));
@@ -71,14 +63,17 @@ public final class Keystore {
     return publicKeyLength;
   }
 
-  public short sign(byte[] input, short indexOffset, short hashOffset, byte hashLength, byte[] output,
-      short outputOffset) {
+  public short sign(
+      byte[] in,
+      short indexOffset,
+      short digestOffset, byte digestLength,
+      byte[] out, short outOffset) {
 
     short privateKeyBufferLength = (short) (STORE_INDEX_LENGTH + SECP256k1.KEY_BYTES);
 
     byte[] privateKeyBuffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, privateKeyBufferLength);
 
-    Util.arrayCopyNonAtomic(input, indexOffset, privateKeyBuffer, (short) 0, STORE_INDEX_LENGTH);
+    Util.arrayCopyNonAtomic(in, indexOffset, privateKeyBuffer, (short) 0, STORE_INDEX_LENGTH);
 
     if (store.get(privateKeyBuffer, (short) 0, STORE_INDEX_LENGTH) != privateKeyBufferLength) {
       ISOException.throwIt(ISO7816.SW_FILE_INVALID);
@@ -95,16 +90,13 @@ public final class Keystore {
         return 0;
     }
 
-    Signature.OneShot signature = Signature.OneShot.open(MessageDigest.ALG_SHA_256, Signature.SIG_CIPHER_ECDSA_PLAIN,
-        Cipher.PAD_NULL);
+    short length = OneShot.sign(
+        Signature.SIG_CIPHER_ECDSA_PLAIN,
+        privateKey,
+        in, digestOffset, digestLength,
+        out, outOffset);
 
-    signature.init(privateKey, Signature.MODE_SIGN);
-
-    short length = signature.signPreComputedHash(input, hashOffset, hashLength, output, outputOffset);
-
-    ECDSA.ensureLowS(output, outputOffset);
-
-    signature.close();
+    ECDSA.ensureLowS(out, outOffset);
 
     return length;
   }

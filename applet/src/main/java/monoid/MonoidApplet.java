@@ -10,6 +10,12 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     SECP256k1.sharedPrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.ALG_TYPE_EC_FP_PRIVATE,
         JCSystem.MEMORY_TYPE_TRANSIENT_DESELECT, KeyBuilder.LENGTH_EC_FP_256, false);
 
+    if (SECP256k1.sharedPrivateKey == null) {
+      // JCardSim fallback.
+      KeyPair keyPair = new KeyPair(KeyPair.ALG_EC_FP, SECP256k1.KEY_BITS);
+      SECP256k1.sharedPrivateKey = (ECPrivateKey) keyPair.getPrivate();
+    }
+
     SECP256k1.sharedKeyAgreement = KeyAgreement.getInstance(KeyAgreement.ALG_EC_SVDP_DH_PLAIN_XY, false);
 
     try {
@@ -77,7 +83,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
         short signatureLength = keystore.sign(
             buffer,
             ISO7816.OFFSET_CDATA,
-            (short) (ISO7816.OFFSET_CDATA + Keystore.STORE_INDEX_LENGTH), (byte) 32,
+            (short) (Keystore.STORE_INDEX_LENGTH + ISO7816.OFFSET_CDATA), (byte) 32,
             buffer, (short) 0);
         apdu.setOutgoingAndSend((short) 0, signatureLength);
         break;
@@ -112,8 +118,8 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
         apdu.setOutgoingAndSend((short) 0, (short) privateKeyAndChainCode.length);
         break;
-      case (byte) 0x90:
-        short length = store.get(buffer, ISO7816.OFFSET_CDATA, (byte) 1);
+      case 0x05:
+        short length = store.get(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC]);
         apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, length);
         break;
       default:

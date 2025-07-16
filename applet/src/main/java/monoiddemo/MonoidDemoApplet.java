@@ -17,7 +17,7 @@ public class MonoidDemoApplet extends Applet {
   public void process(APDU apdu) {
     byte[] buffer = apdu.getBuffer();
 
-    buffer[0] = (byte) requireMonoid().getId();
+    Monoid monoid = requireMonoid();
 
     apdu.setOutgoingAndSend((short) 0, (short) 1);
   }

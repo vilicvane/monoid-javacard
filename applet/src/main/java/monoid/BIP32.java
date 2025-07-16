@@ -27,7 +27,7 @@ public final class BIP32 {
 
       ECPrivateKey sharedPrivateKey = SECP256k1.getSharedPrivateKey(currentPrivateKeyAndChainCode, (short) 0);
 
-      dataOffset = SECP256k1.derivePublicKey(sharedPrivateKey, data, dataOffset);
+      dataOffset += SECP256k1.derivePublicKey(sharedPrivateKey, data, dataOffset);
     }
 
     dataOffset = Util.arrayCopyNonAtomic(path, pathSegmentOffset, data, dataOffset, (short) 4);
