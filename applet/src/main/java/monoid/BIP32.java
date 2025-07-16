@@ -4,9 +4,7 @@ import javacard.framework.*;
 import javacard.security.*;
 
 public final class BIP32 {
-  static KeyAgreement keyAgreement;
-
-  static void deriveChildKey(byte[] privateKeyAndChainCode, byte[] path, short pathSegmentOffset) {
+  public static void deriveChildKey(byte[] privateKeyAndChainCode, byte[] path, short pathSegmentOffset) {
     byte[] data = JCSystem.makeTransientByteArray((short) (1 + SECP256k1.KEY_BYTES + 4), JCSystem.CLEAR_ON_DESELECT);
     short dataOffset = 0;
 
@@ -49,7 +47,7 @@ public final class BIP32 {
     }
   }
 
-  static boolean isHardened(byte[] path, short indexOffset) {
+  private static boolean isHardened(byte[] path, short indexOffset) {
     return (path[indexOffset] & (byte) 0x80) == (byte) 0x80;
   }
 }

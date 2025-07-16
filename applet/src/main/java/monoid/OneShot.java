@@ -4,7 +4,7 @@ import javacard.security.*;
 import javacardx.crypto.*;
 
 public final class OneShot {
-  static short sign(
+  public static short sign(
       byte cipher,
       Key privateKey,
       byte[] in, short digestOffset, byte digestLength,
@@ -39,7 +39,7 @@ public final class OneShot {
     return signature.signPreComputedHash(in, digestOffset, digestLength, out, outOffset);
   }
 
-  static short digest(
+  public static short digest(
       byte algorithm,
       byte[] in, short dataOffset, short dataLength,
       byte[] out, short outOffset) {

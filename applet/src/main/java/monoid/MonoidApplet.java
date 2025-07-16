@@ -1,42 +1,20 @@
 package monoid;
 
 import javacard.framework.*;
-import javacard.security.*;
 
 import monoidstore.MonoidStore;
 
 public class MonoidApplet extends Applet implements Monoid, AppletEvent {
   public static void install(byte[] bArray, short bOffset, byte bLength) {
-    SECP256k1.sharedPrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.ALG_TYPE_EC_FP_PRIVATE,
-        JCSystem.MEMORY_TYPE_TRANSIENT_DESELECT, KeyBuilder.LENGTH_EC_FP_256, false);
-
-    if (SECP256k1.sharedPrivateKey == null) {
-      // JCardSim fallback.
-      KeyPair keyPair = new KeyPair(KeyPair.ALG_EC_FP, SECP256k1.KEY_BITS);
-      SECP256k1.sharedPrivateKey = (ECPrivateKey) keyPair.getPrivate();
-    }
-
-    SECP256k1.sharedKeyAgreement = KeyAgreement.getInstance(KeyAgreement.ALG_EC_SVDP_DH_PLAIN_XY, false);
-
-    try {
-      HmacSHA512.sharedSignature = Signature.getInstance(Signature.ALG_HMAC_SHA_512, false);
-      HmacSHA512.sharedKey = (HMACKey) KeyBuilder.buildKey(KeyBuilder.TYPE_HMAC_TRANSIENT_DESELECT,
-          KeyBuilder.LENGTH_AES_256, false);
-    } catch (Exception e) {
-      HmacSHA512.sharedSignature = null;
-      HmacSHA512.sharedKey = null;
-      HmacSHA512.sha512 = MessageDigest.getInstance(MessageDigest.ALG_SHA_512, false);
-    }
+    SECP256k1.init();
+    HmacSHA512.init();
 
     new MonoidApplet().register();
   }
 
   public void uninstall() {
-    SECP256k1.sharedPrivateKey = null;
-    SECP256k1.sharedKeyAgreement = null;
-    HmacSHA512.sharedSignature = null;
-    HmacSHA512.sharedKey = null;
-    HmacSHA512.sha512 = null;
+    SECP256k1.dispose();
+    HmacSHA512.dispose();
   }
 
   private static final byte[] PIN = { (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0' };

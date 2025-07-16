@@ -180,7 +180,7 @@ public class MonoidStoreApplet extends Applet implements MonoidStore {
     return null;
   }
 
-  class Item {
+  private class Item {
     public byte[] data;
 
     public boolean matches(byte[] buffer, short offset, byte indexLength) {

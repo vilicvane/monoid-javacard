@@ -7,9 +7,11 @@ sequenceDiagram
     participant MonoidStoreApplet
     participant ThirdPartyApplet
 
-    MonoidApp ->> MonoidApplet: provide PIN
-    MonoidApplet ->> MonoidStoreApplet: verify PIN
-    MonoidApplet -->> MonoidApplet: store PIN
+    MonoidApp ->> MonoidApplet: provide store PIN
+    MonoidApplet ->> MonoidStoreApplet: verify store PIN
+    MonoidApplet -->> MonoidApplet: save store PIN
+
+    MonoidApp ->> MonoidApplet: set access PIN
 
     note over MonoidApp, MonoidStoreApplet: Key Management
 

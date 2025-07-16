@@ -34,8 +34,8 @@ public final class Keystore {
     ECPrivateKey privateKey = (ECPrivateKey) keyPair.getPrivate();
     ECPublicKey publicKey = (ECPublicKey) keyPair.getPublic();
 
-    SECP256k1.setParameters(privateKey);
-    SECP256k1.setParameters(publicKey);
+    SECP256k1.setDomainParameters(privateKey);
+    SECP256k1.setDomainParameters(publicKey);
 
     keyPair.genKeyPair();
 
