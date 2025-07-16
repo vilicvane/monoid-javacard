@@ -11,12 +11,14 @@ public class CBORReader {
   private short offset;
   private short arrayOffset;
   private short mapLength;
+  private short mapOffset;
 
   private static final short MAX_SNAPSHOTS = 8;
 
   private short[] offsetSnapshots = new short[MAX_SNAPSHOTS];
   private short[] arrayOffsetSnapshots = new short[MAX_SNAPSHOTS];
   private short[] mapLengthSnapshots = new short[MAX_SNAPSHOTS];
+  private short[] mapOffsetSnapshots = new short[MAX_SNAPSHOTS];
 
   private short snapshotIndex = 0;
 
@@ -32,6 +34,7 @@ public class CBORReader {
     offsetSnapshots[snapshotIndex] = offset;
     arrayOffsetSnapshots[snapshotIndex] = arrayOffset;
     mapLengthSnapshots[snapshotIndex] = mapLength;
+    mapOffsetSnapshots[snapshotIndex] = offset;
   }
 
   public void resetSnapshot() {
@@ -39,6 +42,7 @@ public class CBORReader {
     offsetSnapshots[0] = offset;
     arrayOffsetSnapshots[0] = arrayOffset;
     mapLengthSnapshots[0] = mapLength;
+    mapOffsetSnapshots[0] = offset;
   }
 
   public void popSnapshot(boolean restore) {
@@ -57,6 +61,7 @@ public class CBORReader {
     offset = offsetSnapshots[snapshotIndex];
     arrayOffset = arrayOffsetSnapshots[snapshotIndex];
     mapLength = mapLengthSnapshots[snapshotIndex];
+    mapOffset = mapOffsetSnapshots[snapshotIndex];
   }
 
   public short integer() {
@@ -124,11 +129,13 @@ public class CBORReader {
 
     mapLength = metadataUnsignedInteger();
 
+    mapOffset = offset;
+
     return mapLength;
   }
 
   public boolean key(byte[] in, short keyOffset, short keyLength) {
-    short currentOffset = offset;
+    offset = mapOffset;
 
     for (short index = 0; index < mapLength; index++) {
       if ((buffer[offset] & CBOR.TYPE_MASK) != CBOR.TYPE_TEXT) {
@@ -148,7 +155,7 @@ public class CBORReader {
       next();
     }
 
-    offset = currentOffset;
+    offset = mapOffset;
 
     return false;
   }

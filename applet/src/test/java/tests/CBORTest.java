@@ -38,15 +38,11 @@ public class CBORTest {
     Assert.assertEquals(cbor.text(text, (short) 0), 5);
     Assert.assertArrayEquals(text, "Alice".getBytes());
 
-    cbor.restore();
+    Assert.assertTrue(cbor.key("admin".getBytes()));
+    Assert.assertEquals(cbor.bool(), true);
 
     Assert.assertTrue(cbor.key("id".getBytes()));
     Assert.assertEquals(cbor.integer(), 1);
-
-    cbor.restore();
-
-    Assert.assertTrue(cbor.key("admin".getBytes()));
-    Assert.assertEquals(cbor.bool(), true);
 
     cbor.popSnapshot();
 
@@ -61,7 +57,7 @@ public class CBORTest {
 
     cbor.map();
 
-    Assert.assertTrue(cbor.key("id".getBytes()));
-    Assert.assertEquals(cbor.integer(), 2);
+    Assert.assertTrue(cbor.key("admin".getBytes()));
+    Assert.assertEquals(cbor.bool(), false);
   }
 }
