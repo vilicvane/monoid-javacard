@@ -195,6 +195,11 @@ javacard {
         }
 
         script {
+            name 'hello'
+            apdu '00200000'
+        }
+
+        script {
             name 'getKey'
             apdu '00050000' + '09' + '01' + '00b35e36431d564d'
         }
@@ -226,6 +231,11 @@ javacard {
                 '44' + // 32 + 32 + 4
                 'B9FAA9F03F077DA860D85CBFBFF7CB690555FD356A8804E893D46D8B9E4929E566215D7E6BFC60078F9A2F086C0BCE2180DB69A2D430BE821ABA9A269AD01B90' +
                 '80000000'
+        }
+
+        task {
+            name 'hello'
+            scripts 'select', 'hello'
         }
 
         task {

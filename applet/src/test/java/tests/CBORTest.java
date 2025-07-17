@@ -4,6 +4,7 @@ import org.junit.*;
 
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 
+import monoid.CBOR;
 import monoid.CBORReader;
 import monoid.CBORWriter;
 
@@ -20,9 +21,10 @@ public class CBORTest {
 
   @Test
   public void read() {
-    CBORReader cbor = new CBORReader();
+    TestCBORReader cbor = new TestCBORReader(example);
 
-    cbor.bind(example, (short) 0);
+    Assert.assertTrue(cbor.is(CBOR.TYPE_ARRAY));
+    Assert.assertFalse(cbor.is(CBOR.TYPE_MAP));
 
     Assert.assertEquals(cbor.array(), 3);
 
@@ -75,9 +77,7 @@ public class CBORTest {
   public void write() {
     byte[] buffer = new byte[example.length];
 
-    CBORWriter cbor = new CBORWriter();
-
-    cbor.bind(buffer, (short) 0);
+    TestCBORWriter cbor = new TestCBORWriter(buffer);
 
     cbor.array((short) 3);
 
@@ -118,5 +118,35 @@ public class CBORTest {
     cbor.integer((short) -1);
 
     Assert.assertArrayEquals(buffer, example);
+  }
+}
+
+class TestCBORReader extends CBORReader {
+  private byte[] buffer;
+
+  public TestCBORReader(byte[] buffer) {
+    this.buffer = buffer;
+
+    reset((short) 0);
+  }
+
+  @Override
+  protected byte[] getBuffer() {
+    return buffer;
+  }
+}
+
+class TestCBORWriter extends CBORWriter {
+  private byte[] buffer;
+
+  public TestCBORWriter(byte[] buffer) {
+    this.buffer = buffer;
+
+    reset((short) 0);
+  }
+
+  @Override
+  protected byte[] getBuffer() {
+    return buffer;
   }
 }

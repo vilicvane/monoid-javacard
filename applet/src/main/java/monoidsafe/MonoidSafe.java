@@ -3,6 +3,10 @@ package monoidsafe;
 import javacard.framework.*;
 
 public interface MonoidSafe extends Shareable {
+  public boolean isPINSet();
+
+  public byte getPINTriesRemaining();
+
   public void verifyPIN(byte[] buffer, short offset, byte length);
 
   public void updatePIN(byte[] buffer, short offset, byte length);

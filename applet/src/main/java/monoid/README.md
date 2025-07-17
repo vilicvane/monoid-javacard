@@ -16,9 +16,10 @@ type Response = {
     monoid: number;
     javacard: number;
   };
-  pins: {
-    safe: boolean;
-    access: boolean;
+  pin: number | false;
+  safe: {
+    pin: number | false;
+    unlocked: boolean;
   };
 };
 ```

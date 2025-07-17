@@ -18,15 +18,17 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
     HmacSHA512.dispose();
   }
 
-  private static final byte[] PIN = { (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0' };
+  public short version = 0;
 
-  private short version = 0;
+  private OwnerPIN pin;
 
   private MonoidSafe safe;
+  private byte[] safePIN;
+
   private Keystore keystore;
 
-  private CBORReader reader = new CBORReader();
-  private CBORWriter writer = new CBORWriter();
+  private ApduCBORReader reader = new ApduCBORReader();
+  private ApduCBORWriter writer = new ApduCBORWriter();
 
   public void process(APDU apdu) {
     if (version == 0) {
@@ -51,23 +53,19 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
       }
     }
 
-    byte[] pin = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) PIN.length);
-
-    Util.arrayCopyNonAtomic(PIN, (short) 0, pin, (short) 0, (short) PIN.length);
-
-    safe.verifyPIN(pin, (short) 0, (byte) PIN.length);
-
     if (keystore == null) {
       keystore = new Keystore(safe);
     }
 
-    // ISOException.throwIt(ISO7816.SW_NO_ERROR);
-
     byte[] buffer = apdu.getBuffer();
+
+    reader.reset();
+    writer.reset();
 
     switch (buffer[ISO7816.OFFSET_INS]) {
       case 0x20:
-        hello(apdu);
+        HelloCommand.run(writer, version, pin, safe, safePIN != null);
+        apdu.setOutgoingAndSend((short) 0, writer.getLength());
         break;
       case 0x01:
         short publicKeyLength = keystore.genKey(Keystore.TYPE_SECP256K1, buffer, (short) 0);
@@ -121,40 +119,6 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
     }
 
     // ISOException.throwIt(ISO7816.SW_NO_ERROR);
-  }
-
-  private void hello(APDU apdu) {
-    byte[] buffer = apdu.getBuffer();
-
-    writer.bind(buffer, (short) 0);
-
-    writer.map((short) 2);
-
-    writer.text(Text.versions);
-    writer.map((short) 2);
-
-    // versions.monoid
-    writer.text(Text.monoid);
-    writer.integer((short) version);
-
-    // versions.javacard
-    writer.text(Text.javacard);
-    writer.array((short) 2);
-    writer.integer((short) (JCSystem.getVersion() >> 8));
-    writer.integer((short) (JCSystem.getVersion() & 0xFF));
-
-    writer.text(Text.pins);
-    writer.map((short) 2);
-
-    // pins.safe
-    writer.text(Text.safe);
-    writer.bool(false);
-
-    // pins.access
-    writer.text(Text.access);
-    writer.bool(false);
-
-    apdu.setOutgoingAndSend((short) 0, writer.getLength());
   }
 
   @Override

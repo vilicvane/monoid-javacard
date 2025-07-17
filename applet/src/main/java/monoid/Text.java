@@ -7,10 +7,10 @@ public final class Text {
       'm', 'o', 'n', 'o', 'i', 'd' };
   public static final byte[] javacard = {
       'j', 'a', 'v', 'a', 'c', 'a', 'r', 'd' };
-  public static final byte[] pins = {
-      'p', 'i', 'n', 's' };
+  public static final byte[] pin = {
+      'p', 'i', 'n' };
   public static final byte[] safe = {
       's', 'a', 'f', 'e' };
-  public static final byte[] access = {
-      'a', 'c', 'c', 'e', 's', 's' };
+  public static final byte[] unlocked = {
+      'u', 'n', 'l', 'o', 'c', 'k', 'e', 'd' };
 }

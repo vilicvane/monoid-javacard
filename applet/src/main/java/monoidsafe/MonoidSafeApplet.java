@@ -3,7 +3,8 @@ package monoidsafe;
 import javacard.framework.*;
 
 public class MonoidSafeApplet extends Applet implements MonoidSafe {
-  private static final byte[] INITIAL_PIN = { (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0' };
+  public static final byte PIN_TRY_LIMIT = 5;
+  public static final byte MAX_PIN_SIZE = 16;
 
   private static final short ITEM_LENGTH_EXTENSION = 8;
 
@@ -17,18 +18,22 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
 
   private short itemsLength = 0;
 
-  public MonoidSafeApplet() {
-    pin = new OwnerPIN((byte) 10, (byte) 32);
-
-    pin.update(INITIAL_PIN, (short) 0, (byte) INITIAL_PIN.length);
-  }
-
   public void process(APDU apdu) {
     if (selectingApplet()) {
       return;
     }
 
     ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+  }
+
+  @Override
+  public boolean isPINSet() {
+    return pin != null;
+  }
+
+  @Override
+  public byte getPINTriesRemaining() {
+    return pin.getTriesRemaining();
   }
 
   @Override

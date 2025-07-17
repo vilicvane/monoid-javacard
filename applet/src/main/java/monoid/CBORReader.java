@@ -2,13 +2,9 @@ package monoid;
 
 import javacard.framework.*;
 
-/**
- * This is an implementation of CBOR subset that might grow with only absolutely
- * necessary features.
- */
-public class CBORReader {
-  private byte[] buffer;
+public abstract class CBORReader {
   private short offset;
+
   private short arrayOffset;
   private short mapLength;
   private short mapOffset;
@@ -22,18 +18,15 @@ public class CBORReader {
 
   private short snapshotIndex = 0;
 
-  public void bind(byte[] buffer, short offset) {
-    this.buffer = buffer;
+  protected abstract byte[] getBuffer();
+
+  protected void reset(short offset) {
     this.offset = offset;
 
     arrayOffset = -1;
     mapOffset = -1;
 
     resetSnapshot();
-  }
-
-  public void unbind() {
-    buffer = null;
   }
 
   public void snapshot() {
@@ -71,7 +64,15 @@ public class CBORReader {
     mapOffset = mapOffsetSnapshots[snapshotIndex];
   }
 
+  public boolean is(byte type) {
+    byte[] buffer = getBuffer();
+
+    return (buffer[offset] & CBOR.TYPE_MASK) == type;
+  }
+
   public short integer() {
+    byte[] buffer = getBuffer();
+
     byte type = (byte) (buffer[offset] & CBOR.TYPE_MASK);
 
     switch (type) {
@@ -103,6 +104,8 @@ public class CBORReader {
   }
 
   private short bytesLike(byte type, byte[] out, short outOffset) {
+    byte[] buffer = getBuffer();
+
     if ((buffer[offset] & CBOR.TYPE_MASK) != type) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
@@ -117,7 +120,9 @@ public class CBORReader {
   }
 
   public short array() {
-    if ((buffer[offset] & CBOR.TYPE_ARRAY) != CBOR.TYPE_ARRAY) {
+    byte[] buffer = getBuffer();
+
+    if ((buffer[offset] & CBOR.TYPE_MASK) != CBOR.TYPE_ARRAY) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
@@ -137,7 +142,9 @@ public class CBORReader {
   }
 
   public short map() {
-    if ((buffer[offset] & CBOR.TYPE_MAP) != CBOR.TYPE_MAP) {
+    byte[] buffer = getBuffer();
+
+    if ((buffer[offset] & CBOR.TYPE_MASK) != CBOR.TYPE_MAP) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
@@ -149,6 +156,8 @@ public class CBORReader {
   }
 
   public boolean key(byte[] in, short keyOffset, short keyLength) {
+    byte[] buffer = getBuffer();
+
     offset = mapOffset;
 
     for (short index = 0; index < mapLength; index++) {
@@ -179,6 +188,8 @@ public class CBORReader {
   }
 
   public boolean bool() {
+    byte[] buffer = getBuffer();
+
     switch (buffer[offset]) {
       case CBOR.FALSE:
         offset++;
@@ -193,6 +204,8 @@ public class CBORReader {
   }
 
   public void next() {
+    byte[] buffer = getBuffer();
+
     switch (buffer[offset]) {
       case CBOR.FALSE:
       case CBOR.TRUE: {
@@ -239,6 +252,8 @@ public class CBORReader {
   }
 
   private short metadataUnsignedInteger() {
+    byte[] buffer = getBuffer();
+
     short bytes = metadataBytesLength();
 
     short value = 0;
@@ -248,11 +263,11 @@ public class CBORReader {
         value = (short) (buffer[offset] & CBOR.METADATA_MASK);
         break;
       case 2:
-        value = (short) (buffer[offset + 1] & 0xFF);
+        value = (short) (buffer[(short) (offset + 1)] & 0xFF);
         break;
       case 3:
-        short high = (short) (buffer[offset + 1] & 0xFF);
-        short low = (short) (buffer[offset + 2] & 0xFF);
+        short high = (short) (buffer[(short) (offset + 1)] & 0xFF);
+        short low = (short) (buffer[(short) (offset + 2)] & 0xFF);
 
         if (high >= 0b10000000) {
           // Exceeded the range of short.
@@ -273,6 +288,8 @@ public class CBORReader {
   }
 
   private short metadataBytesLength() {
+    byte[] buffer = getBuffer();
+
     short metadata = (short) (buffer[offset] & CBOR.METADATA_MASK);
 
     if (metadata <= CBOR.MAX_SIMPLE_UNSIGNED_INT) {
