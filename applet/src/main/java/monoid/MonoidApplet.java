@@ -1,10 +1,11 @@
 package monoid;
 
 import javacard.framework.*;
+import javacardx.apdu.ExtendedLength;
 
 import monoidstore.MonoidStore;
 
-public class MonoidApplet extends Applet implements Monoid, AppletEvent {
+public class MonoidApplet extends Applet implements Monoid, AppletEvent, ExtendedLength {
   public static void install(byte[] bArray, short bOffset, byte bLength) {
     SECP256k1.init();
     HmacSHA512.init();
