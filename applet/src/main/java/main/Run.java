@@ -38,13 +38,13 @@ public class Run {
     // 4. send APDU
 
     CommandAPDU[] commands = new CommandAPDU[] {
-        new CommandAPDU(0x00, 0x01, 0x00, 0x00),
-        new CommandAPDU(0x00, 0x05, 0x00, 0x00, new byte[] { 0x01 }),
-        new CommandAPDU(0x00, 0x04, 0x00, 0x00,
-            Hex.decode(
-                "B9FAA9F03F077DA860D85CBFBFF7CB690555FD356A8804E893D46D8B9E4929E566215D7E6BFC60078F9A2F086C0BCE2180DB69A2D430BE821ABA9A269AD01B90"
-                    +
-                    "00000000")),
+        new CommandAPDU(0x00, 0x20, 0x00, 0x00),
+        // new CommandAPDU(0x00, 0x01, 0x00, 0x00),
+        // new CommandAPDU(0x00, 0x04, 0x00, 0x00,
+        //     Hex.decode(
+        //         "B9FAA9F03F077DA860D85CBFBFF7CB690555FD356A8804E893D46D8B9E4929E566215D7E6BFC60078F9A2F086C0BCE2180DB69A2D430BE821ABA9A269AD01B90"
+        //             +
+        //             "00000000")),
     };
 
     for (CommandAPDU commandAPDU : commands) {

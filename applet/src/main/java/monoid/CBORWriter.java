@@ -4,15 +4,26 @@ import javacard.framework.Util;
 
 public class CBORWriter {
   private byte[] buffer;
+
+  private short initialOffset;
   private short offset;
 
   public void bind(byte[] buffer, short offset) {
     this.buffer = buffer;
+    this.initialOffset = offset;
     this.offset = offset;
   }
 
   public void unbind() {
     buffer = null;
+  }
+
+  public short getLength() {
+    return (short) (offset - initialOffset);
+  }
+
+  public short copyNonAtomicTo(byte[] out, short outOffset) {
+    return Util.arrayCopyNonAtomic(buffer, initialOffset, out, outOffset, getLength());
   }
 
   public void integer(short value) {

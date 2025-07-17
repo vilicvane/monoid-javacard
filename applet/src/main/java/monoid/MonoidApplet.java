@@ -19,11 +19,23 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   private static final byte[] PIN = { (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0' };
 
-  private MonoidStore store;
+  private short version = 0;
 
+  private MonoidStore store;
   private Keystore keystore;
 
+  private CBORReader reader = new CBORReader();
+  private CBORWriter writer = new CBORWriter();
+
   public void process(APDU apdu) {
+    if (version == 0) {
+      byte[] buffer = JCSystem.makeTransientByteArray((short) 16, JCSystem.CLEAR_ON_DESELECT);
+
+      short length = JCSystem.getAID().getBytes(buffer, (short) 0);
+
+      version = Util.getShort(buffer, (short) (length - 2));
+    }
+
     if (selectingApplet()) {
       return;
     }
@@ -53,6 +65,9 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     byte[] buffer = apdu.getBuffer();
 
     switch (buffer[ISO7816.OFFSET_INS]) {
+      case 0x20:
+        hello(apdu);
+        break;
       case 0x01:
         short publicKeyLength = keystore.genKey(Keystore.TYPE_SECP256K1, buffer, (short) 0);
         apdu.setOutgoingAndSend((short) 0, publicKeyLength);
@@ -105,6 +120,40 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     }
 
     // ISOException.throwIt(ISO7816.SW_NO_ERROR);
+  }
+
+  private void hello(APDU apdu) {
+    byte[] buffer = apdu.getBuffer();
+
+    writer.bind(buffer, (short) 0);
+
+    writer.map((short) 2);
+
+    writer.text(Text.versions);
+    writer.map((short) 2);
+
+    // versions.monoid
+    writer.text(Text.monoid);
+    writer.integer((short) version);
+
+    // versions.javacard
+    writer.text(Text.javacard);
+    writer.array((short) 2);
+    writer.integer((short) (JCSystem.getVersion() >> 8));
+    writer.integer((short) (JCSystem.getVersion() & 0xFF));
+
+    writer.text(Text.pins);
+    writer.map((short) 2);
+
+    // pins.store
+    writer.text(Text.store);
+    writer.bool(false);
+
+    // pins.access
+    writer.text(Text.access);
+    writer.bool(false);
+
+    apdu.setOutgoingAndSend((short) 0, writer.getLength());
   }
 
   @Override
