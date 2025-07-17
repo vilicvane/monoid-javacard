@@ -6,7 +6,6 @@ import monoidsafe.MonoidSafe;
 import monoidsafe.MonoidSafeApplet;
 
 public abstract class Command {
-  public static final byte AUTH_NONE = 0b00;
   public static final byte AUTH_ACCESS = 0b01;
   public static final byte AUTH_SAFE = 0b10;
 
@@ -19,7 +18,7 @@ public abstract class Command {
 
     if (!reader.key(Text.auth)) {
       reader.restore();
-      return AUTH_NONE;
+      return 0;
     }
 
     reader.map();
@@ -44,7 +43,7 @@ public abstract class Command {
 
       if (!safe.isPINSet()) {
         sendError(ErrorCode.PIN_NOT_SET);
-        return AUTH_NONE;
+        return 0;
       }
 
       if (safe.checkPIN(buffer, (short) 0, length)) {
@@ -55,7 +54,7 @@ public abstract class Command {
     } else {
       if (!MonoidApplet.pinSet) {
         sendError(ErrorCode.PIN_NOT_SET);
-        return AUTH_NONE;
+        return 0;
       }
 
       OwnerPIN pin = MonoidApplet.pin;
@@ -74,7 +73,7 @@ public abstract class Command {
 
     writer.send();
 
-    return AUTH_NONE;
+    return 0;
   }
 
   protected static byte requireAuth(byte requiredAuth) {
@@ -82,7 +81,7 @@ public abstract class Command {
 
     if ((auth & requiredAuth) == 0) {
       sendError(ErrorCode.UNAUTHORIZED);
-      return AUTH_NONE;
+      return 0;
     }
 
     return auth;
@@ -94,7 +93,7 @@ public abstract class Command {
 
   protected static void assertAuth(byte auth, byte requiredAuth) {
     if ((auth & requiredAuth) == 0) {
-      sendError(auth == AUTH_NONE ? ErrorCode.UNAUTHORIZED : ErrorCode.ACCESS_DENIED);
+      sendError(auth == 0 ? ErrorCode.UNAUTHORIZED : ErrorCode.ACCESS_DENIED);
     }
   }
 

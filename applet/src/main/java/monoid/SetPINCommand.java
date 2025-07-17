@@ -11,7 +11,7 @@ public final class SetPINCommand extends Command {
 
     MonoidSafe safe = MonoidApplet.safe;
 
-    if (auth == AUTH_NONE) {
+    if (auth == 0) {
       if (safe.isPINSet() || MonoidApplet.pinSet) {
         // `MonoidApplet.pinSet` is redundant as MonoidApplet PIN is not allowed
         // to be set without safe PIN being set.
