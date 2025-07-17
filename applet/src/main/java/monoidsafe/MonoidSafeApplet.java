@@ -12,7 +12,8 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
     new MonoidSafeApplet().register();
   }
 
-  private OwnerPIN pin;
+  private OwnerPIN pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE);
+  private boolean pinSet = false;
 
   private Item[] items = new Item[ITEM_LENGTH_EXTENSION];
 
@@ -28,7 +29,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
 
   @Override
   public boolean isPINSet() {
-    return pin != null;
+    return pinSet;
   }
 
   @Override
@@ -37,21 +38,26 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   }
 
   @Override
-  public void verifyPIN(byte[] buffer, short offset, byte length) {
-    if (!pin.check(buffer, offset, length)) {
-      ISOException.throwIt((short) (0x63C0 | pin.getTriesRemaining()));
-    }
+  public boolean checkPIN(byte[] buffer, short offset, byte length) {
+    return pin.check(buffer, offset, length);
   }
 
   @Override
   public void updatePIN(byte[] buffer, short offset, byte length) {
-    assertPINValidated();
+    assertAccess();
+
     pin.update(buffer, offset, length);
+    pinSet = true;
+  }
+
+  @Override
+  public boolean isPINValidated() {
+    return pin.isValidated();
   }
 
   @Override
   public boolean exists(byte[] buffer, short offset, byte indexLength) {
-    assertPINValidated();
+    assertAccess();
 
     for (short index = 0; index < itemsLength; index++) {
       if (items[index].matches(buffer, offset, indexLength)) {
@@ -64,7 +70,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
 
   @Override
   public short get(byte[] buffer, short offset, byte indexLength) {
-    assertPINValidated();
+    assertAccess();
 
     for (short index = 0; index < itemsLength; index++) {
       Item item = items[index];
@@ -82,7 +88,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
 
   @Override
   public void set(byte[] buffer, short offset, byte indexLength, short length) {
-    assertPINValidated();
+    assertAccess();
 
     for (short index = 0; index < itemsLength; index++) {
       Item item = items[index];
@@ -132,7 +138,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
 
   @Override
   public void delete(byte[] buffer, short offset, byte indexLength) {
-    assertPINValidated();
+    assertAccess();
 
     short indexToDelete = -1;
 
@@ -170,8 +176,8 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
     }
   }
 
-  private void assertPINValidated() {
-    if (!pin.isValidated()) {
+  private void assertAccess() {
+    if (pinSet && !pin.isValidated()) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
     }
   }

@@ -187,6 +187,18 @@ public abstract class CBORReader {
     return key(key, (short) 0, (short) key.length);
   }
 
+  public void requireKey(byte[] in, short keyOffset, short keyLength) {
+    if (!key(in, keyOffset, keyLength)) {
+      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+    }
+  }
+
+  public void requireKey(byte[] key) {
+    if (!key(key, (short) 0, (short) key.length)) {
+      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+    }
+  }
+
   public boolean bool() {
     byte[] buffer = getBuffer();
 
@@ -228,7 +240,7 @@ public abstract class CBORReader {
         break;
       }
       case CBOR.TYPE_ARRAY: {
-        short length = array();
+        short length = metadataUnsignedInteger();
 
         for (short index = 0; index < length; index++) {
           next();
@@ -237,7 +249,7 @@ public abstract class CBORReader {
         break;
       }
       case CBOR.TYPE_MAP: {
-        short length = map();
+        short length = metadataUnsignedInteger();
 
         for (short index = 0; index < length; index++) {
           next(); // key

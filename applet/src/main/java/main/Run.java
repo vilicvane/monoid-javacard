@@ -2,6 +2,7 @@ package main;
 
 import javacard.framework.AID;
 
+import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
 
@@ -38,6 +39,7 @@ public class Run {
 
     CommandAPDU[] commands = new CommandAPDU[] {
         new CommandAPDU(0x00, 0x20, 0x00, 0x00),
+        new CommandAPDU(0x00, 0x21, 0x00, 0x00, Hex.decode("A26370696E663838383838386473616665F5")),
         // new CommandAPDU(0x00, 0x01, 0x00, 0x00),
         // new CommandAPDU(0x00, 0x04, 0x00, 0x00,
         //     Hex.decode(

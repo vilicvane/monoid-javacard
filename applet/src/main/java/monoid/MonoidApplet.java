@@ -6,9 +6,30 @@ import javacardx.apdu.ExtendedLength;
 import monoidsafe.MonoidSafe;
 
 public class MonoidApplet extends Applet implements Monoid, AppletEvent, ExtendedLength {
+  public static final byte PIN_TRY_LIMIT = 5;
+  public static final byte MAX_PIN_SIZE = 16;
+
+  public static short version = 0;
+
+  public static OwnerPIN pin;
+  public static boolean pinSet = false;
+
+  public static MonoidSafe safe;
+  public static byte[] safePIN;
+
+  public static Keystore keystore;
+
+  public static ApduCBORReader apduReader;
+  public static ApduCBORWriter apduWriter;
+
   public static void install(byte[] bArray, short bOffset, byte bLength) {
     SECP256k1.init();
     HmacSHA512.init();
+
+    pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE);
+
+    apduReader = new ApduCBORReader();
+    apduWriter = new ApduCBORWriter();
 
     new MonoidApplet().register();
   }
@@ -16,56 +37,36 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
   public void uninstall() {
     SECP256k1.dispose();
     HmacSHA512.dispose();
+
+    pin = null;
+
+    safe = null;
+    safePIN = null;
+
+    keystore = null;
+
+    apduReader = null;
+    apduWriter = null;
   }
 
-  public short version = 0;
-
-  private OwnerPIN pin;
-
-  private MonoidSafe safe;
-  private byte[] safePIN;
-
-  private Keystore keystore;
-
-  private ApduCBORReader reader = new ApduCBORReader();
-  private ApduCBORWriter writer = new ApduCBORWriter();
-
   public void process(APDU apdu) {
-    if (version == 0) {
-      byte[] buffer = JCSystem.makeTransientByteArray((short) 16, JCSystem.CLEAR_ON_DESELECT);
-
-      short length = JCSystem.getAID().getBytes(buffer, (short) 0);
-
-      version = Util.getShort(buffer, (short) (length - 2));
-    }
-
     if (selectingApplet()) {
       return;
     }
 
-    if (safe == null) {
-      safe = (MonoidSafe) JCSystem.getAppletShareableInterfaceObject(
-          JCSystem.lookupAID(Constants.MONOID_SAFE_AID, (short) 0, (byte) Constants.MONOID_SAFE_AID.length),
-          (byte) 0);
+    ensureInitialization();
 
-      if (safe == null) {
-        ISOException.throwIt(ISO7816.SW_FILE_INVALID);
-      }
-    }
-
-    if (keystore == null) {
-      keystore = new Keystore(safe);
-    }
+    apduReader.reset();
+    apduWriter.reset();
 
     byte[] buffer = apdu.getBuffer();
 
-    reader.reset();
-    writer.reset();
-
     switch (buffer[ISO7816.OFFSET_INS]) {
       case 0x20:
-        HelloCommand.run(writer, version, pin, safe, safePIN != null);
-        apdu.setOutgoingAndSend((short) 0, writer.getLength());
+        HelloCommand.run();
+        break;
+      case 0x21:
+        SetPINCommand.run();
         break;
       case 0x01:
         short publicKeyLength = keystore.genKey(Keystore.TYPE_SECP256K1, buffer, (short) 0);
@@ -119,6 +120,76 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
     }
 
     // ISOException.throwIt(ISO7816.SW_NO_ERROR);
+  }
+
+  private static void ensureInitialization() {
+    if (version == 0) {
+      byte[] buffer = JCSystem.makeTransientByteArray((short) 16, JCSystem.CLEAR_ON_DESELECT);
+
+      short length = JCSystem.getAID().getBytes(buffer, (short) 0);
+
+      version = Util.getShort(buffer, (short) (length - 2));
+    }
+
+    if (safe == null) {
+      safe = (MonoidSafe) JCSystem.getAppletShareableInterfaceObject(
+          JCSystem.lookupAID(Constants.MONOID_SAFE_AID, (short) 0, (byte) Constants.MONOID_SAFE_AID.length),
+          (byte) 0);
+
+      if (safe == null) {
+        ISOException.throwIt(ISO7816.SW_FILE_INVALID);
+      }
+    }
+
+    if (keystore == null) {
+      keystore = new Keystore(safe);
+    }
+  }
+
+  public static void updatePIN(byte[] in, short pinOffset, byte pinLength) {
+    pin.update(in, pinOffset, pinLength);
+    pinSet = true;
+  }
+
+  public static void updateSafePIN(byte[] in, short pinOffset, byte pinLength) {
+    safe.updatePIN(in, pinOffset, pinLength);
+
+    JCSystem.beginTransaction();
+
+    safePIN = new byte[pinLength];
+    Util.arrayCopyNonAtomic(in, pinOffset, safePIN, (short) 0, pinLength);
+
+    if (JCSystem.isObjectDeletionSupported()) {
+      JCSystem.requestObjectDeletion();
+    }
+
+    JCSystem.commitTransaction();
+  }
+
+  public static boolean isSafeUnlocked() {
+    return safePIN != null;
+  }
+
+  public static void checkSafeUnlocked() {
+    if (safePIN == null) {
+      Command.sendError(ErrorCode.SAFE_LOCKED);
+      return;
+    }
+
+    if (safe.getPINTriesRemaining() == 0) {
+      Command.sendError(ErrorCode.SAFE_BLOCKED);
+      return;
+    }
+
+    byte[] buffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) safePIN.length);
+
+    Util.arrayCopyNonAtomic(safePIN, (short) 0, buffer, (short) 0, (short) safePIN.length);
+
+    if (!safe.checkPIN(buffer, (short) 0, (byte) safePIN.length)) {
+      safePIN = null;
+      Command.sendError(ErrorCode.SAFE_LOCKED);
+      return;
+    }
   }
 
   @Override

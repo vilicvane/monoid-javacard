@@ -74,48 +74,61 @@ public class CBORTest {
   }
 
   @Test
+  public void read_1() {
+    TestCBORReader cbor = new TestCBORReader(
+        Hex.decode("A36461757468A26370696E663838383838386473616665F56370696E663132333435366473616665F4"));
+
+    cbor.map();
+    cbor.requireKey("safe".getBytes());
+  }
+
+  @Test
   public void write() {
     byte[] buffer = new byte[example.length];
 
     TestCBORWriter cbor = new TestCBORWriter(buffer);
 
     cbor.array((short) 3);
+    {
+      cbor.map((short) 3);
+      {
+        cbor.text("id".getBytes());
+        cbor.integer((short) 1);
 
-    cbor.map((short) 3);
+        cbor.text("name".getBytes());
+        cbor.text("Alice".getBytes());
 
-    cbor.text("id".getBytes());
-    cbor.integer((short) 1);
+        cbor.text("admin".getBytes());
+        cbor.bool(true);
+      }
 
-    cbor.text("name".getBytes());
-    cbor.text("Alice".getBytes());
+      cbor.map((short) 3);
+      {
+        cbor.text("id".getBytes());
+        cbor.integer((short) 32);
 
-    cbor.text("admin".getBytes());
-    cbor.bool(true);
+        cbor.text("name".getBytes());
+        cbor.text("Bob".getBytes());
 
-    cbor.map((short) 3);
+        cbor.text("admin".getBytes());
+        cbor.bool(false);
+      }
 
-    cbor.text("id".getBytes());
-    cbor.integer((short) 32);
+      cbor.map((short) 4);
+      {
+        cbor.text("id".getBytes());
+        cbor.integer((short) 512);
 
-    cbor.text("name".getBytes());
-    cbor.text("Bob".getBytes());
+        cbor.text("name".getBytes());
+        cbor.text("Carol".getBytes());
 
-    cbor.text("admin".getBytes());
-    cbor.bool(false);
+        cbor.text("admin".getBytes());
+        cbor.bool(true);
 
-    cbor.map((short) 4);
-
-    cbor.text("id".getBytes());
-    cbor.integer((short) 512);
-
-    cbor.text("name".getBytes());
-    cbor.text("Carol".getBytes());
-
-    cbor.text("admin".getBytes());
-    cbor.bool(true);
-
-    cbor.text("extra".getBytes());
-    cbor.integer((short) -1);
+        cbor.text("extra".getBytes());
+        cbor.integer((short) -1);
+      }
+    }
 
     Assert.assertArrayEquals(buffer, example);
   }

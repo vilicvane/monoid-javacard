@@ -200,6 +200,19 @@ javacard {
         }
 
         script {
+            name 'setPIN'
+            apdu '00210000' +
+            // {"auth": {"pin": "888888", "safe": true}, "pin": "123456", "safe": false}
+            // '29' + 'A36461757468A26370696E663838383838386473616665F56370696E663132333435366473616665F4'
+            // {"auth": {"pin": "888888", "safe": true}, "pin": "123456", "safe": true}
+            '29' + 'A36461757468A26370696E663838383838386473616665F56370696E663132333435366473616665F5'
+            // {"pin": "888888", "safe": true}
+            // '12' + 'A26370696E663838383838386473616665F5'
+            // {"pin": "123456", "safe": false}
+            // '12' + 'A26370696E663132333435366473616665F4'
+        }
+
+        script {
             name 'getKey'
             apdu '00050000' + '09' + '01' + '00b35e36431d564d'
         }
@@ -236,6 +249,11 @@ javacard {
         task {
             name 'hello'
             scripts 'select', 'hello'
+        }
+
+        task {
+            name 'setPIN'
+            scripts 'select', 'setPIN'
         }
 
         task {

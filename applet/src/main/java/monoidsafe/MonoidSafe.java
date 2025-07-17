@@ -7,9 +7,11 @@ public interface MonoidSafe extends Shareable {
 
   public byte getPINTriesRemaining();
 
-  public void verifyPIN(byte[] buffer, short offset, byte length);
+  public boolean checkPIN(byte[] buffer, short offset, byte length);
 
   public void updatePIN(byte[] buffer, short offset, byte length);
+
+  public boolean isPINValidated();
 
   public boolean exists(byte[] buffer, short offset, byte indexLength);
 
