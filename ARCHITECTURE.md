@@ -4,28 +4,28 @@
 sequenceDiagram
     participant MonoidApp
     participant MonoidApplet
-    participant MonoidStoreApplet
+    participant MonoidSafeApplet
     participant ThirdPartyApplet
 
-    MonoidApp ->> MonoidApplet: provide store PIN
-    MonoidApplet ->> MonoidStoreApplet: verify store PIN
-    MonoidApplet -->> MonoidApplet: save store PIN
+    MonoidApp ->> MonoidApplet: provide safe PIN
+    MonoidApplet ->> MonoidSafeApplet: verify safe PIN
+    MonoidApplet -->> MonoidApplet: save safe PIN
 
     MonoidApp ->> MonoidApplet: set access PIN
 
-    note over MonoidApp, MonoidStoreApplet: Key Management
+    note over MonoidApp, MonoidSafeApplet: Key Management
 
     MonoidApp ->> MonoidApplet: list keys
     MonoidApplet -->> MonoidApp: public keys
     MonoidApp ->> MonoidApplet: key management (import, generate, delete)
     MonoidApp ->> MonoidApplet: grant key access to third party (by type or full index)
-    MonoidApplet ->> MonoidStoreApplet: grant key access to third party
+    MonoidApplet ->> MonoidSafeApplet: grant key access to third party
 
-    note over MonoidApp, MonoidStoreApplet: App Signing
+    note over MonoidApp, MonoidSafeApplet: App Signing
 
     MonoidApp ->> MonoidApplet: sign (full index)
-    MonoidApplet ->> MonoidStoreApplet: sign (full index)
-    MonoidStoreApplet -->> MonoidApplet: signature
+    MonoidApplet ->> MonoidSafeApplet: sign (full index)
+    MonoidSafeApplet -->> MonoidApplet: signature
     MonoidApplet -->> MonoidApp: signature
 
     note over MonoidApplet, ThirdPartyApplet: Third-Party Signing
@@ -34,7 +34,7 @@ sequenceDiagram
     MonoidApplet -->> ThirdPartyApplet: full indexes
     ThirdPartyApplet ->> MonoidApplet: sign (full index)
     MonoidApplet -->> MonoidApplet: verify access
-    MonoidApplet ->> MonoidStoreApplet: sign (full index)
-    MonoidStoreApplet -->> MonoidApplet: signature
+    MonoidApplet ->> MonoidSafeApplet: sign (full index)
+    MonoidSafeApplet -->> MonoidApplet: signature
     MonoidApplet -->> ThirdPartyApplet: signature
 ```

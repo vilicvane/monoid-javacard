@@ -2,12 +2,11 @@ package main;
 
 import javacard.framework.AID;
 
-import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
 
 import monoid.MonoidApplet;
-import monoidstore.MonoidStoreApplet;
+import monoidsafe.MonoidSafeApplet;
 
 import javax.smartcardio.*;
 
@@ -17,14 +16,14 @@ public class Run {
     CardSimulator simulator = new CardSimulator();
 
     // 2. install applet
-    AID monoidStoreAID = AIDUtil.create("F16D6F6E6F696400010001");
+    AID monoidSafeAID = AIDUtil.create("F16D6F6E6F696400010001");
     AID monoidAID = AIDUtil.create("F16D6F6E6F696401010001");
 
-    simulator.installApplet(monoidStoreAID, MonoidStoreApplet.class);
+    simulator.installApplet(monoidSafeAID, MonoidSafeApplet.class);
     simulator.installApplet(monoidAID, MonoidApplet.class);
 
     // 3. select applet
-    // simulator.selectApplet(monoidStoreAID);
+    // simulator.selectApplet(monoidSafeAID);
     simulator.selectApplet(monoidAID);
 
     // // 2. install applet

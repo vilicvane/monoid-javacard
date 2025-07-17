@@ -1,6 +1,6 @@
 # Monoid Applet
 
-Monoid Applet is the gateway between apps (e.g., the Monoid App), the Monoid Store Applet, and Monoid Ecosystem Applets.
+Monoid Applet is the gateway between apps (e.g., the Monoid App), the Monoid Safe Applet, and Monoid Ecosystem Applets.
 
 ## ISO-7816 Commands
 
@@ -17,7 +17,7 @@ type Response = {
     javacard: number;
   };
   pins: {
-    store: boolean;
+    safe: boolean;
     access: boolean;
   };
 };

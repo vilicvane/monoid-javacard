@@ -114,12 +114,14 @@ final def JC310b43 = libsSdk + '/jc310b43_kit'
 final def JC_SELECTED = JC310b43
 
 javacard {
-    def MONOID_STORE_PACKAGE_AID = 'f1:6d:6f:6e:6f:69:64:00'
-    def MONOID_PACKAGE_AID = 'f1:6d:6f:6e:6f:69:64:01'
+    def MONOID_NAMESPACE = 'f1:6d:6f:6e:6f:69:64'
+
+    def MONOID_SAFE_PACKAGE_AID = MONOID_NAMESPACE + ':00'
+    def MONOID_PACKAGE_AID = MONOID_NAMESPACE + ':01'
 
     // package id || applet id || major version
 
-    def MONOID_STORE_AID = MONOID_STORE_PACKAGE_AID + ':01' + ':00:01'
+    def MONOID_SAFE_AID = MONOID_SAFE_PACKAGE_AID + ':01' + ':00:01'
     def MONOID_AID = MONOID_PACKAGE_AID + ':01' + ':00:01'
 
     config {
@@ -146,18 +148,18 @@ javacard {
         // }
 
         cap {
-            packageName 'monoidstore'
+            packageName 'monoidsafe'
             version '0.1'
-            aid MONOID_STORE_PACKAGE_AID
-            output 'monoidstore.cap'
+            aid MONOID_SAFE_PACKAGE_AID
+            output 'monoidsafe.cap'
 
             targetsdk JC305
 
-            sources 'src/main/java/monoidstore'
+            sources 'src/main/java/monoidsafe'
 
             applet {
-                className 'monoidstore.MonoidStoreApplet'
-                aid MONOID_STORE_AID
+                className 'monoidsafe.MonoidSafeApplet'
+                aid MONOID_SAFE_AID
             }
         }
 
@@ -178,8 +180,8 @@ javacard {
 
             dependencies {
                 local {
-                    exps "${buildDir}/javacard/monoidstore.exp"
-                    jar "${buildDir}/javacard/monoidstore.exp/monoidstore.jar"
+                    exps "${buildDir}/javacard/monoidsafe.exp"
+                    jar "${buildDir}/javacard/monoidsafe.exp/monoidsafe.jar"
                 }
             }
         }

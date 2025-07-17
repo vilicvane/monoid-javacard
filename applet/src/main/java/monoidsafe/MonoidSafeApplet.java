@@ -1,14 +1,14 @@
-package monoidstore;
+package monoidsafe;
 
 import javacard.framework.*;
 
-public class MonoidStoreApplet extends Applet implements MonoidStore {
+public class MonoidSafeApplet extends Applet implements MonoidSafe {
   private static final byte[] INITIAL_PIN = { (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0', (byte) '0' };
 
   private static final short ITEM_LENGTH_EXTENSION = 8;
 
   public static void install(byte[] bArray, short bOffset, byte bLength) {
-    new MonoidStoreApplet().register();
+    new MonoidSafeApplet().register();
   }
 
   private OwnerPIN pin;
@@ -17,7 +17,7 @@ public class MonoidStoreApplet extends Applet implements MonoidStore {
 
   private short itemsLength = 0;
 
-  public MonoidStoreApplet() {
+  public MonoidSafeApplet() {
     pin = new OwnerPIN((byte) 10, (byte) 32);
 
     pin.update(INITIAL_PIN, (short) 0, (byte) INITIAL_PIN.length);

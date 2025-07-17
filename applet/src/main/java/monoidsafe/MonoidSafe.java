@@ -1,8 +1,8 @@
-package monoidstore;
+package monoidsafe;
 
 import javacard.framework.*;
 
-public interface MonoidStore extends Shareable {
+public interface MonoidSafe extends Shareable {
   public void verifyPIN(byte[] buffer, short offset, byte length);
 
   public void updatePIN(byte[] buffer, short offset, byte length);

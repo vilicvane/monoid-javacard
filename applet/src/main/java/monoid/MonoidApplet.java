@@ -3,7 +3,7 @@ package monoid;
 import javacard.framework.*;
 import javacardx.apdu.ExtendedLength;
 
-import monoidstore.MonoidStore;
+import monoidsafe.MonoidSafe;
 
 public class MonoidApplet extends Applet implements Monoid, AppletEvent, ExtendedLength {
   public static void install(byte[] bArray, short bOffset, byte bLength) {
@@ -22,7 +22,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
 
   private short version = 0;
 
-  private MonoidStore store;
+  private MonoidSafe safe;
   private Keystore keystore;
 
   private CBORReader reader = new CBORReader();
@@ -41,12 +41,12 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
       return;
     }
 
-    if (store == null) {
-      store = (MonoidStore) JCSystem.getAppletShareableInterfaceObject(
-          JCSystem.lookupAID(Constants.MONOID_STORE_AID, (short) 0, (byte) Constants.MONOID_STORE_AID.length),
+    if (safe == null) {
+      safe = (MonoidSafe) JCSystem.getAppletShareableInterfaceObject(
+          JCSystem.lookupAID(Constants.MONOID_SAFE_AID, (short) 0, (byte) Constants.MONOID_SAFE_AID.length),
           (byte) 0);
 
-      if (store == null) {
+      if (safe == null) {
         ISOException.throwIt(ISO7816.SW_FILE_INVALID);
       }
     }
@@ -55,10 +55,10 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
 
     Util.arrayCopyNonAtomic(PIN, (short) 0, pin, (short) 0, (short) PIN.length);
 
-    store.verifyPIN(pin, (short) 0, (byte) PIN.length);
+    safe.verifyPIN(pin, (short) 0, (byte) PIN.length);
 
     if (keystore == null) {
-      keystore = new Keystore(store);
+      keystore = new Keystore(safe);
     }
 
     // ISOException.throwIt(ISO7816.SW_NO_ERROR);
@@ -77,7 +77,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
         short signatureLength = keystore.sign(
             buffer,
             ISO7816.OFFSET_CDATA,
-            (short) (Keystore.STORE_INDEX_LENGTH + ISO7816.OFFSET_CDATA), (byte) 32,
+            (short) (Keystore.SAFE_INDEX_LENGTH + ISO7816.OFFSET_CDATA), (byte) 32,
             buffer, (short) 0);
         apdu.setOutgoingAndSend((short) 0, signatureLength);
         break;
@@ -113,7 +113,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
         apdu.setOutgoingAndSend((short) 0, (short) privateKeyAndChainCode.length);
         break;
       case 0x05:
-        short length = store.get(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC]);
+        short length = safe.get(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC]);
         apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, length);
         break;
       default:
@@ -146,8 +146,8 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
     writer.text(Text.pins);
     writer.map((short) 2);
 
-    // pins.store
-    writer.text(Text.store);
+    // pins.safe
+    writer.text(Text.safe);
     writer.bool(false);
 
     // pins.access

@@ -9,8 +9,8 @@ public final class Text {
       'j', 'a', 'v', 'a', 'c', 'a', 'r', 'd' };
   public static final byte[] pins = {
       'p', 'i', 'n', 's' };
-  public static final byte[] store = {
-      's', 't', 'o', 'r', 'e' };
+  public static final byte[] safe = {
+      's', 'a', 'f', 'e' };
   public static final byte[] access = {
       'a', 'c', 'c', 'e', 's', 's' };
 }
