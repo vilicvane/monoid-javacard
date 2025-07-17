@@ -94,7 +94,7 @@ public abstract class Command {
 
   protected static void assertAuth(byte auth, byte requiredAuth) {
     if ((auth & requiredAuth) == 0) {
-      sendError(ErrorCode.UNAUTHORIZED);
+      sendError(auth == AUTH_NONE ? ErrorCode.UNAUTHORIZED : ErrorCode.ACCESS_DENIED);
     }
   }
 

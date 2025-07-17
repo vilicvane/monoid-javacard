@@ -53,7 +53,7 @@ public final class SetPINCommand extends Command {
       }
 
       if (MonoidApplet.pinSet) {
-        assertAuth(auth, AUTH_ACCESS);
+        assertAuth(auth, AUTH_SAFE);
       }
 
       MonoidApplet.updatePIN(buffer, (short) 0, (byte) length);

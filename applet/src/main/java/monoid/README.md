@@ -36,7 +36,7 @@ type Response = {
   safe: {
     /** Tries remaining for the PIN, or `false` if the PIN is not set. */
     pin: number | false;
-    /** Whether the safe is unlocked (i.e., MonoidApplet stores a validated safe PIN). */
+    /** Whether the safe is unlocked (i.e., Monoid Applet stores a validated safe PIN). */
     unlocked: boolean;
   };
 };
@@ -44,18 +44,17 @@ type Response = {
 
 #### `0x21` Set PIN
 
+- Requires authentication with safe PIN if it is set.
+
 ```ts
-type Request = AuthRequest & {
+type Request = (AuthRequest | {}) & {
   pin: string;
   safe: boolean;
 };
 ```
 
 ```ts
-type Response = {
-  error?: {
-    code: 'INVALID_PIN';
-    tries: number;
-  };
-};
+type Response = {};
 ```
+
+> In case of Monoid Applet reinstallation, it loses the safe PIN. Setting safe PIN again (to either the same or a different PIN) will store the PIN in Monoid Applet (and essentially unlock the safe).
