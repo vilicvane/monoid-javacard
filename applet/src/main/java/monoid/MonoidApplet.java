@@ -19,24 +19,24 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
 
   public static Keystore keystore;
 
-  public static ApduCBORReader apduReader;
-  public static ApduCBORWriter apduWriter;
+  public static CBORApduReader apduReader;
+  public static CBORApduWriter apduWriter;
 
   public static void install(byte[] bArray, short bOffset, byte bLength) {
-    SECP256k1.init();
-    HmacSHA512.init();
+    LibSECP256k1.init();
+    LibHMACSha512.init();
 
     pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE);
 
-    apduReader = new ApduCBORReader();
-    apduWriter = new ApduCBORWriter();
+    apduReader = new CBORApduReader();
+    apduWriter = new CBORApduWriter();
 
     new MonoidApplet().register();
   }
 
   public void uninstall() {
-    SECP256k1.dispose();
-    HmacSHA512.dispose();
+    LibSECP256k1.dispose();
+    LibHMACSha512.dispose();
 
     pin = null;
 
@@ -63,10 +63,10 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
 
     switch (buffer[ISO7816.OFFSET_INS]) {
       case 0x20:
-        HelloCommand.run();
+        CommandHello.run();
         break;
       case 0x21:
-        SetPINCommand.run();
+        CommandSetPIN.run();
         break;
       case 0x01:
         short publicKeyLength = keystore.genKey(Keystore.TYPE_SECP256K1, buffer, (short) 0);
@@ -87,7 +87,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
 
         Util.arrayCopyNonAtomic(buffer, offset, key, (short) 0, (short) 32);
 
-        short digestLength = HmacSHA512.digest(
+        short digestLength = LibHMACSha512.digest(
             // key
             key, (short) 0, (short) 32,
             // data
@@ -97,14 +97,14 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
         apdu.setOutgoingAndSend((short) 0, digestLength);
         break;
       case 0x04:
-        byte[] privateKeyAndChainCode = JCSystem.makeTransientByteArray((short) (SECP256k1.KEY_BYTES * 2),
+        byte[] privateKeyAndChainCode = JCSystem.makeTransientByteArray((short) (LibSECP256k1.KEY_BYTES * 2),
             JCSystem.CLEAR_ON_DESELECT);
 
         short pathOffset = (short) (ISO7816.OFFSET_CDATA
             + Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, privateKeyAndChainCode, (short) 0,
-                (short) (SECP256k1.KEY_BYTES * 2)));
+                (short) (LibSECP256k1.KEY_BYTES * 2)));
 
-        BIP32.deriveChildKey(privateKeyAndChainCode, buffer, pathOffset);
+        LibBIP32.deriveChildKey(privateKeyAndChainCode, buffer, pathOffset);
 
         Util.arrayCopyNonAtomic(privateKeyAndChainCode, (short) 0, buffer, (short) 0,
             (short) privateKeyAndChainCode.length);

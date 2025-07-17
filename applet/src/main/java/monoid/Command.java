@@ -10,7 +10,7 @@ public abstract class Command {
   public static final byte AUTH_SAFE = 0b10;
 
   protected static byte getAuth() {
-    ApduCBORReader reader = MonoidApplet.apduReader;
+    CBORApduReader reader = MonoidApplet.apduReader;
 
     reader.snapshot();
 
@@ -64,7 +64,7 @@ public abstract class Command {
       tries = pin.getTriesRemaining();
     }
 
-    ApduCBORWriter writer = writeError(ErrorCode.INVALID_PIN, (short) 1);
+    CBORApduWriter writer = writeError(ErrorCode.INVALID_PIN, (short) 1);
 
     writer.text(Text.tries);
     writer.integer(tries);
@@ -96,14 +96,14 @@ public abstract class Command {
   }
 
   protected static void writeEmptyMap() {
-    ApduCBORWriter writer = MonoidApplet.apduWriter;
+    CBORApduWriter writer = MonoidApplet.apduWriter;
 
     writer.map((short) 0);
     writer.send();
   }
 
-  protected static ApduCBORWriter writeError(byte[] code, short extra) {
-    ApduCBORWriter writer = MonoidApplet.apduWriter;
+  protected static CBORApduWriter writeError(byte[] code, short extra) {
+    CBORApduWriter writer = MonoidApplet.apduWriter;
 
     writer.map((short) 1);
     {
@@ -118,7 +118,7 @@ public abstract class Command {
     return writer;
   }
 
-  protected static ApduCBORWriter writeError(byte[] code) {
+  protected static CBORApduWriter writeError(byte[] code) {
     return writeError(code, (short) 0);
   }
 

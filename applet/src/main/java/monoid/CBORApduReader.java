@@ -2,8 +2,8 @@ package monoid;
 
 import javacard.framework.*;
 
-public class ApduCBORReader extends CBORReader {
-  public ApduCBORReader() {
+public class CBORApduReader extends CBORReader {
+  public CBORApduReader() {
     reset();
   }
 

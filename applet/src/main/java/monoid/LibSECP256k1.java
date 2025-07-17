@@ -3,7 +3,7 @@ package monoid;
 import javacard.framework.*;
 import javacard.security.*;
 
-public final class SECP256k1 {
+public final class LibSECP256k1 {
   public static final byte FP[] = {
       (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
       (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,

@@ -3,7 +3,7 @@ package monoid;
 import javacard.framework.*;
 import javacard.security.*;
 
-public final class HmacSHA512 {
+public final class LibHMACSha512 {
   private static final byte IPAD = (byte) 0x36;
   private static final byte OPAD = (byte) 0x5c;
 

@@ -1,6 +1,6 @@
 package monoid;
 
-public final class ECDSA {
+public final class LibECDSA {
   private static final byte[] HALF_N = {
       (byte) 0x7F, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
       (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
@@ -16,8 +16,8 @@ public final class ECDSA {
   public static void ensureLowS(byte[] signature, short offset) {
     short sOffset = (short) (offset + N.length);
 
-    if (Bytes.compare(signature, sOffset, HALF_N, (short) 0, (short) HALF_N.length) > 0) {
-      Bytes.sub(N, (short) 0, signature, sOffset, signature, sOffset, (short) N.length);
+    if (LibBytesMath.compare(signature, sOffset, HALF_N, (short) 0, (short) HALF_N.length) > 0) {
+      LibBytesMath.sub(N, (short) 0, signature, sOffset, signature, sOffset, (short) N.length);
     }
   }
 }

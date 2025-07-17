@@ -1,6 +1,6 @@
 package monoid;
 
-public final class Bytes {
+public final class LibBytesMath {
   public static byte compare(byte[] a, short aOffset, byte[] b, short bOffset, short length) {
     for (short index = 0; index < length; index++) {
       short aShort = (short) (a[(short) (aOffset + index)] & 0xFF);

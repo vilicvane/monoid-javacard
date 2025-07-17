@@ -5,7 +5,7 @@ import javacard.framework.*;
 import monoidsafe.MonoidSafe;
 import monoidsafe.MonoidSafeApplet;
 
-public final class SetPINCommand extends Command {
+public final class CommandSetPIN extends Command {
   public static void run() {
     byte auth = getAuth();
 
@@ -21,7 +21,7 @@ public final class SetPINCommand extends Command {
       }
     }
 
-    ApduCBORReader reader = MonoidApplet.apduReader;
+    CBORApduReader reader = MonoidApplet.apduReader;
 
     reader.map();
 

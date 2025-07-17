@@ -2,8 +2,8 @@ package monoid;
 
 import javacard.framework.*;
 
-public class ApduCBORWriter extends CBORWriter {
-  public ApduCBORWriter() {
+public class CBORApduWriter extends CBORWriter {
+  public CBORApduWriter() {
     reset();
   }
 

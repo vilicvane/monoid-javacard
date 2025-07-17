@@ -4,9 +4,9 @@ import javacard.framework.*;
 
 import monoidsafe.MonoidSafe;
 
-public final class HelloCommand extends Command {
+public final class CommandHello extends Command {
   public static void run() {
-    ApduCBORWriter writer = MonoidApplet.apduWriter;
+    CBORApduWriter writer = MonoidApplet.apduWriter;
 
     OwnerPIN pin = MonoidApplet.pin;
     MonoidSafe safe = MonoidApplet.safe;

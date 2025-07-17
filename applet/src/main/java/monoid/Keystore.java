@@ -17,7 +17,7 @@ public final class Keystore {
 
   public Keystore(MonoidSafe safe) {
     this.safe = safe;
-    this.keyPair = new KeyPair(KeyPair.ALG_EC_FP, SECP256k1.KEY_BITS);
+    this.keyPair = new KeyPair(KeyPair.ALG_EC_FP, LibSECP256k1.KEY_BITS);
   }
 
   public short genKey(byte type, byte[] output, short outputOffset) {
@@ -34,8 +34,8 @@ public final class Keystore {
     ECPrivateKey privateKey = (ECPrivateKey) keyPair.getPrivate();
     ECPublicKey publicKey = (ECPublicKey) keyPair.getPublic();
 
-    SECP256k1.setDomainParameters(privateKey);
-    SECP256k1.setDomainParameters(publicKey);
+    LibSECP256k1.setDomainParameters(privateKey);
+    LibSECP256k1.setDomainParameters(publicKey);
 
     keyPair.genKeyPair();
 
@@ -43,12 +43,12 @@ public final class Keystore {
 
     publicKey.getW(buffer, (short) 0);
 
-    short publicKeyLength = SECP256k1.compressPublicKey(buffer, (short) 0, output, outputOffset);
+    short publicKeyLength = LibSECP256k1.compressPublicKey(buffer, (short) 0, output, outputOffset);
 
     OneShot.digest(MessageDigest.ALG_SHA_256, output, outputOffset, publicKeyLength, buffer, (short) 0);
 
     byte[] privateKeyBuffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE,
-        (short) (SAFE_INDEX_LENGTH + SECP256k1.KEY_BYTES));
+        (short) (SAFE_INDEX_LENGTH + LibSECP256k1.KEY_BYTES));
 
     privateKeyBuffer[0] = TYPE_SECP256K1;
 
@@ -69,7 +69,7 @@ public final class Keystore {
       short digestOffset, byte digestLength,
       byte[] out, short outOffset) {
 
-    short privateKeyBufferLength = (short) (SAFE_INDEX_LENGTH + SECP256k1.KEY_BYTES);
+    short privateKeyBufferLength = (short) (SAFE_INDEX_LENGTH + LibSECP256k1.KEY_BYTES);
 
     byte[] privateKeyBuffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, privateKeyBufferLength);
 
@@ -83,7 +83,7 @@ public final class Keystore {
 
     switch (privateKeyBuffer[0]) {
       case TYPE_SECP256K1:
-        privateKey = SECP256k1.getSharedPrivateKey(privateKeyBuffer, SAFE_INDEX_LENGTH);
+        privateKey = LibSECP256k1.getSharedPrivateKey(privateKeyBuffer, SAFE_INDEX_LENGTH);
         break;
       default:
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
@@ -96,7 +96,7 @@ public final class Keystore {
         in, digestOffset, digestLength,
         out, outOffset);
 
-    ECDSA.ensureLowS(out, outOffset);
+    LibECDSA.ensureLowS(out, outOffset);
 
     return length;
   }
