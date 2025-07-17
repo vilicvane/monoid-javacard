@@ -22,11 +22,18 @@ public class CBORReader {
 
   private short snapshotIndex = 0;
 
-  public void load(byte[] buffer, short offset) {
+  public void bind(byte[] buffer, short offset) {
     this.buffer = buffer;
     this.offset = offset;
 
+    arrayOffset = -1;
+    mapOffset = -1;
+
     resetSnapshot();
+  }
+
+  public void unbind() {
+    buffer = null;
   }
 
   public void snapshot() {
@@ -69,10 +76,9 @@ public class CBORReader {
 
     switch (type) {
       case CBOR.TYPE_UNSIGNED_INT:
+        return metadataUnsignedInteger();
       case CBOR.TYPE_NEGATIVE_INT: {
-        short value = metadataUnsignedInteger();
-
-        return type == CBOR.TYPE_UNSIGNED_INT ? value : (short) (-value - 1);
+        return (short) (-metadataUnsignedInteger() - 1);
       }
       default:
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
@@ -84,8 +90,16 @@ public class CBORReader {
     return bytesLike(CBOR.TYPE_BYTES, out, outOffset);
   }
 
+  public short bytes(byte[] out) {
+    return bytesLike(CBOR.TYPE_BYTES, out, (short) 0);
+  }
+
   public short text(byte[] out, short outOffset) {
     return bytesLike(CBOR.TYPE_TEXT, out, outOffset);
+  }
+
+  public short text(byte[] out) {
+    return bytesLike(CBOR.TYPE_TEXT, out, (short) 0);
   }
 
   private short bytesLike(byte type, byte[] out, short outOffset) {
@@ -166,10 +180,10 @@ public class CBORReader {
 
   public boolean bool() {
     switch (buffer[offset]) {
-      case (byte) 0xF4:
+      case CBOR.FALSE:
         offset++;
         return false;
-      case (byte) 0xF5:
+      case CBOR.TRUE:
         offset++;
         return true;
       default:
@@ -261,10 +275,10 @@ public class CBORReader {
   private short metadataBytesLength() {
     short metadata = (short) (buffer[offset] & CBOR.METADATA_MASK);
 
-    if (metadata < 0b11000) {
+    if (metadata <= CBOR.MAX_SIMPLE_UNSIGNED_INT) {
       return 1;
     }
 
-    return (short) (1 + (1 << (metadata & 0b111)));
+    return (short) (1 + (1 << (metadata & CBOR.METADATA_BYTES_LENGTH_MASK)));
   }
 }

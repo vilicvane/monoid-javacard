@@ -2,6 +2,7 @@
   "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx4G -Xms100m -Xlog:disable",
   "java.import.gradle.java.home": "C:\\Program Files\\Java\\jdk-11",
   "java.configuration.updateBuildConfiguration": "automatic",
+  "java.format.comments.enabled": false,
   "terminal.integrated.env.windows": {
     "JAVA_HOME": "C:\\Program Files\\Java\\jdk-11"
   },

@@ -12,7 +12,11 @@ public final class CBOR {
 
   public static final byte TYPE_MASK = (byte) 0b11100000;
   public static final byte METADATA_MASK = 0b00011111;
+  public static final byte METADATA_BYTES_LENGTH_MASK = 0b111;
 
-  public static final byte FALSE = (byte) 0xF4;
-  public static final byte TRUE = (byte) 0xF5;
+  public static final short MAX_SIMPLE_UNSIGNED_INT = 0b00010111;
+  public static final short VARIABLE_LENGTH_UNSIGNED_INT_MARK = 0b11000;
+
+  public static final byte FALSE = (byte) 0b11110100;
+  public static final byte TRUE = (byte) 0b11110101;
 }
