@@ -12,7 +12,7 @@ Command authentication is done by PIN validation. A request must provide either 
 type AuthRequest = {
   auth: {
     pin: string;
-    safe: boolean;
+    safe?: true;
   };
 };
 ```
@@ -49,7 +49,7 @@ type Response = {
 ```ts
 type Request = (AuthRequest | {}) & {
   pin: string;
-  safe: boolean;
+  safe?: true;
 };
 ```
 

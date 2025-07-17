@@ -23,9 +23,7 @@ public abstract class Command {
 
     reader.map();
 
-    reader.requireKey(Text.safe);
-
-    boolean safeAuth = reader.bool();
+    boolean safeAuth = reader.key(Text.safe) && reader.boolTrue();
 
     byte[] buffer = (byte[]) JCSystem.makeGlobalArray(
         JCSystem.ARRAY_TYPE_BYTE,

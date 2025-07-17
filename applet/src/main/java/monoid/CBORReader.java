@@ -215,6 +215,30 @@ public abstract class CBORReader {
     }
   }
 
+  public boolean boolFalse() {
+    byte[] buffer = getBuffer();
+
+    if (buffer[offset] != CBOR.FALSE) {
+      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+    }
+
+    offset++;
+
+    return false;
+  }
+
+  public boolean boolTrue() {
+    byte[] buffer = getBuffer();
+
+    if (buffer[offset] != CBOR.TRUE) {
+      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+    }
+
+    offset++;
+
+    return true;
+  }
+
   public void next() {
     byte[] buffer = getBuffer();
 

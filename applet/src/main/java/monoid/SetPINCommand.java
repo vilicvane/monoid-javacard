@@ -25,8 +25,7 @@ public final class SetPINCommand extends Command {
 
     reader.map();
 
-    reader.requireKey(Text.safe);
-    boolean safePIN = reader.bool();
+    boolean safePIN = reader.key(Text.safe) && reader.boolTrue();
 
     byte[] buffer = (byte[]) JCSystem.makeGlobalArray(
         JCSystem.ARRAY_TYPE_BYTE,
