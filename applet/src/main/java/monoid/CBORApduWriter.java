@@ -17,7 +17,7 @@ public class CBORApduWriter extends CBORWriter {
   }
 
   public void send() {
-    APDU.getCurrentAPDU().setOutgoingAndSend((short) 0, (short) getLength());
+    APDU.getCurrentAPDU().setOutgoingAndSend((short) 0, getLength());
     ISOException.throwIt(ISO7816.SW_NO_ERROR);
   }
 }

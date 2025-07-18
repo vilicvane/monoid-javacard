@@ -23,7 +23,11 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
   public static CBORApduWriter apduWriter;
 
   public static void install(byte[] bArray, short bOffset, byte bLength) {
-    LibSECP256k1.init();
+    CurveException.init();
+    KeystoreException.init();
+    SignerException.init();
+
+    CurveSECP256k1.init();
     LibHMACSha512.init();
 
     pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE);
@@ -35,7 +39,11 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
   }
 
   public void uninstall() {
-    LibSECP256k1.dispose();
+    CurveException.dispose();
+    KeystoreException.dispose();
+    SignerException.dispose();
+
+    CurveSECP256k1.dispose();
     LibHMACSha512.dispose();
 
     pin = null;
@@ -68,53 +76,53 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
       case 0x21:
         CommandSetPIN.run();
         break;
-      case 0x01:
-        short publicKeyLength = keystore.genKey(Keystore.TYPE_SECP256K1, buffer, (short) 0);
-        apdu.setOutgoingAndSend((short) 0, publicKeyLength);
-        break;
-      case 0x02:
-        short signatureLength = keystore.sign(
-            buffer,
-            ISO7816.OFFSET_CDATA,
-            (short) (Keystore.SAFE_INDEX_LENGTH + ISO7816.OFFSET_CDATA), (byte) 32,
-            buffer, (short) 0);
-        apdu.setOutgoingAndSend((short) 0, signatureLength);
-        break;
-      case 0x03:
-        short offset = ISO7816.OFFSET_CDATA;
+      // case 0x01:
+      //   short publicKeyLength = keystore.genKey(Keystore.TYPE_RAW, buffer, (short) 0);
+      //   apdu.setOutgoingAndSend((short) 0, publicKeyLength);
+      //   break;
+      // case 0x02:
+      //   short signatureLength = keystore.sign(
+      //       buffer,
+      //       ISO7816.OFFSET_CDATA,
+      //       (short) (Keystore.SAFE_INDEX_LENGTH + ISO7816.OFFSET_CDATA), (byte) 32,
+      //       buffer, (short) 0);
+      //   apdu.setOutgoingAndSend((short) 0, signatureLength);
+      //   break;
+      // case 0x03:
+      //   short offset = ISO7816.OFFSET_CDATA;
 
-        byte[] key = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
+      //   byte[] key = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
 
-        Util.arrayCopyNonAtomic(buffer, offset, key, (short) 0, (short) 32);
+      //   Util.arrayCopyNonAtomic(buffer, offset, key, (short) 0, (short) 32);
 
-        short digestLength = LibHMACSha512.digest(
-            // key
-            key, (short) 0, (short) 32,
-            // data
-            buffer, (short) (offset + 32), (short) 37,
-            buffer, (short) 0);
+      //   short digestLength = LibHMACSha512.digest(
+      //       // key
+      //       key, (short) 0, (short) 32,
+      //       // data
+      //       buffer, (short) (offset + 32), (short) 37,
+      //       buffer, (short) 0);
 
-        apdu.setOutgoingAndSend((short) 0, digestLength);
-        break;
-      case 0x04:
-        byte[] privateKeyAndChainCode = JCSystem.makeTransientByteArray((short) (LibSECP256k1.KEY_BYTES * 2),
-            JCSystem.CLEAR_ON_DESELECT);
+      //   apdu.setOutgoingAndSend((short) 0, digestLength);
+      //   break;
+      // case 0x04:
+      //   byte[] privateKeyAndChainCode = JCSystem.makeTransientByteArray((short) (CurveSECP256k1.KEY_LENGTH * 2),
+      //       JCSystem.CLEAR_ON_DESELECT);
 
-        short pathOffset = (short) (ISO7816.OFFSET_CDATA
-            + Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, privateKeyAndChainCode, (short) 0,
-                (short) (LibSECP256k1.KEY_BYTES * 2)));
+      //   short pathOffset = (short) (ISO7816.OFFSET_CDATA
+      //       + Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, privateKeyAndChainCode, (short) 0,
+      //           (short) (CurveSECP256k1.KEY_LENGTH * 2)));
 
-        LibBIP32.deriveChildKey(privateKeyAndChainCode, buffer, pathOffset);
+      //   LibBIP32.deriveChildKey(privateKeyAndChainCode, buffer, pathOffset);
 
-        Util.arrayCopyNonAtomic(privateKeyAndChainCode, (short) 0, buffer, (short) 0,
-            (short) privateKeyAndChainCode.length);
+      //   Util.arrayCopyNonAtomic(privateKeyAndChainCode, (short) 0, buffer, (short) 0,
+      //       (short) privateKeyAndChainCode.length);
 
-        apdu.setOutgoingAndSend((short) 0, (short) privateKeyAndChainCode.length);
-        break;
-      case 0x05:
-        short length = safe.get(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC]);
-        apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, length);
-        break;
+      //   apdu.setOutgoingAndSend((short) 0, (short) privateKeyAndChainCode.length);
+      //   break;
+      // case 0x05:
+      //   short length = safe.get(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC]);
+      //   apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, length);
+      //   break;
       default:
         ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
     }

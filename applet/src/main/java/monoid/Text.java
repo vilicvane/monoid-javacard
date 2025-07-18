@@ -1,12 +1,18 @@
 package monoid;
 
-public final class Text {
+public class Text {
   public static final byte[] auth = {
       'a', 'u', 't', 'h' };
+  public static final byte[] ciphers = {
+      'c', 'i', 'p', 'h', 'e', 'r', 's' };
   public static final byte[] code = {
       'c', 'o', 'd', 'e' };
+  public static final byte[] curves = {
+      'c', 'u', 'r', 'v', 'e', 's' };
   public static final byte[] error = {
       'e', 'r', 'r', 'o', 'r' };
+  public static final byte[] features = {
+      'f', 'e', 'a', 't', 'u', 'r', 'e', 's' };
   public static final byte[] javacard = {
       'j', 'a', 'v', 'a', 'c', 'a', 'r', 'd' };
   public static final byte[] monoid = {
@@ -21,4 +27,10 @@ public final class Text {
       'u', 'n', 'l', 'o', 'c', 'k', 'e', 'd' };
   public static final byte[] versions = {
       'v', 'e', 'r', 's', 'i', 'o', 'n', 's' };
+
+  public byte[] text;
+
+  public Text(byte[] text) {
+    this.text = text;
+  }
 }

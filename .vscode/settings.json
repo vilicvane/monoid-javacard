@@ -9,14 +9,17 @@
   "cSpell.words": [
     "apdu",
     "CBOR",
+    "ECDH",
     "gradlew",
     "HMAC",
     "javacard",
+    "KEYGENERATION",
     "monoid",
     "monoiddemo",
     "monoidsafe",
     "OPAD",
     "SECP",
-    "SVDP"
+    "SVDP",
+    "TRNG"
   ]
 }

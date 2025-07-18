@@ -3,7 +3,7 @@ package monoid;
 import javacard.framework.*;
 import javacard.security.*;
 
-public final class LibSECP256k1 {
+public class CurveSECP256k1 extends Curve {
   public static final byte FP[] = {
       (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
       (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
@@ -47,14 +47,13 @@ public final class LibSECP256k1 {
   public static final byte K = (byte) 0x01;
 
   public static final short KEY_BITS = KeyBuilder.LENGTH_EC_FP_256;
+  public static final byte KEY_LENGTH = KEY_BITS / 8;
 
-  public static final byte KEY_BYTES = KEY_BITS / 8;
+  private ECPrivateKey sharedPrivateKey;
 
-  private static ECPrivateKey sharedPrivateKey;
+  private KeyAgreement sharedECDH;
 
-  private static KeyAgreement sharedKeyAgreement;
-
-  public static void init() {
+  public CurveSECP256k1() {
     sharedPrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.ALG_TYPE_EC_FP_PRIVATE,
         JCSystem.MEMORY_TYPE_TRANSIENT_DESELECT, KeyBuilder.LENGTH_EC_FP_256, false);
 
@@ -64,29 +63,26 @@ public final class LibSECP256k1 {
       sharedPrivateKey = (ECPrivateKey) keyPair.getPrivate();
     }
 
-    sharedKeyAgreement = KeyAgreement.getInstance(KeyAgreement.ALG_EC_SVDP_DH_PLAIN_XY, false);
+    sharedECDH = KeyAgreement.getInstance(KeyAgreement.ALG_EC_SVDP_DH_PLAIN_XY, false);
   }
 
-  public static void dispose() {
-    sharedPrivateKey = null;
-    sharedKeyAgreement = null;
+  @Override
+  public byte[] getR() {
+    return R;
   }
 
-  public static void setDomainParameters(ECKey key) {
-    key.setFieldFP(FP, (short) 0x00, (short) FP.length);
-    key.setA(A, (short) 0x00, (short) A.length);
-    key.setB(B, (short) 0x00, (short) B.length);
-    key.setG(G, (short) 0x00, (short) G.length);
-    key.setR(R, (short) 0x00, (short) R.length);
-    key.setK(K);
-  }
-
-  public static ECPrivateKey getSharedPrivateKey(byte[] privateKeyBuffer, short privateKeyBufferOffset) {
+  @Override
+  public ECPrivateKey getSharedPrivateKey(byte[] in, short keyOffset) {
     if (!sharedPrivateKey.isInitialized()) {
-      setDomainParameters(sharedPrivateKey);
+      sharedPrivateKey.setFieldFP(FP, (short) 0x00, (short) FP.length);
+      sharedPrivateKey.setA(A, (short) 0x00, (short) A.length);
+      sharedPrivateKey.setB(B, (short) 0x00, (short) B.length);
+      sharedPrivateKey.setG(G, (short) 0x00, (short) G.length);
+      sharedPrivateKey.setR(R, (short) 0x00, (short) R.length);
+      sharedPrivateKey.setK(K);
     }
 
-    sharedPrivateKey.setS(privateKeyBuffer, privateKeyBufferOffset, KEY_BYTES);
+    sharedPrivateKey.setS(in, keyOffset, KEY_LENGTH);
 
     return sharedPrivateKey;
   }
@@ -94,13 +90,14 @@ public final class LibSECP256k1 {
   /**
    * @return length of compressed public key
    */
-  public static short derivePublicKey(ECPrivateKey privateKey, byte[] out, short outOffset) {
-    sharedKeyAgreement.init(privateKey);
+  @Override
+  public short derivePublicKey(ECPrivateKey privateKey, byte[] out, short outOffset) {
+    sharedECDH.init(privateKey);
 
-    byte[] publicKey = JCSystem.makeTransientByteArray((short) (KEY_BYTES * 2 + 1),
+    byte[] publicKey = JCSystem.makeTransientByteArray((short) (KEY_LENGTH * 2 + 1),
         JCSystem.CLEAR_ON_DESELECT);
 
-    sharedKeyAgreement.generateSecret(G, (short) 0, (short) G.length, publicKey, (short) 0);
+    sharedECDH.generateSecret(G, (short) 0, (short) G.length, publicKey, (short) 0);
 
     return compressPublicKey(publicKey, (short) 0, out, outOffset);
   }
@@ -108,10 +105,14 @@ public final class LibSECP256k1 {
   /**
    * @return length of compressed public key
    */
-  public static short compressPublicKey(byte[] publicKey, short publicKeyOffset, byte[] out, short outOffset) {
-    out[outOffset] = (byte) ((publicKey[(short) (publicKeyOffset + KEY_BYTES * 2)] & 1) != 0 ? 0x03 : 0x02);
+  private short compressPublicKey(byte[] publicKey, short publicKeyOffset, byte[] out, short outOffset) {
+    out[outOffset] = (byte) ((publicKey[(short) (publicKeyOffset + KEY_LENGTH * 2)] & 1) != 0 ? 0x03 : 0x02);
 
-    return (short) (Util.arrayCopyNonAtomic(publicKey, (short) (publicKeyOffset + 1), out, (short) (outOffset + 1),
-        KEY_BYTES) - outOffset);
+    Util.arrayCopyNonAtomic(
+        publicKey, (short) (publicKeyOffset + 1),
+        out, (short) (outOffset + 1),
+        KEY_LENGTH);
+
+    return (short) (1 + KEY_LENGTH);
   }
 }

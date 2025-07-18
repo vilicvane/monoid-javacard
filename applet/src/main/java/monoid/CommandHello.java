@@ -11,7 +11,7 @@ public final class CommandHello extends Command {
     OwnerPIN pin = MonoidApplet.pin;
     MonoidSafe safe = MonoidApplet.safe;
 
-    writer.map((short) 3);
+    writer.map((short) 4);
     {
       writer.text(Text.versions);
       writer.map((short) 2);
@@ -25,6 +25,16 @@ public final class CommandHello extends Command {
           writer.integer((short) (JCSystem.getVersion() >> 8));
           writer.integer((short) (JCSystem.getVersion() & 0xFF));
         }
+      }
+
+      writer.text(Text.features);
+      writer.map((short) 2);
+      {
+        writer.text(Text.curves);
+        Curve.writeSupportedCurves(writer);
+
+        writer.text(Text.ciphers);
+        Signer.writeSupportedCiphers(writer);
       }
 
       writer.text(Text.pin);

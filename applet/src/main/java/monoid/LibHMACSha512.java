@@ -34,13 +34,13 @@ public final class LibHMACSha512 {
 
   public static short digest(
       byte[] key, short keyOffset, short keyLength,
-      byte[] in, short dataOffset, short dataLength,
+      byte[] data, short dataOffset, short dataLength,
       byte[] out, short outOffset) {
     if (sharedSignature != null && sharedKey != null) {
       sharedKey.setKey(key, keyOffset, keyLength);
       sharedSignature.init(sharedKey, Signature.MODE_SIGN);
 
-      return sharedSignature.sign(in, dataOffset, dataLength, out, outOffset);
+      return sharedSignature.sign(data, dataOffset, dataLength, out, outOffset);
     } else {
       byte[] block = JCSystem.makeTransientByteArray(BLOCK_BYTES, JCSystem.CLEAR_ON_DESELECT);
 
@@ -51,7 +51,7 @@ public final class LibHMACSha512 {
       }
 
       sharedDigest.update(block, (short) 0, BLOCK_BYTES);
-      sharedDigest.doFinal(in, dataOffset, dataLength, out, outOffset);
+      sharedDigest.doFinal(data, dataOffset, dataLength, out, outOffset);
 
       Util.arrayFillNonAtomic(block, (short) 0, BLOCK_BYTES, OPAD);
 

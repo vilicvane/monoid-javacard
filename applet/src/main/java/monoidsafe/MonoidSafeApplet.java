@@ -69,21 +69,24 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   }
 
   @Override
-  public short get(byte[] buffer, short offset, byte indexLength) {
+  public byte[] get(byte[] buffer, short offset, byte indexLength) {
     assertAccess();
 
     for (short index = 0; index < itemsLength; index++) {
       Item item = items[index];
 
       if (item.matches(buffer, offset, indexLength)) {
-        Util.arrayCopyNonAtomic(item.data, indexLength, buffer, (short) (offset + indexLength),
-            (short) (item.data.length - indexLength));
+        short length = (short) (item.data.length - indexLength);
 
-        return (short) item.data.length;
+        byte[] data = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, length);
+
+        Util.arrayCopyNonAtomic(item.data, indexLength, data, (short) 0, length);
+
+        return data;
       }
     }
 
-    return 0;
+    return null;
   }
 
   @Override

@@ -15,7 +15,7 @@ public interface MonoidSafe extends Shareable {
 
   public boolean exists(byte[] buffer, short offset, byte indexLength);
 
-  public short get(byte[] buffer, short offset, byte indexLength);
+  public byte[] get(byte[] buffer, short offset, byte indexLength);
 
   public void set(byte[] buffer, short offset, byte indexLength, short length);
 

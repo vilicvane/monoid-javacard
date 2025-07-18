@@ -31,6 +31,10 @@ type Response = {
     monoid: number;
     javacard: [number, number];
   };
+  features: {
+    curves: string[];
+    ciphers: string[];
+  };
   /** Tries remaining for the PIN, or `false` if the PIN is not set. */
   pin: number | false;
   safe: {
@@ -58,3 +62,5 @@ type Response = {};
 ```
 
 > In case of Monoid Applet reinstallation, it loses the safe PIN. Setting safe PIN again (to either the same or a different PIN) will store the PIN in Monoid Applet (and essentially unlock the safe).
+
+#### `0x22` Generate Master Key
