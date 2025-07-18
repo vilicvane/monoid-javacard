@@ -13,8 +13,12 @@ public class Text {
       'e', 'r', 'r', 'o', 'r' };
   public static final byte[] features = {
       'f', 'e', 'a', 't', 'u', 'r', 'e', 's' };
+  public static final byte[] index = {
+      'i', 'n', 'd', 'e', 'x' };
   public static final byte[] indexes = {
       'i', 'n', 'd', 'e', 'x', 'e', 's' };
+  public static final byte[] items = {
+      'i', 't', 'e', 'm', 's' };
   public static final byte[] javacard = {
       'j', 'a', 'v', 'a', 'c', 'a', 'r', 'd' };
   public static final byte[] monoid = {

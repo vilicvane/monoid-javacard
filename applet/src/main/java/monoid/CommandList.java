@@ -15,10 +15,17 @@ public class CommandList extends Command {
 
     writer.map((short) 1);
     {
-      writer.text(Text.indexes);
+      writer.text(Text.items);
       writer.array((short) (data.length / Safe.INDEX_LENGTH));
       for (short offset = 0; offset < data.length; offset += Safe.INDEX_LENGTH) {
-        writer.bytes(data, offset, Safe.INDEX_LENGTH);
+        writer.map((short) 2);
+        {
+          writer.text(Text.type);
+          writer.text(Safe.type(data[offset]));
+
+          writer.text(Text.index);
+          writer.bytes(data, offset, Safe.INDEX_LENGTH);
+        }
       }
     }
 

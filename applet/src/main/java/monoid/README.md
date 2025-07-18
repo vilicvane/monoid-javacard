@@ -69,11 +69,24 @@ type Response = {};
 
 > In case of Monoid Applet reinstallation, it loses the safe PIN. Setting safe PIN again (to either the same or a different PIN) will store the PIN in Monoid Applet (and essentially unlock the safe).
 
-#### `0x30` List
+#### `0x30` List safe items
+
+```ts
+type SafeItemType = 'seed' | 'master' | 'raw';
+```
 
 ```ts
 type Request = AuthRequest & {
-  type?: 'seed' | 'master' | 'raw';
+  type?: SafeItemType;
+};
+```
+
+```ts
+type Response = {
+  items: {
+    type: SafeItemType;
+    index: byte[];
+  }[];
 };
 ```
 
@@ -87,6 +100,6 @@ type Request = AuthRequest & {
 
 ```ts
 type Response = {
-  indexes: byte[][];
+  index: byte[];
 };
 ```
