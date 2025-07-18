@@ -27,6 +27,20 @@ public final class Keystore {
     this.safe = safe;
   }
 
+  public short createRandomKey(byte type, byte length, byte[] out, short outOffset) throws KeystoreException {
+    switch (type) {
+      case TYPE_SEED:
+        return createRandomSeed(out, outOffset);
+      case TYPE_MASTER:
+        return createRandomMaster(out, outOffset);
+      case TYPE_RAW:
+        return createRandomRaw(length, out, outOffset);
+      default:
+        KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+        return 0;
+    }
+  }
+
   public short createRandomSeed(byte[] out, short outOffset) {
     return createRandom(TYPE_SEED, SEED_LENGTH, out, outOffset);
   }

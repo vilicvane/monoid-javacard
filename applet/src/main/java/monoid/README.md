@@ -4,7 +4,7 @@ Monoid Applet is the gateway between apps (e.g., the Monoid App), the Monoid Saf
 
 ## ISO-7816 Commands
 
-### Command Authentication
+### Command authentication
 
 Command authentication is done by PIN validation. A request must provide either an access PIN (for MonoidApplet-managed access) or a safe PIN.
 
@@ -12,12 +12,18 @@ Command authentication is done by PIN validation. A request must provide either 
 type AuthRequest = {
   auth: {
     pin: string;
-    safe?: true;
+  };
+};
+
+type SafeAuthRequest = {
+  auth: {
+    pin: string;
+    safe: true;
   };
 };
 ```
 
-### `0x20` ~ `0x2F` Security Management
+### `0x20` ~ `0x2F` Security management
 
 #### `0x20` Hello
 
@@ -51,7 +57,7 @@ type Response = {
 - Requires authentication with safe PIN if it is set.
 
 ```ts
-type Request = (AuthRequest | {}) & {
+type Request = (SafeAuthRequest | {}) & {
   pin: string;
   safe?: true;
 };
@@ -63,4 +69,18 @@ type Response = {};
 
 > In case of Monoid Applet reinstallation, it loses the safe PIN. Setting safe PIN again (to either the same or a different PIN) will store the PIN in Monoid Applet (and essentially unlock the safe).
 
-#### `0x22` Generate Master Key
+#### `0x30` List keys
+
+#### `0x31` Create random key
+
+```ts
+type Request = AuthRequest & {
+  type: 'seed' | 'master' | 'raw';
+};
+```
+
+```ts
+type Response = {
+  index: byte[];
+};
+```

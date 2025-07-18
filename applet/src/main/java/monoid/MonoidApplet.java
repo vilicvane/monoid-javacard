@@ -19,9 +19,6 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
 
   public static Keystore keystore;
 
-  public static CBORApduReader apduReader;
-  public static CBORApduWriter apduWriter;
-
   public static void install(byte[] bArray, short bOffset, byte bLength) {
     CurveException.init();
     KeystoreException.init();
@@ -30,10 +27,9 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
     CurveSECP256k1.init();
     LibHMACSha512.init();
 
-    pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE);
+    Command.init();
 
-    apduReader = new CBORApduReader();
-    apduWriter = new CBORApduWriter();
+    pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE);
 
     new MonoidApplet().register();
   }
@@ -46,15 +42,14 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
     CurveSECP256k1.dispose();
     LibHMACSha512.dispose();
 
+    Command.dispose();
+
     pin = null;
 
     safe = null;
     safePIN = null;
 
     keystore = null;
-
-    apduReader = null;
-    apduWriter = null;
   }
 
   public void process(APDU apdu) {
@@ -64,68 +59,69 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
 
     ensureInitialization();
 
-    apduReader.reset();
-    apduWriter.reset();
+    Command command;
 
-    byte[] buffer = apdu.getBuffer();
-
-    switch (buffer[ISO7816.OFFSET_INS]) {
+    switch (apdu.getBuffer()[ISO7816.OFFSET_INS]) {
       case 0x20:
-        CommandHello.run();
+        command = Command.hello;
         break;
       case 0x21:
-        CommandSetPIN.run();
+        command = Command.setPIN;
         break;
-      // case 0x01:
-      //   short publicKeyLength = keystore.genKey(Keystore.TYPE_RAW, buffer, (short) 0);
-      //   apdu.setOutgoingAndSend((short) 0, publicKeyLength);
-      //   break;
-      // case 0x02:
-      //   short signatureLength = keystore.sign(
-      //       buffer,
-      //       ISO7816.OFFSET_CDATA,
-      //       (short) (Keystore.SAFE_INDEX_LENGTH + ISO7816.OFFSET_CDATA), (byte) 32,
-      //       buffer, (short) 0);
-      //   apdu.setOutgoingAndSend((short) 0, signatureLength);
-      //   break;
-      // case 0x03:
-      //   short offset = ISO7816.OFFSET_CDATA;
-
-      //   byte[] key = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
-
-      //   Util.arrayCopyNonAtomic(buffer, offset, key, (short) 0, (short) 32);
-
-      //   short digestLength = LibHMACSha512.digest(
-      //       // key
-      //       key, (short) 0, (short) 32,
-      //       // data
-      //       buffer, (short) (offset + 32), (short) 37,
-      //       buffer, (short) 0);
-
-      //   apdu.setOutgoingAndSend((short) 0, digestLength);
-      //   break;
-      // case 0x04:
-      //   byte[] privateKeyAndChainCode = JCSystem.makeTransientByteArray((short) (CurveSECP256k1.KEY_LENGTH * 2),
-      //       JCSystem.CLEAR_ON_DESELECT);
-
-      //   short pathOffset = (short) (ISO7816.OFFSET_CDATA
-      //       + Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, privateKeyAndChainCode, (short) 0,
-      //           (short) (CurveSECP256k1.KEY_LENGTH * 2)));
-
-      //   LibBIP32.deriveChildKey(privateKeyAndChainCode, buffer, pathOffset);
-
-      //   Util.arrayCopyNonAtomic(privateKeyAndChainCode, (short) 0, buffer, (short) 0,
-      //       (short) privateKeyAndChainCode.length);
-
-      //   apdu.setOutgoingAndSend((short) 0, (short) privateKeyAndChainCode.length);
-      //   break;
-      // case 0x05:
-      //   short length = safe.get(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC]);
-      //   apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, length);
-      //   break;
       default:
         ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+        return;
     }
+
+    command.runCommand();
+
+    // case 0x01:
+    //   short publicKeyLength = keystore.genKey(Keystore.TYPE_RAW, buffer, (short) 0);
+    //   apdu.setOutgoingAndSend((short) 0, publicKeyLength);
+    //   break;
+    // case 0x02:
+    //   short signatureLength = keystore.sign(
+    //       buffer,
+    //       ISO7816.OFFSET_CDATA,
+    //       (short) (Keystore.SAFE_INDEX_LENGTH + ISO7816.OFFSET_CDATA), (byte) 32,
+    //       buffer, (short) 0);
+    //   apdu.setOutgoingAndSend((short) 0, signatureLength);
+    //   break;
+    // case 0x03:
+    //   short offset = ISO7816.OFFSET_CDATA;
+
+    //   byte[] key = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
+
+    //   Util.arrayCopyNonAtomic(buffer, offset, key, (short) 0, (short) 32);
+
+    //   short digestLength = LibHMACSha512.digest(
+    //       // key
+    //       key, (short) 0, (short) 32,
+    //       // data
+    //       buffer, (short) (offset + 32), (short) 37,
+    //       buffer, (short) 0);
+
+    //   apdu.setOutgoingAndSend((short) 0, digestLength);
+    //   break;
+    // case 0x04:
+    //   byte[] privateKeyAndChainCode = JCSystem.makeTransientByteArray((short) (CurveSECP256k1.KEY_LENGTH * 2),
+    //       JCSystem.CLEAR_ON_DESELECT);
+
+    //   short pathOffset = (short) (ISO7816.OFFSET_CDATA
+    //       + Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, privateKeyAndChainCode, (short) 0,
+    //           (short) (CurveSECP256k1.KEY_LENGTH * 2)));
+
+    //   LibBIP32.deriveChildKey(privateKeyAndChainCode, buffer, pathOffset);
+
+    //   Util.arrayCopyNonAtomic(privateKeyAndChainCode, (short) 0, buffer, (short) 0,
+    //       (short) privateKeyAndChainCode.length);
+
+    //   apdu.setOutgoingAndSend((short) 0, (short) privateKeyAndChainCode.length);
+    //   break;
+    // case 0x05:
+    //   short length = safe.get(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC]);
+    //   apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, length);
+    //   break;
 
     // ISOException.throwIt(ISO7816.SW_NO_ERROR);
   }
@@ -178,14 +174,14 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
     return safePIN != null;
   }
 
-  public static void checkSafeUnlocked() {
+  public static void checkSafeUnlocked() throws MonoidException {
     if (safePIN == null) {
-      Command.sendError(ErrorCode.SAFE_LOCKED);
+      MonoidException.throwIt(MonoidException.CODE_SAFE_LOCKED);
       return;
     }
 
     if (safe.getPINTriesRemaining() == 0) {
-      Command.sendError(ErrorCode.SAFE_BLOCKED);
+      MonoidException.throwIt(MonoidException.CODE_SAFE_BLOCKED);
       return;
     }
 
@@ -195,7 +191,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
 
     if (!safe.checkPIN(buffer, (short) 0, (byte) safePIN.length)) {
       safePIN = null;
-      Command.sendError(ErrorCode.SAFE_LOCKED);
+      MonoidException.throwIt(MonoidException.CODE_SAFE_LOCKED);
       return;
     }
   }

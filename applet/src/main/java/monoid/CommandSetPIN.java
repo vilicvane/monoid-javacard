@@ -6,7 +6,8 @@ import monoidsafe.MonoidSafe;
 import monoidsafe.MonoidSafeApplet;
 
 public final class CommandSetPIN extends Command {
-  public static void run() {
+  @Override
+  protected void run() throws MonoidException {
     byte auth = getAuth();
 
     MonoidSafe safe = MonoidApplet.safe;
@@ -16,12 +17,9 @@ public final class CommandSetPIN extends Command {
         // `MonoidApplet.pinSet` is redundant as MonoidApplet PIN is not allowed
         // to be set without safe PIN being set.
 
-        sendError(ErrorCode.UNAUTHORIZED);
-        return;
+        MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
       }
     }
-
-    CBORApduReader reader = MonoidApplet.apduReader;
 
     reader.map();
 
@@ -47,8 +45,7 @@ public final class CommandSetPIN extends Command {
     } else {
       if (!safe.isPINSet()) {
         // Set safe PIN is required before setting MonoidApplet PIN.
-        sendError(ErrorCode.SAFE_PIN_NOT_SET);
-        return;
+        MonoidException.throwIt(MonoidException.CODE_SAFE_PIN_NOT_SET);
       }
 
       if (MonoidApplet.pinSet) {
@@ -58,6 +55,6 @@ public final class CommandSetPIN extends Command {
       MonoidApplet.updatePIN(buffer, (short) 0, (byte) length);
     }
 
-    writeEmptyMap();
+    sendEmptyMap();
   }
 }

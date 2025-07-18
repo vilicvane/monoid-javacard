@@ -5,9 +5,8 @@ import javacard.framework.*;
 import monoidsafe.MonoidSafe;
 
 public final class CommandHello extends Command {
-  public static void run() {
-    CBORApduWriter writer = MonoidApplet.apduWriter;
-
+  @Override
+  protected void run() {
     OwnerPIN pin = MonoidApplet.pin;
     MonoidSafe safe = MonoidApplet.safe;
 
