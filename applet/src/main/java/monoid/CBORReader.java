@@ -137,7 +137,11 @@ public abstract class CBORReader {
     offset = arrayOffset;
 
     for (short skipping = 0; skipping < index; skipping++) {
-      next();
+      if (br()) {
+        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+      }
+
+      skip();
     }
   }
 
@@ -180,7 +184,7 @@ public abstract class CBORReader {
         return true;
       }
 
-      next();
+      skip();
     }
 
     offset = mapOffset;
@@ -255,12 +259,13 @@ public abstract class CBORReader {
     }
   }
 
-  public void next() {
+  public void skip() {
     byte[] buffer = getBuffer();
 
     switch (buffer[offset]) {
       case CBOR.FALSE:
-      case CBOR.TRUE: {
+      case CBOR.TRUE:
+      case CBOR.BREAK: {
         offset++;
         return;
       }
@@ -283,12 +288,15 @@ public abstract class CBORReader {
         short length = metadataItemsLength();
 
         for (short index = 0; length < 0 || index < length; index++) {
-          if (buffer[offset] == CBOR.BREAK) {
-            offset++;
-            break;
+          if (br()) {
+            if (length < 0) {
+              break;
+            }
+
+            ISOException.throwIt(ISO7816.SW_WRONG_DATA);
           }
 
-          next();
+          skip();
         }
 
         break;
@@ -297,13 +305,16 @@ public abstract class CBORReader {
         short length = metadataItemsLength();
 
         for (short index = 0; length < 0 || index < length; index++) {
-          if (buffer[offset] == CBOR.BREAK) {
-            offset++;
-            break;
+          if (br()) {
+            if (length < 0) {
+              break;
+            }
+
+            ISOException.throwIt(ISO7816.SW_WRONG_DATA);
           }
 
-          next(); // key
-          next(); // value
+          skip(); // key
+          skip(); // value
         }
 
         break;
