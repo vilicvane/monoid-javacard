@@ -6,19 +6,10 @@ import javacard.security.*;
 import monoidsafe.MonoidSafe;
 
 public final class Keystore {
-  public static final byte TYPE_SEED = 0x01;
-  public static final byte TYPE_MASTER = 0x02;
-  public static final byte TYPE_RAW = 0x03;
-
-  public static final byte SIG_CIPHER_ECDSA = 0x01;
-
-  public static final byte SAFE_INDEX_DIGEST_LENGTH = 8;
-  public static final byte SAFE_INDEX_LENGTH = 1 + SAFE_INDEX_DIGEST_LENGTH;
-
   public static final byte SEED_LENGTH = 64;
 
   public static final byte MASTER_LENGTH = LibBIP32.COMPONENT_LENGTH * 2;
-  public static final byte MASTER_PRIVATE_KEY_OFFSET = SAFE_INDEX_LENGTH;
+  public static final byte MASTER_PRIVATE_KEY_OFFSET = Safe.INDEX_LENGTH;
   public static final byte MASTER_CHAIN_CODE_OFFSET = MASTER_PRIVATE_KEY_OFFSET + LibBIP32.COMPONENT_LENGTH;
 
   private MonoidSafe safe;
@@ -29,11 +20,11 @@ public final class Keystore {
 
   public short createRandomKey(byte type, byte length, byte[] out, short outOffset) throws KeystoreException {
     switch (type) {
-      case TYPE_SEED:
+      case Safe.TYPE_SEED:
         return createRandomSeed(out, outOffset);
-      case TYPE_MASTER:
+      case Safe.TYPE_MASTER:
         return createRandomMaster(out, outOffset);
-      case TYPE_RAW:
+      case Safe.TYPE_RAW:
         return createRandomRaw(length, out, outOffset);
       default:
         KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
@@ -42,15 +33,15 @@ public final class Keystore {
   }
 
   public short createRandomSeed(byte[] out, short outOffset) {
-    return createRandom(TYPE_SEED, SEED_LENGTH, out, outOffset);
+    return createRandom(Safe.TYPE_SEED, SEED_LENGTH, out, outOffset);
   }
 
   public short createRandomMaster(byte[] out, short outOffset) {
-    return createRandom(TYPE_MASTER, MASTER_LENGTH, out, outOffset);
+    return createRandom(Safe.TYPE_MASTER, MASTER_LENGTH, out, outOffset);
   }
 
   public short createRandomRaw(byte length, byte[] out, short outOffset) {
-    return createRandom(TYPE_RAW, length, out, outOffset);
+    return createRandom(Safe.TYPE_RAW, length, out, outOffset);
   }
 
   private short createRandom(byte type, byte length, byte[] out, short outOffset) {
@@ -72,13 +63,13 @@ public final class Keystore {
 
     OneShot.digest(MessageDigest.ALG_SHA_256, in, keyOffset, keyLength, digest, (short) 0);
 
-    byte[] key = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) (SAFE_INDEX_LENGTH + keyLength));
+    byte[] key = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) (Safe.INDEX_LENGTH + keyLength));
 
     key[0] = type;
-    Util.arrayCopyNonAtomic(digest, (short) 0, key, (short) 1, SAFE_INDEX_DIGEST_LENGTH);
-    Util.arrayCopyNonAtomic(in, keyOffset, key, SAFE_INDEX_LENGTH, keyLength);
+    Util.arrayCopyNonAtomic(digest, (short) 0, key, (short) 1, Safe.INDEX_DIGEST_LENGTH);
+    Util.arrayCopyNonAtomic(in, keyOffset, key, Safe.INDEX_LENGTH, keyLength);
 
-    safe.set(key, (short) 0, SAFE_INDEX_LENGTH, (short) key.length);
+    safe.set(key, (short) 0, Safe.INDEX_LENGTH, (short) key.length);
 
     out[outOffset++] = type;
     outOffset = Util.arrayCopyNonAtomic(digest, (short) 0, out, outOffset, (short) 8);
@@ -98,14 +89,14 @@ public final class Keystore {
 
     byte type = in[indexOffset];
 
-    byte[] data = safe.get(in, indexOffset, SAFE_INDEX_LENGTH);
+    byte[] data = safe.get(in, indexOffset, Safe.INDEX_LENGTH);
 
     if (data == null) {
       KeystoreException.throwIt(KeystoreException.REASON_KEY_NOT_FOUND);
       return 0;
     }
 
-    if (type == TYPE_SEED) {
+    if (type == Safe.TYPE_SEED) {
       byte[] master = JCSystem.makeTransientByteArray(MASTER_LENGTH, JCSystem.CLEAR_ON_DESELECT);
 
       LibHMACSha512.digest(
@@ -113,13 +104,13 @@ public final class Keystore {
           data, (short) 0, (short) data.length,
           master, (short) 0);
 
-      type = TYPE_MASTER;
+      type = Safe.TYPE_MASTER;
       data = master;
     }
 
     Curve curve = Curve.requireSharedCurve(in, curveOffset, curveLength);
 
-    if (type == TYPE_MASTER) {
+    if (type == Safe.TYPE_MASTER) {
       if (data.length != MASTER_LENGTH) {
         KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
         return 0;
@@ -127,10 +118,10 @@ public final class Keystore {
 
       LibBIP32.deriveInPlace(curve, data, in, pathOffset, pathLength);
 
-      type = TYPE_RAW;
+      type = Safe.TYPE_RAW;
     }
 
-    if (type != TYPE_RAW) {
+    if (type != Safe.TYPE_RAW) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
       return 0;
     }

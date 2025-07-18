@@ -20,6 +20,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
   public static Keystore keystore;
 
   public static void install(byte[] bArray, short bOffset, byte bLength) {
+    MonoidException.init();
     CurveException.init();
     KeystoreException.init();
     SignerException.init();
@@ -35,6 +36,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
   }
 
   public void uninstall() {
+    MonoidException.dispose();
     CurveException.dispose();
     KeystoreException.dispose();
     SignerException.dispose();
@@ -59,18 +61,11 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent, Extende
 
     ensureInitialization();
 
-    Command command;
+    Command command = Command.get(apdu.getBuffer()[ISO7816.OFFSET_INS]);
 
-    switch (apdu.getBuffer()[ISO7816.OFFSET_INS]) {
-      case 0x20:
-        command = Command.hello;
-        break;
-      case 0x21:
-        command = Command.setPIN;
-        break;
-      default:
-        ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
-        return;
+    if (command == null) {
+      ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+      return;
     }
 
     command.runCommand();

@@ -13,7 +13,7 @@ public interface MonoidSafe extends Shareable {
 
   public boolean isPINValidated();
 
-  public boolean exists(byte[] buffer, short offset, byte indexLength);
+  public byte[] list(byte type, byte indexLength);
 
   public byte[] get(byte[] buffer, short offset, byte indexLength);
 

@@ -2,7 +2,7 @@ package monoid;
 
 import javacard.framework.*;
 
-public class MonoidException extends CardException {
+public class MonoidException extends CardRuntimeException {
   public static final byte[] CODE_ACCESS_DENIED = {
       'A', 'C', 'C', 'E', 'S', 'S', '_', 'D', 'E', 'N', 'I', 'E', 'D' };
   public static final byte[] CODE_INVALID_PARAMETER = {
@@ -36,7 +36,6 @@ public class MonoidException extends CardException {
 
   public static void throwIt(byte[] code) throws MonoidException {
     instance.code = code;
-
     throw instance;
   }
 
@@ -49,5 +48,9 @@ public class MonoidException extends CardException {
 
   public short getReason() {
     return reason;
+  }
+
+  public void send() {
+    Command.sendError(code);
   }
 }

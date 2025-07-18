@@ -1,6 +1,6 @@
 package monoid;
 
-import javacard.framework.Util;
+import javacard.framework.*;
 
 public abstract class CBORWriter {
   private short initialOffset;

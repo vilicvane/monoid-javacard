@@ -13,6 +13,8 @@ public class Text {
       'e', 'r', 'r', 'o', 'r' };
   public static final byte[] features = {
       'f', 'e', 'a', 't', 'u', 'r', 'e', 's' };
+  public static final byte[] indexes = {
+      'i', 'n', 'd', 'e', 'x', 'e', 's' };
   public static final byte[] javacard = {
       'j', 'a', 'v', 'a', 'c', 'a', 'r', 'd' };
   public static final byte[] monoid = {
@@ -23,6 +25,8 @@ public class Text {
       's', 'a', 'f', 'e' };
   public static final byte[] tries = {
       't', 'r', 'i', 'e', 's' };
+  public static final byte[] type = {
+      't', 'y', 'p', 'e' };
   public static final byte[] unlocked = {
       'u', 'n', 'l', 'o', 'c', 'k', 'e', 'd' };
   public static final byte[] versions = {

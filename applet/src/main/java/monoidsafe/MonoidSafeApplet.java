@@ -56,16 +56,36 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   }
 
   @Override
-  public boolean exists(byte[] buffer, short offset, byte indexLength) {
+  public byte[] list(byte type, byte indexLength) {
     assertAccess();
 
-    for (short index = 0; index < itemsLength; index++) {
-      if (items[index].matches(buffer, offset, indexLength)) {
-        return true;
+    short count;
+
+    if (type == 0) {
+      count = itemsLength;
+    } else {
+      count = 0;
+
+      for (short index = 0; index < itemsLength; index++) {
+        if (items[index].matches(type)) {
+          count++;
+        }
       }
     }
 
-    return false;
+    byte[] data = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) (indexLength * count));
+
+    short offset = 0;
+
+    for (short index = 0; index < itemsLength; index++) {
+      Item item = items[index];
+
+      if (type == 0 || item.matches(type)) {
+        offset = Util.arrayCopyNonAtomic(item.data, (short) 0, data, offset, indexLength);
+      }
+    }
+
+    return data;
   }
 
   @Override
@@ -199,6 +219,10 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
 
     public boolean matches(byte[] buffer, short offset, byte indexLength) {
       return data.length > indexLength && Util.arrayCompare(data, (short) 0, buffer, offset, indexLength) == 0;
+    }
+
+    public boolean matches(byte type) {
+      return data[0] == type;
     }
   }
 }

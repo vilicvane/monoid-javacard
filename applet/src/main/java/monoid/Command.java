@@ -14,6 +14,7 @@ public abstract class Command {
 
   public static Command hello;
   public static Command setPIN;
+  public static Command list;
 
   public static void init() {
     reader = new CBORApduReader();
@@ -21,6 +22,7 @@ public abstract class Command {
 
     hello = new CommandHello();
     setPIN = new CommandSetPIN();
+    list = new CommandList();
   }
 
   public static void dispose() {
@@ -29,6 +31,20 @@ public abstract class Command {
 
     hello = null;
     setPIN = null;
+    list = null;
+  }
+
+  public static Command get(byte ins) {
+    switch (ins) {
+      case 0x20:
+        return hello;
+      case 0x21:
+        return setPIN;
+      case 0x30:
+        return list;
+      default:
+        return null;
+    }
   }
 
   protected static void sendEmptyMap() {
@@ -61,7 +77,7 @@ public abstract class Command {
     try {
       run();
     } catch (MonoidException e) {
-      sendError(e.code);
+      e.send();
     }
   }
 
@@ -133,10 +149,7 @@ public abstract class Command {
   protected byte requireAuth(byte requiredAuth) throws MonoidException {
     byte auth = getAuth();
 
-    if ((auth & requiredAuth) == 0) {
-      MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
-      return 0;
-    }
+    assertAuth(auth, requiredAuth);
 
     return auth;
   }
