@@ -19,6 +19,15 @@ public class CBORTest {
   private byte[] example = Hex.decode(
       "83A362696401646E616D6565416C6963656561646D696EF5A36269641820646E616D6563426F626561646D696EF4A4626964190200646E616D65654361726F6C6561646D696EF565657874726120");
 
+  /**
+   * [
+   *   { "hello": true, "world": false },
+   *   true
+   * ]
+   */
+  private byte[] exampleIndefinite = Hex.decode(
+      "9FBF6568656C6C6FF565776F726C64F4FFF5FF");
+
   @Test
   public void read() {
     TestCBORReader cbor = new TestCBORReader(example);
@@ -71,6 +80,29 @@ public class CBORTest {
 
     Assert.assertTrue(cbor.key("admin".getBytes()));
     Assert.assertEquals(cbor.bool(), false);
+  }
+
+  @Test
+  public void read_indefinite() {
+    TestCBORReader cbor = new TestCBORReader(exampleIndefinite);
+
+    Assert.assertEquals(cbor.array(), -1);
+
+    Assert.assertEquals(cbor.map(), -1);
+
+    Assert.assertTrue(cbor.key("hello".getBytes()));
+    Assert.assertEquals(cbor.bool(), true);
+
+    Assert.assertTrue(cbor.key("world".getBytes()));
+    Assert.assertEquals(cbor.bool(), false);
+
+    Assert.assertTrue(cbor.br());
+
+    Assert.assertFalse(cbor.br());
+
+    Assert.assertTrue(cbor.bool());
+
+    Assert.assertTrue(cbor.br());
   }
 
   @Test
@@ -131,6 +163,35 @@ public class CBORTest {
     }
 
     Assert.assertArrayEquals(buffer, example);
+  }
+
+  @Test
+  public void write_indefinite() {
+    byte[] buffer = new byte[exampleIndefinite.length];
+
+    TestCBORWriter cbor = new TestCBORWriter(buffer);
+
+    cbor.array();
+    {
+      cbor.map();
+      {
+        cbor.text("hello".getBytes());
+        cbor.bool(true);
+
+        cbor.text("world".getBytes());
+        cbor.bool(false);
+
+        cbor.br();
+      }
+
+      cbor.bool(true);
+
+      cbor.br();
+    }
+
+    System.out.println(Hex.toHexString(buffer));
+
+    Assert.assertArrayEquals(buffer, exampleIndefinite);
   }
 }
 

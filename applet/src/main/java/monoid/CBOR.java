@@ -16,7 +16,9 @@ public final class CBOR {
 
   public static final short MAX_SIMPLE_UNSIGNED_INT = 0b00010111;
   public static final short VARIABLE_LENGTH_UNSIGNED_INT_MARK = 0b11000;
+  public static final byte VARIABLE_LENGTH_INDEFINITE_MARK = 0b11111;
 
   public static final byte FALSE = (byte) 0b11110100;
   public static final byte TRUE = (byte) 0b11110101;
+  public static final byte BREAK = (byte) 0b11111111;
 }

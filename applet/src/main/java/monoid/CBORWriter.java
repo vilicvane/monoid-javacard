@@ -59,8 +59,16 @@ public abstract class CBORWriter {
     metadataUnsignedInteger(CBOR.TYPE_ARRAY, length);
   }
 
+  public void array() {
+    metadataIndefinite(CBOR.TYPE_ARRAY);
+  }
+
   public void map(short length) {
     metadataUnsignedInteger(CBOR.TYPE_MAP, length);
+  }
+
+  public void map() {
+    metadataIndefinite(CBOR.TYPE_MAP);
   }
 
   public void bool(boolean value) {
@@ -69,7 +77,13 @@ public abstract class CBORWriter {
     buffer[offset++] = value ? CBOR.TRUE : CBOR.FALSE;
   }
 
-  public void metadataUnsignedInteger(byte type, short value) {
+  public void br() {
+    byte[] buffer = getBuffer();
+
+    buffer[offset++] = CBOR.BREAK;
+  }
+
+  private void metadataUnsignedInteger(byte type, short value) {
     byte[] buffer = getBuffer();
 
     if (value <= CBOR.MAX_SIMPLE_UNSIGNED_INT) {
@@ -82,5 +96,11 @@ public abstract class CBORWriter {
       buffer[offset++] = (byte) (value >> 8);
       buffer[offset++] = (byte) value;
     }
+  }
+
+  private void metadataIndefinite(byte type) {
+    byte[] buffer = getBuffer();
+
+    buffer[offset++] = (byte) (type | CBOR.VARIABLE_LENGTH_INDEFINITE_MARK);
   }
 }

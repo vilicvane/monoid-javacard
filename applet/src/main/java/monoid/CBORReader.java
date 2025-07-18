@@ -126,7 +126,7 @@ public abstract class CBORReader {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
-    short length = metadataUnsignedInteger();
+    short length = metadataItemsLength();
 
     arrayOffset = offset;
 
@@ -148,7 +148,7 @@ public abstract class CBORReader {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
-    mapLength = metadataUnsignedInteger();
+    mapLength = metadataItemsLength();
 
     mapOffset = offset;
 
@@ -160,7 +160,12 @@ public abstract class CBORReader {
 
     offset = mapOffset;
 
-    for (short index = 0; index < mapLength; index++) {
+    for (short index = 0; mapLength < 0 || index < mapLength; index++) {
+      if (buffer[offset] == CBOR.BREAK) {
+        offset++;
+        return false;
+      }
+
       if ((buffer[offset] & CBOR.TYPE_MASK) != CBOR.TYPE_TEXT) {
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
       }
@@ -239,6 +244,17 @@ public abstract class CBORReader {
     return true;
   }
 
+  public boolean br() {
+    byte[] buffer = getBuffer();
+
+    if (buffer[offset] == CBOR.BREAK) {
+      offset++;
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   public void next() {
     byte[] buffer = getBuffer();
 
@@ -264,18 +280,28 @@ public abstract class CBORReader {
         break;
       }
       case CBOR.TYPE_ARRAY: {
-        short length = metadataUnsignedInteger();
+        short length = metadataItemsLength();
 
-        for (short index = 0; index < length; index++) {
+        for (short index = 0; length < 0 || index < length; index++) {
+          if (buffer[offset] == CBOR.BREAK) {
+            offset++;
+            break;
+          }
+
           next();
         }
 
         break;
       }
       case CBOR.TYPE_MAP: {
-        short length = metadataUnsignedInteger();
+        short length = metadataItemsLength();
 
-        for (short index = 0; index < length; index++) {
+        for (short index = 0; length < 0 || index < length; index++) {
+          if (buffer[offset] == CBOR.BREAK) {
+            offset++;
+            break;
+          }
+
           next(); // key
           next(); // value
         }
@@ -285,6 +311,17 @@ public abstract class CBORReader {
       default:
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
+  }
+
+  private short metadataItemsLength() {
+    byte[] buffer = getBuffer();
+
+    if ((buffer[offset] & CBOR.METADATA_MASK) == CBOR.VARIABLE_LENGTH_INDEFINITE_MARK) {
+      offset++;
+      return -1;
+    }
+
+    return metadataUnsignedInteger();
   }
 
   private short metadataUnsignedInteger() {
