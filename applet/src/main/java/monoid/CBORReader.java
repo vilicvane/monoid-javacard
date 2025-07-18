@@ -133,16 +133,26 @@ public abstract class CBORReader {
     return length;
   }
 
-  public void index(short index) {
+  public boolean index(short index) {
+    byte[] buffer = getBuffer();
+
     offset = arrayOffset;
 
-    for (short skipping = 0; skipping < index; skipping++) {
-      if (br()) {
-        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+    for (short skipping = 0; skipping <= index; skipping++) {
+      if (buffer[offset] == CBOR.BREAK) {
+        break;
+      }
+
+      if (skipping == index) {
+        return true;
       }
 
       skip();
     }
+
+    offset = arrayOffset;
+
+    return false;
   }
 
   public short map() {
@@ -166,8 +176,7 @@ public abstract class CBORReader {
 
     for (short index = 0; mapLength < 0 || index < mapLength; index++) {
       if (buffer[offset] == CBOR.BREAK) {
-        offset++;
-        return false;
+        break;
       }
 
       if ((buffer[offset] & CBOR.TYPE_MASK) != CBOR.TYPE_TEXT) {
