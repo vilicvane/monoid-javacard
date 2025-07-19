@@ -1,5 +1,7 @@
 package monoid;
 
+import javacard.framework.ISOException;
+
 public class CommandList extends Command {
   @Override
   protected void run() throws MonoidException {
@@ -22,10 +24,14 @@ public class CommandList extends Command {
       writer.text(Text.items);
       writer.array((short) (data.length / Safe.INDEX_LENGTH));
       for (short offset = 0; offset < data.length; offset += Safe.INDEX_LENGTH) {
-        writer.map((short) 2);
+        byte[] typeName = Safe.type(data[offset]);
+
+        writer.map((short) (typeName == null ? 1 : 2));
         {
-          writer.text(Text.type);
-          writer.text(Safe.type(data[offset]));
+          if (typeName != null) {
+            writer.text(Text.type);
+            writer.text(typeName);
+          }
 
           writer.text(Text.index);
           writer.bytes(data, offset, Safe.INDEX_LENGTH);

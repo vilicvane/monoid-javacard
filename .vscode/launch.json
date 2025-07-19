@@ -24,7 +24,7 @@
       "mainClass": "tests.MonoidAppletTest",
       "projectName": "applet",
       "env": {
-        "CARD_TYPE": "physical"
+        // "CARD_TYPE": "physical"
       }
     }
   ]

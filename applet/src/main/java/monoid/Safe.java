@@ -40,7 +40,6 @@ public final class Safe {
       case TYPE_KEY:
         return TYPE_TEXT_KEY;
       default:
-        MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
         return null;
     }
   }
