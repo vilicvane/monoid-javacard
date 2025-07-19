@@ -137,7 +137,7 @@ javacard {
 		//     aid 'ff:01:02:03:04:06'
 		//     output 'applet.cap'
 
-		//     targetsdk JC305
+		//     targetsdk JC305u3
 
 		//     sources 'src/main/java/applet'
 
@@ -153,7 +153,7 @@ javacard {
 			aid MONOID_SAFE_PACKAGE_AID
 			output 'monoidsafe.cap'
 
-			targetsdk JC305
+			targetsdk JC305u3
 
 			sources 'src/main/java/monoidsafe'
 
@@ -169,7 +169,7 @@ javacard {
 			aid MONOID_PACKAGE_AID
 			output 'monoid.cap'
 
-			targetsdk JC305
+			targetsdk JC305u3
 
 			sources 'src/main/java/monoid'
 
@@ -184,134 +184,6 @@ javacard {
 					jar "${buildDir}/javacard/monoidsafe.exp/monoidsafe.jar"
 				}
 			}
-		}
-	}
-
-	scripts {
-		script {
-			name 'select'
-			apdu '00a40400' +
-				'0B' + MONOID_AID
-		}
-
-		script {
-			name 'hello'
-			apdu '00200000' + '01' + 'A0'
-		}
-
-		script {
-			name 'systemInformation'
-			apdu '002F0000' + '01' + 'A0'
-		}
-
-		script {
-			name 'setPIN'
-			apdu '00210000' +
-				// {"auth": {"pin": "888888", "safe": true}, "pin": "123456"}
-				// '23' + 'A26461757468A26370696E663838383838386473616665F56370696E66313233343536'
-				// {"auth": {"pin": "888888", "safe": true}, "pin": "123456", "safe": true}
-				// '29' + 'A36461757468A26370696E663838383838386473616665F56370696E663132333435366473616665F5'
-				// {"auth": {"pin": "888888", "safe": true}, "pin": "888888", "safe": true}
-				'29' + 'A36461757468A26370696E663838383838386473616665F56370696E663838383838386473616665F5'
-				// {"auth": {"pin": "123456", "safe": true}, "pin": "888888", "safe": true}
-				// '29' + 'A36461757468A26370696E663132333435366473616665F56370696E663838383838386473616665F5'
-				// {"pin": "888888", "safe": true}
-				// '12' + 'A26370696E663838383838386473616665F5'
-				// {"pin": "123456"}
-				// '0C' + 'A16370696E66313233343536'
-		}
-
-		script {
-			name 'list'
-			apdu '00300000' + '12' + 'A16461757468A16370696E66383838383838'
-		}
-
-		script {
-			name 'createRandomKey'
-			apdu '00310000' +
-				// {"auth": {"pin": "888888"}, "type": "seed"}
-				// '1C' + 'A26461757468A16370696E6638383838383864747970656473656564'
-				// {"auth": {"pin": "888888"}, "type": "raw"}
-				'24' + 'A36461757468A16370696E66383838383838647479706563726177666C656E6774681820'
-		}
-
-		script {
-			name 'viewKey'
-			apdu '00400000' +
-				// {"auth": {"pin": "888888"}, "index": h'0395E88C17CB62726A', "curve": "secp256k1"}
-				// '32' + 'A36461757468A16370696E6638383838383865696E646578490395E88C17CB62726A65637572766569736563703235366B31'
-				// {"auth": {"pin": "888888"}, "index": h'0157BBBFF51631155E', "curve": "secp256k1", "seed": "Bitcoin seed", "path": h'00000001'}
-        '4E' + 'A56461757468A16370696E6638383838383865696E646578490157BBBFF51631155E65637572766569736563703235366B3164736565646C426974636F696E207365656464706174684400000001'
-		}
-
-		script {
-			name 'sign'
-			apdu '00410000' +
-				// {"auth": {"pin": "888888"}, "index": h'0395E88C17CB62726A', "curve": "secp256k1", "cipher": "ecdsa", "digest": h'9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658'}
-				// '68' + 'A56461757468A16370696E6638383838383865696E646578490395E88C17CB62726A65637572766569736563703235366B31666369706865726565636473616664696765737458209C22FF5F21F0B81B113E63F7DB6DA94FEDEF11B2119B4088B89664FB9A3CB658'
-				// {"auth": {"pin": "888888"}, "index": h'0157BBBFF51631155E', "curve": "secp256k1", "seed": "Bitcoin seed", "path": h'00000001', "cipher": "ecdsa", "digest": h'9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658'}
-        '84' + 'A76461757468A16370696E6638383838383865696E646578490157BBBFF51631155E65637572766569736563703235366B3164736565646C426974636F696E207365656464706174684400000001666369706865726565636473616664696765737458209C22FF5F21F0B81B113E63F7DB6DA94FEDEF11B2119B4088B89664FB9A3CB658'
-		}
-
-		script {
-			name 'genKey'
-			apdu '00010000'
-		}
-
-		script {
-			name 'hash'
-			apdu '00030000' +
-				'45' + // 32 + 1 + 32 + 4
-				'66215D7E6BFC60078F9A2F086C0BCE2180DB69A2D430BE821ABA9A269AD01B90' + // chain code
-				'00' + 'B9FAA9F03F077DA860D85CBFBFF7CB690555FD356A8804E893D46D8B9E4929E5' + '80000000'
-		}
-
-		script {
-			name 'derive'
-			apdu '00040000' +
-				'44' + // 32 + 32 + 4
-				'B9FAA9F03F077DA860D85CBFBFF7CB690555FD356A8804E893D46D8B9E4929E566215D7E6BFC60078F9A2F086C0BCE2180DB69A2D430BE821ABA9A269AD01B90' +
-				'80000000'
-		}
-
-		task {
-			name 'select'
-			scripts 'select'
-		}
-
-		task {
-			name 'hello'
-			scripts 'select', 'hello'
-		}
-
-		task {
-			name 'systemInformation'
-			scripts 'select', 'systemInformation'
-		}
-
-		task {
-			name 'setPIN'
-			scripts 'select', 'setPIN'
-		}
-
-		task {
-			name 'list'
-			scripts 'select', 'list'
-		}
-
-		task {
-			name 'createRandomKey'
-			scripts 'select', 'createRandomKey'
-		}
-
-		task {
-			name 'viewKey'
-			scripts 'select', 'viewKey'
-		}
-
-		task {
-			name 'sign'
-			scripts 'select', 'sign'
 		}
 	}
 }

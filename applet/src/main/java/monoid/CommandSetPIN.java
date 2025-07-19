@@ -1,9 +1,6 @@
 package monoid;
 
-import javacard.framework.*;
-
 import monoidsafe.MonoidSafe;
-import monoidsafe.MonoidSafeApplet;
 
 public final class CommandSetPIN extends Command {
   @Override
@@ -25,22 +22,17 @@ public final class CommandSetPIN extends Command {
 
     boolean safePIN = reader.key(Text.safe) && reader.boolTrue();
 
-    byte[] buffer = (byte[]) JCSystem.makeGlobalArray(
-        JCSystem.ARRAY_TYPE_BYTE,
-        safePIN ? MonoidSafeApplet.MAX_PIN_SIZE : MonoidApplet.MAX_PIN_SIZE);
-
-    reader.requireKey(Text.pin);
-    short length = reader.text(buffer);
+    byte[] pin = reader.requireKey(Text.pin).text();
 
     if (safePIN) {
       if (safe.isPINSet()) {
         assertAuth(auth, AUTH_SAFE);
       }
 
-      MonoidApplet.updateSafePIN(buffer, (short) 0, (byte) length);
+      MonoidApplet.updateSafePIN(pin, (short) 0, (byte) pin.length);
 
       if (!MonoidApplet.pinSet) {
-        MonoidApplet.updatePIN(buffer, (short) 0, (byte) length);
+        MonoidApplet.updatePIN(pin, (short) 0, (byte) pin.length);
       }
     } else {
       if (!safe.isPINSet()) {
@@ -52,7 +44,7 @@ public final class CommandSetPIN extends Command {
         assertAuth(auth, AUTH_SAFE);
       }
 
-      MonoidApplet.updatePIN(buffer, (short) 0, (byte) length);
+      MonoidApplet.updatePIN(pin, (short) 0, (byte) pin.length);
     }
 
     sendEmptyMap();

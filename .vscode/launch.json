@@ -16,6 +16,16 @@
       "request": "launch",
       "mainClass": "main.Run",
       "projectName": "applet"
+    },
+    {
+      "type": "java",
+      "name": "MonoidAppletTest",
+      "request": "launch",
+      "mainClass": "tests.MonoidAppletTest",
+      "projectName": "applet",
+      "env": {
+        "CARD_TYPE": "physical"
+      }
     }
   ]
 }

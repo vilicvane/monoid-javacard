@@ -2,6 +2,7 @@ package tests;
 
 import cz.muni.fi.crocs.rcard.client.CardManager;
 import cz.muni.fi.crocs.rcard.client.CardType;
+import cz.muni.fi.crocs.rcard.client.RunConfig;
 import cz.muni.fi.crocs.rcard.client.Util;
 import javacard.framework.AID;
 import javax.smartcardio.CardException;
@@ -45,8 +46,15 @@ public class AppletTest {
   public CardManager connect() throws Exception {
     CardManager manager = new CardManager(true, aid);
 
-    if (cardType == CardType.JCARDSIMLOCAL) {
-      manager.connectJCardSimLocalSimulator(simulator);
+    switch (cardType) {
+      case JCARDSIMLOCAL:
+        manager.connectJCardSimLocalSimulator(simulator);
+        break;
+      case PHYSICAL:
+        manager.connect(RunConfig.getDefaultConfig().setTestCardType(cardType));
+        break;
+      default:
+        throw new IllegalArgumentException("Unsupported card type: " + cardType);
     }
 
     return manager;

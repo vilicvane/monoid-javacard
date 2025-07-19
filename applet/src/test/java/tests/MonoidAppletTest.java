@@ -29,10 +29,20 @@ public class MonoidAppletTest extends AppletTest {
   private static final byte[] PIN = "123456".getBytes();
 
   public MonoidAppletTest() {
-    super(MONOID_AID, CardType.JCARDSIMLOCAL);
+    super(
+        MONOID_AID,
+        System.getenv("CARD_TYPE") != null && System.getenv("CARD_TYPE").equals("physical")
+            ? CardType.PHYSICAL
+            : CardType.JCARDSIMLOCAL);
 
-    simulator.installApplet(MONOID_SAFE_AID, MonoidSafeApplet.class);
-    simulator.installApplet(MONOID_AID, MonoidApplet.class);
+    if (simulator != null) {
+      simulator.installApplet(MONOID_SAFE_AID, MonoidSafeApplet.class);
+      simulator.installApplet(MONOID_AID, MonoidApplet.class);
+    }
+  }
+
+  public static void main(String[] args) throws Exception {
+    new MonoidAppletTest().hello();
   }
 
   @Test
@@ -44,7 +54,9 @@ public class MonoidAppletTest extends AppletTest {
     setGetClear();
   }
 
-  private void hello() throws Exception {
+  @Test
+  @Tag("manual")
+  public void hello() throws Exception {
     SimpleCBORWriter cbor = new SimpleCBORWriter();
 
     cbor.map((short) 0);
@@ -56,7 +68,9 @@ public class MonoidAppletTest extends AppletTest {
     assertNoError(response);
   }
 
-  private void setSafePIN() throws Exception {
+  @Test
+  @Tag("manual")
+  public void setSafePIN() throws Exception {
     SimpleCBORWriter writer = new SimpleCBORWriter();
 
     writer.map((short) 2);
@@ -75,7 +89,9 @@ public class MonoidAppletTest extends AppletTest {
     assertNoError(response);
   }
 
-  private void setPIN() throws Exception {
+  @Test
+  @Tag("manual")
+  public void setPIN() throws Exception {
     SimpleCBORWriter writer = new SimpleCBORWriter();
 
     writer.map((short) 2);
@@ -95,6 +111,8 @@ public class MonoidAppletTest extends AppletTest {
 
   private HashMap<String, byte[]> typeToKeyIndexMap = new HashMap<>();
 
+  @Test
+  @Tag("manual")
   public void createRandomKeys() throws Exception {
     String[] types = { "seed", "master", "key" };
 
@@ -128,7 +146,9 @@ public class MonoidAppletTest extends AppletTest {
     }
   }
 
-  private void setGetClear() throws Exception {
+  @Test
+  @Tag("manual")
+  public void setGetClear() throws Exception {
     byte[] index = "some key".getBytes();
     byte[] data = "some data".getBytes();
 

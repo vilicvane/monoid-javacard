@@ -160,7 +160,7 @@ public abstract class Command {
 
     boolean safeAuth = reader.key(Text.safe) && reader.boolTrue();
 
-    byte[] pin = reader.requireKey(Text.pin).text();
+    byte[] pin = Utils.duplicateAsGlobal(reader.requireKey(Text.pin).text());
 
     reader.restore();
 
