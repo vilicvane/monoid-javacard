@@ -1,7 +1,11 @@
 package monoid;
 
-import javacard.framework.*;
-import javacard.security.*;
+import javacard.framework.JCSystem;
+import javacard.framework.Util;
+import javacard.security.HMACKey;
+import javacard.security.KeyBuilder;
+import javacard.security.MessageDigest;
+import javacard.security.Signature;
 
 public final class LibHMACSha512 {
   private static final byte IPAD = (byte) 0x36;

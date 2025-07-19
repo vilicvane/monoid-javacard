@@ -1,5 +1,7 @@
 package monoid;
 
+import monoidsafe.MonoidSafe;
+
 public class CommandClear extends Command {
   @Override
   protected void run() {
@@ -9,9 +11,9 @@ public class CommandClear extends Command {
 
     reader.map();
 
-    byte[] index = Utils.duplicateAsGlobal(reader.requireKey(Text.index).bytes());
+    byte[] index = Utils.duplicateAsGlobal(reader.requireKey(Text.index).bytes(MonoidSafe.INDEX_LENGTH));
 
-    MonoidApplet.safe.clear(index, (short) 0, (byte) index.length);
+    MonoidApplet.safe.clear(index, (short) 0);
 
     sendEmptyMap();
   }

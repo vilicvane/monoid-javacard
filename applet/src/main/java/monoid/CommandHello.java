@@ -1,6 +1,6 @@
 package monoid;
 
-import javacard.framework.*;
+import javacard.framework.OwnerPIN;
 
 import monoidsafe.MonoidSafe;
 

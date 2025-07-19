@@ -6,10 +6,11 @@ import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
 
+import javax.smartcardio.CommandAPDU;
+import javax.smartcardio.ResponseAPDU;
+
 import monoid.MonoidApplet;
 import monoidsafe.MonoidSafeApplet;
-
-import javax.smartcardio.*;
 
 public class Run {
   public static void main(String[] args) {

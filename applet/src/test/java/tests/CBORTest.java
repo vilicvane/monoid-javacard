@@ -1,6 +1,8 @@
 package tests;
 
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Test;
+
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 
 import monoid.CBOR;

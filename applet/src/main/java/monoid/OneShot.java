@@ -1,7 +1,11 @@
 package monoid;
 
-import javacard.security.*;
-import javacardx.crypto.*;
+import javacard.security.CryptoException;
+import javacard.security.Key;
+import javacard.security.MessageDigest;
+import javacard.security.RandomData;
+import javacard.security.Signature;
+import javacardx.crypto.Cipher;
 
 /**
  * This is a utility class that provides OneShot fallback for JCardSim.

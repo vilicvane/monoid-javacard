@@ -1,7 +1,8 @@
 package monoid;
 
-import javacard.framework.*;
-import javacard.security.*;
+import javacard.framework.JCSystem;
+import javacard.security.Key;
+import javacard.security.Signature;
 
 public final class Signer {
   public static final byte[] CIPHER_ECDSA = {

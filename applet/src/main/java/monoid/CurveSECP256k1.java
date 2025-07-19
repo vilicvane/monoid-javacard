@@ -1,7 +1,11 @@
 package monoid;
 
-import javacard.framework.*;
-import javacard.security.*;
+import javacard.framework.JCSystem;
+import javacard.framework.Util;
+import javacard.security.ECPrivateKey;
+import javacard.security.KeyAgreement;
+import javacard.security.KeyBuilder;
+import javacard.security.KeyPair;
 
 public class CurveSECP256k1 extends Curve {
   public static final byte FP[] = {

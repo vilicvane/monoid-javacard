@@ -1,8 +1,7 @@
 package monoid;
 
-import javacard.framework.*;
-import javacard.security.*;
-
+import javacard.framework.JCSystem;
+import javacard.security.CryptoException;
 import monoidsafe.MonoidSafe;
 
 public abstract class Command {

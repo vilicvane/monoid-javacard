@@ -1,5 +1,7 @@
 package monoid;
 
+import monoidsafe.MonoidSafe;
+
 public class CommandSign extends Command {
   @Override
   protected void run() {
@@ -11,7 +13,7 @@ public class CommandSign extends Command {
 
     reader.map();
 
-    byte[] index = reader.requireKey(Text.index).bytes(Safe.INDEX_LENGTH);
+    byte[] index = reader.requireKey(Text.index).bytes(MonoidSafe.INDEX_LENGTH);
     Curve curve = Curve.requireSharedCurve(reader.requireKey(Text.curve).text());
 
     byte[] cipher = reader.requireKey(Text.cipher).text();

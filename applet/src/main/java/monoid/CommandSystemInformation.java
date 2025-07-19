@@ -1,6 +1,6 @@
 package monoid;
 
-import javacard.framework.*;
+import javacard.framework.JCSystem;
 
 public class CommandSystemInformation extends Command {
   @Override

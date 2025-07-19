@@ -1,7 +1,9 @@
 package monoid;
 
-import javacard.framework.*;
-import javacard.security.*;
+import javacard.framework.JCSystem;
+import javacard.framework.Util;
+import javacard.security.ECPrivateKey;
+import javacard.security.MessageDigest;
 
 import monoidsafe.MonoidSafe;
 
@@ -9,7 +11,7 @@ public final class Keystore {
   public static final byte SEED_LENGTH = 64;
 
   public static final byte MASTER_LENGTH = LibBIP32.COMPONENT_LENGTH * 2;
-  public static final byte MASTER_PRIVATE_KEY_OFFSET = Safe.INDEX_LENGTH;
+  public static final byte MASTER_PRIVATE_KEY_OFFSET = MonoidSafe.INDEX_LENGTH;
   public static final byte MASTER_CHAIN_CODE_OFFSET = MASTER_PRIVATE_KEY_OFFSET + LibBIP32.COMPONENT_LENGTH;
 
   private MonoidSafe safe;
@@ -43,17 +45,18 @@ public final class Keystore {
 
     OneShot.digest(MessageDigest.ALG_SHA_256, key, (short) 0, (short) key.length, digest, (short) 0);
 
-    byte[] index = JCSystem.makeTransientByteArray((short) Safe.INDEX_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+    byte[] index = JCSystem.makeTransientByteArray((short) MonoidSafe.INDEX_LENGTH, JCSystem.CLEAR_ON_DESELECT);
 
     index[0] = type;
-    Util.arrayCopyNonAtomic(digest, (short) 0, index, (short) 1, Safe.INDEX_DIGEST_LENGTH);
+    Util.arrayCopyNonAtomic(digest, (short) 0, index, (short) 1, MonoidSafe.INDEX_DIGEST_LENGTH);
 
-    byte[] data = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) (Safe.INDEX_LENGTH + key.length));
+    byte[] data = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE,
+        (short) (MonoidSafe.INDEX_LENGTH + key.length));
 
-    Util.arrayCopyNonAtomic(index, (short) 0, data, (short) 0, Safe.INDEX_LENGTH);
-    Util.arrayCopyNonAtomic(key, (short) 0, data, Safe.INDEX_LENGTH, (short) key.length);
+    Util.arrayCopyNonAtomic(index, (short) 0, data, (short) 0, MonoidSafe.INDEX_LENGTH);
+    Util.arrayCopyNonAtomic(key, (short) 0, data, MonoidSafe.INDEX_LENGTH, (short) key.length);
 
-    safe.set(data, (short) 0, Safe.INDEX_LENGTH, (short) data.length);
+    safe.set(data, (short) 0, (short) data.length);
 
     return index;
   }
@@ -135,7 +138,7 @@ public final class Keystore {
       return null;
     }
 
-    Key privateKey = curve.getSharedPrivateKey(key, (short) 0);
+    ECPrivateKey privateKey = curve.getSharedPrivateKey(key, (short) 0);
 
     return Signer.sign(cipher, privateKey, digest);
   }
@@ -176,7 +179,7 @@ public final class Keystore {
   private byte[] requireKey(byte[] index) {
     index = Utils.duplicateAsGlobal(index);
 
-    byte[] key = safe.get(index, (short) 0, Safe.INDEX_LENGTH);
+    byte[] key = safe.get(index, (short) 0);
 
     if (key == null) {
       KeystoreException.throwIt(KeystoreException.REASON_KEY_NOT_FOUND);

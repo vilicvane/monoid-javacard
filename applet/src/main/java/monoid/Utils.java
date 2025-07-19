@@ -1,6 +1,7 @@
 package monoid;
 
-import javacard.framework.*;
+import javacard.framework.JCSystem;
+import javacard.framework.Util;
 
 public final class Utils {
   public static boolean equal(byte[] a, byte[] b, short bOffset, short bLength) {

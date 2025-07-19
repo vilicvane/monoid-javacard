@@ -1,6 +1,9 @@
 package monoid;
 
-import javacard.framework.*;
+import javacard.framework.ISO7816;
+import javacard.framework.ISOException;
+import javacard.framework.JCSystem;
+import javacard.framework.Util;
 
 public abstract class CBORReader {
   private short offset;

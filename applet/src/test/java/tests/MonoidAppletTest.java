@@ -1,20 +1,21 @@
 package tests;
 
-import cz.muni.fi.crocs.rcard.client.CardType;
+import java.util.HashMap;
+import javax.smartcardio.CommandAPDU;
+import javax.smartcardio.ResponseAPDU;
 import javacard.framework.AID;
-import monoid.MonoidApplet;
-import monoid.MonoidException;
-import monoidsafe.MonoidSafeApplet;
 
-import org.junit.jupiter.api.*;
-
+import cz.muni.fi.crocs.rcard.client.CardType;
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.utils.AIDUtil;
 
-import java.util.HashMap;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
-import javax.smartcardio.CommandAPDU;
-import javax.smartcardio.ResponseAPDU;
+import monoid.MonoidApplet;
+import monoid.MonoidException;
+import monoidsafe.MonoidSafeApplet;
 
 /**
  * Example test class for the applet
@@ -214,7 +215,7 @@ public class MonoidAppletTest extends AppletTest {
   @Test
   @Tag("manual")
   public void setGetClear() throws Exception {
-    byte[] index = "some key".getBytes();
+    byte[] index = "someindex".getBytes();
     byte[] data = "some data".getBytes();
 
     {

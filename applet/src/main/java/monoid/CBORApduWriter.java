@@ -1,6 +1,10 @@
 package monoid;
 
-import javacard.framework.*;
+import javacard.framework.APDU;
+import javacard.framework.ISO7816;
+import javacard.framework.ISOException;
+import javacard.framework.JCSystem;
+import javacard.framework.Util;
 
 public class CBORApduWriter extends CBORWriter {
   private static final short CHUNK_SIZE = 256;

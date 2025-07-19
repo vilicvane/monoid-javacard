@@ -1,7 +1,7 @@
 package monoid;
 
-import javacard.framework.*;
-import javacard.security.*;
+import javacard.framework.JCSystem;
+import javacard.security.ECPrivateKey;
 
 public abstract class Curve {
   public static final byte[] SECP256k1 = {

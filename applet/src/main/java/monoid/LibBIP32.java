@@ -1,7 +1,8 @@
 package monoid;
 
-import javacard.framework.*;
-import javacard.security.*;
+import javacard.framework.JCSystem;
+import javacard.framework.Util;
+import javacard.security.ECPrivateKey;
 
 public final class LibBIP32 {
   public static final byte COMPONENT_LENGTH = 32;

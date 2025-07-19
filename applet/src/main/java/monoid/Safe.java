@@ -1,6 +1,6 @@
 package monoid;
 
-import javacard.framework.*;
+import javacard.framework.JCSystem;
 
 public final class Safe {
   public static final byte TYPE_SEED = 0x01;
@@ -10,9 +10,6 @@ public final class Safe {
   public static final byte[] TYPE_TEXT_SEED = { 's', 'e', 'e', 'd' };
   public static final byte[] TYPE_TEXT_MASTER = { 'm', 'a', 's', 't', 'e', 'r' };
   public static final byte[] TYPE_TEXT_KEY = { 'k', 'e', 'y' };
-
-  public static final byte INDEX_DIGEST_LENGTH = 8;
-  public static final byte INDEX_LENGTH = 1 + INDEX_DIGEST_LENGTH;
 
   public static byte type(byte[] buffer, short offset, byte length) throws MonoidException {
     if (Utils.equal(TYPE_TEXT_SEED, buffer, offset, length)) {

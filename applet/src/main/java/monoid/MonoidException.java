@@ -1,6 +1,6 @@
 package monoid;
 
-import javacard.framework.*;
+import javacard.framework.CardRuntimeException;
 
 public class MonoidException extends CardRuntimeException {
   public static final byte[] CODE_ACCESS_DENIED = {

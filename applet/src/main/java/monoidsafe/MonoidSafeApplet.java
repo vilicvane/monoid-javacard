@@ -1,6 +1,14 @@
 package monoidsafe;
 
-import javacard.framework.*;
+import javacard.framework.Applet;
+import javacard.framework.ISO7816;
+import javacard.framework.AID;
+import javacard.framework.APDU;
+import javacard.framework.ISOException;
+import javacard.framework.JCSystem;
+import javacard.framework.OwnerPIN;
+import javacard.framework.Shareable;
+import javacard.framework.Util;
 
 public class MonoidSafeApplet extends Applet implements MonoidSafe {
   public static final byte PIN_TRY_LIMIT = 5;
@@ -56,7 +64,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   }
 
   @Override
-  public byte[] list(byte type, byte indexLength) {
+  public byte[] list(byte type) {
     assertAccess();
 
     short count;
@@ -73,7 +81,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
       }
     }
 
-    byte[] data = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) (indexLength * count));
+    byte[] data = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) (INDEX_LENGTH * count));
 
     short offset = 0;
 
@@ -81,7 +89,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
       Item item = items[index];
 
       if (type == 0 || item.matches(type)) {
-        offset = Util.arrayCopyNonAtomic(item.data, (short) 0, data, offset, indexLength);
+        offset = Util.arrayCopyNonAtomic(item.data, (short) 0, data, offset, INDEX_LENGTH);
       }
     }
 
@@ -89,18 +97,18 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   }
 
   @Override
-  public byte[] get(byte[] buffer, short offset, byte indexLength) {
+  public byte[] get(byte[] buffer, short offset) {
     assertAccess();
 
     for (short index = 0; index < itemsLength; index++) {
       Item item = items[index];
 
-      if (item.matches(buffer, offset, indexLength)) {
-        short length = (short) (item.data.length - indexLength);
+      if (item.matches(buffer, offset, INDEX_LENGTH)) {
+        short length = (short) (item.data.length - INDEX_LENGTH);
 
         byte[] data = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, length);
 
-        Util.arrayCopyNonAtomic(item.data, indexLength, data, (short) 0, length);
+        Util.arrayCopyNonAtomic(item.data, INDEX_LENGTH, data, (short) 0, length);
 
         return data;
       }
@@ -110,13 +118,13 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   }
 
   @Override
-  public boolean set(byte[] buffer, short offset, byte indexLength, short length) {
+  public boolean set(byte[] buffer, short offset, short length) {
     assertAccess();
 
     for (short index = 0; index < itemsLength; index++) {
       Item item = items[index];
 
-      if (item.matches(buffer, offset, indexLength)) {
+      if (item.matches(buffer, offset, INDEX_LENGTH)) {
         JCSystem.beginTransaction();
 
         item.data = new byte[length];
@@ -162,7 +170,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   }
 
   @Override
-  public boolean clear(byte[] buffer, short offset, byte indexLength) {
+  public boolean clear(byte[] buffer, short offset) {
     assertAccess();
 
     short indexToDelete = -1;
@@ -170,7 +178,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
     for (short index = 0; index < itemsLength; index++) {
       Item item = items[index];
 
-      if (item.matches(buffer, offset, indexLength)) {
+      if (item.matches(buffer, offset, INDEX_LENGTH)) {
         indexToDelete = index;
         break;
       }
