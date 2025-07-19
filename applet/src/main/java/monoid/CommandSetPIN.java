@@ -22,7 +22,7 @@ public final class CommandSetPIN extends Command {
 
     boolean safePIN = reader.key(Text.safe) && reader.boolTrue();
 
-    byte[] pin = reader.requireKey(Text.pin).text();
+    byte[] pin = Utils.duplicateAsGlobal(reader.requireKey(Text.pin).text());
 
     if (safePIN) {
       if (safe.isPINSet()) {
