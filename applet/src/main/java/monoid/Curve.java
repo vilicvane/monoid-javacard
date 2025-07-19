@@ -53,7 +53,7 @@ public abstract class Curve {
   public abstract short derivePublicKey(ECPrivateKey privateKey, byte[] out, short outOffset);
 
   public byte[] derivePublicKey(ECPrivateKey privateKey) {
-    byte[] publicKey = JCSystem.makeTransientByteArray((short) getPublicKeyLength(), JCSystem.CLEAR_ON_DESELECT);
+    byte[] publicKey = JCSystem.makeTransientByteArray(getPublicKeyLength(), JCSystem.CLEAR_ON_DESELECT);
 
     derivePublicKey(privateKey, publicKey, (short) 0);
 

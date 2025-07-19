@@ -16,14 +16,22 @@ public final class Utils {
   }
 
   public static byte[] duplicateAsGlobal(byte[] buffer, short offset, short length) {
-    byte[] global = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) length);
+    byte[] duplicate = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, length);
 
-    Util.arrayCopyNonAtomic(buffer, offset, global, (short) 0, length);
+    Util.arrayCopyNonAtomic(buffer, offset, duplicate, (short) 0, length);
 
-    return global;
+    return duplicate;
   }
 
   public static byte[] duplicateAsGlobal(byte[] buffer) {
     return duplicateAsGlobal(buffer, (short) 0, (short) buffer.length);
+  }
+
+  public static byte[] duplicateAsTransient(byte[] buffer, short offset, short length) {
+    byte[] duplicate = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
+
+    Util.arrayCopyNonAtomic(buffer, offset, duplicate, (short) 0, length);
+
+    return duplicate;
   }
 }

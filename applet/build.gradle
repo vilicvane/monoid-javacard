@@ -245,16 +245,17 @@ javacard {
 		}
 
 		script {
-			name 'genKey'
-			apdu '00010000'
+			name 'sign'
+			apdu '00410000' +
+				// {"auth": {"pin": "888888"}, "index": h'0395E88C17CB62726A', "curve": "secp256k1", "cipher": "ecdsa", "digest": h'9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658'}
+				// '68' + 'A56461757468A16370696E6638383838383865696E646578490395E88C17CB62726A65637572766569736563703235366B31666369706865726565636473616664696765737458209C22FF5F21F0B81B113E63F7DB6DA94FEDEF11B2119B4088B89664FB9A3CB658'
+				// {"auth": {"pin": "888888"}, "index": h'0157BBBFF51631155E', "curve": "secp256k1", "seed": "Bitcoin seed", "path": h'00000001', "cipher": "ecdsa", "digest": h'9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658'}
+        '84' + 'A76461757468A16370696E6638383838383865696E646578490157BBBFF51631155E65637572766569736563703235366B3164736565646C426974636F696E207365656464706174684400000001666369706865726565636473616664696765737458209C22FF5F21F0B81B113E63F7DB6DA94FEDEF11B2119B4088B89664FB9A3CB658'
 		}
 
 		script {
-			name 'sign'
-			apdu '00020000' +
-				'29' + // 9 + 32
-				'0100b35e36431d564d' + // index
-				'9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658' // hash
+			name 'genKey'
+			apdu '00010000'
 		}
 
 		script {
@@ -306,6 +307,11 @@ javacard {
 		task {
 			name 'viewKey'
 			scripts 'select', 'viewKey'
+		}
+
+		task {
+			name 'sign'
+			scripts 'select', 'sign'
 		}
 	}
 }

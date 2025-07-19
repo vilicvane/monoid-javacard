@@ -104,7 +104,7 @@ public final class Keystore {
 
   public byte[] sign(
       byte[] index,
-      byte[] curveName,
+      Curve curve,
       byte[] cipher,
       byte[] seed,
       byte[] path,
@@ -112,12 +112,7 @@ public final class Keystore {
 
     byte type = index[0];
 
-    byte[] key = safe.get(index, (short) 0, Safe.INDEX_LENGTH);
-
-    if (key == null) {
-      KeystoreException.throwIt(KeystoreException.REASON_KEY_NOT_FOUND);
-      return null;
-    }
+    byte[] key = requireKey(index);
 
     if (type == Safe.TYPE_SEED) {
       byte[] master = deriveMasterFromSeed(key, seed);
@@ -125,8 +120,6 @@ public final class Keystore {
       type = Safe.TYPE_MASTER;
       key = master;
     }
-
-    Curve curve = Curve.requireSharedCurve(curveName);
 
     if (type == Safe.TYPE_MASTER) {
       if (key.length != MASTER_LENGTH) {
@@ -183,9 +176,9 @@ public final class Keystore {
   }
 
   private byte[] requireKey(byte[] index) {
-    byte[] indexGlobal = Utils.duplicateAsGlobal(index);
+    index = Utils.duplicateAsGlobal(index);
 
-    byte[] key = safe.get(indexGlobal, (short) 0, Safe.INDEX_LENGTH);
+    byte[] key = safe.get(index, (short) 0, Safe.INDEX_LENGTH);
 
     if (key == null) {
       KeystoreException.throwIt(KeystoreException.REASON_KEY_NOT_FOUND);

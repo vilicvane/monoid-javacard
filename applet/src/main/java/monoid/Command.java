@@ -24,6 +24,7 @@ public abstract class Command {
   public static Command createRandomKey;
 
   public static Command viewKey;
+  public static Command sign;
 
   public static void init() {
     reader = new CBORApduReader();
@@ -37,6 +38,7 @@ public abstract class Command {
     createRandomKey = new CommandCreateRandomKey();
 
     viewKey = new CommandViewKey();
+    sign = new CommandSign();
   }
 
   public static void dispose() {
@@ -51,6 +53,7 @@ public abstract class Command {
     createRandomKey = null;
 
     viewKey = null;
+    sign = null;
   }
 
   public static Command get(byte ins) {
@@ -67,6 +70,8 @@ public abstract class Command {
         return createRandomKey;
       case 0x40:
         return viewKey;
+      case 0x41:
+        return sign;
       case (byte) 0xC0:
         writer.send();
         return null;

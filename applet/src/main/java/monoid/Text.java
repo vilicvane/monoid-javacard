@@ -7,6 +7,8 @@ public class Text {
       'a', 'v', 'a', 'i', 'l', 'a', 'b', 'l', 'e' };
   public static final byte[] chainCode = {
       'c', 'h', 'a', 'i', 'n', 'C', 'o', 'd', 'e' };
+  public static final byte[] cipher = {
+      'c', 'i', 'p', 'h', 'e', 'r' };
   public static final byte[] ciphers = {
       'c', 'i', 'p', 'h', 'e', 'r', 's' };
   public static final byte[] code = {
@@ -15,6 +17,8 @@ public class Text {
       'c', 'u', 'r', 'v', 'e' };
   public static final byte[] curves = {
       'c', 'u', 'r', 'v', 'e', 's' };
+  public static final byte[] digest = {
+      'd', 'i', 'g', 'e', 's', 't' };
   public static final byte[] deselect = {
       'd', 'e', 's', 'e', 'l', 'e', 'c', 't' };
   public static final byte[] error = {
@@ -51,6 +55,8 @@ public class Text {
       's', 'a', 'f', 'e' };
   public static final byte[] seed = {
       's', 'e', 'e', 'd' };
+  public static final byte[] signature = {
+      's', 'i', 'g', 'n', 'a', 't', 'u', 'r', 'e' };
   public static final byte[] system = {
       's', 'y', 's', 't', 'e', 'm' };
   public static final byte[] transient_ = {

@@ -146,7 +146,7 @@ public abstract class CBORReader {
 
     short length = metadataUnsignedInteger();
 
-    byte[] out = (byte[]) JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
+    byte[] out = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
 
     Util.arrayCopyNonAtomic(buffer, offset, out, (short) 0, length);
 

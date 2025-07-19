@@ -133,26 +133,30 @@ type Response = {
 
 ### `0x40` ~ `0x4F` Key usage
 
-#### `0x40` View key
-
 ```ts
-type Request = AuthRequest & {
+type Key = {
   index: byte[];
   curve: string;
 } & (
-    | {
-        // seed
-        seed: string;
-        path: byte[];
-      }
-    | {
-        // master
-        path: byte[];
-      }
-    | {
-        // raw
-      }
-  );
+  | {
+      // seed
+      seed: string;
+      path: byte[];
+    }
+  | {
+      // master
+      path: byte[];
+    }
+  | {
+      // raw
+    }
+);
+```
+
+#### `0x40` View key
+
+```ts
+type Request = AuthRequest & Key;
 ```
 
 ```ts
@@ -170,3 +174,17 @@ type Response = {
 ```
 
 #### `0x41` Sign
+
+```ts
+type Request = AuthRequest &
+  Key & {
+    cipher: string;
+    digest: byte[];
+  };
+```
+
+```ts
+type Response = {
+  signature: byte[];
+};
+```
