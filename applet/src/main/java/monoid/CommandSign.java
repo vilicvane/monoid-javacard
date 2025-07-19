@@ -19,9 +19,9 @@ public class CommandSign extends Command {
     byte[] cipher = reader.requireKey(Text.cipher).text();
     byte[] digest = reader.requireKey(Text.digest).bytes();
 
-    byte type = index[0];
-
     byte[] signature;
+
+    byte type = index[0];
 
     if (type == Safe.TYPE_KEY) {
       signature = keystore.sign(index, curve, cipher, null, null, digest);
