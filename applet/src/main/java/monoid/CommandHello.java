@@ -12,29 +12,10 @@ public final class CommandHello extends Command {
 
     writer.map((short) 4);
     {
-      writer.text(Text.versions);
-      writer.map((short) 2);
-      {
-        writer.text(Text.monoid);
-        writer.integer(MonoidApplet.version);
+      writer.text(Text.version);
+      writer.integer(MonoidApplet.version);
 
-        writer.text(Text.javacard);
-        writer.array((short) 2);
-        {
-          writer.integer((short) (JCSystem.getVersion() >> 8));
-          writer.integer((short) (JCSystem.getVersion() & 0xFF));
-        }
-      }
-
-      writer.text(Text.features);
-      writer.map((short) 2);
-      {
-        writer.text(Text.curves);
-        Curve.writeSupportedCurves(writer);
-
-        writer.text(Text.ciphers);
-        Signer.writeSupportedCiphers(writer);
-      }
+      CommandSystemInformation.writeFeaturesKeyValue(writer);
 
       writer.text(Text.pin);
       if (MonoidApplet.pinSet) {
@@ -57,7 +38,5 @@ public final class CommandHello extends Command {
         writer.bool(MonoidApplet.isSafeUnlocked());
       }
     }
-
-    writer.send();
   }
 }

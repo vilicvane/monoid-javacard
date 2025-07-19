@@ -200,6 +200,11 @@ javacard {
         }
 
         script {
+            name 'systemInformation'
+            apdu '002F0000' + '01' + 'A0'
+        }
+
+        script {
             name 'setPIN'
             apdu '00210000' +
             // {"auth": {"pin": "888888", "safe": true}, "pin": "123456"}
@@ -258,6 +263,11 @@ javacard {
         task {
             name 'hello'
             scripts 'select', 'hello'
+        }
+
+        task {
+            name 'systemInformation'
+            scripts 'select', 'systemInformation'
         }
 
         task {

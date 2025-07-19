@@ -28,7 +28,5 @@ public class CommandList extends Command {
         }
       }
     }
-
-    writer.send();
   }
 }

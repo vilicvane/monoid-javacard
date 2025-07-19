@@ -13,6 +13,8 @@ public abstract class Command {
   protected static CBORApduWriter writer;
 
   public static Command hello;
+  public static Command systemInformation;
+
   public static Command setPIN;
   public static Command list;
 
@@ -21,6 +23,8 @@ public abstract class Command {
     writer = new CBORApduWriter();
 
     hello = new CommandHello();
+    systemInformation = new CommandSystemInformation();
+
     setPIN = new CommandSetPIN();
     list = new CommandList();
   }
@@ -30,6 +34,8 @@ public abstract class Command {
     writer = null;
 
     hello = null;
+    systemInformation = null;
+
     setPIN = null;
     list = null;
   }
@@ -38,6 +44,8 @@ public abstract class Command {
     switch (ins) {
       case 0x20:
         return hello;
+      case 0x2F:
+        return systemInformation;
       case 0x21:
         return setPIN;
       case 0x30:
@@ -50,9 +58,8 @@ public abstract class Command {
     }
   }
 
-  protected static void sendEmptyMap() {
+  protected static void writeEmptyMap() {
     writer.map((short) 0);
-    writer.send();
   }
 
   protected static void sendError(byte[] code) {
@@ -82,6 +89,10 @@ public abstract class Command {
     } catch (MonoidException e) {
       e.send();
     }
+
+    // It the code ever reaches here, it means send() hasn't been called (as it
+    // throws inside).
+    writer.send();
   }
 
   protected abstract void run() throws MonoidException;
