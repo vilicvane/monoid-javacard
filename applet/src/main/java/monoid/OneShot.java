@@ -7,18 +7,18 @@ public final class OneShot {
   public static short sign(
       byte cipher,
       Key privateKey,
-      byte[] in, short digestOffset, byte digestLength,
+      byte[] digest,
       byte[] out, short outOffset) {
 
     Signature.OneShot signature = Signature.OneShot.open(MessageDigest.ALG_SHA_256, cipher, Cipher.PAD_NULL);
 
     if (signature == null) {
-      return signFallback(cipher, privateKey, in, digestOffset, digestLength, out, outOffset);
+      return signFallback(cipher, privateKey, digest, out, outOffset);
     }
 
     signature.init(privateKey, Signature.MODE_SIGN);
 
-    short length = signature.signPreComputedHash(in, digestOffset, digestLength, out, outOffset);
+    short length = signature.signPreComputedHash(digest, (short) 0, (short) digest.length, out, outOffset);
 
     signature.close();
 
@@ -28,7 +28,7 @@ public final class OneShot {
   private static short signFallback(
       byte cipher,
       Key privateKey,
-      byte[] in, short digestOffset, byte digestLength,
+      byte[] digest,
       byte[] out, short outOffset) {
 
     Signature signature = Signature.getInstance(MessageDigest.ALG_SHA_256, cipher,
@@ -36,7 +36,7 @@ public final class OneShot {
 
     signature.init(privateKey, Signature.MODE_SIGN);
 
-    return signature.signPreComputedHash(in, digestOffset, digestLength, out, outOffset);
+    return signature.signPreComputedHash(digest, (short) 0, (short) digest.length, out, outOffset);
   }
 
   public static short digest(

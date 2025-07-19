@@ -99,6 +99,16 @@ public abstract class CBORReader {
     return bytesLike(CBOR.TYPE_BYTES);
   }
 
+  public byte[] bytes(short expectedLength) {
+    byte[] bytes = bytesLike(CBOR.TYPE_BYTES);
+
+    if (bytes.length != expectedLength) {
+      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+    }
+
+    return bytes;
+  }
+
   public short text(byte[] out, short outOffset) {
     return bytesLike(CBOR.TYPE_TEXT, out, outOffset);
   }
@@ -124,7 +134,7 @@ public abstract class CBORReader {
 
     offset += length;
 
-    return (short) (outOffset + length);
+    return length;
   }
 
   private byte[] bytesLike(byte type) {
@@ -229,16 +239,20 @@ public abstract class CBORReader {
     return key(key, (short) 0, (short) key.length);
   }
 
-  public void requireKey(byte[] in, short keyOffset, short keyLength) {
+  public CBORReader requireKey(byte[] in, short keyOffset, short keyLength) {
     if (!key(in, keyOffset, keyLength)) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
+
+    return this;
   }
 
-  public void requireKey(byte[] key) {
+  public CBORReader requireKey(byte[] key) {
     if (!key(key, (short) 0, (short) key.length)) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
+
+    return this;
   }
 
   public boolean bool() {

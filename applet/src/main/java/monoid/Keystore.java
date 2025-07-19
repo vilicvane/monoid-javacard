@@ -60,61 +60,138 @@ public final class Keystore {
     return index;
   }
 
-  public short sign(
-      byte[] in,
-      short indexOffset,
-      short curveOffset, byte curveLength,
-      short cipherOffset, byte cipherLength,
-      short seedOffset, byte seedLength,
-      short pathOffset, byte pathLength,
-      short digestOffset, byte digestLength,
-      byte[] out, short outOffset) throws KeystoreException, CurveException, SignerException {
+  public byte[] getSeedDerivedPublicKeyAndChainCode(byte[] index, byte[] seed, Curve curve, byte[] path) {
+    if (index[0] != Safe.TYPE_SEED) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
 
-    byte type = in[indexOffset];
+    byte[] key = requireKey(index);
 
-    byte[] data = safe.get(in, indexOffset, Safe.INDEX_LENGTH);
+    byte[] master = deriveMasterFromSeed(key, seed);
 
-    if (data == null) {
+    return derivePublicKeyAndChainCodeFromMaster(curve, master, path);
+  }
+
+  public byte[] getMasterDerivedPublicKeyAndChainCode(byte[] index, Curve curve, byte[] path) {
+    if (index[0] != Safe.TYPE_MASTER) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
+
+    byte[] key = requireKey(index);
+
+    return derivePublicKeyAndChainCodeFromMaster(curve, key, path);
+  }
+
+  public byte[] getRawPublicKey(byte[] index, Curve curve) {
+    if (index[0] != Safe.TYPE_RAW) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
+
+    byte[] key = requireKey(index);
+
+    if (key.length != curve.getKeyLength()) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
+
+    ECPrivateKey privateKey = curve.getSharedPrivateKey(key, (short) 0);
+
+    return curve.derivePublicKey(privateKey);
+  }
+
+  public byte[] sign(
+      byte[] index,
+      byte[] curveName,
+      byte[] cipher,
+      byte[] seed,
+      byte[] path,
+      byte[] digest) throws KeystoreException, CurveException, SignerException {
+
+    byte type = index[0];
+
+    byte[] key = safe.get(index, (short) 0, Safe.INDEX_LENGTH);
+
+    if (key == null) {
       KeystoreException.throwIt(KeystoreException.REASON_KEY_NOT_FOUND);
-      return 0;
+      return null;
     }
 
     if (type == Safe.TYPE_SEED) {
-      byte[] master = JCSystem.makeTransientByteArray(MASTER_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-
-      LibHMACSha512.digest(
-          in, seedOffset, seedLength,
-          data, (short) 0, (short) data.length,
-          master, (short) 0);
+      byte[] master = deriveMasterFromSeed(key, seed);
 
       type = Safe.TYPE_MASTER;
-      data = master;
+      key = master;
     }
 
-    Curve curve = Curve.requireSharedCurve(in, curveOffset, curveLength);
+    Curve curve = Curve.requireSharedCurve(curveName);
 
     if (type == Safe.TYPE_MASTER) {
-      if (data.length != MASTER_LENGTH) {
+      if (key.length != MASTER_LENGTH) {
         KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
-        return 0;
+        return null;
       }
 
-      LibBIP32.deriveInPlace(curve, data, in, pathOffset, pathLength);
+      LibBIP32.deriveInPlace(curve, key, path, (short) 0, (short) path.length);
 
       type = Safe.TYPE_RAW;
     }
 
     if (type != Safe.TYPE_RAW) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
-      return 0;
+      return null;
     }
 
-    Key privateKey = curve.getSharedPrivateKey(data, (short) 0);
+    Key privateKey = curve.getSharedPrivateKey(key, (short) 0);
 
-    return Signer.sign(
-        in, cipherOffset, cipherLength,
-        privateKey,
-        in, digestOffset, digestLength,
-        out, outOffset);
+    return Signer.sign(cipher, privateKey, digest);
+  }
+
+  private byte[] deriveMasterFromSeed(byte[] key, byte[] seed) {
+    byte[] master = JCSystem.makeTransientByteArray(MASTER_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+
+    LibHMACSha512.digest(
+        seed, (short) 0, (short) seed.length,
+        key, (short) 0, (short) key.length,
+        master, (short) 0);
+
+    return master;
+  }
+
+  private byte[] derivePublicKeyAndChainCodeFromMaster(
+      Curve curve,
+      byte[] master,
+      byte[] path) {
+    LibBIP32.deriveInPlace(curve, master, path, (short) 0, (short) path.length);
+
+    ECPrivateKey privateKey = curve.getSharedPrivateKey(master, (short) 0);
+
+    byte[] publicKey = curve.derivePublicKey(privateKey);
+
+    short keyLength = curve.getKeyLength();
+
+    byte[] data = JCSystem.makeTransientByteArray((short) (publicKey.length + keyLength), JCSystem.CLEAR_ON_DESELECT);
+
+    // public key
+    Util.arrayCopyNonAtomic(publicKey, (short) 0, data, (short) 0, (short) publicKey.length);
+    // chain code
+    Util.arrayCopyNonAtomic(master, keyLength, data, (short) publicKey.length, keyLength);
+
+    return data;
+  }
+
+  private byte[] requireKey(byte[] index) {
+    byte[] indexGlobal = Utils.duplicateAsGlobal(index);
+
+    byte[] key = safe.get(indexGlobal, (short) 0, Safe.INDEX_LENGTH);
+
+    if (key == null) {
+      KeystoreException.throwIt(KeystoreException.REASON_KEY_NOT_FOUND);
+      return null;
+    }
+
+    return key;
   }
 }

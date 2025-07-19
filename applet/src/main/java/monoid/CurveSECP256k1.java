@@ -67,6 +67,16 @@ public class CurveSECP256k1 extends Curve {
   }
 
   @Override
+  public short getKeyLength() {
+    return KEY_LENGTH;
+  }
+
+  @Override
+  public short getPublicKeyLength() {
+    return 1 + KEY_LENGTH;
+  }
+
+  @Override
   public byte[] getR() {
     return R;
   }

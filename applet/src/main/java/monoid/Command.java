@@ -1,11 +1,15 @@
 package monoid;
 
 import javacard.framework.*;
+import javacard.security.*;
 
 import monoidsafe.MonoidSafe;
 import monoidsafe.MonoidSafeApplet;
 
 public abstract class Command {
+  public static final byte[] CODE_CRYPTO_EXCEPTION = {
+      'C', 'R', 'Y', 'P', 'T', 'O', '_', 'E', 'X', 'C', 'E', 'P', 'T', 'I', 'O', 'N' };
+
   public static final byte AUTH_ACCESS = 0b01;
   public static final byte AUTH_SAFE = 0b10;
 
@@ -13,22 +17,26 @@ public abstract class Command {
   protected static CBORApduWriter writer;
 
   public static Command hello;
+  public static Command setPIN;
   public static Command systemInformation;
 
-  public static Command setPIN;
   public static Command list;
   public static Command createRandomKey;
+
+  public static Command viewKey;
 
   public static void init() {
     reader = new CBORApduReader();
     writer = new CBORApduWriter();
 
     hello = new CommandHello();
+    setPIN = new CommandSetPIN();
     systemInformation = new CommandSystemInformation();
 
-    setPIN = new CommandSetPIN();
     list = new CommandList();
     createRandomKey = new CommandCreateRandomKey();
+
+    viewKey = new CommandViewKey();
   }
 
   public static void dispose() {
@@ -36,11 +44,13 @@ public abstract class Command {
     writer = null;
 
     hello = null;
+    setPIN = null;
     systemInformation = null;
 
-    setPIN = null;
     list = null;
     createRandomKey = null;
+
+    viewKey = null;
   }
 
   public static Command get(byte ins) {
@@ -55,6 +65,8 @@ public abstract class Command {
         return list;
       case 0x31:
         return createRandomKey;
+      case 0x40:
+        return viewKey;
       case (byte) 0xC0:
         writer.send();
         return null;
@@ -93,6 +105,11 @@ public abstract class Command {
       run();
     } catch (MonoidException e) {
       e.send();
+    } catch (CryptoException e) {
+      writeError(CODE_CRYPTO_EXCEPTION, (short) 1);
+      writer.text(Text.reason);
+      writer.integer(e.getReason());
+      writer.send();
     } finally {
       if (JCSystem.isObjectDeletionSupported()) {
         JCSystem.requestObjectDeletion();

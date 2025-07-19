@@ -5,10 +5,14 @@ public class Text {
       'a', 'u', 't', 'h' };
   public static final byte[] available = {
       'a', 'v', 'a', 'i', 'l', 'a', 'b', 'l', 'e' };
+  public static final byte[] chainCode = {
+      'c', 'h', 'a', 'i', 'n', 'C', 'o', 'd', 'e' };
   public static final byte[] ciphers = {
       'c', 'i', 'p', 'h', 'e', 'r', 's' };
   public static final byte[] code = {
       'c', 'o', 'd', 'e' };
+  public static final byte[] curve = {
+      'c', 'u', 'r', 'v', 'e' };
   public static final byte[] curves = {
       'c', 'u', 'r', 'v', 'e', 's' };
   public static final byte[] deselect = {
@@ -31,14 +35,22 @@ public class Text {
       'm', 'e', 'm', 'o', 'r', 'i', 'e', 's' };
   public static final byte[] monoid = {
       'm', 'o', 'n', 'o', 'i', 'd' };
+  public static final byte[] path = {
+      'p', 'a', 't', 'h' };
   public static final byte[] persistent = {
       'p', 'e', 'r', 's', 'i', 's', 't', 'e', 'n', 't' };
   public static final byte[] pin = {
       'p', 'i', 'n' };
+  public static final byte[] publicKey = {
+      'p', 'u', 'b', 'l', 'i', 'c', 'K', 'e', 'y' };
+  public static final byte[] reason = {
+      'r', 'e', 'a', 's', 'o', 'n' };
   public static final byte[] reset = {
       'r', 'e', 's', 'e', 't' };
   public static final byte[] safe = {
       's', 'a', 'f', 'e' };
+  public static final byte[] seed = {
+      's', 'e', 'e', 'd' };
   public static final byte[] system = {
       's', 'y', 's', 't', 'e', 'm' };
   public static final byte[] transient_ = {

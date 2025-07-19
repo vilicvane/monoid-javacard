@@ -10,9 +10,7 @@ public class CommandCreateRandomKey extends Command {
     Keystore keystore = MonoidApplet.keystore;
 
     reader.map();
-    reader.requireKey(Text.type);
-
-    byte type = Safe.type(reader.text());
+    byte type = Safe.type(reader.requireKey(Text.type).text());
 
     byte[] index;
 

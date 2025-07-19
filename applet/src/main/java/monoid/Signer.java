@@ -1,5 +1,6 @@
 package monoid;
 
+import javacard.framework.*;
 import javacard.security.*;
 
 public final class Signer {
@@ -11,24 +12,27 @@ public final class Signer {
     writer.text(CIPHER_ECDSA);
   }
 
-  public static short sign(
-      byte[] cipherIn, short cipherOffset, byte cipherLength,
+  public static byte[] sign(
+      byte[] cipherType,
       Key privateKey,
-      byte[] in, short digestOffset, byte digestLength,
-      byte[] out, short outOffset) throws SignerException {
+      byte[] digest) throws SignerException {
     byte cipher;
+    short length;
 
-    if (Utils.equal(CIPHER_ECDSA, cipherIn, cipherOffset, cipherLength)) {
+    if (Utils.equal(CIPHER_ECDSA, cipherType)) {
       cipher = Signature.SIG_CIPHER_ECDSA_PLAIN;
+      length = (short) (privateKey.getSize() / 8 * 2);
     } else {
       SignerException.throwIt(SignerException.REASON_UNSUPPORTED_CIPHER);
-      return 0;
+      return null;
     }
 
-    short length = OneShot.sign(cipher, privateKey, in, digestOffset, digestLength, out, outOffset);
+    byte[] signature = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
 
-    LibECDSA.ensureLowS(out, outOffset);
+    OneShot.sign(cipher, privateKey, digest, signature, (short) 0);
 
-    return length;
+    LibECDSA.ensureLowS(signature, (short) 0);
+
+    return signature;
   }
 }

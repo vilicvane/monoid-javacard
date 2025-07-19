@@ -1,5 +1,6 @@
 package monoid;
 
+import javacard.framework.*;
 import javacard.security.*;
 
 public abstract class Curve {
@@ -22,16 +23,16 @@ public abstract class Curve {
     writer.text(SECP256k1);
   }
 
-  public static Curve getSharedCurve(byte[] in, short curveOffset, byte curveLength) {
-    if (Utils.equal(SECP256k1, in, curveOffset, curveLength)) {
+  public static Curve getSharedCurve(byte[] curveName) {
+    if (Utils.equal(SECP256k1, curveName)) {
       return secp256k1;
     }
 
     return null;
   }
 
-  public static Curve requireSharedCurve(byte[] in, short typeOffset, byte typeLength) throws CurveException {
-    Curve curve = getSharedCurve(in, typeOffset, typeLength);
+  public static Curve requireSharedCurve(byte[] curveName) throws CurveException {
+    Curve curve = getSharedCurve(curveName);
 
     if (curve == null) {
       CurveException.throwIt(CurveException.REASON_UNSUPPORTED_CURVE);
@@ -43,7 +44,19 @@ public abstract class Curve {
 
   public abstract byte[] getR();
 
+  public abstract short getKeyLength();
+
+  public abstract short getPublicKeyLength();
+
   public abstract ECPrivateKey getSharedPrivateKey(byte[] in, short keyOffset);
 
   public abstract short derivePublicKey(ECPrivateKey privateKey, byte[] out, short outOffset);
+
+  public byte[] derivePublicKey(ECPrivateKey privateKey) {
+    byte[] publicKey = JCSystem.makeTransientByteArray((short) getPublicKeyLength(), JCSystem.CLEAR_ON_DESELECT);
+
+    derivePublicKey(privateKey, publicKey, (short) 0);
+
+    return publicKey;
+  }
 }

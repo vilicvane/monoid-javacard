@@ -130,3 +130,43 @@ type Response = {
   index: byte[];
 };
 ```
+
+### `0x40` ~ `0x4F` Key usage
+
+#### `0x40` View key
+
+```ts
+type Request = AuthRequest & {
+  index: byte[];
+  curve: string;
+} & (
+    | {
+        // seed
+        seed: string;
+        path: byte[];
+      }
+    | {
+        // master
+        path: byte[];
+      }
+    | {
+        // raw
+      }
+  );
+```
+
+```ts
+type Response = {
+  publicKey: byte[];
+} & (
+  | {
+      // seed / master
+      chainCode: byte[];
+    }
+  | {
+      // raw
+    }
+);
+```
+
+#### `0x41` Sign
