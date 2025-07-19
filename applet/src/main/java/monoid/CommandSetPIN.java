@@ -55,6 +55,6 @@ public final class CommandSetPIN extends Command {
       MonoidApplet.updatePIN(buffer, (short) 0, (byte) length);
     }
 
-    writeEmptyMap();
+    sendEmptyMap();
   }
 }

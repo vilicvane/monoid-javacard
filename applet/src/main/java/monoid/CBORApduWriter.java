@@ -42,9 +42,7 @@ public class CBORApduWriter extends CBORWriter {
 
     buffer = extendedBuffer;
 
-    if (JCSystem.isObjectDeletionSupported()) {
-      JCSystem.requestObjectDeletion();
-    }
+    JCSystem.requestObjectDeletion();
   }
 
   protected void reset() {

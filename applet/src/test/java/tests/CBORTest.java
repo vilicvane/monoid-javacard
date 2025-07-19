@@ -2,11 +2,8 @@ package tests;
 
 import org.junit.*;
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
-import javacard.framework.*;
 
 import monoid.CBOR;
-import monoid.CBORReader;
-import monoid.CBORWriter;
 
 public class CBORTest {
   /**
@@ -30,7 +27,7 @@ public class CBORTest {
 
   @Test
   public void read() {
-    TestCBORReader cbor = new TestCBORReader(example);
+    SimpleCBORReader cbor = new SimpleCBORReader(example);
 
     Assert.assertTrue(cbor.is(CBOR.TYPE_ARRAY));
     Assert.assertFalse(cbor.is(CBOR.TYPE_MAP));
@@ -84,7 +81,7 @@ public class CBORTest {
 
   @Test
   public void read_indefinite() {
-    TestCBORReader cbor = new TestCBORReader(exampleIndefinite);
+    SimpleCBORReader cbor = new SimpleCBORReader(exampleIndefinite);
 
     Assert.assertEquals(cbor.array(), -1);
 
@@ -107,7 +104,7 @@ public class CBORTest {
 
   @Test
   public void read_1() {
-    TestCBORReader cbor = new TestCBORReader(
+    SimpleCBORReader cbor = new SimpleCBORReader(
         Hex.decode("A36461757468A26370696E663838383838386473616665F56370696E663132333435366473616665F4"));
 
     cbor.map();
@@ -118,7 +115,7 @@ public class CBORTest {
   public void write() {
     byte[] buffer = new byte[example.length];
 
-    TestCBORWriter cbor = new TestCBORWriter(buffer);
+    SimpleCBORWriter cbor = new SimpleCBORWriter(buffer);
 
     cbor.array((short) 3);
     {
@@ -169,7 +166,7 @@ public class CBORTest {
   public void write_indefinite() {
     byte[] buffer = new byte[exampleIndefinite.length];
 
-    TestCBORWriter cbor = new TestCBORWriter(buffer);
+    SimpleCBORWriter cbor = new SimpleCBORWriter(buffer);
 
     cbor.array();
     {
@@ -192,40 +189,5 @@ public class CBORTest {
     System.out.println(Hex.toHexString(buffer));
 
     Assert.assertArrayEquals(buffer, exampleIndefinite);
-  }
-}
-
-class TestCBORReader extends CBORReader {
-  private byte[] buffer;
-
-  public TestCBORReader(byte[] buffer) {
-    this.buffer = buffer;
-
-    reset((short) 0);
-  }
-
-  @Override
-  protected byte[] getBuffer() {
-    return buffer;
-  }
-}
-
-class TestCBORWriter extends CBORWriter {
-  private byte[] buffer;
-
-  public TestCBORWriter(byte[] buffer) {
-    this.buffer = buffer;
-
-    reset((short) 0);
-  }
-
-  @Override
-  protected void write(short offset, byte value) {
-    buffer[offset] = value;
-  }
-
-  @Override
-  protected void write(short offset, byte[] buffer, short bufferOffset, short length) {
-    Util.arrayCopyNonAtomic(buffer, bufferOffset, this.buffer, offset, length);
   }
 }

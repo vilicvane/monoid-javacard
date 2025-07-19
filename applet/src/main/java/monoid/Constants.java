@@ -8,5 +8,4 @@ public final class Constants {
       0x01, // applet MonoidSafeApplet
       0x00, 0x00 // version 0 (alpha)
   };
-
 }

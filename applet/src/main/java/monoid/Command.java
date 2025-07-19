@@ -4,11 +4,13 @@ import javacard.framework.*;
 import javacard.security.*;
 
 import monoidsafe.MonoidSafe;
-import monoidsafe.MonoidSafeApplet;
 
 public abstract class Command {
   public static final byte[] CODE_CRYPTO_EXCEPTION = {
       'C', 'R', 'Y', 'P', 'T', 'O', '_', 'E', 'X', 'C', 'E', 'P', 'T', 'I', 'O', 'N' };
+
+  public static final byte[] CODE_INDEX_OUT_OF_BOUNDS = {
+      'I', 'N', 'D', 'E', 'X', '_', 'O', 'U', 'T', '_', 'O', 'F', '_', 'B', 'O', 'U', 'N', 'D', 'S' };
 
   public static final byte AUTH_ACCESS = 0b01;
   public static final byte AUTH_SAFE = 0b10;
@@ -21,6 +23,9 @@ public abstract class Command {
   public static Command systemInformation;
 
   public static Command list;
+  public static Command get;
+  public static Command set;
+  public static Command clear;
   public static Command createRandomKey;
 
   public static Command viewKey;
@@ -35,6 +40,9 @@ public abstract class Command {
     systemInformation = new CommandSystemInformation();
 
     list = new CommandList();
+    get = new CommandGet();
+    set = new CommandSet();
+    clear = new CommandClear();
     createRandomKey = new CommandCreateRandomKey();
 
     viewKey = new CommandViewKey();
@@ -50,6 +58,9 @@ public abstract class Command {
     systemInformation = null;
 
     list = null;
+    get = null;
+    set = null;
+    clear = null;
     createRandomKey = null;
 
     viewKey = null;
@@ -66,6 +77,12 @@ public abstract class Command {
         return setPIN;
       case 0x30:
         return list;
+      case 0x31:
+        return get;
+      case 0x32:
+        return set;
+      case 0x33:
+        return clear;
       case 0x38:
         return createRandomKey;
       case 0x40:
@@ -80,8 +97,9 @@ public abstract class Command {
     }
   }
 
-  protected static void writeEmptyMap() {
+  protected static void sendEmptyMap() {
     writer.map((short) 0);
+    writer.send();
   }
 
   protected static void sendError(byte[] code) {
@@ -115,10 +133,10 @@ public abstract class Command {
       writer.text(Text.reason);
       writer.integer(e.getReason());
       writer.send();
+    } catch (IndexOutOfBoundsException e) {
+      sendError(CODE_INDEX_OUT_OF_BOUNDS);
     } finally {
-      if (JCSystem.isObjectDeletionSupported()) {
-        JCSystem.requestObjectDeletion();
-      }
+      JCSystem.requestObjectDeletion();
     }
 
     // It the code ever reaches here, it means send() hasn't been called (as it
@@ -142,12 +160,7 @@ public abstract class Command {
 
     boolean safeAuth = reader.key(Text.safe) && reader.boolTrue();
 
-    byte[] buffer = (byte[]) JCSystem.makeGlobalArray(
-        JCSystem.ARRAY_TYPE_BYTE,
-        safeAuth ? MonoidSafeApplet.MAX_PIN_SIZE : MonoidApplet.MAX_PIN_SIZE);
-
-    reader.requireKey(Text.pin);
-    byte length = (byte) reader.text(buffer);
+    byte[] pin = reader.requireKey(Text.pin).text();
 
     reader.restore();
 
@@ -161,7 +174,7 @@ public abstract class Command {
         return 0;
       }
 
-      if (safe.checkPIN(buffer, (short) 0, length)) {
+      if (safe.checkPIN(pin, (short) 0, (byte) pin.length)) {
         return AUTH_SAFE | AUTH_ACCESS;
       }
 
@@ -172,13 +185,11 @@ public abstract class Command {
         return 0;
       }
 
-      OwnerPIN pin = MonoidApplet.pin;
-
-      if (pin.check(buffer, (short) 0, length)) {
+      if (MonoidApplet.pin.check(pin, (short) 0, (byte) pin.length)) {
         return AUTH_ACCESS;
       }
 
-      tries = pin.getTriesRemaining();
+      tries = MonoidApplet.pin.getTriesRemaining();
     }
 
     CBORApduWriter writer = writeError(MonoidException.CODE_INVALID_PIN, (short) 1);

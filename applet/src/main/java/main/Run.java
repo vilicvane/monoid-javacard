@@ -13,12 +13,15 @@ import javax.smartcardio.*;
 
 public class Run {
   public static void main(String[] args) {
+    System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
+    System.setProperty("com.licel.jcardsim.sign.dsasigner.computedhash", "1");
+
     // 1. create simulator
     CardSimulator simulator = new CardSimulator();
 
     // 2. install applet
-    AID monoidSafeAID = AIDUtil.create("F16D6F6E6F696400010001");
-    AID monoidAID = AIDUtil.create("F16D6F6E6F696401010001");
+    AID monoidSafeAID = AIDUtil.create("F16D6F6E6F696400010000");
+    AID monoidAID = AIDUtil.create("F16D6F6E6F696401010000");
 
     simulator.installApplet(monoidSafeAID, MonoidSafeApplet.class);
     simulator.installApplet(monoidAID, MonoidApplet.class);
@@ -38,8 +41,8 @@ public class Run {
     // 4. send APDU
 
     CommandAPDU[] commands = new CommandAPDU[] {
-        new CommandAPDU(0x00, 0x20, 0x00, 0x00),
-        new CommandAPDU(0x00, 0x21, 0x00, 0x00, Hex.decode("A26370696E663838383838386473616665F5")),
+        new CommandAPDU(0x00, 0x20, 0x00, 0x00, Hex.decode("A0")),
+        // new CommandAPDU(0x00, 0x21, 0x00, 0x00, Hex.decode("A26370696E663838383838386473616665F5")),
         // new CommandAPDU(0x00, 0x01, 0x00, 0x00),
         // new CommandAPDU(0x00, 0x04, 0x00, 0x00,
         //     Hex.decode(

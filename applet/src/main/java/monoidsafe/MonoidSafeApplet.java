@@ -123,7 +123,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
 
         Util.arrayCopyNonAtomic(buffer, offset, item.data, (short) 0, length);
 
-        requestObjectDeletion();
+        JCSystem.requestObjectDeletion();
 
         JCSystem.commitTransaction();
 
@@ -143,7 +143,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
 
       items = extendedItems;
 
-      requestObjectDeletion();
+      JCSystem.requestObjectDeletion();
     }
 
     Item item = new Item();
@@ -190,17 +190,11 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
 
     itemsLength--;
 
-    requestObjectDeletion();
+    JCSystem.requestObjectDeletion();
 
     JCSystem.commitTransaction();
 
     return true;
-  }
-
-  private void requestObjectDeletion() {
-    if (JCSystem.isObjectDeletionSupported()) {
-      JCSystem.requestObjectDeletion();
-    }
   }
 
   private void assertAccess() {

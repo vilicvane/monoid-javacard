@@ -114,15 +114,15 @@ final def JC310b43 = libsSdk + '/jc310b43_kit'
 final def JC_SELECTED = JC310b43
 
 javacard {
-	def MONOID_NAMESPACE = 'f1:6d:6f:6e:6f:69:64'
+	def MONOID_NAMESPACE = 'f1:6d6f6e6f6964'
 
 	def MONOID_SAFE_PACKAGE_AID = MONOID_NAMESPACE + ':00'
 	def MONOID_PACKAGE_AID = MONOID_NAMESPACE + ':01'
 
 	// package id || applet id || major version
 
-	def MONOID_SAFE_AID = MONOID_SAFE_PACKAGE_AID + ':01' + ':00:00'
-	def MONOID_AID = MONOID_PACKAGE_AID + ':01' + ':00:00'
+	def MONOID_SAFE_AID = MONOID_SAFE_PACKAGE_AID + ':01' + ':0000'
+	def MONOID_AID = MONOID_PACKAGE_AID + ':01' + ':0000'
 
 	config {
 		jckit JC_SELECTED

@@ -33,9 +33,7 @@ public final class Keystore {
   private byte[] createRandom(byte type, byte length) {
     byte[] buffer = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
 
-    RandomData.OneShot random = RandomData.OneShot.open(RandomData.ALG_TRNG);
-    random.nextBytes(buffer, (short) 0, length);
-    random.close();
+    OneShot.random(buffer, (short) 0, length);
 
     return addKey(type, buffer);
   }

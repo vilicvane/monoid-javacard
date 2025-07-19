@@ -9,6 +9,8 @@ public class MonoidException extends CardRuntimeException {
       'I', 'N', 'V', 'A', 'L', 'I', 'D', '_', 'P', 'A', 'R', 'A', 'M', 'E', 'T', 'E', 'R' };
   public static final byte[] CODE_INVALID_PIN = {
       'I', 'N', 'V', 'A', 'L', 'I', 'D', '_', 'P', 'I', 'N' };
+  public static final byte[] CODE_NOT_FOUND = {
+      'N', 'O', 'T', '_', 'F', 'O', 'U', 'N', 'D' };
   public static final byte[] CODE_PIN_NOT_SET = {
       'P', 'I', 'N', '_', 'N', 'O', 'T', '_', 'S', 'E', 'T' };
   public static final byte[] CODE_SAFE_BLOCKED = {

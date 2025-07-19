@@ -148,7 +148,7 @@ type Response = {};
 #### `0x33` Clear item
 
 ```ts
-type Request = SafeAuthRequest & {
+type Request = AuthRequest & {
   index: byte[];
 };
 ```

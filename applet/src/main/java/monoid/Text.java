@@ -17,6 +17,8 @@ public class Text {
       'c', 'u', 'r', 'v', 'e' };
   public static final byte[] curves = {
       'c', 'u', 'r', 'v', 'e', 's' };
+  public static final byte[] data = {
+      'd', 'a', 't', 'a' };
   public static final byte[] digest = {
       'd', 'i', 'g', 'e', 's', 't' };
   public static final byte[] deselect = {

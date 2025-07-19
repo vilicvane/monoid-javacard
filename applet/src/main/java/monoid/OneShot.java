@@ -68,4 +68,22 @@ public final class OneShot {
         .getInstance(algorithm, false)
         .doFinal(in, dataOffset, dataLength, out, outOffset);
   }
+
+  public static void random(
+      byte[] out, short outOffset, short outLength) {
+    RandomData.OneShot random = RandomData.OneShot.open(RandomData.ALG_TRNG);
+
+    if (random == null) {
+      randomFallback(out, outOffset, outLength);
+      return;
+    }
+
+    random.nextBytes(out, outOffset, outLength);
+    random.close();
+  }
+
+  private static void randomFallback(
+      byte[] out, short outOffset, short outLength) {
+    RandomData.getInstance(RandomData.ALG_TRNG).nextBytes(out, outOffset, outLength);
+  }
 }
