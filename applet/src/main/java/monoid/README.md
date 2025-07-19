@@ -28,7 +28,7 @@ type SafeAuthRequest = {
 #### `0x20` Hello
 
 ```ts
-type Request = never;
+type Request = {};
 ```
 
 ```ts

@@ -10,6 +10,8 @@ public final class CommandHello extends Command {
     OwnerPIN pin = MonoidApplet.pin;
     MonoidSafe safe = MonoidApplet.safe;
 
+    reader.map();
+
     writer.map((short) 4);
     {
       writer.text(Text.version);

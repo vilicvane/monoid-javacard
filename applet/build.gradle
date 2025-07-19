@@ -121,8 +121,8 @@ javacard {
 
     // package id || applet id || major version
 
-    def MONOID_SAFE_AID = MONOID_SAFE_PACKAGE_AID + ':01' + ':00:01'
-    def MONOID_AID = MONOID_PACKAGE_AID + ':01' + ':00:01'
+    def MONOID_SAFE_AID = MONOID_SAFE_PACKAGE_AID + ':01' + ':00:00'
+    def MONOID_AID = MONOID_PACKAGE_AID + ':01' + ':00:00'
 
     config {
         jckit JC_SELECTED
@@ -149,7 +149,7 @@ javacard {
 
         cap {
             packageName 'monoidsafe'
-            version '0.1'
+            version '0.0'
             aid MONOID_SAFE_PACKAGE_AID
             output 'monoidsafe.cap'
 
@@ -165,7 +165,7 @@ javacard {
 
         cap {
             packageName 'monoid'
-            version '0.1'
+            version '0.0'
             aid MONOID_PACKAGE_AID
             output 'monoid.cap'
 
@@ -196,7 +196,7 @@ javacard {
 
         script {
             name 'hello'
-            apdu '00200000'
+            apdu '00200000' + '01' + 'A0'
         }
 
         script {
