@@ -42,6 +42,9 @@ public abstract class Command {
         return setPIN;
       case 0x30:
         return list;
+      case (byte) 0xC0:
+        writer.send();
+        return null;
       default:
         return null;
     }

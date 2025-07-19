@@ -1,11 +1,10 @@
 package monoid;
 
 import javacard.framework.*;
-import javacardx.apdu.ExtendedLength;
 
 import monoidsafe.MonoidSafe;
 
-public class MonoidApplet extends Applet implements Monoid, AppletEvent, ExtendedLength {
+public class MonoidApplet extends Applet implements Monoid, AppletEvent {
   public static final byte PIN_TRY_LIMIT = 5;
   public static final byte MAX_PIN_SIZE = 16;
 

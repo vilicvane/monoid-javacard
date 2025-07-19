@@ -1,8 +1,8 @@
 package tests;
 
 import org.junit.*;
-
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
+import javacard.framework.*;
 
 import monoid.CBOR;
 import monoid.CBORReader;
@@ -220,7 +220,12 @@ class TestCBORWriter extends CBORWriter {
   }
 
   @Override
-  protected byte[] getBuffer() {
-    return buffer;
+  protected void write(short offset, byte value) {
+    buffer[offset] = value;
+  }
+
+  @Override
+  protected void write(short offset, byte[] buffer, short bufferOffset, short length) {
+    Util.arrayCopyNonAtomic(buffer, bufferOffset, this.buffer, offset, length);
   }
 }

@@ -1,12 +1,12 @@
 package monoid;
 
-import javacard.framework.*;
-
 public abstract class CBORWriter {
-  private short initialOffset;
-  private short offset;
+  protected short initialOffset;
+  protected short offset;
 
-  protected abstract byte[] getBuffer();
+  protected abstract void write(short offset, byte value);
+
+  protected abstract void write(short offset, byte[] buffer, short bufferOffset, short length);
 
   protected void reset(short offset) {
     this.initialOffset = offset;
@@ -15,12 +15,6 @@ public abstract class CBORWriter {
 
   public short getLength() {
     return (short) (offset - initialOffset);
-  }
-
-  public short copyNonAtomicTo(byte[] out, short outOffset) {
-    byte[] buffer = getBuffer();
-
-    return Util.arrayCopyNonAtomic(buffer, initialOffset, out, outOffset, getLength());
   }
 
   public void integer(short value) {
@@ -48,11 +42,11 @@ public abstract class CBORWriter {
   }
 
   private void bytesLike(byte type, byte[] in, short valueOffset, short valueLength) {
-    byte[] buffer = getBuffer();
-
     metadataUnsignedInteger(type, valueLength);
 
-    offset = Util.arrayCopyNonAtomic(in, valueOffset, buffer, offset, valueLength);
+    write(offset, in, valueOffset, valueLength);
+
+    offset += valueLength;
   }
 
   public void array(short length) {
@@ -72,35 +66,27 @@ public abstract class CBORWriter {
   }
 
   public void bool(boolean value) {
-    byte[] buffer = getBuffer();
-
-    buffer[offset++] = value ? CBOR.TRUE : CBOR.FALSE;
+    write(offset++, value ? CBOR.TRUE : CBOR.FALSE);
   }
 
   public void br() {
-    byte[] buffer = getBuffer();
-
-    buffer[offset++] = CBOR.BREAK;
+    write(offset++, CBOR.BREAK);
   }
 
   private void metadataUnsignedInteger(byte type, short value) {
-    byte[] buffer = getBuffer();
-
     if (value <= CBOR.MAX_SIMPLE_UNSIGNED_INT) {
-      buffer[offset++] = (byte) (type | value);
+      write(offset++, (byte) (type | value));
     } else if (value <= 0xFF) {
-      buffer[offset++] = (byte) (type | CBOR.VARIABLE_LENGTH_UNSIGNED_INT_MARK | 0b000);
-      buffer[offset++] = (byte) value;
+      write(offset++, (byte) (type | CBOR.VARIABLE_LENGTH_UNSIGNED_INT_MARK | 0b000));
+      write(offset++, (byte) value);
     } else {
-      buffer[offset++] = (byte) (type | CBOR.VARIABLE_LENGTH_UNSIGNED_INT_MARK | 0b001);
-      buffer[offset++] = (byte) (value >> 8);
-      buffer[offset++] = (byte) value;
+      write(offset++, (byte) (type | CBOR.VARIABLE_LENGTH_UNSIGNED_INT_MARK | 0b001));
+      write(offset++, (byte) (value >> 8));
+      write(offset++, (byte) value);
     }
   }
 
   private void metadataIndefinite(byte type) {
-    byte[] buffer = getBuffer();
-
-    buffer[offset++] = (byte) (type | CBOR.VARIABLE_LENGTH_INDEFINITE_MARK);
+    write(offset++, (byte) (type | CBOR.VARIABLE_LENGTH_INDEFINITE_MARK));
   }
 }
