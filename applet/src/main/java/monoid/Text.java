@@ -33,8 +33,12 @@ public class Text {
       'i', 't', 'e', 'm', 's' };
   public static final byte[] javacard = {
       'j', 'a', 'v', 'a', 'c', 'a', 'r', 'd' };
+  public static final byte[] key = {
+      'k', 'e', 'y' };
   public static final byte[] length = {
       'l', 'e', 'n', 'g', 't', 'h' };
+  public static final byte[] master = {
+      'm', 'a', 's', 't', 'e', 'r' };
   public static final byte[] memories = {
       'm', 'e', 'm', 'o', 'r', 'i', 'e', 's' };
   public static final byte[] monoid = {

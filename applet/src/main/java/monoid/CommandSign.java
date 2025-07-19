@@ -21,7 +21,7 @@ public class CommandSign extends Command {
 
     byte[] signature;
 
-    if (type == Safe.TYPE_RAW) {
+    if (type == Safe.TYPE_KEY) {
       signature = keystore.sign(index, curve, cipher, null, null, digest);
     } else {
       byte[] path = reader.requireKey(Text.path).bytes();

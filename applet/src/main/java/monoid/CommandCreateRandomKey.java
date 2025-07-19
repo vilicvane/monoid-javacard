@@ -21,9 +21,9 @@ public class CommandCreateRandomKey extends Command {
       case Safe.TYPE_MASTER:
         index = keystore.createRandomMaster();
         break;
-      case Safe.TYPE_RAW:
+      case Safe.TYPE_KEY:
         reader.requireKey(Text.length);
-        index = keystore.createRandomRaw((byte) reader.integer());
+        index = keystore.createRandomKey((byte) reader.integer());
         break;
       default:
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);

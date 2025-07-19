@@ -110,7 +110,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   }
 
   @Override
-  public void set(byte[] buffer, short offset, byte indexLength, short length) {
+  public boolean set(byte[] buffer, short offset, byte indexLength, short length) {
     assertAccess();
 
     for (short index = 0; index < itemsLength; index++) {
@@ -127,7 +127,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
 
         JCSystem.commitTransaction();
 
-        return;
+        return true;
       }
     }
 
@@ -157,10 +157,12 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
     itemsLength++;
 
     JCSystem.commitTransaction();
+
+    return false;
   }
 
   @Override
-  public void delete(byte[] buffer, short offset, byte indexLength) {
+  public boolean clear(byte[] buffer, short offset, byte indexLength) {
     assertAccess();
 
     short indexToDelete = -1;
@@ -175,7 +177,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
     }
 
     if (indexToDelete < 0) {
-      return;
+      return false;
     }
 
     JCSystem.beginTransaction();
@@ -191,6 +193,8 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
     requestObjectDeletion();
 
     JCSystem.commitTransaction();
+
+    return true;
   }
 
   private void requestObjectDeletion() {

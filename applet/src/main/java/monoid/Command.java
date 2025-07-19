@@ -66,7 +66,7 @@ public abstract class Command {
         return setPIN;
       case 0x30:
         return list;
-      case 0x31:
+      case 0x38:
         return createRandomKey;
       case 0x40:
         return viewKey;

@@ -9,7 +9,11 @@ public class CommandList extends Command {
 
     reader.map();
 
-    byte type = reader.key(Text.type) ? Safe.type(reader) : 0;
+    byte type = reader.key(Text.type)
+        ? reader.is(CBOR.TYPE_TEXT)
+            ? Safe.type(reader)
+            : (byte) reader.integer()
+        : 0;
 
     byte[] data = MonoidApplet.safe.list(type, Safe.INDEX_LENGTH);
 

@@ -99,7 +99,8 @@ type Response = {
 #### `0x30` List safe items
 
 ```ts
-type SafeItemType = 'seed' | 'master' | 'raw';
+type SafeItemKeyType = 'seed' | 'master' | 'key';
+type SafeItemType = SafeItemKeyType | byte;
 ```
 
 ```ts
@@ -117,11 +118,50 @@ type Response = {
 };
 ```
 
-#### `0x31` Create random key
+#### `0x31` Get item
+
+```ts
+type Request = SafeAuthRequest & {
+  index: byte[];
+};
+```
+
+```ts
+type Response = {
+  data: byte[];
+};
+```
+
+#### `0x32` Set item
 
 ```ts
 type Request = AuthRequest & {
-  type: 'seed' | 'master' | 'raw';
+  index: byte[];
+  data: byte[];
+};
+```
+
+```ts
+type Response = {};
+```
+
+#### `0x33` Clear item
+
+```ts
+type Request = SafeAuthRequest & {
+  index: byte[];
+};
+```
+
+```ts
+type Response = {};
+```
+
+#### `0x38` Create random key
+
+```ts
+type Request = AuthRequest & {
+  type: SafeItemKeyType;
 };
 ```
 
@@ -148,7 +188,7 @@ type Key = {
       path: byte[];
     }
   | {
-      // raw
+      // key
     }
 );
 ```
@@ -168,7 +208,7 @@ type Response = {
       chainCode: byte[];
     }
   | {
-      // raw
+      // key
     }
 );
 ```

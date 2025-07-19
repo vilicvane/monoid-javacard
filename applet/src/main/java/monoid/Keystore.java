@@ -26,8 +26,8 @@ public final class Keystore {
     return createRandom(Safe.TYPE_MASTER, MASTER_LENGTH);
   }
 
-  public byte[] createRandomRaw(byte length) {
-    return createRandom(Safe.TYPE_RAW, length);
+  public byte[] createRandomKey(byte length) {
+    return createRandom(Safe.TYPE_KEY, length);
   }
 
   private byte[] createRandom(byte type, byte length) {
@@ -84,8 +84,8 @@ public final class Keystore {
     return derivePublicKeyAndChainCodeFromMaster(curve, key, path);
   }
 
-  public byte[] getRawPublicKey(byte[] index, Curve curve) {
-    if (index[0] != Safe.TYPE_RAW) {
+  public byte[] getKeyPublicKey(byte[] index, Curve curve) {
+    if (index[0] != Safe.TYPE_KEY) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
       return null;
     }
@@ -129,10 +129,10 @@ public final class Keystore {
 
       LibBIP32.deriveInPlace(curve, key, path, (short) 0, (short) path.length);
 
-      type = Safe.TYPE_RAW;
+      type = Safe.TYPE_KEY;
     }
 
-    if (type != Safe.TYPE_RAW) {
+    if (type != Safe.TYPE_KEY) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
       return null;
     }

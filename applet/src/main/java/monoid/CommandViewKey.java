@@ -16,11 +16,11 @@ public final class CommandViewKey extends Command {
 
     byte type = index[0];
 
-    if (type == Safe.TYPE_RAW) {
+    if (type == Safe.TYPE_KEY) {
       writer.map((short) 1);
       {
         writer.text(Text.publicKey);
-        writer.bytes(keystore.getRawPublicKey(index, curve));
+        writer.bytes(keystore.getKeyPublicKey(index, curve));
       }
 
       return;

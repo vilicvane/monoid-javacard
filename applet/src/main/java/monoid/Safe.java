@@ -5,11 +5,11 @@ import javacard.framework.*;
 public final class Safe {
   public static final byte TYPE_SEED = 0x01;
   public static final byte TYPE_MASTER = 0x02;
-  public static final byte TYPE_RAW = 0x03;
+  public static final byte TYPE_KEY = 0x03;
 
-  public static final byte[] TYPE_TEXT_SEED = { 's', 'e', 'e', 'd' };
-  public static final byte[] TYPE_TEXT_MASTER = { 'm', 'a', 's', 't', 'e', 'r' };
-  public static final byte[] TYPE_TEXT_RAW = { 'r', 'a', 'w' };
+  public static final byte[] TYPE_TEXT_SEED = Text.seed;
+  public static final byte[] TYPE_TEXT_MASTER = Text.master;
+  public static final byte[] TYPE_TEXT_KEY = Text.key;
 
   public static final byte INDEX_DIGEST_LENGTH = 8;
   public static final byte INDEX_LENGTH = 1 + INDEX_DIGEST_LENGTH;
@@ -19,8 +19,8 @@ public final class Safe {
       return TYPE_SEED;
     } else if (Utils.equal(TYPE_TEXT_MASTER, buffer, offset, length)) {
       return TYPE_MASTER;
-    } else if (Utils.equal(TYPE_TEXT_RAW, buffer, offset, length)) {
-      return TYPE_RAW;
+    } else if (Utils.equal(TYPE_TEXT_KEY, buffer, offset, length)) {
+      return TYPE_KEY;
     }
 
     MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
@@ -37,8 +37,8 @@ public final class Safe {
         return TYPE_TEXT_SEED;
       case TYPE_MASTER:
         return TYPE_TEXT_MASTER;
-      case TYPE_RAW:
-        return TYPE_TEXT_RAW;
+      case TYPE_KEY:
+        return TYPE_TEXT_KEY;
       default:
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
         return null;
