@@ -4,15 +4,15 @@ version '1.0-SNAPSHOT'
 // Buildscript configuration for the javacard-gradle plugin.
 // Do not modify this particular block. Dependencies for the project are lower.
 buildscript {
-    repositories {
-        mavenCentral()
-        maven { url "https://javacard.pro/maven" }
-        maven { url "https://deadcode.me/mvn" }
-        // mavenLocal()
-    }
-    dependencies {
-        classpath 'com.klinec:gradle-javacard:1.8.0'
-    }
+	repositories {
+		mavenCentral()
+		maven { url "https://javacard.pro/maven" }
+		maven { url "https://deadcode.me/mvn" }
+		// mavenLocal()
+	}
+	dependencies {
+		classpath 'com.klinec:gradle-javacard:1.8.0'
+	}
 }
 
 apply plugin: 'com.klinec.gradle.javacard'
@@ -27,70 +27,70 @@ final def libsSdk = rootPath + '/libs-sdks'
 
 // Repositories for your project
 repositories {
-    mavenCentral()
-    // mavenLocal() // for local maven repository if needed
+	mavenCentral()
+	// mavenLocal() // for local maven repository if needed
 
-    // Repository with JCardSim, Globalplatform, etc, ...
-    maven { url "https://javacard.pro/maven" }
-    maven { url "https://deadcode.me/mvn" }
+	// Repository with JCardSim, Globalplatform, etc, ...
+	maven { url "https://javacard.pro/maven" }
+	maven { url "https://deadcode.me/mvn" }
 
-    // Local lib repository
-    flatDir {
-        dirs libs
-    }
+	// Local lib repository
+	flatDir {
+		dirs libs
+	}
 }
 
 // Dependencies for your project
 dependencies {
-    jcardsim 'com.klinec:jcardsim:3.0.6.0'
+	jcardsim 'com.klinec:jcardsim:3.0.6.0'
 
-    implementation 'com.klinec:jcardsim:3.0.6.0'
+	implementation 'com.klinec:jcardsim:3.0.6.0'
 
-    testImplementation 'org.testng:testng:6.1.1'
-    testImplementation 'org.slf4j:slf4j-api:1.7.33'
-    testImplementation 'org.slf4j:slf4j-log4j12:1.7.33'
-    testImplementation 'org.apache.logging.log4j:log4j-core:2.17.0'
-    testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.1.1'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.1.1'
+	testImplementation 'org.testng:testng:6.1.1'
+	testImplementation 'org.slf4j:slf4j-api:1.7.33'
+	testImplementation 'org.slf4j:slf4j-log4j12:1.7.33'
+	testImplementation 'org.apache.logging.log4j:log4j-core:2.17.0'
+	testImplementation 'junit:junit:4.13.2'
+	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.1.1'
+	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.1.1'
 
-    testImplementation(group: 'com.klinec', name: 'javacard-tools', version: '1.0.4') {
-        exclude group: "com.klinec", module: "jcardsim"
-    }
+	testImplementation(group: 'com.klinec', name: 'javacard-tools', version: '1.0.4') {
+		exclude group: "com.klinec", module: "jcardsim"
+	}
 
-    // Include plugin as it has bundled GP & other tools.
-    // Alternative: include GP manually, but the included
-    // version has to be compatible with the plugin.
-    runtimeOnly 'com.klinec:gradle-javacard:1.8.0'
+	// Include plugin as it has bundled GP & other tools.
+	// Alternative: include GP manually, but the included
+	// version has to be compatible with the plugin.
+	runtimeOnly 'com.klinec:gradle-javacard:1.8.0'
 }
 
 task dumpClassPath(dependsOn: ['idea']) {
-    doLast {
-        println "Gradle classpath:\n- " + configurations.compile.files*.name.join("\n- ")
-        println "-------\n"
-        println "IDEA classpath: \n- " + file(project.name + ".iml").readLines()
-                .grep(~/.*"jar:.*/).collect { it.split("[\\/]")[-3].trim() }.join("\n- ")
-        println "-------\n"
-    }
+	doLast {
+		println "Gradle classpath:\n- " + configurations.compile.files*.name.join("\n- ")
+		println "-------\n"
+		println "IDEA classpath: \n- " + file(project.name + ".iml").readLines()
+				.grep(~/.*"jar:.*/).collect { it.split("[\\/]")[-3].trim() }.join("\n- ")
+		println "-------\n"
+	}
 }
 
 application {
-    mainClass = 'main.Run'
+	mainClass = 'main.Run'
 }
 
 test {
-    // useTestNG()
-    useJUnitPlatform {
-        excludeTags 'manual'
-    }
+	// useTestNG()
+	useJUnitPlatform {
+		excludeTags 'manual'
+	}
 
-    task manualTests(type: Test) {
-        useJUnitPlatform {
-            includeTags 'manual'
-        }
-        check.dependsOn it
-        shouldRunAfter test
-    }
+	task manualTests(type: Test) {
+		useJUnitPlatform {
+			includeTags 'manual'
+		}
+		check.dependsOn it
+		shouldRunAfter test
+	}
 }
 
 // JavaCard SDKs and libraries
@@ -114,170 +114,182 @@ final def JC310b43 = libsSdk + '/jc310b43_kit'
 final def JC_SELECTED = JC310b43
 
 javacard {
-    def MONOID_NAMESPACE = 'f1:6d:6f:6e:6f:69:64'
+	def MONOID_NAMESPACE = 'f1:6d:6f:6e:6f:69:64'
 
-    def MONOID_SAFE_PACKAGE_AID = MONOID_NAMESPACE + ':00'
-    def MONOID_PACKAGE_AID = MONOID_NAMESPACE + ':01'
+	def MONOID_SAFE_PACKAGE_AID = MONOID_NAMESPACE + ':00'
+	def MONOID_PACKAGE_AID = MONOID_NAMESPACE + ':01'
 
-    // package id || applet id || major version
+	// package id || applet id || major version
 
-    def MONOID_SAFE_AID = MONOID_SAFE_PACKAGE_AID + ':01' + ':00:00'
-    def MONOID_AID = MONOID_PACKAGE_AID + ':01' + ':00:00'
+	def MONOID_SAFE_AID = MONOID_SAFE_PACKAGE_AID + ':01' + ':00:00'
+	def MONOID_AID = MONOID_PACKAGE_AID + ':01' + ':00:00'
 
-    config {
-        jckit JC_SELECTED
+	config {
+		jckit JC_SELECTED
 
-        debugGpPro true
-        addImplicitJcardSim false
-        addImplicitJcardSimJunit false
+		debugGpPro true
+		addImplicitJcardSim false
+		addImplicitJcardSimJunit false
 
-        // cap {
-        //     packageName 'applet'
-        //     version '0.1'
-        //     aid 'ff:01:02:03:04:06'
-        //     output 'applet.cap'
+		// cap {
+		//     packageName 'applet'
+		//     version '0.1'
+		//     aid 'ff:01:02:03:04:06'
+		//     output 'applet.cap'
 
-        //     targetsdk JC305
+		//     targetsdk JC305
 
-        //     sources 'src/main/java/applet'
+		//     sources 'src/main/java/applet'
 
-        //     applet {
-        //         className 'applet.HelloWorldApplet'
-        //         aid 'ff:01:02:03:04:06:00:01'
-        //     }
-        // }
+		//     applet {
+		//         className 'applet.HelloWorldApplet'
+		//         aid 'ff:01:02:03:04:06:00:01'
+		//     }
+		// }
 
-        cap {
-            packageName 'monoidsafe'
-            version '0.0'
-            aid MONOID_SAFE_PACKAGE_AID
-            output 'monoidsafe.cap'
+		cap {
+			packageName 'monoidsafe'
+			version '0.0'
+			aid MONOID_SAFE_PACKAGE_AID
+			output 'monoidsafe.cap'
 
-            targetsdk JC305
+			targetsdk JC305
 
-            sources 'src/main/java/monoidsafe'
+			sources 'src/main/java/monoidsafe'
 
-            applet {
-                className 'monoidsafe.MonoidSafeApplet'
-                aid MONOID_SAFE_AID
-            }
-        }
+			applet {
+				className 'monoidsafe.MonoidSafeApplet'
+				aid MONOID_SAFE_AID
+			}
+		}
 
-        cap {
-            packageName 'monoid'
-            version '0.0'
-            aid MONOID_PACKAGE_AID
-            output 'monoid.cap'
+		cap {
+			packageName 'monoid'
+			version '0.0'
+			aid MONOID_PACKAGE_AID
+			output 'monoid.cap'
 
-            targetsdk JC305
+			targetsdk JC305
 
-            sources 'src/main/java/monoid'
+			sources 'src/main/java/monoid'
 
-            applet {
-                className 'monoid.MonoidApplet'
-                aid MONOID_AID
-            }
+			applet {
+				className 'monoid.MonoidApplet'
+				aid MONOID_AID
+			}
 
-            dependencies {
-                local {
-                    exps "${buildDir}/javacard/monoidsafe.exp"
-                    jar "${buildDir}/javacard/monoidsafe.exp/monoidsafe.jar"
-                }
-            }
-        }
-    }
+			dependencies {
+				local {
+					exps "${buildDir}/javacard/monoidsafe.exp"
+					jar "${buildDir}/javacard/monoidsafe.exp/monoidsafe.jar"
+				}
+			}
+		}
+	}
 
-    scripts {
-        script {
-            name 'select'
-            apdu '00a40400' +
-                '0B' + MONOID_AID
-        }
+	scripts {
+		script {
+			name 'select'
+			apdu '00a40400' +
+				'0B' + MONOID_AID
+		}
 
-        script {
-            name 'hello'
-            apdu '00200000' + '01' + 'A0'
-        }
+		script {
+			name 'hello'
+			apdu '00200000' + '01' + 'A0'
+		}
 
-        script {
-            name 'systemInformation'
-            apdu '002F0000' + '01' + 'A0'
-        }
+		script {
+			name 'systemInformation'
+			apdu '002F0000' + '01' + 'A0'
+		}
 
-        script {
-            name 'setPIN'
-            apdu '00210000' +
-            // {"auth": {"pin": "888888", "safe": true}, "pin": "123456"}
-            // '23' + 'A26461757468A26370696E663838383838386473616665F56370696E66313233343536'
-            // {"auth": {"pin": "888888", "safe": true}, "pin": "123456", "safe": true}
-            // '29' + 'A36461757468A26370696E663838383838386473616665F56370696E663132333435366473616665F5'
-            // {"auth": {"pin": "888888", "safe": true}, "pin": "888888", "safe": true}
-            '29' + 'A36461757468A26370696E663838383838386473616665F56370696E663838383838386473616665F5'
-            // {"auth": {"pin": "123456", "safe": true}, "pin": "888888", "safe": true}
-            // '29' + 'A36461757468A26370696E663132333435366473616665F56370696E663838383838386473616665F5'
-            // {"pin": "888888", "safe": true}
-            // '12' + 'A26370696E663838383838386473616665F5'
-            // {"pin": "123456"}
-            // '0C' + 'A16370696E66313233343536'
-        }
+		script {
+			name 'setPIN'
+			apdu '00210000' +
+				// {"auth": {"pin": "888888", "safe": true}, "pin": "123456"}
+				// '23' + 'A26461757468A26370696E663838383838386473616665F56370696E66313233343536'
+				// {"auth": {"pin": "888888", "safe": true}, "pin": "123456", "safe": true}
+				// '29' + 'A36461757468A26370696E663838383838386473616665F56370696E663132333435366473616665F5'
+				// {"auth": {"pin": "888888", "safe": true}, "pin": "888888", "safe": true}
+				'29' + 'A36461757468A26370696E663838383838386473616665F56370696E663838383838386473616665F5'
+				// {"auth": {"pin": "123456", "safe": true}, "pin": "888888", "safe": true}
+				// '29' + 'A36461757468A26370696E663132333435366473616665F56370696E663838383838386473616665F5'
+				// {"pin": "888888", "safe": true}
+				// '12' + 'A26370696E663838383838386473616665F5'
+				// {"pin": "123456"}
+				// '0C' + 'A16370696E66313233343536'
+		}
 
-        script {
-            name 'list'
-            apdu '00300000' + '12' + 'A16461757468A16370696E66383838383838'
-        }
+		script {
+			name 'list'
+			apdu '00300000' + '12' + 'A16461757468A16370696E66383838383838'
+		}
 
-        script {
-            name 'genKey'
-            apdu '00010000'
-        }
+		script {
+			name 'createRandomKey'
+			apdu '00310000' +
+				// {"auth": {"pin": "888888"}, "type": "seed"}
+				'1C' + 'A26461757468A16370696E6638383838383864747970656473656564'
+		}
 
-        script {
-            name 'sign'
-            apdu '00020000' +
-                '29' + // 9 + 32
-                '0100b35e36431d564d' + // index
-                '9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658' // hash
-        }
+		script {
+			name 'genKey'
+			apdu '00010000'
+		}
 
-        script {
-            name 'hash'
-            apdu '00030000' +
-                '45' + // 32 + 1 + 32 + 4
-                '66215D7E6BFC60078F9A2F086C0BCE2180DB69A2D430BE821ABA9A269AD01B90' + // chain code
-                '00' + 'B9FAA9F03F077DA860D85CBFBFF7CB690555FD356A8804E893D46D8B9E4929E5' + '80000000'
-        }
+		script {
+			name 'sign'
+			apdu '00020000' +
+				'29' + // 9 + 32
+				'0100b35e36431d564d' + // index
+				'9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658' // hash
+		}
 
-        script {
-            name 'derive'
-            apdu '00040000' +
-                '44' + // 32 + 32 + 4
-                'B9FAA9F03F077DA860D85CBFBFF7CB690555FD356A8804E893D46D8B9E4929E566215D7E6BFC60078F9A2F086C0BCE2180DB69A2D430BE821ABA9A269AD01B90' +
-                '80000000'
-        }
+		script {
+			name 'hash'
+			apdu '00030000' +
+				'45' + // 32 + 1 + 32 + 4
+				'66215D7E6BFC60078F9A2F086C0BCE2180DB69A2D430BE821ABA9A269AD01B90' + // chain code
+				'00' + 'B9FAA9F03F077DA860D85CBFBFF7CB690555FD356A8804E893D46D8B9E4929E5' + '80000000'
+		}
 
-        task {
-            name 'select'
-            scripts 'select'
-        }
+		script {
+			name 'derive'
+			apdu '00040000' +
+				'44' + // 32 + 32 + 4
+				'B9FAA9F03F077DA860D85CBFBFF7CB690555FD356A8804E893D46D8B9E4929E566215D7E6BFC60078F9A2F086C0BCE2180DB69A2D430BE821ABA9A269AD01B90' +
+				'80000000'
+		}
 
-        task {
-            name 'hello'
-            scripts 'select', 'hello'
-        }
+		task {
+			name 'select'
+			scripts 'select'
+		}
 
-        task {
-            name 'systemInformation'
-            scripts 'select', 'systemInformation'
-        }
+		task {
+			name 'hello'
+			scripts 'select', 'hello'
+		}
 
-        task {
-            name 'setPIN'
-            scripts 'select', 'setPIN'
-        }
+		task {
+			name 'systemInformation'
+			scripts 'select', 'systemInformation'
+		}
 
-        task {
-            name 'list'
-            scripts 'select', 'list'
-        }
-    }
+		task {
+			name 'setPIN'
+			scripts 'select', 'setPIN'
+		}
+
+		task {
+			name 'list'
+			scripts 'select', 'list'
+		}
+
+		task {
+			name 'createRandomKey'
+			scripts 'select', 'createRandomKey'
+		}
+	}
 }

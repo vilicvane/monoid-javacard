@@ -31,17 +31,19 @@ public class CBORApduWriter extends CBORWriter {
   }
 
   private void ensureBufferLength(short length) {
-    if (length > buffer.length) {
-      byte[] extendedBuffer = JCSystem.makeTransientByteArray((short) (buffer.length + BUFFER_LENGTH_EXTENSION),
-          JCSystem.CLEAR_ON_DESELECT);
+    if (length <= buffer.length) {
+      return;
+    }
 
-      Util.arrayCopyNonAtomic(buffer, (short) 0, extendedBuffer, (short) 0, (short) buffer.length);
+    byte[] extendedBuffer = JCSystem.makeTransientByteArray((short) (buffer.length + BUFFER_LENGTH_EXTENSION),
+        JCSystem.CLEAR_ON_DESELECT);
 
-      buffer = extendedBuffer;
+    Util.arrayCopyNonAtomic(buffer, (short) 0, extendedBuffer, (short) 0, (short) buffer.length);
 
-      if (JCSystem.isObjectDeletionSupported()) {
-        JCSystem.requestObjectDeletion();
-      }
+    buffer = extendedBuffer;
+
+    if (JCSystem.isObjectDeletionSupported()) {
+      JCSystem.requestObjectDeletion();
     }
   }
 

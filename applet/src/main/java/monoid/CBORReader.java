@@ -95,12 +95,20 @@ public abstract class CBORReader {
     return bytesLike(CBOR.TYPE_BYTES, out, (short) 0);
   }
 
+  public byte[] bytes() {
+    return bytesLike(CBOR.TYPE_BYTES);
+  }
+
   public short text(byte[] out, short outOffset) {
     return bytesLike(CBOR.TYPE_TEXT, out, outOffset);
   }
 
   public short text(byte[] out) {
     return bytesLike(CBOR.TYPE_TEXT, out, (short) 0);
+  }
+
+  public byte[] text() {
+    return bytesLike(CBOR.TYPE_TEXT);
   }
 
   private short bytesLike(byte type, byte[] out, short outOffset) {
@@ -117,6 +125,22 @@ public abstract class CBORReader {
     offset += length;
 
     return (short) (outOffset + length);
+  }
+
+  private byte[] bytesLike(byte type) {
+    byte[] buffer = getBuffer();
+
+    if ((buffer[offset] & CBOR.TYPE_MASK) != type) {
+      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+    }
+
+    short length = metadataUnsignedInteger();
+
+    byte[] out = (byte[]) JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
+
+    Util.arrayCopyNonAtomic(buffer, offset, out, (short) 0, length);
+
+    return out;
   }
 
   public short array() {

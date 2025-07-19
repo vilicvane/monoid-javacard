@@ -17,6 +17,7 @@ public abstract class Command {
 
   public static Command setPIN;
   public static Command list;
+  public static Command createRandomKey;
 
   public static void init() {
     reader = new CBORApduReader();
@@ -27,6 +28,7 @@ public abstract class Command {
 
     setPIN = new CommandSetPIN();
     list = new CommandList();
+    createRandomKey = new CommandCreateRandomKey();
   }
 
   public static void dispose() {
@@ -38,6 +40,7 @@ public abstract class Command {
 
     setPIN = null;
     list = null;
+    createRandomKey = null;
   }
 
   public static Command get(byte ins) {
@@ -50,6 +53,8 @@ public abstract class Command {
         return setPIN;
       case 0x30:
         return list;
+      case 0x31:
+        return createRandomKey;
       case (byte) 0xC0:
         writer.send();
         return null;
@@ -88,6 +93,10 @@ public abstract class Command {
       run();
     } catch (MonoidException e) {
       e.send();
+    } finally {
+      if (JCSystem.isObjectDeletionSupported()) {
+        JCSystem.requestObjectDeletion();
+      }
     }
 
     // It the code ever reaches here, it means send() hasn't been called (as it

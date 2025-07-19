@@ -157,10 +157,6 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     safePIN = new byte[pinLength];
     Util.arrayCopyNonAtomic(in, pinOffset, safePIN, (short) 0, pinLength);
 
-    if (JCSystem.isObjectDeletionSupported()) {
-      JCSystem.requestObjectDeletion();
-    }
-
     JCSystem.commitTransaction();
   }
 

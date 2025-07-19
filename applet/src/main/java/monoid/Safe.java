@@ -27,6 +27,10 @@ public final class Safe {
     return 0;
   }
 
+  public static byte type(byte[] type) throws MonoidException {
+    return type(type, (short) 0, (byte) type.length);
+  }
+
   public static byte[] type(byte type) throws MonoidException {
     switch (type) {
       case TYPE_SEED:

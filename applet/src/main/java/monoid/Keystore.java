@@ -18,63 +18,46 @@ public final class Keystore {
     this.safe = safe;
   }
 
-  public short createRandomKey(byte type, byte length, byte[] out, short outOffset) throws KeystoreException {
-    switch (type) {
-      case Safe.TYPE_SEED:
-        return createRandomSeed(out, outOffset);
-      case Safe.TYPE_MASTER:
-        return createRandomMaster(out, outOffset);
-      case Safe.TYPE_RAW:
-        return createRandomRaw(length, out, outOffset);
-      default:
-        KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
-        return 0;
-    }
+  public byte[] createRandomSeed() {
+    return createRandom(Safe.TYPE_SEED, SEED_LENGTH);
   }
 
-  public short createRandomSeed(byte[] out, short outOffset) {
-    return createRandom(Safe.TYPE_SEED, SEED_LENGTH, out, outOffset);
+  public byte[] createRandomMaster() {
+    return createRandom(Safe.TYPE_MASTER, MASTER_LENGTH);
   }
 
-  public short createRandomMaster(byte[] out, short outOffset) {
-    return createRandom(Safe.TYPE_MASTER, MASTER_LENGTH, out, outOffset);
+  public byte[] createRandomRaw(byte length) {
+    return createRandom(Safe.TYPE_RAW, length);
   }
 
-  public short createRandomRaw(byte length, byte[] out, short outOffset) {
-    return createRandom(Safe.TYPE_RAW, length, out, outOffset);
-  }
-
-  private short createRandom(byte type, byte length, byte[] out, short outOffset) {
+  private byte[] createRandom(byte type, byte length) {
     byte[] buffer = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
 
-    RandomData.OneShot random = RandomData.OneShot.open(RandomData.ALG_KEYGENERATION);
+    RandomData.OneShot random = RandomData.OneShot.open(RandomData.ALG_TRNG);
     random.nextBytes(buffer, (short) 0, length);
     random.close();
 
-    return addKey(type, buffer, (short) 0, length, out, outOffset);
+    return addKey(type, buffer);
   }
 
-  /**
-   * @param out key index (1 byte type + 8 bytes digest)
-   * @return incremented outOffset
-   */
-  private short addKey(byte type, byte[] in, short keyOffset, byte keyLength, byte[] out, short outOffset) {
+  private byte[] addKey(byte type, byte[] key) {
     byte[] digest = JCSystem.makeTransientByteArray((short) MessageDigest.LENGTH_SHA_256, JCSystem.CLEAR_ON_DESELECT);
 
-    OneShot.digest(MessageDigest.ALG_SHA_256, in, keyOffset, keyLength, digest, (short) 0);
+    OneShot.digest(MessageDigest.ALG_SHA_256, key, (short) 0, (short) key.length, digest, (short) 0);
 
-    byte[] key = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) (Safe.INDEX_LENGTH + keyLength));
+    byte[] index = JCSystem.makeTransientByteArray((short) Safe.INDEX_LENGTH, JCSystem.CLEAR_ON_DESELECT);
 
-    key[0] = type;
-    Util.arrayCopyNonAtomic(digest, (short) 0, key, (short) 1, Safe.INDEX_DIGEST_LENGTH);
-    Util.arrayCopyNonAtomic(in, keyOffset, key, Safe.INDEX_LENGTH, keyLength);
+    index[0] = type;
+    Util.arrayCopyNonAtomic(digest, (short) 0, index, (short) 1, Safe.INDEX_DIGEST_LENGTH);
 
-    safe.set(key, (short) 0, Safe.INDEX_LENGTH, (short) key.length);
+    byte[] data = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) (Safe.INDEX_LENGTH + key.length));
 
-    out[outOffset++] = type;
-    outOffset = Util.arrayCopyNonAtomic(digest, (short) 0, out, outOffset, (short) 8);
+    Util.arrayCopyNonAtomic(index, (short) 0, data, (short) 0, Safe.INDEX_LENGTH);
+    Util.arrayCopyNonAtomic(key, (short) 0, data, Safe.INDEX_LENGTH, (short) key.length);
 
-    return outOffset;
+    safe.set(data, (short) 0, Safe.INDEX_LENGTH, (short) data.length);
+
+    return index;
   }
 
   public short sign(
