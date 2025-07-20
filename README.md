@@ -268,6 +268,23 @@ type Response = {
 };
 ```
 
+## Index
+
+A safe item index is a 1 + 8 bytes array.
+
+The first byte is the type of the item (`0x00` to `0x0F` are reserved), and the remaining 8 bytes are unique per item, typically 8-byte digest of the data if immutable:
+
+- `0x00` Third-party applet permission data (draft)
+  - +8 bytes digest of third-party AID
+- `0x01` Seed key
+  - +8 bytes digest of seed
+- `0x02` Master key
+  - +8 bytes digest of master key
+- `0x03` Key
+  - +8 bytes digest of key
+- `0x0F` Generic data (draft)
+  - +8 bytes unique identifier
+
 ## License
 
 MIT License.
