@@ -6,10 +6,10 @@ Monoid is a secure gateway that connects your keys and data to end-user applicat
 
 ## Architecture
 
-The Monoid Applet stores the safe PIN required by Monoid Safe Applet. When it has the safe PIN, the safe is considered **unlocked**, meaning:
+The _Monoid Applet_ stores the safe PIN required by _Monoid Safe Applet_. When it has the safe PIN, the safe is considered **unlocked**, meaning:
 
-1. Monoid Applet itself can access the safe freely (commands probably have their own authentication requirements though).
-2. Applets with granted permissions can interact (sign/verify) with keys and access data in Monoid Safe Applet (via Monoid Applet).
+1. _Monoid Applet_ itself can access the safe freely (commands probably have their own authentication requirements though).
+2. Applets with granted permissions can interact (sign/verify) with keys and access data in _Monoid Safe Applet_ (via _Monoid Applet_).
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for more details.
 
@@ -17,9 +17,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for more details.
 
 Core features:
 
-- [x] Monoid Applet basic commands
-- [ ] Monoid Applet third-party management commands
-- [ ] Monoid Applet `Shareable` interface
+- [x] _Monoid Applet_ basic commands
+- [ ] _Monoid Applet_ third-party management commands
+- [ ] _Monoid Applet_ `Shareable` interface
 - [ ] Monoid mobile app
   - [ ] Key management
   - [ ] Crypto transaction signing
@@ -38,7 +38,7 @@ Also some applets for typical use cases:
 
 ## ISO-7816 Commands
 
-Monoid Applet uses a minimal CBOR-based RPC protocol.
+_Monoid Applet_ uses a minimal CBOR-based RPC protocol.
 
 ### Command authentication
 
@@ -103,7 +103,7 @@ type Request = (SafeAuthRequest | {}) & {
 type Response = {};
 ```
 
-> In case of Monoid Applet reinstallation resulting in its losing the safe PIN, setting safe PIN again (to either the same or a different PIN) will restore the safe PIN stored in Monoid Applet (thus "unlocking" the safe).
+> In case of _Monoid Applet_ reinstallation resulting in its losing the safe PIN, setting safe PIN again (to either the same or a different PIN) will restore the safe PIN stored in _Monoid Applet_ (thus "unlocking" the safe).
 
 #### `0x2F` System information
 
