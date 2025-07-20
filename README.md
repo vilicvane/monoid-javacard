@@ -1,16 +1,40 @@
 # Monoid JavaCard
 
-Monoid JavaCard applets is the core of the Monoid ecosystem (if it would ever emerge).
+Monoid is a secure gateway that connects your keys and end-user applications.
+
+**A JavaCard with Monoid applets is already a hardware crypto wallet itself.** However, the goal is to allow third-party applets to interact with Monoid `Shareable` interface for signing/verifying and data access, so that Monoid can manage those keys and data and make it easy for users to backup, restore or even synchronize securely with unified UX.
 
 ## Architecture
+
+The Monoid Applet stores the safe PIN required by Monoid Safe Applet. When it has the safe PIN, the safe is considered **unlocked**, meaning:
+
+1. Monoid Applet itself can access the safe freely (commands probably have their own authentication requirements though).
+2. Applets with granted permissions can interact (sign/verify) with keys and access data in Monoid Safe Applet (via Monoid Applet).
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for more details.
 
 ## Roadmap
 
-- [x] MonoidApplet basic commands
-- [ ] MonoidApplet third-party management commands
-- [ ] MonoidApplet `Shareable` interface
+Core features:
+
+- [x] Monoid Applet basic commands
+- [ ] Monoid Applet third-party management commands
+- [ ] Monoid Applet `Shareable` interface
+- [ ] Monoid mobile app
+  - [ ] Key management
+  - [ ] Crypto transaction signing
+  - [ ] Third-party applet management
+
+Additional mobile app features:
+
+- [ ] Keys and data synchronization
+- [ ] Applet gallery
+- [ ] One-time password (OTP)
+
+Also some applets for typical use cases:
+
+- [ ] FIDO2
+- [ ] Tesla key
 
 ## ISO-7816 Commands
 
@@ -18,7 +42,10 @@ Monoid Applet uses a minimal CBOR-based RPC protocol.
 
 ### Command authentication
 
-Command authentication is done by PIN validation. A request must provide either an access PIN (for MonoidApplet-managed access) or a safe PIN.
+Command authentication is done by PIN validation. A request must provide either an access PIN or a safe PIN.
+
+- Access PIN: for commands that would not result in keys/data revealed.
+- Safe PIN: for commands that could result in keys/data revealed.
 
 ```ts
 type AuthRequest = {
@@ -76,7 +103,7 @@ type Request = (SafeAuthRequest | {}) & {
 type Response = {};
 ```
 
-> In case of Monoid Applet reinstallation, it loses the safe PIN. Setting safe PIN again (to either the same or a different PIN) will store the PIN in Monoid Applet (and essentially unlock the safe).
+> In case of Monoid Applet reinstallation resulting in its losing the safe PIN, setting safe PIN again (to either the same or a different PIN) will restore the safe PIN stored in Monoid Applet (thus "unlocking" the safe).
 
 #### `0x2F` System information
 
