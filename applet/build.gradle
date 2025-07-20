@@ -129,22 +129,6 @@ javacard {
 		addImplicitJcardSim false
 		addImplicitJcardSimJunit false
 
-		// cap {
-		//     packageName 'applet'
-		//     version '0.1'
-		//     aid 'ff:01:02:03:04:06'
-		//     output 'applet.cap'
-
-		//     targetsdk JC305u3
-
-		//     sources 'src/main/java/applet'
-
-		//     applet {
-		//         className 'applet.HelloWorldApplet'
-		//         aid 'ff:01:02:03:04:06:00:01'
-		//     }
-		// }
-
 		cap {
 			packageName 'monoidsafe'
 			version '0.0'
