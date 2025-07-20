@@ -1,4 +1,4 @@
-# Monoid JavaCard
+# Monoid <sup><span style="color: #ea9d34">Java</span><span style="color: #5e82a0">Card</span></sup>
 
 Monoid is a secure gateway that connects your keys and data to end-user applications.
 
