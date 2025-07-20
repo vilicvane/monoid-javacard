@@ -115,7 +115,7 @@ public final class LibBIP32 {
     );
 
     if (
-      LibBytesMath.add(
+      LibMath.add(
           privateKeyAndChainCode,
           (short) 0,
           currentPrivateKeyAndChainCode,
@@ -125,7 +125,7 @@ public final class LibBIP32 {
           COMPONENT_LENGTH
         ) !=
         0 ||
-      LibBytesMath.compare(
+      LibMath.compare(
         privateKeyAndChainCode,
         (short) 0,
         curve.getR(),
@@ -134,7 +134,7 @@ public final class LibBIP32 {
       ) >
       0
     ) {
-      LibBytesMath.sub(
+      LibMath.sub(
         privateKeyAndChainCode,
         (short) 0,
         curve.getR(),

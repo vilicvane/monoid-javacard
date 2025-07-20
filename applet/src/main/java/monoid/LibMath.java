@@ -1,6 +1,6 @@
 package monoid;
 
-public final class LibBytesMath {
+public final class LibMath {
 
   public static byte compare(
     byte[] a,

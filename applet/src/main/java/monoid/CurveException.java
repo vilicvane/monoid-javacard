@@ -4,25 +4,9 @@ public class CurveException extends MonoidException {
 
   public static final short REASON_UNSUPPORTED_CURVE = 1;
 
-  public static final byte[] CODE_UNSUPPORTED_CURVE = {
-    'U',
-    'N',
-    'S',
-    'U',
-    'P',
-    'P',
-    'O',
-    'R',
-    'T',
-    'E',
-    'D',
-    '_',
-    'C',
-    'U',
-    'R',
-    'V',
-    'E',
-  };
+  // @formatter:off
+  public static final byte[] CODE_UNSUPPORTED_CURVE = {'U','N','S','U','P','P','O','R','T','E','D','_','C','U','R','V','E'};
+  // @formatter:on
 
   public static Object[] codes;
 
