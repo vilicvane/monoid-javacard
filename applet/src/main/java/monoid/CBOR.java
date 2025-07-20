@@ -1,6 +1,7 @@
 package monoid;
 
 public final class CBOR {
+
   public static final byte TYPE_UNSIGNED_INT = 0 << 5;
   public static final byte TYPE_NEGATIVE_INT = 1 << 5;
   public static final byte TYPE_BYTES = 2 << 5;

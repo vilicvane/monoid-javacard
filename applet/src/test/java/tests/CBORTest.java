@@ -1,13 +1,12 @@
 package tests;
 
+import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
+import monoid.CBOR;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
-
-import monoid.CBOR;
-
 public class CBORTest {
+
   /**
    * [
    *   { "id": 1, "name": "Alice", "admin": true },
@@ -16,7 +15,8 @@ public class CBORTest {
    * ]
    */
   private byte[] example = Hex.decode(
-      "83A362696401646E616D6565416C6963656561646D696EF5A36269641820646E616D6563426F626561646D696EF4A4626964190200646E616D65654361726F6C6561646D696EF565657874726120");
+    "83A362696401646E616D6565416C6963656561646D696EF5A36269641820646E616D6563426F626561646D696EF4A4626964190200646E616D65654361726F6C6561646D696EF565657874726120"
+  );
 
   /**
    * [
@@ -25,7 +25,8 @@ public class CBORTest {
    * ]
    */
   private byte[] exampleIndefinite = Hex.decode(
-      "9FBF6568656C6C6FF565776F726C64F4FFF5FF");
+    "9FBF6568656C6C6FF565776F726C64F4FFF5FF"
+  );
 
   @Test
   public void read() {
@@ -107,7 +108,10 @@ public class CBORTest {
   @Test
   public void read_1() {
     SimpleCBORReader cbor = new SimpleCBORReader(
-        Hex.decode("A36461757468A26370696E663838383838386473616665F56370696E663132333435366473616665F4"));
+      Hex.decode(
+        "A36461757468A26370696E663838383838386473616665F56370696E663132333435366473616665F4"
+      )
+    );
 
     cbor.map();
     cbor.requireKey("safe".getBytes());

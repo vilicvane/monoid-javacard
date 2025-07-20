@@ -1,12 +1,18 @@
 package monoid;
 
 public abstract class CBORWriter {
+
   protected short initialOffset;
   protected short offset;
 
   protected abstract void write(short offset, byte value);
 
-  protected abstract void write(short offset, byte[] buffer, short bufferOffset, short length);
+  protected abstract void write(
+    short offset,
+    byte[] buffer,
+    short bufferOffset,
+    short length
+  );
 
   protected void reset(short offset) {
     this.initialOffset = offset;
@@ -21,7 +27,10 @@ public abstract class CBORWriter {
     if (value >= 0) {
       metadataUnsignedInteger(CBOR.TYPE_UNSIGNED_INT, value);
     } else {
-      metadataUnsignedInteger(CBOR.TYPE_NEGATIVE_INT, (short) -(short) (value + 1));
+      metadataUnsignedInteger(
+        CBOR.TYPE_NEGATIVE_INT,
+        (short) -(short) (value + 1)
+      );
     }
   }
 
@@ -41,7 +50,12 @@ public abstract class CBORWriter {
     bytesLike(CBOR.TYPE_TEXT, value, (short) 0, (short) value.length);
   }
 
-  private void bytesLike(byte type, byte[] in, short valueOffset, short valueLength) {
+  private void bytesLike(
+    byte type,
+    byte[] in,
+    short valueOffset,
+    short valueLength
+  ) {
     metadataUnsignedInteger(type, valueLength);
 
     write(offset, in, valueOffset, valueLength);
@@ -77,10 +91,16 @@ public abstract class CBORWriter {
     if (value <= CBOR.MAX_SIMPLE_UNSIGNED_INT) {
       write(offset++, (byte) (type | value));
     } else if (value <= 0xFF) {
-      write(offset++, (byte) (type | CBOR.VARIABLE_LENGTH_UNSIGNED_INT_MARK | 0b000));
+      write(
+        offset++,
+        (byte) (type | CBOR.VARIABLE_LENGTH_UNSIGNED_INT_MARK | 0b000)
+      );
       write(offset++, (byte) value);
     } else {
-      write(offset++, (byte) (type | CBOR.VARIABLE_LENGTH_UNSIGNED_INT_MARK | 0b001));
+      write(
+        offset++,
+        (byte) (type | CBOR.VARIABLE_LENGTH_UNSIGNED_INT_MARK | 0b001)
+      );
       write(offset++, (byte) (value >> 8));
       write(offset++, (byte) value);
     }

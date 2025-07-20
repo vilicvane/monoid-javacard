@@ -5,11 +5,47 @@ import javacard.security.CryptoException;
 import monoidsafe.MonoidSafe;
 
 public abstract class Command {
+
   public static final byte[] CODE_CRYPTO_EXCEPTION = {
-      'C', 'R', 'Y', 'P', 'T', 'O', '_', 'E', 'X', 'C', 'E', 'P', 'T', 'I', 'O', 'N' };
+    'C',
+    'R',
+    'Y',
+    'P',
+    'T',
+    'O',
+    '_',
+    'E',
+    'X',
+    'C',
+    'E',
+    'P',
+    'T',
+    'I',
+    'O',
+    'N',
+  };
 
   public static final byte[] CODE_INDEX_OUT_OF_BOUNDS = {
-      'I', 'N', 'D', 'E', 'X', '_', 'O', 'U', 'T', '_', 'O', 'F', '_', 'B', 'O', 'U', 'N', 'D', 'S' };
+    'I',
+    'N',
+    'D',
+    'E',
+    'X',
+    '_',
+    'O',
+    'U',
+    'T',
+    '_',
+    'O',
+    'F',
+    '_',
+    'B',
+    'O',
+    'U',
+    'N',
+    'D',
+    'S',
+  };
 
   public static final byte AUTH_ACCESS = 0b01;
   public static final byte AUTH_SAFE = 0b10;
@@ -191,7 +227,10 @@ public abstract class Command {
       tries = MonoidApplet.pin.getTriesRemaining();
     }
 
-    CBORApduWriter writer = writeError(MonoidException.CODE_INVALID_PIN, (short) 1);
+    CBORApduWriter writer = writeError(
+      MonoidException.CODE_INVALID_PIN,
+      (short) 1
+    );
 
     writer.text(Text.tries);
     writer.integer(tries);
@@ -213,11 +252,14 @@ public abstract class Command {
     return requireAuth((byte) (AUTH_ACCESS | AUTH_SAFE));
   }
 
-  protected void assertAuth(byte auth, byte requiredAuth) throws MonoidException {
+  protected void assertAuth(byte auth, byte requiredAuth)
+    throws MonoidException {
     if ((auth & requiredAuth) == 0) {
       MonoidException.throwIt(
-          auth == 0 ? MonoidException.CODE_UNAUTHORIZED
-              : MonoidException.CODE_ACCESS_DENIED);
+        auth == 0
+          ? MonoidException.CODE_UNAUTHORIZED
+          : MonoidException.CODE_ACCESS_DENIED
+      );
     }
   }
 }

@@ -3,6 +3,7 @@ package monoid;
 import monoidsafe.MonoidSafe;
 
 public class CommandSign extends Command {
+
   @Override
   protected void run() {
     requireAuth();
@@ -14,7 +15,9 @@ public class CommandSign extends Command {
     reader.map();
 
     byte[] index = reader.requireKey(Text.index).bytes(MonoidSafe.INDEX_LENGTH);
-    Curve curve = Curve.requireSharedCurve(reader.requireKey(Text.curve).text());
+    Curve curve = Curve.requireSharedCurve(
+      reader.requireKey(Text.curve).text()
+    );
 
     byte[] cipher = reader.requireKey(Text.cipher).text();
     byte[] digest = reader.requireKey(Text.digest).bytes();

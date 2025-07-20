@@ -4,9 +4,13 @@
   "java.configuration.updateBuildConfiguration": "automatic",
   "java.debug.settings.onBuildFailureProceed": true,
   "java.format.comments.enabled": false,
+  "[java]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
   "terminal.integrated.env.windows": {
     "JAVA_HOME": "C:\\Program Files\\Java\\jdk-11"
   },
+  "prettier.configPath": ".prettierrc",
   "cSpell.words": [
     "apdu",
     "buildscript",
@@ -24,6 +28,7 @@
     "OPAD",
     "SECP",
     "SVDP",
+    "temurin",
     "TRNG"
   ]
 }

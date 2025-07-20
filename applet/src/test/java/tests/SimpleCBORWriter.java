@@ -1,11 +1,11 @@
 package tests;
 
 import java.util.Arrays;
-
 import javacard.framework.Util;
 import monoid.CBORWriter;
 
 public class SimpleCBORWriter extends CBORWriter {
+
   private byte[] buffer;
 
   public SimpleCBORWriter(byte[] buffer) {
@@ -27,7 +27,12 @@ public class SimpleCBORWriter extends CBORWriter {
   }
 
   @Override
-  protected void write(short offset, byte[] buffer, short bufferOffset, short length) {
+  protected void write(
+    short offset,
+    byte[] buffer,
+    short bufferOffset,
+    short length
+  ) {
     Util.arrayCopyNonAtomic(buffer, bufferOffset, this.buffer, offset, length);
   }
 

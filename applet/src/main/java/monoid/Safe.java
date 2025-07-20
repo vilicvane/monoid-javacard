@@ -3,15 +3,24 @@ package monoid;
 import javacard.framework.JCSystem;
 
 public final class Safe {
+
   public static final byte TYPE_SEED = 0x01;
   public static final byte TYPE_MASTER = 0x02;
   public static final byte TYPE_KEY = 0x03;
 
   public static final byte[] TYPE_TEXT_SEED = { 's', 'e', 'e', 'd' };
-  public static final byte[] TYPE_TEXT_MASTER = { 'm', 'a', 's', 't', 'e', 'r' };
+  public static final byte[] TYPE_TEXT_MASTER = {
+    'm',
+    'a',
+    's',
+    't',
+    'e',
+    'r',
+  };
   public static final byte[] TYPE_TEXT_KEY = { 'k', 'e', 'y' };
 
-  public static byte type(byte[] buffer, short offset, byte length) throws MonoidException {
+  public static byte type(byte[] buffer, short offset, byte length)
+    throws MonoidException {
     if (Utils.equal(TYPE_TEXT_SEED, buffer, offset, length)) {
       return TYPE_SEED;
     } else if (Utils.equal(TYPE_TEXT_MASTER, buffer, offset, length)) {
@@ -42,7 +51,10 @@ public final class Safe {
   }
 
   public static byte type(CBORReader reader) throws MonoidException {
-    byte[] buffer = JCSystem.makeTransientByteArray((short) 6, JCSystem.CLEAR_ON_DESELECT);
+    byte[] buffer = JCSystem.makeTransientByteArray(
+      (short) 6,
+      JCSystem.CLEAR_ON_DESELECT
+    );
 
     short length = reader.text(buffer, (short) 0);
 

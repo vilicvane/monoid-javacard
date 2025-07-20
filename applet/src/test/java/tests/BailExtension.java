@@ -1,11 +1,11 @@
 package tests;
 
-import org.junit.jupiter.api.extension.ExtensionContext;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.TestWatcher;
 import org.opentest4j.TestAbortedException;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
 
 /**
  * JUnit 5 extension that implements "fail-fast" behavior.
@@ -20,14 +20,17 @@ import java.util.Map;
 public class BailExtension implements TestWatcher, BeforeEachCallback {
 
   // Static map to track failed test classes across the entire test run
-  private static final Map<String, Boolean> failedClasses = new ConcurrentHashMap<>();
+  private static final Map<String, Boolean> failedClasses =
+    new ConcurrentHashMap<>();
 
   @Override
   public void beforeEach(ExtensionContext context) throws Exception {
     String testClassName = getTestClassName(context);
 
     if (Boolean.TRUE.equals(failedClasses.get(testClassName))) {
-      throw new TestAbortedException("Skipping test because a previous test in this class failed");
+      throw new TestAbortedException(
+        "Skipping test because a previous test in this class failed"
+      );
     }
   }
 

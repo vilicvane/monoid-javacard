@@ -1,10 +1,10 @@
 package monoid;
 
 import javacard.framework.OwnerPIN;
-
 import monoidsafe.MonoidSafe;
 
 public final class CommandHello extends Command {
+
   @Override
   protected void run() {
     OwnerPIN pin = MonoidApplet.pin;

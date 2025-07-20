@@ -11,13 +11,19 @@ import javacardx.crypto.Cipher;
  * This is a utility class that provides OneShot fallback for JCardSim.
  */
 public final class OneShot {
-  public static short sign(
-      byte cipher,
-      Key privateKey,
-      byte[] digest,
-      byte[] out, short outOffset) {
 
-    Signature.OneShot signature = Signature.OneShot.open(MessageDigest.ALG_SHA_256, cipher, Cipher.PAD_NULL);
+  public static short sign(
+    byte cipher,
+    Key privateKey,
+    byte[] digest,
+    byte[] out,
+    short outOffset
+  ) {
+    Signature.OneShot signature = Signature.OneShot.open(
+      MessageDigest.ALG_SHA_256,
+      cipher,
+      Cipher.PAD_NULL
+    );
 
     if (signature == null) {
       return signFallback(cipher, privateKey, digest, out, outOffset);
@@ -25,7 +31,13 @@ public final class OneShot {
 
     signature.init(privateKey, Signature.MODE_SIGN);
 
-    short length = signature.signPreComputedHash(digest, (short) 0, (short) digest.length, out, outOffset);
+    short length = signature.signPreComputedHash(
+      digest,
+      (short) 0,
+      (short) digest.length,
+      out,
+      outOffset
+    );
 
     signature.close();
 
@@ -33,11 +45,12 @@ public final class OneShot {
   }
 
   private static short signFallback(
-      byte cipher,
-      Key privateKey,
-      byte[] digest,
-      byte[] out, short outOffset) {
-
+    byte cipher,
+    Key privateKey,
+    byte[] digest,
+    byte[] out,
+    short outOffset
+  ) {
     Signature signature;
 
     switch (cipher) {
@@ -51,23 +64,37 @@ public final class OneShot {
 
     signature.init(privateKey, Signature.MODE_SIGN);
 
-    return signature.signPreComputedHash(digest, (short) 0, (short) digest.length, out, outOffset);
+    return signature.signPreComputedHash(
+      digest,
+      (short) 0,
+      (short) digest.length,
+      out,
+      outOffset
+    );
   }
 
   public static short digest(
-      byte algorithm,
-      byte[] in, short dataOffset, short dataLength,
-      byte[] out, short outOffset) {
-
+    byte algorithm,
+    byte[] in,
+    short dataOffset,
+    short dataLength,
+    byte[] out,
+    short outOffset
+  ) {
     MessageDigest.OneShot digest = MessageDigest.OneShot.open(algorithm);
 
     if (digest == null) {
-      return digestFallback(algorithm, in, dataOffset, dataLength, out, outOffset);
+      return digestFallback(
+        algorithm,
+        in,
+        dataOffset,
+        dataLength,
+        out,
+        outOffset
+      );
     }
 
-    short length = digest.doFinal(
-        in, dataOffset, dataLength,
-        out, outOffset);
+    short length = digest.doFinal(in, dataOffset, dataLength, out, outOffset);
 
     digest.close();
 
@@ -75,17 +102,23 @@ public final class OneShot {
   }
 
   private static short digestFallback(
-      byte algorithm,
-      byte[] in, short dataOffset, short dataLength,
-      byte[] out, short outOffset) {
-
-    return MessageDigest
-        .getInstance(algorithm, false)
-        .doFinal(in, dataOffset, dataLength, out, outOffset);
+    byte algorithm,
+    byte[] in,
+    short dataOffset,
+    short dataLength,
+    byte[] out,
+    short outOffset
+  ) {
+    return MessageDigest.getInstance(algorithm, false).doFinal(
+      in,
+      dataOffset,
+      dataLength,
+      out,
+      outOffset
+    );
   }
 
-  public static void random(
-      byte[] out, short outOffset, short outLength) {
+  public static void random(byte[] out, short outOffset, short outLength) {
     RandomData.OneShot random = RandomData.OneShot.open(RandomData.ALG_TRNG);
 
     if (random == null) {
@@ -98,7 +131,14 @@ public final class OneShot {
   }
 
   private static void randomFallback(
-      byte[] out, short outOffset, short outLength) {
-    RandomData.getInstance(RandomData.ALG_TRNG).nextBytes(out, outOffset, outLength);
+    byte[] out,
+    short outOffset,
+    short outLength
+  ) {
+    RandomData.getInstance(RandomData.ALG_TRNG).nextBytes(
+      out,
+      outOffset,
+      outLength
+    );
   }
 }

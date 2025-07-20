@@ -1,25 +1,22 @@
 package tests;
 
-import java.util.HashMap;
-import javax.smartcardio.CommandAPDU;
-import javax.smartcardio.ResponseAPDU;
-import javacard.framework.AID;
-
-import cz.muni.fi.crocs.rcard.client.CardType;
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.utils.AIDUtil;
-
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-
+import cz.muni.fi.crocs.rcard.client.CardType;
+import java.util.HashMap;
+import javacard.framework.AID;
+import javax.smartcardio.CommandAPDU;
+import javax.smartcardio.ResponseAPDU;
 import monoid.MonoidApplet;
 import monoid.MonoidException;
 import monoidsafe.MonoidSafeApplet;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Example test class for the applet
@@ -31,36 +28,55 @@ import monoidsafe.MonoidSafeApplet;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @ExtendWith(BailExtension.class)
 public class MonoidAppletTest extends AppletTest {
-  private static final AID MONOID_SAFE_AID = AIDUtil.create("f16d6f6e6f696400010000");
-  private static final AID MONOID_AID = AIDUtil.create("f16d6f6e6f696401010000");
+
+  private static final AID MONOID_SAFE_AID = AIDUtil.create(
+    "f16d6f6e6f696400010000"
+  );
+  private static final AID MONOID_AID = AIDUtil.create(
+    "f16d6f6e6f696401010000"
+  );
 
   private static final byte[] SAFE_PIN = "888888".getBytes();
   private static final byte[] PIN = "123456".getBytes();
 
   private static final byte[] TEST_SEED = Hex.decode(
-      "3100314ef25741e991c7bea11a7542b31d873d45a4b6c3da120d8a60553095ddc9a72a1a46e397495402ab9a2fa1190d62d07480275dc91faf12187d46aa0b63");
-  private static final byte[] TEST_SEED_INDEX = Hex.decode("01" + "e6e3b7fc12dec011");
+    "3100314ef25741e991c7bea11a7542b31d873d45a4b6c3da120d8a60553095ddc9a72a1a46e397495402ab9a2fa1190d62d07480275dc91faf12187d46aa0b63"
+  );
+  private static final byte[] TEST_SEED_INDEX = Hex.decode(
+    "01" + "e6e3b7fc12dec011"
+  );
 
   private static final byte[] TEST_MASTER = Hex.decode(
-      "5857033b6a5b148e096d2548438cc984b15a5c6590476ae4c12360718ef056c05926524c3889eeccfaaca9805ca83bec6038e01557ca41d11329879b64eb9089");
-  private static final byte[] TEST_MASTER_INDEX = Hex.decode("02" + "62420891bc3ff0e9");
+    "5857033b6a5b148e096d2548438cc984b15a5c6590476ae4c12360718ef056c05926524c3889eeccfaaca9805ca83bec6038e01557ca41d11329879b64eb9089"
+  );
+  private static final byte[] TEST_MASTER_INDEX = Hex.decode(
+    "02" + "62420891bc3ff0e9"
+  );
 
-  private static final byte[] TEST_KEY = Hex.decode("eff3af6963c58a7a8ad2462bd41486d0a146d8850bd497234da6d419041f4c58");
-  private static final byte[] TEST_KEY_INDEX = Hex.decode("03" + "9b3bf69b7418006c");
+  private static final byte[] TEST_KEY = Hex.decode(
+    "eff3af6963c58a7a8ad2462bd41486d0a146d8850bd497234da6d419041f4c58"
+  );
+  private static final byte[] TEST_KEY_INDEX = Hex.decode(
+    "03" + "9b3bf69b7418006c"
+  );
 
-  private static final byte[] TEST_DIGEST = Hex
-      .decode("43ddcab065bcc7bd8d80c479ed29d3658ccf3ac3343b7044013008bde5ca19cf");
+  private static final byte[] TEST_DIGEST = Hex.decode(
+    "43ddcab065bcc7bd8d80c479ed29d3658ccf3ac3343b7044013008bde5ca19cf"
+  );
 
   // m/44'/60'/0'/0/0
-  private static final byte[] TEST_PATH = Hex.decode("8000002c8000003c800000000000000000000000");
+  private static final byte[] TEST_PATH = Hex.decode(
+    "8000002c8000003c800000000000000000000000"
+  );
 
   public MonoidAppletTest() {
     super(
-        MONOID_AID,
-        System.getenv("CARD_TYPE") != null && System.getenv("CARD_TYPE").equals("physical")
-            ? CardType.PHYSICAL
-            : CardType.JCARDSIMLOCAL);
-
+      MONOID_AID,
+      System.getenv("CARD_TYPE") != null &&
+        System.getenv("CARD_TYPE").equals("physical")
+        ? CardType.PHYSICAL
+        : CardType.JCARDSIMLOCAL
+    );
     if (simulator != null) {
       simulator.installApplet(MONOID_SAFE_AID, MonoidSafeApplet.class);
       simulator.installApplet(MONOID_AID, MonoidApplet.class);
@@ -252,7 +268,10 @@ public class MonoidAppletTest extends AppletTest {
       SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
       reader.map();
       {
-        Assertions.assertArrayEquals(data, reader.requireKey("data".getBytes()).bytes());
+        Assertions.assertArrayEquals(
+          data,
+          reader.requireKey("data".getBytes()).bytes()
+        );
       }
     }
 
@@ -357,10 +376,18 @@ public class MonoidAppletTest extends AppletTest {
 
       reader.map();
       {
-        Assertions.assertArrayEquals(reader.requireKey("publicKey".getBytes()).bytes(),
-            Hex.decode("0332066e8d312abcaaf8fea7b2c4f5065410c07b315bde3229f778021b2e763912"));
-        Assertions.assertArrayEquals(reader.requireKey("chainCode".getBytes()).bytes(),
-            Hex.decode("78307a5fbe683c88809756308869b1e36790820c8a6e6552e1ad848eddbbb8ae"));
+        Assertions.assertArrayEquals(
+          reader.requireKey("publicKey".getBytes()).bytes(),
+          Hex.decode(
+            "0332066e8d312abcaaf8fea7b2c4f5065410c07b315bde3229f778021b2e763912"
+          )
+        );
+        Assertions.assertArrayEquals(
+          reader.requireKey("chainCode".getBytes()).bytes(),
+          Hex.decode(
+            "78307a5fbe683c88809756308869b1e36790820c8a6e6552e1ad848eddbbb8ae"
+          )
+        );
       }
     }
 
@@ -391,10 +418,18 @@ public class MonoidAppletTest extends AppletTest {
 
       reader.map();
       {
-        Assertions.assertArrayEquals(reader.requireKey("publicKey".getBytes()).bytes(),
-            Hex.decode("02541cfc913dc568120034e040063f39933ca6965ac6cbd5e41f5a0c641ace57d3"));
-        Assertions.assertArrayEquals(reader.requireKey("chainCode".getBytes()).bytes(),
-            Hex.decode("2ff847394908fdc40c3b30c094f07df6ba5bbb1ac5cac1c978b46434ccffacce"));
+        Assertions.assertArrayEquals(
+          reader.requireKey("publicKey".getBytes()).bytes(),
+          Hex.decode(
+            "02541cfc913dc568120034e040063f39933ca6965ac6cbd5e41f5a0c641ace57d3"
+          )
+        );
+        Assertions.assertArrayEquals(
+          reader.requireKey("chainCode".getBytes()).bytes(),
+          Hex.decode(
+            "2ff847394908fdc40c3b30c094f07df6ba5bbb1ac5cac1c978b46434ccffacce"
+          )
+        );
       }
     }
 
@@ -422,8 +457,12 @@ public class MonoidAppletTest extends AppletTest {
 
       reader.map();
       {
-        Assertions.assertArrayEquals(reader.requireKey("publicKey".getBytes()).bytes(),
-            Hex.decode("031df0b7bb633f1559b9c17d740a8a42d7f6cc3e79e2cefb27093954885e9e13df"));
+        Assertions.assertArrayEquals(
+          reader.requireKey("publicKey".getBytes()).bytes(),
+          Hex.decode(
+            "031df0b7bb633f1559b9c17d740a8a42d7f6cc3e79e2cefb27093954885e9e13df"
+          )
+        );
       }
     }
   }
@@ -571,6 +610,9 @@ public class MonoidAppletTest extends AppletTest {
     SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
     reader.map();
     reader.requireKey("error".getBytes()).map();
-    Assertions.assertArrayEquals(code, reader.requireKey("code".getBytes()).text());
+    Assertions.assertArrayEquals(
+      code,
+      reader.requireKey("code".getBytes()).text()
+    );
   }
 }

@@ -10,10 +10,10 @@ import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javacard.framework.Shareable;
 import javacard.framework.Util;
-
 import monoidsafe.MonoidSafe;
 
 public class MonoidApplet extends Applet implements Monoid, AppletEvent {
+
   public static final byte PIN_TRY_LIMIT = 5;
   public static final byte MAX_PIN_SIZE = 16;
 
@@ -81,7 +81,10 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   private static void ensureInitialization() {
     if (version == 0) {
-      byte[] buffer = JCSystem.makeTransientByteArray((short) 16, JCSystem.CLEAR_ON_DESELECT);
+      byte[] buffer = JCSystem.makeTransientByteArray(
+        (short) 16,
+        JCSystem.CLEAR_ON_DESELECT
+      );
 
       short length = JCSystem.getAID().getBytes(buffer, (short) 0);
 
@@ -90,8 +93,13 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
     if (safe == null) {
       safe = (MonoidSafe) JCSystem.getAppletShareableInterfaceObject(
-          JCSystem.lookupAID(Constants.MONOID_SAFE_AID, (short) 0, (byte) Constants.MONOID_SAFE_AID.length),
-          (byte) 0);
+        JCSystem.lookupAID(
+          Constants.MONOID_SAFE_AID,
+          (short) 0,
+          (byte) Constants.MONOID_SAFE_AID.length
+        ),
+        (byte) 0
+      );
 
       if (safe == null) {
         ISOException.throwIt(ISO7816.SW_FILE_INVALID);
@@ -134,9 +142,18 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
       return;
     }
 
-    byte[] buffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) safePIN.length);
+    byte[] buffer = (byte[]) JCSystem.makeGlobalArray(
+      JCSystem.ARRAY_TYPE_BYTE,
+      (short) safePIN.length
+    );
 
-    Util.arrayCopyNonAtomic(safePIN, (short) 0, buffer, (short) 0, (short) safePIN.length);
+    Util.arrayCopyNonAtomic(
+      safePIN,
+      (short) 0,
+      buffer,
+      (short) 0,
+      (short) safePIN.length
+    );
 
     if (!safe.checkPIN(buffer, (short) 0, (byte) safePIN.length)) {
       safePIN = null;

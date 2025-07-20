@@ -1,19 +1,35 @@
 package monoid;
 
 public class CurveException extends MonoidException {
+
   public static final short REASON_UNSUPPORTED_CURVE = 1;
 
   public static final byte[] CODE_UNSUPPORTED_CURVE = {
-      'U', 'N', 'S', 'U', 'P', 'P', 'O', 'R', 'T', 'E', 'D', '_', 'C', 'U', 'R', 'V', 'E' };
+    'U',
+    'N',
+    'S',
+    'U',
+    'P',
+    'P',
+    'O',
+    'R',
+    'T',
+    'E',
+    'D',
+    '_',
+    'C',
+    'U',
+    'R',
+    'V',
+    'E',
+  };
 
   public static Object[] codes;
 
   private static CurveException instance;
 
   public static void init() {
-    codes = new Object[] {
-        CODE_UNSUPPORTED_CURVE
-    };
+    codes = new Object[] { CODE_UNSUPPORTED_CURVE };
 
     instance = new CurveException();
   }

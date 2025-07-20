@@ -3,6 +3,7 @@ package monoid;
 import monoidsafe.MonoidSafe;
 
 public final class CommandSetPIN extends Command {
+
   @Override
   protected void run() throws MonoidException {
     byte auth = getAuth();

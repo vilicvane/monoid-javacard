@@ -1,19 +1,36 @@
 package monoid;
 
 public class SignerException extends MonoidException {
+
   public static final short REASON_UNSUPPORTED_CIPHER = 1;
 
   public static final byte[] CODE_UNSUPPORTED_CIPHER = {
-      'U', 'N', 'S', 'U', 'P', 'P', 'O', 'R', 'T', 'E', 'D', '_', 'C', 'I', 'P', 'H', 'E', 'R' };
+    'U',
+    'N',
+    'S',
+    'U',
+    'P',
+    'P',
+    'O',
+    'R',
+    'T',
+    'E',
+    'D',
+    '_',
+    'C',
+    'I',
+    'P',
+    'H',
+    'E',
+    'R',
+  };
 
   public static Object[] codes;
 
   private static SignerException instance;
 
   public static void init() {
-    codes = new Object[] {
-        CODE_UNSUPPORTED_CIPHER
-    };
+    codes = new Object[] { CODE_UNSUPPORTED_CIPHER };
 
     instance = new SignerException();
   }

@@ -7,6 +7,7 @@ import javacard.framework.JCSystem;
 import javacard.framework.Util;
 
 public class CBORApduWriter extends CBORWriter {
+
   private static final short CHUNK_SIZE = 256;
   private static final short BUFFER_LENGTH_EXTENSION = 256;
 
@@ -15,7 +16,10 @@ public class CBORApduWriter extends CBORWriter {
   protected short sentOffset;
 
   public CBORApduWriter() {
-    buffer = JCSystem.makeTransientByteArray(BUFFER_LENGTH_EXTENSION, JCSystem.CLEAR_ON_DESELECT);
+    buffer = JCSystem.makeTransientByteArray(
+      BUFFER_LENGTH_EXTENSION,
+      JCSystem.CLEAR_ON_DESELECT
+    );
 
     reset();
   }
@@ -28,7 +32,12 @@ public class CBORApduWriter extends CBORWriter {
   }
 
   @Override
-  protected void write(short offset, byte[] data, short dataOffset, short length) {
+  protected void write(
+    short offset,
+    byte[] data,
+    short dataOffset,
+    short length
+  ) {
     ensureBufferLength((short) (offset + length));
 
     Util.arrayCopyNonAtomic(data, dataOffset, buffer, offset, length);
@@ -39,10 +48,18 @@ public class CBORApduWriter extends CBORWriter {
       return;
     }
 
-    byte[] extendedBuffer = JCSystem.makeTransientByteArray((short) (buffer.length + BUFFER_LENGTH_EXTENSION),
-        JCSystem.CLEAR_ON_DESELECT);
+    byte[] extendedBuffer = JCSystem.makeTransientByteArray(
+      (short) (buffer.length + BUFFER_LENGTH_EXTENSION),
+      JCSystem.CLEAR_ON_DESELECT
+    );
 
-    Util.arrayCopyNonAtomic(buffer, (short) 0, extendedBuffer, (short) 0, (short) buffer.length);
+    Util.arrayCopyNonAtomic(
+      buffer,
+      (short) 0,
+      extendedBuffer,
+      (short) 0,
+      (short) buffer.length
+    );
 
     buffer = extendedBuffer;
 
@@ -68,9 +85,15 @@ public class CBORApduWriter extends CBORWriter {
 
     sentOffset += sendingLength;
 
-    short remainingLength = Utils.min((short) (offset - sentOffset), CHUNK_SIZE);
+    short remainingLength = Utils.min(
+      (short) (offset - sentOffset),
+      CHUNK_SIZE
+    );
 
-    ISOException.throwIt(remainingLength > 0 ? (short) (ISO7816.SW_BYTES_REMAINING_00 | remainingLength)
-        : ISO7816.SW_NO_ERROR);
+    ISOException.throwIt(
+      remainingLength > 0
+        ? (short) (ISO7816.SW_BYTES_REMAINING_00 | remainingLength)
+        : ISO7816.SW_NO_ERROR
+    );
   }
 }

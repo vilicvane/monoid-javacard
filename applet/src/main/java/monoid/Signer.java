@@ -5,18 +5,16 @@ import javacard.security.Key;
 import javacard.security.Signature;
 
 public final class Signer {
-  public static final byte[] CIPHER_ECDSA = {
-      'e', 'c', 'd', 's', 'a' };
+
+  public static final byte[] CIPHER_ECDSA = { 'e', 'c', 'd', 's', 'a' };
 
   public static void writeSupportedCiphers(CBORWriter writer) {
     writer.array((short) 1);
     writer.text(CIPHER_ECDSA);
   }
 
-  public static byte[] sign(
-      byte[] cipherType,
-      Key privateKey,
-      byte[] digest) throws SignerException {
+  public static byte[] sign(byte[] cipherType, Key privateKey, byte[] digest)
+    throws SignerException {
     byte cipher;
     short bufferLength;
 
@@ -31,9 +29,18 @@ public final class Signer {
       return null;
     }
 
-    byte[] signature = JCSystem.makeTransientByteArray(bufferLength, JCSystem.CLEAR_ON_DESELECT);
+    byte[] signature = JCSystem.makeTransientByteArray(
+      bufferLength,
+      JCSystem.CLEAR_ON_DESELECT
+    );
 
-    short length = OneShot.sign(cipher, privateKey, digest, signature, (short) 0);
+    short length = OneShot.sign(
+      cipher,
+      privateKey,
+      digest,
+      signature,
+      (short) 0
+    );
 
     LibECDSA.ensureLowS(signature, (short) 0);
 

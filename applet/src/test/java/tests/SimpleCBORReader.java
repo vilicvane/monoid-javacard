@@ -3,6 +3,7 @@ package tests;
 import monoid.CBORReader;
 
 class SimpleCBORReader extends CBORReader {
+
   private byte[] buffer;
 
   public SimpleCBORReader(byte[] buffer) {

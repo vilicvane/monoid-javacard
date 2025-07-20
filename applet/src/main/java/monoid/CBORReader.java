@@ -6,6 +6,7 @@ import javacard.framework.JCSystem;
 import javacard.framework.Util;
 
 public abstract class CBORReader {
+
   private short offset;
 
   private short arrayOffset;
@@ -149,7 +150,10 @@ public abstract class CBORReader {
 
     short length = metadataUnsignedInteger();
 
-    byte[] out = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
+    byte[] out = JCSystem.makeTransientByteArray(
+      length,
+      JCSystem.CLEAR_ON_DESELECT
+    );
 
     Util.arrayCopyNonAtomic(buffer, offset, out, (short) 0, length);
 
@@ -222,7 +226,9 @@ public abstract class CBORReader {
 
       short entryKeyLength = metadataUnsignedInteger();
 
-      boolean matched = entryKeyLength == keyLength && Util.arrayCompare(buffer, offset, in, keyOffset, keyLength) == 0;
+      boolean matched =
+        entryKeyLength == keyLength &&
+        Util.arrayCompare(buffer, offset, in, keyOffset, keyLength) == 0;
 
       offset += entryKeyLength;
 
@@ -377,7 +383,10 @@ public abstract class CBORReader {
   private short metadataItemsLength() {
     byte[] buffer = getBuffer();
 
-    if ((buffer[offset] & CBOR.METADATA_MASK) == CBOR.VARIABLE_LENGTH_INDEFINITE_MARK) {
+    if (
+      (buffer[offset] & CBOR.METADATA_MASK) ==
+      CBOR.VARIABLE_LENGTH_INDEFINITE_MARK
+    ) {
       offset++;
       return -1;
     }

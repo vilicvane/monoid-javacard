@@ -8,6 +8,7 @@ import javacard.security.MessageDigest;
 import javacard.security.Signature;
 
 public final class LibHMACSha512 {
+
   private static final byte IPAD = (byte) 0x36;
   private static final byte OPAD = (byte) 0x5c;
 
@@ -20,13 +21,22 @@ public final class LibHMACSha512 {
 
   public static void init() {
     try {
-      sharedSignature = Signature.getInstance(Signature.ALG_HMAC_SHA_512, false);
-      sharedKey = (HMACKey) KeyBuilder.buildKey(KeyBuilder.TYPE_HMAC_TRANSIENT_DESELECT,
-          KeyBuilder.LENGTH_AES_256, false);
+      sharedSignature = Signature.getInstance(
+        Signature.ALG_HMAC_SHA_512,
+        false
+      );
+      sharedKey = (HMACKey) KeyBuilder.buildKey(
+        KeyBuilder.TYPE_HMAC_TRANSIENT_DESELECT,
+        KeyBuilder.LENGTH_AES_256,
+        false
+      );
     } catch (Exception e) {
       sharedSignature = null;
       sharedKey = null;
-      sharedDigest = MessageDigest.getInstance(MessageDigest.ALG_SHA_512, false);
+      sharedDigest = MessageDigest.getInstance(
+        MessageDigest.ALG_SHA_512,
+        false
+      );
     }
   }
 
@@ -37,16 +47,25 @@ public final class LibHMACSha512 {
   }
 
   public static short digest(
-      byte[] key, short keyOffset, short keyLength,
-      byte[] data, short dataOffset, short dataLength,
-      byte[] out, short outOffset) {
+    byte[] key,
+    short keyOffset,
+    short keyLength,
+    byte[] data,
+    short dataOffset,
+    short dataLength,
+    byte[] out,
+    short outOffset
+  ) {
     if (sharedSignature != null && sharedKey != null) {
       sharedKey.setKey(key, keyOffset, keyLength);
       sharedSignature.init(sharedKey, Signature.MODE_SIGN);
 
       return sharedSignature.sign(data, dataOffset, dataLength, out, outOffset);
     } else {
-      byte[] block = JCSystem.makeTransientByteArray(BLOCK_BYTES, JCSystem.CLEAR_ON_DESELECT);
+      byte[] block = JCSystem.makeTransientByteArray(
+        BLOCK_BYTES,
+        JCSystem.CLEAR_ON_DESELECT
+      );
 
       Util.arrayFillNonAtomic(block, (short) 0, BLOCK_BYTES, IPAD);
 

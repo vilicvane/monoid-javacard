@@ -1,6 +1,7 @@
 package monoid;
 
 public class CommandCreateRandomKey extends Command {
+
   @Override
   protected void run() {
     requireAuth();

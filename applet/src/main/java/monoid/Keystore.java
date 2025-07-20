@@ -4,15 +4,16 @@ import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.ECPrivateKey;
 import javacard.security.MessageDigest;
-
 import monoidsafe.MonoidSafe;
 
 public final class Keystore {
+
   public static final byte SEED_LENGTH = 64;
 
   public static final byte MASTER_LENGTH = LibBIP32.COMPONENT_LENGTH * 2;
   public static final byte MASTER_PRIVATE_KEY_OFFSET = MonoidSafe.INDEX_LENGTH;
-  public static final byte MASTER_CHAIN_CODE_OFFSET = MASTER_PRIVATE_KEY_OFFSET + LibBIP32.COMPONENT_LENGTH;
+  public static final byte MASTER_CHAIN_CODE_OFFSET =
+    MASTER_PRIVATE_KEY_OFFSET + LibBIP32.COMPONENT_LENGTH;
 
   private MonoidSafe safe;
 
@@ -33,7 +34,10 @@ public final class Keystore {
   }
 
   private byte[] createRandom(byte type, byte length) {
-    byte[] buffer = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
+    byte[] buffer = JCSystem.makeTransientByteArray(
+      length,
+      JCSystem.CLEAR_ON_DESELECT
+    );
 
     OneShot.random(buffer, (short) 0, length);
 
@@ -41,27 +45,65 @@ public final class Keystore {
   }
 
   private byte[] addKey(byte type, byte[] key) {
-    byte[] digest = JCSystem.makeTransientByteArray((short) MessageDigest.LENGTH_SHA_256, JCSystem.CLEAR_ON_DESELECT);
+    byte[] digest = JCSystem.makeTransientByteArray(
+      (short) MessageDigest.LENGTH_SHA_256,
+      JCSystem.CLEAR_ON_DESELECT
+    );
 
-    OneShot.digest(MessageDigest.ALG_SHA_256, key, (short) 0, (short) key.length, digest, (short) 0);
+    OneShot.digest(
+      MessageDigest.ALG_SHA_256,
+      key,
+      (short) 0,
+      (short) key.length,
+      digest,
+      (short) 0
+    );
 
-    byte[] index = JCSystem.makeTransientByteArray((short) MonoidSafe.INDEX_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+    byte[] index = JCSystem.makeTransientByteArray(
+      (short) MonoidSafe.INDEX_LENGTH,
+      JCSystem.CLEAR_ON_DESELECT
+    );
 
     index[0] = type;
-    Util.arrayCopyNonAtomic(digest, (short) 0, index, (short) 1, MonoidSafe.INDEX_DIGEST_LENGTH);
+    Util.arrayCopyNonAtomic(
+      digest,
+      (short) 0,
+      index,
+      (short) 1,
+      MonoidSafe.INDEX_DIGEST_LENGTH
+    );
 
-    byte[] data = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE,
-        (short) (MonoidSafe.INDEX_LENGTH + key.length));
+    byte[] data = (byte[]) JCSystem.makeGlobalArray(
+      JCSystem.ARRAY_TYPE_BYTE,
+      (short) (MonoidSafe.INDEX_LENGTH + key.length)
+    );
 
-    Util.arrayCopyNonAtomic(index, (short) 0, data, (short) 0, MonoidSafe.INDEX_LENGTH);
-    Util.arrayCopyNonAtomic(key, (short) 0, data, MonoidSafe.INDEX_LENGTH, (short) key.length);
+    Util.arrayCopyNonAtomic(
+      index,
+      (short) 0,
+      data,
+      (short) 0,
+      MonoidSafe.INDEX_LENGTH
+    );
+    Util.arrayCopyNonAtomic(
+      key,
+      (short) 0,
+      data,
+      MonoidSafe.INDEX_LENGTH,
+      (short) key.length
+    );
 
     safe.set(data, (short) 0, (short) data.length);
 
     return index;
   }
 
-  public byte[] getSeedDerivedPublicKeyAndChainCode(byte[] index, byte[] seed, Curve curve, byte[] path) {
+  public byte[] getSeedDerivedPublicKeyAndChainCode(
+    byte[] index,
+    byte[] seed,
+    Curve curve,
+    byte[] path
+  ) {
     if (index[0] != Safe.TYPE_SEED) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
       return null;
@@ -74,7 +116,11 @@ public final class Keystore {
     return derivePublicKeyAndChainCodeFromMaster(curve, master, path);
   }
 
-  public byte[] getMasterDerivedPublicKeyAndChainCode(byte[] index, Curve curve, byte[] path) {
+  public byte[] getMasterDerivedPublicKeyAndChainCode(
+    byte[] index,
+    Curve curve,
+    byte[] path
+  ) {
     if (index[0] != Safe.TYPE_MASTER) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
       return null;
@@ -104,13 +150,13 @@ public final class Keystore {
   }
 
   public byte[] sign(
-      byte[] index,
-      Curve curve,
-      byte[] cipher,
-      byte[] seed,
-      byte[] path,
-      byte[] digest) throws KeystoreException, CurveException, SignerException {
-
+    byte[] index,
+    Curve curve,
+    byte[] cipher,
+    byte[] seed,
+    byte[] path,
+    byte[] digest
+  ) throws KeystoreException, CurveException, SignerException {
     byte type = index[0];
 
     byte[] key = requireKey(index);
@@ -144,20 +190,30 @@ public final class Keystore {
   }
 
   private byte[] deriveMasterFromSeed(byte[] key, byte[] seed) {
-    byte[] master = JCSystem.makeTransientByteArray(MASTER_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+    byte[] master = JCSystem.makeTransientByteArray(
+      MASTER_LENGTH,
+      JCSystem.CLEAR_ON_DESELECT
+    );
 
     LibHMACSha512.digest(
-        seed, (short) 0, (short) seed.length,
-        key, (short) 0, (short) key.length,
-        master, (short) 0);
+      seed,
+      (short) 0,
+      (short) seed.length,
+      key,
+      (short) 0,
+      (short) key.length,
+      master,
+      (short) 0
+    );
 
     return master;
   }
 
   private byte[] derivePublicKeyAndChainCodeFromMaster(
-      Curve curve,
-      byte[] master,
-      byte[] path) {
+    Curve curve,
+    byte[] master,
+    byte[] path
+  ) {
     LibBIP32.deriveInPlace(curve, master, path, (short) 0, (short) path.length);
 
     ECPrivateKey privateKey = curve.getSharedPrivateKey(master, (short) 0);
@@ -166,12 +222,27 @@ public final class Keystore {
 
     short keyLength = curve.getKeyLength();
 
-    byte[] data = JCSystem.makeTransientByteArray((short) (publicKey.length + keyLength), JCSystem.CLEAR_ON_DESELECT);
+    byte[] data = JCSystem.makeTransientByteArray(
+      (short) (publicKey.length + keyLength),
+      JCSystem.CLEAR_ON_DESELECT
+    );
 
     // public key
-    Util.arrayCopyNonAtomic(publicKey, (short) 0, data, (short) 0, (short) publicKey.length);
+    Util.arrayCopyNonAtomic(
+      publicKey,
+      (short) 0,
+      data,
+      (short) 0,
+      (short) publicKey.length
+    );
     // chain code
-    Util.arrayCopyNonAtomic(master, keyLength, data, (short) publicKey.length, keyLength);
+    Util.arrayCopyNonAtomic(
+      master,
+      keyLength,
+      data,
+      (short) publicKey.length,
+      keyLength
+    );
 
     return data;
   }

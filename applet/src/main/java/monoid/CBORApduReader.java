@@ -4,6 +4,7 @@ import javacard.framework.APDU;
 import javacard.framework.ISO7816;
 
 public class CBORApduReader extends CBORReader {
+
   public CBORApduReader() {
     reset();
   }

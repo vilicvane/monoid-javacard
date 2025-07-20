@@ -1,7 +1,14 @@
 package monoid;
 
 public final class LibBytesMath {
-  public static byte compare(byte[] a, short aOffset, byte[] b, short bOffset, short length) {
+
+  public static byte compare(
+    byte[] a,
+    short aOffset,
+    byte[] b,
+    short bOffset,
+    short length
+  ) {
     for (short index = 0; index < length; index++) {
       short aShort = (short) (a[(short) (aOffset + index)] & 0xFF);
       short bShort = (short) (b[(short) (bOffset + index)] & 0xFF);
@@ -16,12 +23,21 @@ public final class LibBytesMath {
     return 0;
   }
 
-  public static short add(byte[] a, short aOff, byte[] b, short bOff, byte[] out, short outOff, short length) {
+  public static short add(
+    byte[] a,
+    short aOff,
+    byte[] b,
+    short bOff,
+    byte[] out,
+    short outOff,
+    short length
+  ) {
     short regrouped = 0;
 
     for (short index = (short) (length - 1); index >= 0; index--) {
-      regrouped = (short) ((short) (a[(short) (aOff + index)] & 0xFF) + (short) (b[(short) (bOff + index)] & 0xFF)
-          + regrouped);
+      regrouped = (short) ((short) (a[(short) (aOff + index)] & 0xFF) +
+        (short) (b[(short) (bOff + index)] & 0xFF) +
+        regrouped);
 
       out[(short) (outOff + index)] = (byte) regrouped;
 
@@ -31,13 +47,21 @@ public final class LibBytesMath {
     return regrouped;
   }
 
-  public static short sub(byte[] a, short aOffset, byte[] b, short bOffset, byte[] out, short outOffset,
-      short length) {
+  public static short sub(
+    byte[] a,
+    short aOffset,
+    byte[] b,
+    short bOffset,
+    byte[] out,
+    short outOffset,
+    short length
+  ) {
     short regrouped = 0;
 
     for (short index = (short) (length - 1); index >= 0; index--) {
-      regrouped = (short) ((short) (a[(short) (aOffset + index)] & 0xFF) - (short) (b[(short) (bOffset + index)] & 0xFF)
-          - regrouped);
+      regrouped = (short) ((short) (a[(short) (aOffset + index)] & 0xFF) -
+        (short) (b[(short) (bOffset + index)] & 0xFF) -
+        regrouped);
 
       out[(short) (outOffset + index)] = (byte) regrouped;
 

@@ -3,6 +3,7 @@ package monoid;
 import javacard.framework.JCSystem;
 
 public class CommandSystemInformation extends Command {
+
   @Override
   protected void run() {
     reader.map();
@@ -41,17 +42,23 @@ public class CommandSystemInformation extends Command {
       writer.map((short) 1);
       {
         writer.text(Text.available);
-        writer.integer(JCSystem.getAvailableMemory(JCSystem.MEMORY_TYPE_PERSISTENT));
+        writer.integer(
+          JCSystem.getAvailableMemory(JCSystem.MEMORY_TYPE_PERSISTENT)
+        );
       }
 
       writer.text(Text.transient_);
       writer.map((short) 2);
       {
         writer.text(Text.reset);
-        writer.integer(JCSystem.getAvailableMemory(JCSystem.MEMORY_TYPE_TRANSIENT_RESET));
+        writer.integer(
+          JCSystem.getAvailableMemory(JCSystem.MEMORY_TYPE_TRANSIENT_RESET)
+        );
 
         writer.text(Text.deselect);
-        writer.integer(JCSystem.getAvailableMemory(JCSystem.MEMORY_TYPE_TRANSIENT_DESELECT));
+        writer.integer(
+          JCSystem.getAvailableMemory(JCSystem.MEMORY_TYPE_TRANSIENT_DESELECT)
+        );
       }
     }
   }

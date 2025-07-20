@@ -1,19 +1,16 @@
 package tests;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import javax.smartcardio.CardException;
-import javax.smartcardio.CommandAPDU;
-import javax.smartcardio.ResponseAPDU;
-
-import javacard.framework.AID;
-
 import com.licel.jcardsim.smartcardio.CardSimulator;
-
 import cz.muni.fi.crocs.rcard.client.CardManager;
 import cz.muni.fi.crocs.rcard.client.CardType;
 import cz.muni.fi.crocs.rcard.client.RunConfig;
 import cz.muni.fi.crocs.rcard.client.Util;
+import java.util.ArrayList;
+import java.util.Arrays;
+import javacard.framework.AID;
+import javax.smartcardio.CardException;
+import javax.smartcardio.CommandAPDU;
+import javax.smartcardio.ResponseAPDU;
 
 /**
  * Base Test class.
@@ -22,6 +19,7 @@ import cz.muni.fi.crocs.rcard.client.Util;
  * @author Petr Svenda, Dusan Klinec (ph4r05)
  */
 public class AppletTest {
+
   protected byte[] aid;
 
   protected CardType cardType;
@@ -56,7 +54,9 @@ public class AppletTest {
         manager.connect(RunConfig.getDefaultConfig().setTestCardType(cardType));
         break;
       default:
-        throw new IllegalArgumentException("Unsupported card type: " + cardType);
+        throw new IllegalArgumentException(
+          "Unsupported card type: " + cardType
+        );
     }
 
     return manager;
@@ -71,11 +71,23 @@ public class AppletTest {
     return connect().transmit(cmd);
   }
 
-  public static CommandAPDU apdu(int cla, int ins, int p1, int p2, byte[] data) {
+  public static CommandAPDU apdu(
+    int cla,
+    int ins,
+    int p1,
+    int p2,
+    byte[] data
+  ) {
     return new CommandAPDU(cla, ins, p1, p2, data);
   }
 
-  public static CommandAPDU apdu(int cla, int ins, int p1, int p2, String data) {
+  public static CommandAPDU apdu(
+    int cla,
+    int ins,
+    int p1,
+    int p2,
+    String data
+  ) {
     return new CommandAPDU(cla, ins, p1, p2, Util.hexStringToByteArray(data));
   }
 
@@ -121,8 +133,11 @@ public class AppletTest {
    * @return
    * @throws CardException
    */
-  public ResponseAPDU sendCommandWithInitSequence(CardManager cardMngr, String command,
-      ArrayList<String> initCommands) throws CardException {
+  public ResponseAPDU sendCommandWithInitSequence(
+    CardManager cardMngr,
+    String command,
+    ArrayList<String> initCommands
+  ) throws CardException {
     if (initCommands != null) {
       for (String cmd : initCommands) {
         cardMngr.getChannel().transmit(apdu(cmd));
