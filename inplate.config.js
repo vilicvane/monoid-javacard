@@ -39,16 +39,16 @@ const data = {
 };
 
 export default {
-  'applet/build.gradle': {
+  'build.gradle': {
     data,
   },
-  'applet/src/main/java/*/Constants.java': {
+  'src/main/java/*/Constants.java': {
     data,
   },
-  'applet/src/main/java/main/Run.java': {
+  'src/main/java/main/Run.java': {
     data,
   },
-  'applet/src/test/java/tests/MonoidAppletTest.java': {
+  'src/test/java/tests/MonoidAppletTest.java': {
     data,
   },
 };

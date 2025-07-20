@@ -285,6 +285,19 @@ The first byte is the type of the item (`0x00` to `0x0F` are reserved), and the 
 - `0x0F` Generic data (draft)
   - +8 bytes unique identifier
 
+## Credits
+
+Monoid JavaCard is a [javacard-gradle-template] fork, which uses projects like [javacard-gradle-plugin] and [ant-javacard] under the hood.
+
+As this is my first JavaCard project, it would not be possible without great open-source works like these. 🎉
+
+Especially, during prototyping, I basically used [keycard] implementation as a book for verified technical details, which saved me a lot of time and effort for trial-and-error. 🫡
+
 ## License
 
 MIT License.
+
+[javacard-gradle-template]: https://github.com/ph4r05/javacard-gradle-template
+[javacard-gradle-plugin]: https://github.com/ph4r05/javacard-gradle-plugin
+[ant-javacard]: https://github.com/klinec/ant-javacard
+[keycard]: https://github.com/keycard-tech/status-keycard
