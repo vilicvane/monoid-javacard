@@ -1,6 +1,6 @@
 # Monoid JavaCard
 
-Monoid is a secure gateway that connects your keys and end-user applications.
+Monoid is a secure gateway that connects your keys and data to end-user applications.
 
 **A JavaCard with Monoid applets is already a hardware crypto wallet itself.** However, the goal is to allow third-party applets to interact with Monoid `Shareable` interface for signing/verifying and data access, so that Monoid can manage those keys and data and make it easy for users to backup, restore or even synchronize securely with unified UX.
 
