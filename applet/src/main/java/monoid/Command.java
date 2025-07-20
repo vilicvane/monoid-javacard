@@ -6,46 +6,10 @@ import monoidsafe.MonoidSafe;
 
 public abstract class Command {
 
-  public static final byte[] CODE_CRYPTO_EXCEPTION = {
-    'C',
-    'R',
-    'Y',
-    'P',
-    'T',
-    'O',
-    '_',
-    'E',
-    'X',
-    'C',
-    'E',
-    'P',
-    'T',
-    'I',
-    'O',
-    'N',
-  };
-
-  public static final byte[] CODE_INDEX_OUT_OF_BOUNDS = {
-    'I',
-    'N',
-    'D',
-    'E',
-    'X',
-    '_',
-    'O',
-    'U',
-    'T',
-    '_',
-    'O',
-    'F',
-    '_',
-    'B',
-    'O',
-    'U',
-    'N',
-    'D',
-    'S',
-  };
+  // @formatter:off
+  public static final byte[] CODE_CRYPTO_EXCEPTION = {'C','R','Y','P','T','O','_','E','X','C','E','P','T','I','O','N'};
+  public static final byte[] CODE_INDEX_OUT_OF_BOUNDS = {'I','N','D','E','X','_','O','U','T','_','O','F','_','B','O','U','N','D','S'};
+  // @formatter:on
 
   public static final byte AUTH_ACCESS = 0b01;
   public static final byte AUTH_SAFE = 0b10;

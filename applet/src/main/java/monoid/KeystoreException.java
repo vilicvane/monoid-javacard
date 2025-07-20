@@ -5,40 +5,10 @@ public class KeystoreException extends MonoidException {
   public static final short REASON_KEY_NOT_FOUND = 1;
   public static final short REASON_INVALID_PARAMETER = 2;
 
-  public static final byte[] CODE_KEY_NOT_FOUND = {
-    'K',
-    'E',
-    'Y',
-    '_',
-    'N',
-    'O',
-    'T',
-    '_',
-    'F',
-    'O',
-    'U',
-    'N',
-    'D',
-  };
-  public static final byte[] CODE_INVALID_PARAMETER = {
-    'I',
-    'N',
-    'V',
-    'A',
-    'L',
-    'I',
-    'D',
-    '_',
-    'P',
-    'A',
-    'R',
-    'A',
-    'M',
-    'E',
-    'T',
-    'E',
-    'R',
-  };
+  // @formatter:off
+  public static final byte[] CODE_KEY_NOT_FOUND = {'K','E','Y','_','N','O','T','_','F','O','U','N','D'};
+  public static final byte[] CODE_INVALID_PARAMETER = {'I','N','V','A','L','I','D','_','P','A','R','A','M','E','T','E','R'};
+  // @formatter:on
 
   public static Object[] codes;
 

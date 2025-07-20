@@ -6,7 +6,10 @@ import javacard.security.Signature;
 
 public final class Signer {
 
-  public static final byte[] CIPHER_ECDSA = { 'e', 'c', 'd', 's', 'a' };
+  // @formatter:off
+  public static final byte[] CIPHER_ECDSA = {'e','c','d','s','a'};
+
+  // @formatter:on
 
   public static void writeSupportedCiphers(CBORWriter writer) {
     writer.array((short) 1);

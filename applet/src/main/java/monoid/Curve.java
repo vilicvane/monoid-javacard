@@ -5,17 +5,9 @@ import javacard.security.ECPrivateKey;
 
 public abstract class Curve {
 
-  public static final byte[] SECP256k1 = {
-    's',
-    'e',
-    'c',
-    'p',
-    '2',
-    '5',
-    '6',
-    'k',
-    '1',
-  };
+  // @formatter:off
+  public static final byte[] SECP256k1 = {'s','e','c','p','2','5','6','k','1'};
+  // @formatter:on
 
   public static Curve secp256k1;
 
