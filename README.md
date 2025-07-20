@@ -299,5 +299,5 @@ MIT License.
 
 [javacard-gradle-template]: https://github.com/ph4r05/javacard-gradle-template
 [javacard-gradle-plugin]: https://github.com/ph4r05/javacard-gradle-plugin
-[ant-javacard]: https://github.com/klinec/ant-javacard
+[ant-javacard]: https://github.com/martinpaljak/ant-javacard
 [keycard]: https://github.com/keycard-tech/status-keycard
