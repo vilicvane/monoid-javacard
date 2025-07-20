@@ -77,56 +77,6 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     }
 
     command.runCommand();
-
-    // case 0x01:
-    //   short publicKeyLength = keystore.genKey(Keystore.TYPE_RAW, buffer, (short) 0);
-    //   apdu.setOutgoingAndSend((short) 0, publicKeyLength);
-    //   break;
-    // case 0x02:
-    //   short signatureLength = keystore.sign(
-    //       buffer,
-    //       ISO7816.OFFSET_CDATA,
-    //       (short) (Keystore.SAFE_INDEX_LENGTH + ISO7816.OFFSET_CDATA), (byte) 32,
-    //       buffer, (short) 0);
-    //   apdu.setOutgoingAndSend((short) 0, signatureLength);
-    //   break;
-    // case 0x03:
-    //   short offset = ISO7816.OFFSET_CDATA;
-
-    //   byte[] key = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
-
-    //   Util.arrayCopyNonAtomic(buffer, offset, key, (short) 0, (short) 32);
-
-    //   short digestLength = LibHMACSha512.digest(
-    //       // key
-    //       key, (short) 0, (short) 32,
-    //       // data
-    //       buffer, (short) (offset + 32), (short) 37,
-    //       buffer, (short) 0);
-
-    //   apdu.setOutgoingAndSend((short) 0, digestLength);
-    //   break;
-    // case 0x04:
-    //   byte[] privateKeyAndChainCode = JCSystem.makeTransientByteArray((short) (CurveSECP256k1.KEY_LENGTH * 2),
-    //       JCSystem.CLEAR_ON_DESELECT);
-
-    //   short pathOffset = (short) (ISO7816.OFFSET_CDATA
-    //       + Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, privateKeyAndChainCode, (short) 0,
-    //           (short) (CurveSECP256k1.KEY_LENGTH * 2)));
-
-    //   LibBIP32.deriveChildKey(privateKeyAndChainCode, buffer, pathOffset);
-
-    //   Util.arrayCopyNonAtomic(privateKeyAndChainCode, (short) 0, buffer, (short) 0,
-    //       (short) privateKeyAndChainCode.length);
-
-    //   apdu.setOutgoingAndSend((short) 0, (short) privateKeyAndChainCode.length);
-    //   break;
-    // case 0x05:
-    //   short length = safe.get(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC]);
-    //   apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, length);
-    //   break;
-
-    // ISOException.throwIt(ISO7816.SW_NO_ERROR);
   }
 
   private static void ensureInitialization() {

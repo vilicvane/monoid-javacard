@@ -1,17 +1,19 @@
 package tests;
 
-import cz.muni.fi.crocs.rcard.client.CardManager;
-import cz.muni.fi.crocs.rcard.client.CardType;
-import cz.muni.fi.crocs.rcard.client.RunConfig;
-import cz.muni.fi.crocs.rcard.client.Util;
-import javacard.framework.AID;
+import java.util.ArrayList;
+import java.util.Arrays;
 import javax.smartcardio.CardException;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 
+import javacard.framework.AID;
+
 import com.licel.jcardsim.smartcardio.CardSimulator;
-import java.util.ArrayList;
-import java.util.Arrays;
+
+import cz.muni.fi.crocs.rcard.client.CardManager;
+import cz.muni.fi.crocs.rcard.client.CardType;
+import cz.muni.fi.crocs.rcard.client.RunConfig;
+import cz.muni.fi.crocs.rcard.client.Util;
 
 /**
  * Base Test class.

@@ -10,8 +10,12 @@ import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.utils.AIDUtil;
 
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 
 import monoid.MonoidApplet;
 import monoid.MonoidException;
@@ -23,6 +27,9 @@ import monoidsafe.MonoidSafeApplet;
  *
  * @author xsvenda, Dusan Klinec (ph4r05)
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@ExtendWith(BailExtension.class)
 public class MonoidAppletTest extends AppletTest {
   private static final AID MONOID_SAFE_AID = AIDUtil.create("f16d6f6e6f696400010000");
   private static final AID MONOID_AID = AIDUtil.create("f16d6f6e6f696401010000");
@@ -60,24 +67,8 @@ public class MonoidAppletTest extends AppletTest {
     }
   }
 
-  public static void main(String[] args) throws Exception {
-    new MonoidAppletTest().test();
-  }
-
   @Test
-  public void test() throws Exception {
-    hello();
-    setSafePIN();
-    setPIN();
-    createRandomKeys();
-    setGetClear();
-    addTestKeys();
-    viewKeys();
-    sign();
-  }
-
-  @Test
-  @Tag("manual")
+  @Order(1)
   public void hello() throws Exception {
     SimpleCBORWriter cbor = new SimpleCBORWriter();
 
@@ -91,7 +82,7 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  @Tag("manual")
+  @Order(2)
   public void setSafePIN() throws Exception {
     SimpleCBORWriter writer = new SimpleCBORWriter();
 
@@ -112,7 +103,7 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  @Tag("manual")
+  @Order(3)
   public void setPIN() throws Exception {
     SimpleCBORWriter writer = new SimpleCBORWriter();
 
@@ -129,10 +120,12 @@ public class MonoidAppletTest extends AppletTest {
     ResponseAPDU response = connect().transmit(request);
 
     assertNoError(response);
+
+    hello();
   }
 
   @Test
-  @Tag("manual")
+  @Order(4)
   public void unlockSafe() throws Exception {
     SimpleCBORWriter writer = new SimpleCBORWriter();
 
@@ -155,7 +148,7 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  @Tag("manual")
+  @Order(5)
   public void list() throws Exception {
     SimpleCBORWriter writer = new SimpleCBORWriter();
 
@@ -178,7 +171,7 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  @Tag("manual")
+  @Order(6)
   public void createRandomKeys() throws Exception {
     String[] types = { "seed", "master", "key" };
 
@@ -213,7 +206,7 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  @Tag("manual")
+  @Order(7)
   public void setGetClear() throws Exception {
     byte[] index = "someindex".getBytes();
     byte[] data = "some data".getBytes();
@@ -301,7 +294,7 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  @Tag("manual")
+  @Order(8)
   public void addTestKeys() throws Exception {
     HashMap<byte[], byte[]> keys = new HashMap<>();
 
@@ -332,7 +325,7 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  @Tag("manual")
+  @Order(9)
   public void viewKeys() throws Exception {
     {
       SimpleCBORWriter writer = new SimpleCBORWriter();
@@ -436,7 +429,7 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  @Tag("manual")
+  @Order(10)
   public void sign() throws Exception {
     {
       SimpleCBORWriter writer = new SimpleCBORWriter();

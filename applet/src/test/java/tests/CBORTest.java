@@ -1,7 +1,7 @@
 package tests;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 
@@ -31,77 +31,77 @@ public class CBORTest {
   public void read() {
     SimpleCBORReader cbor = new SimpleCBORReader(example);
 
-    Assert.assertTrue(cbor.is(CBOR.TYPE_ARRAY));
-    Assert.assertFalse(cbor.is(CBOR.TYPE_MAP));
+    Assertions.assertTrue(cbor.is(CBOR.TYPE_ARRAY));
+    Assertions.assertFalse(cbor.is(CBOR.TYPE_MAP));
 
-    Assert.assertEquals(cbor.array(), 3);
-
-    cbor.snapshot();
-
-    Assert.assertEquals(cbor.map(), 3);
+    Assertions.assertEquals(cbor.array(), 3);
 
     cbor.snapshot();
 
-    Assert.assertFalse(cbor.key("xy".getBytes()));
+    Assertions.assertEquals(cbor.map(), 3);
 
-    Assert.assertTrue(cbor.key("id".getBytes()));
-    Assert.assertEquals(cbor.integer(), 1);
+    cbor.snapshot();
 
-    Assert.assertTrue(cbor.key("name".getBytes()));
+    Assertions.assertFalse(cbor.key("xy".getBytes()));
+
+    Assertions.assertTrue(cbor.key("id".getBytes()));
+    Assertions.assertEquals(cbor.integer(), 1);
+
+    Assertions.assertTrue(cbor.key("name".getBytes()));
 
     byte[] text = new byte[5];
 
-    Assert.assertEquals(cbor.text(text, (short) 0), 5);
-    Assert.assertArrayEquals(text, "Alice".getBytes());
+    Assertions.assertEquals(cbor.text(text, (short) 0), 5);
+    Assertions.assertArrayEquals(text, "Alice".getBytes());
 
-    Assert.assertTrue(cbor.key("admin".getBytes()));
-    Assert.assertEquals(cbor.bool(), true);
+    Assertions.assertTrue(cbor.key("admin".getBytes()));
+    Assertions.assertEquals(cbor.bool(), true);
 
-    Assert.assertTrue(cbor.key("id".getBytes()));
-    Assert.assertEquals(cbor.integer(), 1);
+    Assertions.assertTrue(cbor.key("id".getBytes()));
+    Assertions.assertEquals(cbor.integer(), 1);
 
     cbor.popSnapshot();
 
     cbor.index((short) 2);
     cbor.map();
 
-    Assert.assertTrue(cbor.key("id".getBytes()));
-    Assert.assertEquals(cbor.integer(), 512);
+    Assertions.assertTrue(cbor.key("id".getBytes()));
+    Assertions.assertEquals(cbor.integer(), 512);
 
-    Assert.assertTrue(cbor.key("extra".getBytes()));
-    Assert.assertEquals(cbor.integer(), -1);
+    Assertions.assertTrue(cbor.key("extra".getBytes()));
+    Assertions.assertEquals(cbor.integer(), -1);
 
     cbor.index((short) 1);
     cbor.map();
 
-    Assert.assertTrue(cbor.key("id".getBytes()));
-    Assert.assertEquals(cbor.integer(), 32);
+    Assertions.assertTrue(cbor.key("id".getBytes()));
+    Assertions.assertEquals(cbor.integer(), 32);
 
-    Assert.assertTrue(cbor.key("admin".getBytes()));
-    Assert.assertEquals(cbor.bool(), false);
+    Assertions.assertTrue(cbor.key("admin".getBytes()));
+    Assertions.assertEquals(cbor.bool(), false);
   }
 
   @Test
   public void read_indefinite() {
     SimpleCBORReader cbor = new SimpleCBORReader(exampleIndefinite);
 
-    Assert.assertEquals(cbor.array(), -1);
+    Assertions.assertEquals(cbor.array(), -1);
 
-    Assert.assertEquals(cbor.map(), -1);
+    Assertions.assertEquals(cbor.map(), -1);
 
-    Assert.assertTrue(cbor.key("hello".getBytes()));
-    Assert.assertEquals(cbor.bool(), true);
+    Assertions.assertTrue(cbor.key("hello".getBytes()));
+    Assertions.assertEquals(cbor.bool(), true);
 
-    Assert.assertTrue(cbor.key("world".getBytes()));
-    Assert.assertEquals(cbor.bool(), false);
+    Assertions.assertTrue(cbor.key("world".getBytes()));
+    Assertions.assertEquals(cbor.bool(), false);
 
-    Assert.assertTrue(cbor.br());
+    Assertions.assertTrue(cbor.br());
 
-    Assert.assertFalse(cbor.br());
+    Assertions.assertFalse(cbor.br());
 
-    Assert.assertTrue(cbor.bool());
+    Assertions.assertTrue(cbor.bool());
 
-    Assert.assertTrue(cbor.br());
+    Assertions.assertTrue(cbor.br());
   }
 
   @Test
@@ -161,7 +161,7 @@ public class CBORTest {
       }
     }
 
-    Assert.assertArrayEquals(buffer, example);
+    Assertions.assertArrayEquals(buffer, example);
   }
 
   @Test
@@ -190,6 +190,6 @@ public class CBORTest {
 
     System.out.println(Hex.toHexString(buffer));
 
-    Assert.assertArrayEquals(buffer, exampleIndefinite);
+    Assertions.assertArrayEquals(buffer, exampleIndefinite);
   }
 }
