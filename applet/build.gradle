@@ -112,16 +112,6 @@ final def JC310b43 = libsSdk + '/jc310b43_kit'
 final def JC_SELECTED = JC310b43
 
 javacard {
-	def MONOID_NAMESPACE = 'f1:6d6f6e6f6964'
-
-	def MONOID_SAFE_PACKAGE_AID = MONOID_NAMESPACE + ':00'
-	def MONOID_PACKAGE_AID = MONOID_NAMESPACE + ':01'
-
-	// package id || applet id || major version
-
-	def MONOID_SAFE_AID = MONOID_SAFE_PACKAGE_AID + ':01' + ':0000'
-	def MONOID_AID = MONOID_PACKAGE_AID + ':01' + ':0000'
-
 	config {
 		jckit JC_SELECTED
 
@@ -132,7 +122,8 @@ javacard {
 		cap {
 			packageName 'monoidsafe'
 			version '0.0'
-			aid MONOID_SAFE_PACKAGE_AID
+			// @inplate-line aid '{{hex MONOID_SAFE_PACKAGE_AID}}'
+			aid 'f16d6f6e6f696400'
 			output 'monoidsafe.cap'
 
 			targetsdk JC305u3
@@ -141,14 +132,16 @@ javacard {
 
 			applet {
 				className 'monoidsafe.MonoidSafeApplet'
-				aid MONOID_SAFE_AID
+				// @inplate-line aid '{{hex MONOID_SAFE_AID}}'
+				aid 'f16d6f6e6f696400010000'
 			}
 		}
 
 		cap {
 			packageName 'monoid'
 			version '0.0'
-			aid MONOID_PACKAGE_AID
+			// @inplate-line aid '{{hex MONOID_PACKAGE_AID}}'
+			aid 'f16d6f6e6f696401'
 			output 'monoid.cap'
 
 			targetsdk JC305u3
@@ -157,7 +150,8 @@ javacard {
 
 			applet {
 				className 'monoid.MonoidApplet'
-				aid MONOID_AID
+				// @inplate-line aid '{{hex MONOID_AID}}'
+				aid 'f16d6f6e6f696401010000'
 			}
 
 			dependencies {

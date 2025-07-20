@@ -238,9 +238,9 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   public Shareable getShareableInterfaceObject(AID clientAID, byte parameter) {
     if (
       clientAID.partialEquals(
-        Constants.MONOID_PARTIAL_AID,
+        Constants.MONOID_AID_WITHOUT_VERSION,
         (short) 0,
-        (byte) Constants.MONOID_PARTIAL_AID.length
+        (byte) Constants.MONOID_AID_WITHOUT_VERSION.length
       )
     ) {
       return this;

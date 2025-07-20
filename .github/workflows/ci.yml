@@ -21,5 +21,6 @@ jobs:
           distribution: 'temurin'
       - run: npm install
       - run: npx prettier --check .
+      - run: npx inplate --assert
       - run: ./gradlew check --info
       - run: ./gradlew buildJavaCard --info

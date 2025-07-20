@@ -1,6 +1,5 @@
 package monoiddemo;
 
-import javacard.framework.AID;
 import javacard.framework.APDU;
 import javacard.framework.Applet;
 import javacard.framework.ISO7816;
@@ -21,11 +20,8 @@ public class MonoidDemoApplet extends Applet {
   }
 
   public void process(APDU apdu) {
-    byte[] buffer = apdu.getBuffer();
-
+    @SuppressWarnings("unused")
     Monoid monoid = requireMonoid();
-
-    apdu.setOutgoingAndSend((short) 0, (short) 1);
   }
 
   private Monoid requireMonoid() {
@@ -34,10 +30,10 @@ public class MonoidDemoApplet extends Applet {
     }
 
     monoid = (Monoid) JCSystem.getAppletShareableInterfaceObject(
-      new AID(
-        new byte[] { 0x6d, 0x6f, 0x6e, 0x6f, 0x69, 0x64, 0x00, 0x00 },
+      JCSystem.lookupAID(
+        Constants.MONOID_AID,
         (short) 0,
-        (byte) 8
+        (byte) Constants.MONOID_AID.length
       ),
       (byte) 0x00
     );

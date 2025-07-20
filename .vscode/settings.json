@@ -18,6 +18,7 @@
     "ECDH",
     "gradlew",
     "HMAC",
+    "inplate",
     "javacard",
     "jcardsim",
     "KEYGENERATION",
