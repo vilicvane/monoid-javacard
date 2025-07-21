@@ -29,11 +29,11 @@ public class MonoidAppletTest extends AppletTest {
 
   private static final AID MONOID_SAFE_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_SAFE_AID}}"
-    "f16d6f6e6f696400010000"
+    "f06d6f6e6f696400010000"
   );
   private static final AID MONOID_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_AID}}"
-    "f16d6f6e6f696401010000"
+    "f06d6f6e6f696401010000"
   );
 
   private static final byte[] SAFE_PIN = "888888".getBytes();

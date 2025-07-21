@@ -21,11 +21,11 @@ public class Run {
     // 2. install applet
     AID monoidSafeAID = AIDUtil.create(
       // @inplate-line "{{hex MONOID_SAFE_AID}}"
-      "f16d6f6e6f696400010000"
+      "f06d6f6e6f696400010000"
     );
     AID monoidAID = AIDUtil.create(
       // @inplate-line "{{hex MONOID_AID}}"
-      "f16d6f6e6f696401010000"
+      "f06d6f6e6f696401010000"
     );
 
     simulator.installApplet(monoidSafeAID, MonoidSafeApplet.class);

@@ -123,7 +123,7 @@ javacard {
 			packageName 'monoidsafe'
 			version '0.0'
 			// @inplate-line aid '{{hex MONOID_SAFE_PACKAGE_AID}}'
-			aid 'f16d6f6e6f696400'
+			aid 'f06d6f6e6f696400'
 			output 'monoidsafe.cap'
 
 			targetsdk JC305u3
@@ -133,7 +133,7 @@ javacard {
 			applet {
 				className 'monoidsafe.MonoidSafeApplet'
 				// @inplate-line aid '{{hex MONOID_SAFE_AID}}'
-				aid 'f16d6f6e6f696400010000'
+				aid 'f06d6f6e6f696400010000'
 			}
 		}
 
@@ -141,7 +141,7 @@ javacard {
 			packageName 'monoid'
 			version '0.0'
 			// @inplate-line aid '{{hex MONOID_PACKAGE_AID}}'
-			aid 'f16d6f6e6f696401'
+			aid 'f06d6f6e6f696401'
 			output 'monoid.cap'
 
 			targetsdk JC305u3
@@ -151,7 +151,7 @@ javacard {
 			applet {
 				className 'monoid.MonoidApplet'
 				// @inplate-line aid '{{hex MONOID_AID}}'
-				aid 'f16d6f6e6f696401010000'
+				aid 'f06d6f6e6f696401010000'
 			}
 
 			dependencies {

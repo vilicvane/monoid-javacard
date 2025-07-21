@@ -5,7 +5,7 @@ import {Handlebars} from 'inplate';
 const MONOID_VERSION = Buffer.from([0x00, 0x00]);
 const MONOID_SAFE_VERSION = Buffer.from([0x00, 0x00]);
 
-const MONOID_NAMESPACE = Buffer.concat([Buffer.from([0xf1]), Buffer.from('monoid')]);
+const MONOID_NAMESPACE = Buffer.concat([Buffer.from([0xf0]), Buffer.from('monoid')]);
 
 const MONOID_SAFE_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x00])]);
 const MONOID_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x01])]);
