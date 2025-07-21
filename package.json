@@ -3,6 +3,7 @@
   "type": "module",
   "dependencies": {
     "@types/node": "^24.0.15",
+    "ethers": "^6.15.0",
     "inplate": "^0.2.5",
     "prettier": "^3.6.2",
     "prettier-plugin-java": "^2.7.3"

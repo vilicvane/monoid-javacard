@@ -4,6 +4,7 @@ import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.utils.AIDUtil;
 import cz.muni.fi.crocs.rcard.client.CardManager;
 import cz.muni.fi.crocs.rcard.client.CardType;
+import java.io.IOException;
 import java.util.HashMap;
 import javacard.framework.AID;
 import javax.smartcardio.CommandAPDU;
@@ -59,6 +60,24 @@ public class MonoidAppletTest extends AppletTest {
 
   // m/44'/60'/0'/0/0
   private static final byte[] TEST_PATH = Hex.decode("8000002c8000003c800000000000000000000000");
+
+  private static final byte[] TEST_SEED_DERIVED_PUBLIC_KEY = Hex.decode(
+    "0332066e8d312abcaaf8fea7b2c4f5065410c07b315bde3229f778021b2e763912"
+  );
+  private static final byte[] TEST_SEED_DERIVED_CHAIN_CODE = Hex.decode(
+    "78307a5fbe683c88809756308869b1e36790820c8a6e6552e1ad848eddbbb8ae"
+  );
+
+  private static final byte[] TEST_MASTER_DERIVED_PUBLIC_KEY = Hex.decode(
+    "02541cfc913dc568120034e040063f39933ca6965ac6cbd5e41f5a0c641ace57d3"
+  );
+  private static final byte[] TEST_MASTER_DERIVED_CHAIN_CODE = Hex.decode(
+    "2ff847394908fdc40c3b30c094f07df6ba5bbb1ac5cac1c978b46434ccffacce"
+  );
+
+  private static final byte[] TEST_SECP256K1_DERIVED_PUBLIC_KEY = Hex.decode(
+    "031df0b7bb633f1559b9c17d740a8a42d7f6cc3e79e2cefb27093954885e9e13df"
+  );
 
   public MonoidAppletTest() {
     super(
@@ -493,11 +512,11 @@ public class MonoidAppletTest extends AppletTest {
       {
         Assertions.assertArrayEquals(
           reader.requireKey("publicKey".getBytes()).bytes(),
-          Hex.decode("0332066e8d312abcaaf8fea7b2c4f5065410c07b315bde3229f778021b2e763912")
+          TEST_SEED_DERIVED_PUBLIC_KEY
         );
         Assertions.assertArrayEquals(
           reader.requireKey("chainCode".getBytes()).bytes(),
-          Hex.decode("78307a5fbe683c88809756308869b1e36790820c8a6e6552e1ad848eddbbb8ae")
+          TEST_SEED_DERIVED_CHAIN_CODE
         );
       }
     }
@@ -531,11 +550,11 @@ public class MonoidAppletTest extends AppletTest {
       {
         Assertions.assertArrayEquals(
           reader.requireKey("publicKey".getBytes()).bytes(),
-          Hex.decode("02541cfc913dc568120034e040063f39933ca6965ac6cbd5e41f5a0c641ace57d3")
+          TEST_MASTER_DERIVED_PUBLIC_KEY
         );
         Assertions.assertArrayEquals(
           reader.requireKey("chainCode".getBytes()).bytes(),
-          Hex.decode("2ff847394908fdc40c3b30c094f07df6ba5bbb1ac5cac1c978b46434ccffacce")
+          TEST_MASTER_DERIVED_CHAIN_CODE
         );
       }
     }
@@ -566,7 +585,7 @@ public class MonoidAppletTest extends AppletTest {
       {
         Assertions.assertArrayEquals(
           reader.requireKey("publicKey".getBytes()).bytes(),
-          Hex.decode("031df0b7bb633f1559b9c17d740a8a42d7f6cc3e79e2cefb27093954885e9e13df")
+          TEST_SECP256K1_DERIVED_PUBLIC_KEY
         );
       }
     }
@@ -606,7 +625,7 @@ public class MonoidAppletTest extends AppletTest {
 
       ResponseAPDU response = connect().transmit(request);
 
-      assertSignature(response);
+      assertSignature(response, TEST_DIGEST, TEST_SEED_DERIVED_PUBLIC_KEY);
     }
 
     {
@@ -636,7 +655,7 @@ public class MonoidAppletTest extends AppletTest {
 
       ResponseAPDU response = connect().transmit(request);
 
-      assertSignature(response);
+      assertSignature(response, TEST_DIGEST, TEST_MASTER_DERIVED_PUBLIC_KEY);
     }
 
     {
@@ -660,11 +679,12 @@ public class MonoidAppletTest extends AppletTest {
 
       ResponseAPDU response = connect().transmit(request);
 
-      assertSignature(response);
+      assertSignature(response, TEST_DIGEST, TEST_SECP256K1_DERIVED_PUBLIC_KEY);
     }
   }
 
-  private void assertSignature(ResponseAPDU response) {
+  private void assertSignature(ResponseAPDU response, byte[] digest, byte[] publicKey)
+    throws IOException, InterruptedException {
     {
       if (simulator == null) {
         assertNoError(response);
@@ -677,6 +697,8 @@ public class MonoidAppletTest extends AppletTest {
         System.out.println(String.format("Signature: %s", Hex.toHexString(signature)));
 
         Assertions.assertEquals(64, signature.length);
+
+        crossVerifySignature(signature, digest, publicKey);
       } else {
         assertError(response, Command.CODE_INTERNAL);
       }
@@ -722,5 +744,20 @@ public class MonoidAppletTest extends AppletTest {
     reader.map();
     reader.requireKey("error".getBytes()).map();
     Assertions.assertArrayEquals(code, reader.requireKey("code".getBytes()).text());
+  }
+
+  private void crossVerifySignature(byte[] signature, byte[] digest, byte[] publicKey)
+    throws IOException, InterruptedException {
+    ProcessBuilder pb = new ProcessBuilder(
+      "node",
+      "scripts/verify-signature.js",
+      Hex.toHexString(signature),
+      Hex.toHexString(digest),
+      Hex.toHexString(publicKey)
+    );
+
+    Process process = pb.start();
+
+    Assertions.assertEquals(0, process.waitFor());
   }
 }
