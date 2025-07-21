@@ -4,6 +4,66 @@ Monoid is a secure gateway that connects your keys and data to end-user applicat
 
 **A JavaCard with Monoid applets is already a hardware crypto wallet itself.** However, the goal is to allow third-party applets to interact with Monoid `Shareable` interface for signing/verifying and data access, so that Monoid can manage those keys and data and make it easy for users to backup, restore or even synchronize securely with unified UX.
 
+## Requirements
+
+- JavaCard 3.0.5+ SecID variant (supports ECC algorithms)
+
+## Build & Install
+
+```sh
+./gradlew buildJavaCard
+```
+
+> Make sure `JAVA_HOME` is set to JDK 11. I use VSCode-based editor, checkout [.vscode/settings.json](.vscode/settings.json) for reference.
+
+Then install applets to a card using [gp] command:
+
+```sh
+gp --install build/javacard/monoidsafe.cap
+gp --install build/javacard/monoid.cap
+```
+
+> The gradle plugin task `./gradlew installJavaCard` will try to append multiple `--install` options to `gp` command, which is not supported in my case. So we have to do it manually.
+
+## Development
+
+The development workflow requires Node.js for source code housekeeping and some test case validation.
+
+```sh
+npm install
+```
+
+Run tests with simulator:
+
+```sh
+./gradlew test --info --rerun-tasks
+```
+
+Run tests on physical cards:
+
+```sh
+# requires a clean installation:
+# gp --uninstall build/javacard/monoid.cap
+# gp --uninstall build/javacard/monoidsafe.cap
+
+gp --install build/javacard/monoidsafe.cap
+gp --install build/javacard/monoid.cap
+```
+
+```sh
+CARD_TYPE=physical ./gradlew test --info --rerun-tasks
+```
+
+Commands to run:
+
+```sh
+# sync some constants like AIDs (and more) across files.
+npx inplate --update
+
+# format code with prettier. YES!!!
+npx prettier --write .
+```
+
 ## Architecture
 
 The _Monoid Applet_ stores the safe PIN required by _Monoid Safe Applet_. When it has the safe PIN, the safe is considered **unlocked**, meaning:
@@ -15,7 +75,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for more details.
 
 ## Roadmap
 
-Core features:
+### Core features
 
 - [x] _Monoid Applet_ basic commands
 - [ ] _Monoid Applet_ third-party management commands
@@ -25,16 +85,24 @@ Core features:
   - [ ] Crypto transaction signing
   - [ ] Third-party applet management
 
-Additional mobile app features:
+### Additional mobile app features
 
 - [ ] Keys and data synchronization
 - [ ] Applet gallery
 - [ ] One-time password (OTP)
 
-Also some applets for typical use cases:
+### Applets for typical use cases
 
 - [ ] FIDO2
 - [ ] Tesla key
+
+### Cryptography
+
+- Elliptic curves:
+  - [x] `"secp256k1"`
+  - [ ] `"ed25519"`
+- Ciphers:
+  - [x] `"ecdsa"`
 
 ## ISO-7816 Commands
 
@@ -138,7 +206,7 @@ type Response = {
 #### `0x30` List safe items
 
 ```ts
-type SafeItemKeyType = 'seed' | 'master' | 'secp256k1';
+type SafeItemKeyType = 'entropy' | 'seed' | 'master' | 'secp256k1';
 type SafeItemType = SafeItemKeyType | byte;
 ```
 
@@ -305,6 +373,7 @@ Especially, during prototyping, I was extensively using [keycard] as a manual fo
 
 MIT License.
 
+[gp]: https://github.com/martinpaljak/GlobalPlatformPro
 [javacard-gradle-template]: https://github.com/ph4r05/javacard-gradle-template
 [javacard-gradle-plugin]: https://github.com/ph4r05/javacard-gradle-plugin
 [ant-javacard]: https://github.com/martinpaljak/ant-javacard
