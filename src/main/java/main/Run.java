@@ -66,11 +66,7 @@ public class Run {
       printBytes(response.getData());
 
       System.out.println(
-        "SW: 0x" +
-        Integer.toHexString(response.getSW()) +
-        " (" +
-        response.getSW() +
-        ")"
+        "SW: 0x" + Integer.toHexString(response.getSW()) + " (" + response.getSW() + ")"
       );
     }
   }

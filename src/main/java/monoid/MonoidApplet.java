@@ -22,15 +22,17 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
   public static OwnerPIN pin;
   public static boolean pinSet = false;
 
-  public static MonoidSafe safe;
+  public static Safe safe;
+
   public static byte[] safePIN;
 
   public static Keystore keystore;
 
   public static void install(byte[] bArray, short bOffset, byte bLength) {
     MonoidException.init();
-    CurveException.init();
+    SafeException.init();
     KeystoreException.init();
+    CurveException.init();
     SignerException.init();
 
     CurveSECP256k1.init();
@@ -45,9 +47,10 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   public void uninstall() {
     MonoidException.dispose();
-    CurveException.dispose();
+    SafeException.dispose();
     KeystoreException.dispose();
     SignerException.dispose();
+    CurveException.dispose();
 
     CurveSECP256k1.dispose();
     LibHMACSha512.dispose();
@@ -81,10 +84,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   private static void ensureInitialization() {
     if (version == 0) {
-      byte[] buffer = JCSystem.makeTransientByteArray(
-        (short) 16,
-        JCSystem.CLEAR_ON_DESELECT
-      );
+      byte[] buffer = JCSystem.makeTransientByteArray((short) 16, JCSystem.CLEAR_ON_DESELECT);
 
       short length = JCSystem.getAID().getBytes(buffer, (short) 0);
 
@@ -92,7 +92,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     }
 
     if (safe == null) {
-      safe = (MonoidSafe) JCSystem.getAppletShareableInterfaceObject(
+      MonoidSafe sio = (MonoidSafe) JCSystem.getAppletShareableInterfaceObject(
         JCSystem.lookupAID(
           Constants.MONOID_SAFE_AID,
           (short) 0,
@@ -101,9 +101,11 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
         (byte) 0
       );
 
-      if (safe == null) {
+      if (sio == null) {
         ISOException.throwIt(ISO7816.SW_FILE_INVALID);
       }
+
+      safe = new Safe(sio);
     }
 
     if (keystore == null) {
@@ -111,20 +113,15 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     }
   }
 
-  public static void updatePIN(byte[] in, short pinOffset, byte pinLength) {
-    pin.update(in, pinOffset, pinLength);
+  public static void updatePIN(byte[] pinBytes) {
+    pin.update(pinBytes, (short) 0, (byte) pinBytes.length);
     pinSet = true;
   }
 
-  public static void updateSafePIN(byte[] in, short pinOffset, byte pinLength) {
-    safe.updatePIN(in, pinOffset, pinLength);
+  public static void updateSafePIN(byte[] pin) {
+    safe.updatePIN(pin);
 
-    JCSystem.beginTransaction();
-
-    safePIN = new byte[pinLength];
-    Util.arrayCopyNonAtomic(in, pinOffset, safePIN, (short) 0, pinLength);
-
-    JCSystem.commitTransaction();
+    safePIN = Utils.duplicateAsPersistent(pin);
   }
 
   public static boolean isSafeUnlocked() {
@@ -142,20 +139,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
       return;
     }
 
-    byte[] buffer = (byte[]) JCSystem.makeGlobalArray(
-      JCSystem.ARRAY_TYPE_BYTE,
-      (short) safePIN.length
-    );
-
-    Util.arrayCopyNonAtomic(
-      safePIN,
-      (short) 0,
-      buffer,
-      (short) 0,
-      (short) safePIN.length
-    );
-
-    if (!safe.checkPIN(buffer, (short) 0, (byte) safePIN.length)) {
+    if (!safe.checkPIN(safePIN)) {
       safePIN = null;
       MonoidException.throwIt(MonoidException.CODE_SAFE_LOCKED);
       return;

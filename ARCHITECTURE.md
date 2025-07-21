@@ -17,7 +17,7 @@ sequenceDiagram
 
     MonoidApp ->> MonoidApplet: list safe items
     MonoidApplet -->> MonoidApp: safe items (indexes)
-    MonoidApp <<->> MonoidApplet: safe management (get, set, clear)
+    MonoidApp <<->> MonoidApplet: safe management (get, set, remove)
     MonoidApplet <<->> MonoidSafeApplet: safe management
     MonoidApp ->> MonoidApplet: grant safe item access (sign/verify/direct) to third parties
     MonoidApplet ->> MonoidSafeApplet: store third-party permissions

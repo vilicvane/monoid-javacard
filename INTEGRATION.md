@@ -271,9 +271,7 @@ Obviously, the simulator contract for the method `transmitCommand` has changed.
 We change it to the following form:
 
 ```java
-ResponseAPDU actual = new ResponseAPDU(
-  simulator.transmitCommand(commandAPDU.getBytes())
-);
+ResponseAPDU actual = new ResponseAPDU(simulator.transmitCommand(commandAPDU.getBytes()));
 ```
 
 Note:

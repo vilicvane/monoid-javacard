@@ -15,6 +15,7 @@ public class Text {
   public static final byte[] digest = {'d','i','g','e','s','t'};
   public static final byte[] deselect = {'d','e','s','e','l','e','c','t'};
   public static final byte[] error = {'e','r','r','o','r'};
+  public static final byte[] exception = {'e','x','c','e','p','t','i','o','n'};
   public static final byte[] features = {'f','e','a','t','u','r','e','s'};
   public static final byte[] index = {'i','n','d','e','x'};
   public static final byte[] indexes = {'i','n','d','e','x','e','s'};

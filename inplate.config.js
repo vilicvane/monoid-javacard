@@ -5,29 +5,17 @@ import {Handlebars} from 'inplate';
 const MONOID_VERSION = Buffer.from([0x00, 0x00]);
 const MONOID_SAFE_VERSION = Buffer.from([0x00, 0x00]);
 
-const MONOID_NAMESPACE = Buffer.concat([
-  Buffer.from([0xf1]),
-  Buffer.from('monoid'),
-]);
+const MONOID_NAMESPACE = Buffer.concat([Buffer.from([0xf1]), Buffer.from('monoid')]);
 
-const MONOID_SAFE_PACKAGE_AID = Buffer.concat([
-  MONOID_NAMESPACE,
-  Buffer.from([0x00]),
-]);
-const MONOID_PACKAGE_AID = Buffer.concat([
-  MONOID_NAMESPACE,
-  Buffer.from([0x01]),
-]);
+const MONOID_SAFE_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x00])]);
+const MONOID_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x01])]);
 
 const MONOID_SAFE_AID = Buffer.concat([
   MONOID_SAFE_PACKAGE_AID,
   Buffer.from([0x01]),
   MONOID_SAFE_VERSION,
 ]);
-const MONOID_AID_WITHOUT_VERSION = Buffer.concat([
-  MONOID_PACKAGE_AID,
-  Buffer.from([0x01]),
-]);
+const MONOID_AID_WITHOUT_VERSION = Buffer.concat([MONOID_PACKAGE_AID, Buffer.from([0x01])]);
 const MONOID_AID = Buffer.concat([MONOID_AID_WITHOUT_VERSION, MONOID_VERSION]);
 
 const data = {
@@ -54,7 +42,8 @@ export default {
 };
 
 Handlebars.registerHelper('hex', hex);
-Handlebars.registerHelper('javaReadable', javaReadable);
+Handlebars.registerHelper('java-readable', javaReadable);
+Handlebars.registerHelper('java-test-order', javaTestOrder);
 
 /**
  * @param {Buffer} buffer
@@ -90,4 +79,19 @@ function javaReadable(buffer, {spaces = true} = {}) {
   });
 
   return components.join(separator);
+}
+
+let javaTestOrderCounter = 0;
+
+/**
+ * @param {object} options
+ * @param {boolean} [options.reset]
+ * @returns {string}
+ */
+function javaTestOrder({reset = false} = {}) {
+  if (reset) {
+    javaTestOrderCounter = 0;
+  }
+
+  return `@Order(${++javaTestOrderCounter})`;
 }

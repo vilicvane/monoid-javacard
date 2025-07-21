@@ -2,7 +2,7 @@ package monoid;
 
 import monoidsafe.MonoidSafe;
 
-public class CommandSet extends Command {
+public class CommandRemove extends Command {
 
   @Override
   protected void run() {
@@ -13,9 +13,8 @@ public class CommandSet extends Command {
     reader.map();
 
     byte[] index = reader.requireKey(Text.index).bytes(MonoidSafe.INDEX_LENGTH);
-    byte[] data = reader.requireKey(Text.data).bytes();
 
-    MonoidApplet.safe.set(index, data);
+    MonoidApplet.safe.remove(index);
 
     sendEmptyMap();
   }

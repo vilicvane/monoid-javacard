@@ -138,7 +138,7 @@ type Response = {
 #### `0x30` List safe items
 
 ```ts
-type SafeItemKeyType = 'seed' | 'master' | 'key';
+type SafeItemKeyType = 'seed' | 'master' | 'secp256k1';
 type SafeItemType = SafeItemKeyType | byte;
 ```
 
@@ -215,15 +215,16 @@ type Response = {
 ```ts
 type Key = {
   index: byte[];
-  curve: string;
 } & (
   | {
       // seed
       seed: string;
+      curve: string;
       path: byte[];
     }
   | {
       // master
+      curve: string;
       path: byte[];
     }
   | {
@@ -270,19 +271,26 @@ type Response = {
 
 ## Index
 
-A safe item index is a 1 + 8 bytes array.
+A safe item index is a 2 + 8 bytes array.
 
-The first byte is the type of the item (`0x00` to `0x0F` are reserved), and the remaining 8 bytes are unique per item, typically 8-byte digest of the data if immutable:
+The first 2 bytes are the type of the item (`0x0000` to `0x0FFF` and `0xFFFF` are reserved), and the remaining 8 bytes are unique per item, typically 8-byte digest of the data if immutable:
 
-- `0x00` Third-party applet permission data (draft)
-  - +8 bytes digest of third-party AID
-- `0x01` Seed key
+- `0x00` Monoid applet data (draft, not implemented yet)
+  - `0x0001` Third-party applet permission data
+    - +8 bytes digest of third-party AID
+- `0x01` `"entropy"` Entropy
+  - +1 byte entropy length
+  - +8 bytes digest of entropy
+- `0x02` `"seed"` Seed key
+  - +1 byte seed length
   - +8 bytes digest of seed
-- `0x02` Master key
+- `0x03` `"master"` Master key
+  - +1 byte master key length (note data length is master key length \* 2)
   - +8 bytes digest of master key
-- `0x03` Key
-  - +8 bytes digest of key
-- `0x0F` Generic data (draft)
+- `0x04` EC key
+  - `0x0401` "secp256k1"` SECP256K1 key
+    - +8 bytes digest of key
+- `0x0FFF` Generic data (draft, not implemented yet)
   - +8 bytes unique identifier
 
 ## Credits

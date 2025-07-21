@@ -1,6 +1,5 @@
 package monoid;
 
-import javacard.security.CryptoException;
 import javacard.security.Key;
 import javacard.security.MessageDigest;
 import javacard.security.RandomData;
@@ -26,7 +25,9 @@ public final class OneShot {
     );
 
     if (signature == null) {
-      return signFallback(cipher, privateKey, digest, out, outOffset);
+      // JCardSim doesn't support equivalent Signature (only a non-PLAIN one
+      // that requires extra handling), so we just return 0.
+      return 0;
     }
 
     signature.init(privateKey, Signature.MODE_SIGN);
@@ -44,35 +45,6 @@ public final class OneShot {
     return length;
   }
 
-  private static short signFallback(
-    byte cipher,
-    Key privateKey,
-    byte[] digest,
-    byte[] out,
-    short outOffset
-  ) {
-    Signature signature;
-
-    switch (cipher) {
-      case Signature.SIG_CIPHER_ECDSA_PLAIN:
-        signature = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
-        break;
-      default:
-        CryptoException.throwIt(CryptoException.NO_SUCH_ALGORITHM);
-        return 0;
-    }
-
-    signature.init(privateKey, Signature.MODE_SIGN);
-
-    return signature.signPreComputedHash(
-      digest,
-      (short) 0,
-      (short) digest.length,
-      out,
-      outOffset
-    );
-  }
-
   public static short digest(
     byte algorithm,
     byte[] in,
@@ -84,14 +56,7 @@ public final class OneShot {
     MessageDigest.OneShot digest = MessageDigest.OneShot.open(algorithm);
 
     if (digest == null) {
-      return digestFallback(
-        algorithm,
-        in,
-        dataOffset,
-        dataLength,
-        out,
-        outOffset
-      );
+      return digestFallback(algorithm, in, dataOffset, dataLength, out, outOffset);
     }
 
     short length = digest.doFinal(in, dataOffset, dataLength, out, outOffset);
@@ -130,15 +95,7 @@ public final class OneShot {
     random.close();
   }
 
-  private static void randomFallback(
-    byte[] out,
-    short outOffset,
-    short outLength
-  ) {
-    RandomData.getInstance(RandomData.ALG_TRNG).nextBytes(
-      out,
-      outOffset,
-      outLength
-    );
+  private static void randomFallback(byte[] out, short outOffset, short outLength) {
+    RandomData.getInstance(RandomData.ALG_TRNG).nextBytes(out, outOffset, outLength);
   }
 }

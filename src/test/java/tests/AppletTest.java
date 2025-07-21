@@ -54,9 +54,7 @@ public class AppletTest {
         manager.connect(RunConfig.getDefaultConfig().setTestCardType(cardType));
         break;
       default:
-        throw new IllegalArgumentException(
-          "Unsupported card type: " + cardType
-        );
+        throw new IllegalArgumentException("Unsupported card type: " + cardType);
     }
 
     return manager;
@@ -71,23 +69,11 @@ public class AppletTest {
     return connect().transmit(cmd);
   }
 
-  public static CommandAPDU apdu(
-    int cla,
-    int ins,
-    int p1,
-    int p2,
-    byte[] data
-  ) {
+  public static CommandAPDU apdu(int cla, int ins, int p1, int p2, byte[] data) {
     return new CommandAPDU(cla, ins, p1, p2, data);
   }
 
-  public static CommandAPDU apdu(
-    int cla,
-    int ins,
-    int p1,
-    int p2,
-    String data
-  ) {
+  public static CommandAPDU apdu(int cla, int ins, int p1, int p2, String data) {
     return new CommandAPDU(cla, ins, p1, p2, Util.hexStringToByteArray(data));
   }
 

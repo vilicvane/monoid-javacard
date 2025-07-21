@@ -9,45 +9,19 @@ public final class LibBIP32 {
   public static final byte COMPONENT_LENGTH = 32;
   public static final byte PATH_SEGMENT_LENGTH = 4;
 
-  public static void derive(
-    Curve curve,
-    byte[] in,
-    short parentOffset,
-    byte[] path,
-    short pathOffset,
-    short pathLength,
-    byte[] out,
-    short outOffset
-  ) {
-    byte[] parent = JCSystem.makeTransientByteArray(
-      (short) (COMPONENT_LENGTH * 2),
-      JCSystem.CLEAR_ON_DESELECT
-    );
+  public static byte[] derive(Curve curve, byte[] privateKeyAndChainCode, byte[] path) {
+    privateKeyAndChainCode = Utils.duplicateAsTransientDeselect(privateKeyAndChainCode);
 
-    deriveInPlace(curve, parent, path, pathOffset, pathLength);
+    short pathOffset = 0;
 
-    Util.arrayCopyNonAtomic(
-      parent,
-      (short) 0,
-      out,
-      outOffset,
-      (short) parent.length
-    );
-  }
-
-  public static void deriveInPlace(
-    Curve curve,
-    byte[] parent,
-    byte[] path,
-    short pathOffset,
-    short pathLength
-  ) {
-    while (pathOffset < pathLength) {
-      pathOffset = deriveChildKey(curve, parent, path, pathOffset);
+    while (pathOffset < path.length) {
+      pathOffset = deriveChildKeyInPlace(curve, privateKeyAndChainCode, path, pathOffset);
     }
+
+    return privateKeyAndChainCode;
   }
 
-  private static short deriveChildKey(
+  private static short deriveChildKeyInPlace(
     Curve curve,
     byte[] privateKeyAndChainCode,
     byte[] path,
@@ -59,17 +33,8 @@ public final class LibBIP32 {
     );
     short dataOffset = 0;
 
-    byte[] currentPrivateKeyAndChainCode = JCSystem.makeTransientByteArray(
-      (short) (COMPONENT_LENGTH * 2),
-      JCSystem.CLEAR_ON_DESELECT
-    );
-
-    Util.arrayCopyNonAtomic(
-      privateKeyAndChainCode,
-      (short) 0,
-      currentPrivateKeyAndChainCode,
-      (short) 0,
-      (short) (COMPONENT_LENGTH * 2)
+    byte[] currentPrivateKeyAndChainCode = Utils.duplicateAsTransientDeselect(
+      privateKeyAndChainCode
     );
 
     if (isHardened(path, pathSegmentOffset)) {
@@ -86,21 +51,12 @@ public final class LibBIP32 {
     } else {
       // compression flag byte || parent public key
 
-      ECPrivateKey privateKey = curve.getSharedPrivateKey(
-        currentPrivateKeyAndChainCode,
-        (short) 0
-      );
+      ECPrivateKey privateKey = curve.getSharedPrivateKey(currentPrivateKeyAndChainCode, (short) 0);
 
       dataOffset += curve.derivePublicKey(privateKey, data, dataOffset);
     }
 
-    dataOffset = Util.arrayCopyNonAtomic(
-      path,
-      pathSegmentOffset,
-      data,
-      dataOffset,
-      (short) 4
-    );
+    dataOffset = Util.arrayCopyNonAtomic(path, pathSegmentOffset, data, dataOffset, (short) 4);
 
     // left 32 bytes for private key & right 32 bytes as chain code
     LibHMACSha512.digest(

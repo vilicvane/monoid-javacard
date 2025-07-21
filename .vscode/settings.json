@@ -3,7 +3,6 @@
   "java.import.gradle.java.home": "C:\\Program Files\\Java\\jdk-11",
   "java.configuration.updateBuildConfiguration": "automatic",
   "java.debug.settings.onBuildFailureProceed": true,
-  "java.format.comments.enabled": false,
   "[java]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
@@ -21,6 +20,7 @@
     "inplate",
     "javacard",
     "jcardsim",
+    "JCARDSIMLOCAL",
     "KEYGENERATION",
     "klinec",
     "monoid",

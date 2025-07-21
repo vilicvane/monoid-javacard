@@ -22,25 +22,8 @@ public final class LibECDSA {
   public static void ensureLowS(byte[] signature, short offset) {
     short sOffset = (short) (offset + N.length);
 
-    if (
-      LibMath.compare(
-        signature,
-        sOffset,
-        HALF_N,
-        (short) 0,
-        (short) HALF_N.length
-      ) >
-      0
-    ) {
-      LibMath.sub(
-        N,
-        (short) 0,
-        signature,
-        sOffset,
-        signature,
-        sOffset,
-        (short) N.length
-      );
+    if (LibMath.compare(signature, sOffset, HALF_N, (short) 0, (short) HALF_N.length) > 0) {
+      LibMath.sub(N, (short) 0, signature, sOffset, signature, sOffset, (short) N.length);
     }
   }
 }

@@ -1,5 +1,6 @@
 package monoid;
 
+import javacard.framework.Util;
 import monoidsafe.MonoidSafe;
 
 public class CommandSign extends Command {
@@ -15,37 +16,36 @@ public class CommandSign extends Command {
     reader.map();
 
     byte[] index = reader.requireKey(Text.index).bytes(MonoidSafe.INDEX_LENGTH);
-    Curve curve = Curve.requireSharedCurve(
-      reader.requireKey(Text.curve).text()
-    );
 
     byte[] cipher = reader.requireKey(Text.cipher).text();
     byte[] digest = reader.requireKey(Text.digest).bytes();
 
     byte[] signature;
 
-    byte type = index[0];
+    short type = Util.getShort(index, MonoidSafe.INDEX_OFFSET);
 
-    if (type == Safe.TYPE_KEY) {
-      signature = keystore.sign(index, curve, cipher, null, null, digest);
-    } else {
-      byte[] path = reader.requireKey(Text.path).bytes();
+    switch (type & Safe.TYPE_CATEGORY_MASK) {
+      case Safe.TYPE_SEED: {
+        byte[] seed = reader.requireKey(Text.seed).text();
+        byte[] curve = reader.requireKey(Text.curve).text();
+        byte[] path = reader.requireKey(Text.path).bytes();
 
-      byte[] seed;
-
-      switch (type) {
-        case Safe.TYPE_SEED:
-          seed = reader.requireKey(Text.seed).text();
-          break;
-        case Safe.TYPE_MASTER:
-          seed = null;
-          break;
-        default:
-          MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
-          return;
+        signature = keystore.sign(index, seed, curve, path, cipher, digest);
+        break;
       }
+      case Safe.TYPE_MASTER: {
+        byte[] curve = reader.requireKey(Text.curve).text();
+        byte[] path = reader.requireKey(Text.path).bytes();
 
-      signature = keystore.sign(index, curve, cipher, seed, path, digest);
+        signature = keystore.sign(index, null, curve, path, cipher, digest);
+        break;
+      }
+      case Safe.TYPE_EC:
+        signature = keystore.sign(index, null, null, null, cipher, digest);
+        break;
+      default:
+        MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+        return;
     }
 
     writer.map((short) 1);

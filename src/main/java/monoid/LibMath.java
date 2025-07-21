@@ -2,13 +2,7 @@ package monoid;
 
 public final class LibMath {
 
-  public static byte compare(
-    byte[] a,
-    short aOffset,
-    byte[] b,
-    short bOffset,
-    short length
-  ) {
+  public static byte compare(byte[] a, short aOffset, byte[] b, short bOffset, short length) {
     for (short index = 0; index < length; index++) {
       short aShort = (short) (a[(short) (aOffset + index)] & 0xFF);
       short bShort = (short) (b[(short) (bOffset + index)] & 0xFF);

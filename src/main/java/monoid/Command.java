@@ -2,13 +2,14 @@ package monoid;
 
 import javacard.framework.JCSystem;
 import javacard.security.CryptoException;
-import monoidsafe.MonoidSafe;
 
 public abstract class Command {
 
   // @formatter:off
-  public static final byte[] CODE_CRYPTO_EXCEPTION = {'C','R','Y','P','T','O','_','E','X','C','E','P','T','I','O','N'};
-  public static final byte[] CODE_INDEX_OUT_OF_BOUNDS = {'I','N','D','E','X','_','O','U','T','_','O','F','_','B','O','U','N','D','S'};
+  public static final byte[] CODE_INTERNAL = {'I','N','T','E','R','N','A','L'};
+
+  public static final byte[] EXCEPTION_Crypto = {'C','r','y','p','t','o'};
+  public static final byte[] EXCEPTION_IndexOutOfBounds = {'I','n','d','e','x','O','u','t','O','f','B','o','u','n','d','s'};
   // @formatter:on
 
   public static final byte AUTH_ACCESS = 0b01;
@@ -24,7 +25,7 @@ public abstract class Command {
   public static Command list;
   public static Command get;
   public static Command set;
-  public static Command clear;
+  public static Command remove;
   public static Command createRandomKey;
 
   public static Command viewKey;
@@ -41,7 +42,7 @@ public abstract class Command {
     list = new CommandList();
     get = new CommandGet();
     set = new CommandSet();
-    clear = new CommandClear();
+    remove = new CommandRemove();
     createRandomKey = new CommandCreateRandomKey();
 
     viewKey = new CommandViewKey();
@@ -59,7 +60,7 @@ public abstract class Command {
     list = null;
     get = null;
     set = null;
-    clear = null;
+    remove = null;
     createRandomKey = null;
 
     viewKey = null;
@@ -81,7 +82,7 @@ public abstract class Command {
       case 0x32:
         return set;
       case 0x33:
-        return clear;
+        return remove;
       case 0x38:
         return createRandomKey;
       case 0x40:
@@ -97,6 +98,7 @@ public abstract class Command {
   }
 
   protected static void sendEmptyMap() {
+    writer.reset();
     writer.map((short) 0);
     writer.send();
   }
@@ -106,6 +108,8 @@ public abstract class Command {
   }
 
   protected static CBORApduWriter writeError(byte[] code, short extra) {
+    writer.reset();
+
     writer.map((short) 1);
     {
       writer.text(Text.error);
@@ -128,12 +132,22 @@ public abstract class Command {
     } catch (MonoidException e) {
       e.send();
     } catch (CryptoException e) {
-      writeError(CODE_CRYPTO_EXCEPTION, (short) 1);
-      writer.text(Text.reason);
-      writer.integer(e.getReason());
+      writeError(CODE_INTERNAL, (short) 2);
+      {
+        writer.text(Text.exception);
+        writer.text(EXCEPTION_Crypto);
+
+        writer.text(Text.reason);
+        writer.integer(e.getReason());
+      }
       writer.send();
     } catch (IndexOutOfBoundsException e) {
-      sendError(CODE_INDEX_OUT_OF_BOUNDS);
+      writeError(CODE_INTERNAL, (short) 1);
+      {
+        writer.text(Text.exception);
+        writer.text(EXCEPTION_IndexOutOfBounds);
+      }
+      writer.send();
     } finally {
       JCSystem.requestObjectDeletion();
     }
@@ -166,14 +180,14 @@ public abstract class Command {
     short tries;
 
     if (safeAuth) {
-      MonoidSafe safe = MonoidApplet.safe;
+      Safe safe = MonoidApplet.safe;
 
       if (!safe.isPINSet()) {
         MonoidException.throwIt(MonoidException.CODE_PIN_NOT_SET);
         return 0;
       }
 
-      if (safe.checkPIN(pin, (short) 0, (byte) pin.length)) {
+      if (safe.checkPIN(pin)) {
         return AUTH_SAFE | AUTH_ACCESS;
       }
 
@@ -191,10 +205,7 @@ public abstract class Command {
       tries = MonoidApplet.pin.getTriesRemaining();
     }
 
-    CBORApduWriter writer = writeError(
-      MonoidException.CODE_INVALID_PIN,
-      (short) 1
-    );
+    CBORApduWriter writer = writeError(MonoidException.CODE_INVALID_PIN, (short) 1);
 
     writer.text(Text.tries);
     writer.integer(tries);
@@ -216,13 +227,10 @@ public abstract class Command {
     return requireAuth((byte) (AUTH_ACCESS | AUTH_SAFE));
   }
 
-  protected void assertAuth(byte auth, byte requiredAuth)
-    throws MonoidException {
+  protected void assertAuth(byte auth, byte requiredAuth) throws MonoidException {
     if ((auth & requiredAuth) == 0) {
       MonoidException.throwIt(
-        auth == 0
-          ? MonoidException.CODE_UNAUTHORIZED
-          : MonoidException.CODE_ACCESS_DENIED
+        auth == 0 ? MonoidException.CODE_UNAUTHORIZED : MonoidException.CODE_ACCESS_DENIED
       );
     }
   }

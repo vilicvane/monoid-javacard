@@ -65,20 +65,14 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   }
 
   @Override
-  public byte[] list(byte type) {
+  public byte[] list(short type) {
     assertAccess();
 
-    short count;
+    short count = 0;
 
-    if (type == 0) {
-      count = itemsLength;
-    } else {
-      count = 0;
-
-      for (short index = 0; index < itemsLength; index++) {
-        if (items[index].matches(type)) {
-          count++;
-        }
+    for (short index = 0; index < itemsLength; index++) {
+      if (items[index].matches(type)) {
+        count++;
       }
     }
 
@@ -92,14 +86,8 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
     for (short index = 0; index < itemsLength; index++) {
       Item item = items[index];
 
-      if (type == 0 || item.matches(type)) {
-        offset = Util.arrayCopyNonAtomic(
-          item.data,
-          (short) 0,
-          data,
-          offset,
-          INDEX_LENGTH
-        );
+      if (item.matches(type)) {
+        offset = Util.arrayCopyNonAtomic(item.data, (short) 0, data, offset, INDEX_LENGTH);
       }
     }
 
@@ -113,21 +101,12 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
     for (short index = 0; index < itemsLength; index++) {
       Item item = items[index];
 
-      if (item.matches(buffer, offset, INDEX_LENGTH)) {
+      if (item.matches(buffer, offset)) {
         short length = (short) (item.data.length - INDEX_LENGTH);
 
-        byte[] data = (byte[]) JCSystem.makeGlobalArray(
-          JCSystem.ARRAY_TYPE_BYTE,
-          length
-        );
+        byte[] data = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, length);
 
-        Util.arrayCopyNonAtomic(
-          item.data,
-          INDEX_LENGTH,
-          data,
-          (short) 0,
-          length
-        );
+        Util.arrayCopyNonAtomic(item.data, INDEX_LENGTH, data, (short) 0, length);
 
         return data;
       }
@@ -143,7 +122,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
     for (short index = 0; index < itemsLength; index++) {
       Item item = items[index];
 
-      if (item.matches(buffer, offset, INDEX_LENGTH)) {
+      if (item.matches(buffer, offset)) {
         JCSystem.beginTransaction();
 
         item.data = new byte[length];
@@ -161,8 +140,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
     JCSystem.beginTransaction();
 
     if (itemsLength == items.length) {
-      Item[] extendedItems = new Item[(short) (items.length +
-        ITEM_LENGTH_EXTENSION)];
+      Item[] extendedItems = new Item[(short) (items.length + ITEM_LENGTH_EXTENSION)];
 
       for (short index = 0; index < itemsLength; index++) {
         extendedItems[index] = items[index];
@@ -189,7 +167,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   }
 
   @Override
-  public boolean clear(byte[] buffer, short offset) {
+  public boolean remove(byte[] buffer, short offset) {
     assertAccess();
 
     short indexToDelete = -1;
@@ -197,7 +175,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
     for (short index = 0; index < itemsLength; index++) {
       Item item = items[index];
 
-      if (item.matches(buffer, offset, INDEX_LENGTH)) {
+      if (item.matches(buffer, offset)) {
         indexToDelete = index;
         break;
       }
@@ -209,11 +187,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
 
     JCSystem.beginTransaction();
 
-    for (
-      short index = indexToDelete;
-      index < (short) (itemsLength - 1);
-      index++
-    ) {
+    for (short index = indexToDelete; index < (short) (itemsLength - 1); index++) {
       items[index] = items[(short) (index + 1)];
     }
 
@@ -253,15 +227,23 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
 
     public byte[] data;
 
-    public boolean matches(byte[] buffer, short offset, byte indexLength) {
-      return (
-        data.length > indexLength &&
-        Util.arrayCompare(data, (short) 0, buffer, offset, indexLength) == 0
-      );
+    public boolean matches(byte[] buffer, short offset) {
+      return Util.arrayCompare(data, INDEX_OFFSET, buffer, offset, INDEX_LENGTH) == 0;
     }
 
-    public boolean matches(byte type) {
-      return data[0] == type;
+    public boolean matches(short type) {
+      byte high = (byte) (type >> 8);
+      byte low = (byte) (type & 0xFF);
+
+      if (low == 0) {
+        if (high == 0) {
+          return true;
+        } else {
+          return high == data[INDEX_TYPE_CATEGORY_OFFSET];
+        }
+      } else {
+        return high == data[INDEX_TYPE_CATEGORY_OFFSET] && low == data[INDEX_TYPE_METADATA_OFFSET];
+      }
     }
   }
 }

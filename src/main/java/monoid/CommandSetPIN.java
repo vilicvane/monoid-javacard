@@ -1,14 +1,12 @@
 package monoid;
 
-import monoidsafe.MonoidSafe;
-
 public final class CommandSetPIN extends Command {
 
   @Override
   protected void run() throws MonoidException {
     byte auth = getAuth();
 
-    MonoidSafe safe = MonoidApplet.safe;
+    Safe safe = MonoidApplet.safe;
 
     if (auth == 0) {
       if (safe.isPINSet() || MonoidApplet.pinSet) {
@@ -30,10 +28,10 @@ public final class CommandSetPIN extends Command {
         assertAuth(auth, AUTH_SAFE);
       }
 
-      MonoidApplet.updateSafePIN(pin, (short) 0, (byte) pin.length);
+      MonoidApplet.updateSafePIN(pin);
 
       if (!MonoidApplet.pinSet) {
-        MonoidApplet.updatePIN(pin, (short) 0, (byte) pin.length);
+        MonoidApplet.updatePIN(pin);
       }
     } else {
       if (!safe.isPINSet()) {
@@ -45,7 +43,7 @@ public final class CommandSetPIN extends Command {
         assertAuth(auth, AUTH_SAFE);
       }
 
-      MonoidApplet.updatePIN(pin, (short) 0, (byte) pin.length);
+      MonoidApplet.updatePIN(pin);
     }
 
     sendEmptyMap();

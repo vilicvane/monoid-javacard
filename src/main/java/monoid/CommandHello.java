@@ -1,14 +1,13 @@
 package monoid;
 
 import javacard.framework.OwnerPIN;
-import monoidsafe.MonoidSafe;
 
 public final class CommandHello extends Command {
 
   @Override
   protected void run() {
     OwnerPIN pin = MonoidApplet.pin;
-    MonoidSafe safe = MonoidApplet.safe;
+    Safe safe = MonoidApplet.safe;
 
     reader.map();
 

@@ -74,10 +74,7 @@ public class CurveSECP256k1 extends Curve {
       sharedPrivateKey = (ECPrivateKey) keyPair.getPrivate();
     }
 
-    sharedECDH = KeyAgreement.getInstance(
-      KeyAgreement.ALG_EC_SVDP_DH_PLAIN_XY,
-      false
-    );
+    sharedECDH = KeyAgreement.getInstance(KeyAgreement.ALG_EC_SVDP_DH_PLAIN_XY, false);
   }
 
   @Override
@@ -115,11 +112,7 @@ public class CurveSECP256k1 extends Curve {
    * @return length of compressed public key
    */
   @Override
-  public short derivePublicKey(
-    ECPrivateKey privateKey,
-    byte[] out,
-    short outOffset
-  ) {
+  public short derivePublicKey(ECPrivateKey privateKey, byte[] out, short outOffset) {
     sharedECDH.init(privateKey);
 
     byte[] publicKey = JCSystem.makeTransientByteArray(
@@ -127,13 +120,7 @@ public class CurveSECP256k1 extends Curve {
       JCSystem.CLEAR_ON_DESELECT
     );
 
-    sharedECDH.generateSecret(
-      G,
-      (short) 0,
-      (short) G.length,
-      publicKey,
-      (short) 0
-    );
+    sharedECDH.generateSecret(G, (short) 0, (short) G.length, publicKey, (short) 0);
 
     return compressPublicKey(publicKey, (short) 0, out, outOffset);
   }
@@ -147,10 +134,7 @@ public class CurveSECP256k1 extends Curve {
     byte[] out,
     short outOffset
   ) {
-    out[outOffset] = (byte) ((publicKey[(short) (publicKeyOffset +
-            KEY_LENGTH * 2)] &
-          1) !=
-        0
+    out[outOffset] = (byte) ((publicKey[(short) (publicKeyOffset + KEY_LENGTH * 2)] & 1) != 0
         ? 0x03
         : 0x02);
 

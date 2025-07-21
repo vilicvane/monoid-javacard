@@ -24,9 +24,7 @@ public class CBORTest {
    *   true
    * ]
    */
-  private byte[] exampleIndefinite = Hex.decode(
-    "9FBF6568656C6C6FF565776F726C64F4FFF5FF"
-  );
+  private byte[] exampleIndefinite = Hex.decode("9FBF6568656C6C6FF565776F726C64F4FFF5FF");
 
   @Test
   public void read() {

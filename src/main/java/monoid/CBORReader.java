@@ -150,10 +150,7 @@ public abstract class CBORReader {
 
     short length = metadataUnsignedInteger();
 
-    byte[] out = JCSystem.makeTransientByteArray(
-      length,
-      JCSystem.CLEAR_ON_DESELECT
-    );
+    byte[] out = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
 
     Util.arrayCopyNonAtomic(buffer, offset, out, (short) 0, length);
 
@@ -383,10 +380,7 @@ public abstract class CBORReader {
   private short metadataItemsLength() {
     byte[] buffer = getBuffer();
 
-    if (
-      (buffer[offset] & CBOR.METADATA_MASK) ==
-      CBOR.VARIABLE_LENGTH_INDEFINITE_MARK
-    ) {
+    if ((buffer[offset] & CBOR.METADATA_MASK) == CBOR.VARIABLE_LENGTH_INDEFINITE_MARK) {
       offset++;
       return -1;
     }

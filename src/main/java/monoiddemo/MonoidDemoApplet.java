@@ -30,11 +30,7 @@ public class MonoidDemoApplet extends Applet {
     }
 
     monoid = (Monoid) JCSystem.getAppletShareableInterfaceObject(
-      JCSystem.lookupAID(
-        Constants.MONOID_AID,
-        (short) 0,
-        (byte) Constants.MONOID_AID.length
-      ),
+      JCSystem.lookupAID(Constants.MONOID_AID, (short) 0, (byte) Constants.MONOID_AID.length),
       (byte) 0x00
     );
 

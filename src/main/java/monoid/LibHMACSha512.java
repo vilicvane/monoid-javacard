@@ -21,10 +21,7 @@ public final class LibHMACSha512 {
 
   public static void init() {
     try {
-      sharedSignature = Signature.getInstance(
-        Signature.ALG_HMAC_SHA_512,
-        false
-      );
+      sharedSignature = Signature.getInstance(Signature.ALG_HMAC_SHA_512, false);
       sharedKey = (HMACKey) KeyBuilder.buildKey(
         KeyBuilder.TYPE_HMAC_TRANSIENT_DESELECT,
         KeyBuilder.LENGTH_AES_256,
@@ -33,10 +30,7 @@ public final class LibHMACSha512 {
     } catch (Exception e) {
       sharedSignature = null;
       sharedKey = null;
-      sharedDigest = MessageDigest.getInstance(
-        MessageDigest.ALG_SHA_512,
-        false
-      );
+      sharedDigest = MessageDigest.getInstance(MessageDigest.ALG_SHA_512, false);
     }
   }
 
@@ -62,10 +56,7 @@ public final class LibHMACSha512 {
 
       return sharedSignature.sign(data, dataOffset, dataLength, out, outOffset);
     } else {
-      byte[] block = JCSystem.makeTransientByteArray(
-        BLOCK_BYTES,
-        JCSystem.CLEAR_ON_DESELECT
-      );
+      byte[] block = JCSystem.makeTransientByteArray(BLOCK_BYTES, JCSystem.CLEAR_ON_DESELECT);
 
       Util.arrayFillNonAtomic(block, (short) 0, BLOCK_BYTES, IPAD);
 
@@ -85,5 +76,22 @@ public final class LibHMACSha512 {
       sharedDigest.update(block, (short) 0, BLOCK_BYTES);
       return sharedDigest.doFinal(out, outOffset, OUT_BYTES, out, outOffset);
     }
+  }
+
+  public static byte[] digest(byte[] key, byte[] data) {
+    byte[] out = JCSystem.makeTransientByteArray(OUT_BYTES, JCSystem.CLEAR_ON_DESELECT);
+
+    digest(
+      key,
+      (short) 0,
+      (short) key.length,
+      data,
+      (short) 0,
+      (short) data.length,
+      out,
+      (short) 0
+    );
+
+    return out;
   }
 }

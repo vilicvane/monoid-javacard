@@ -5,17 +5,17 @@ param(
 
 .\gradlew.bat buildJavaCard;
 
-.\bin\gp.exe --uninstall .\applet\build\javacard\monoid.cap;
+gp.exe --uninstall build\javacard\monoid.cap;
 
 if ($ReinstallSafe) {
-	.\bin\gp.exe --uninstall .\applet\build\javacard\monoidsafe.cap;
+	gp.exe --uninstall build\javacard\monoidsafe.cap;
 }
 
 if ($ReinstallSafe) {
-	.\bin\gp.exe --install .\applet\build\javacard\monoidsafe.cap;
+	gp.exe --install build\javacard\monoidsafe.cap;
 }
 
-.\bin\gp.exe --install .\applet\build\javacard\monoid.cap;
+gp.exe --install build\javacard\monoid.cap;
 
 if ($RunCommands) {
 	.\scripts\run.ps1 -Commands $RunCommands

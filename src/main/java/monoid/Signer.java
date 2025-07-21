@@ -32,21 +32,12 @@ public final class Signer {
       return null;
     }
 
-    byte[] signature = JCSystem.makeTransientByteArray(
-      bufferLength,
-      JCSystem.CLEAR_ON_DESELECT
-    );
+    byte[] signature = JCSystem.makeTransientByteArray(bufferLength, JCSystem.CLEAR_ON_DESELECT);
 
-    short length = OneShot.sign(
-      cipher,
-      privateKey,
-      digest,
-      signature,
-      (short) 0
-    );
+    short length = OneShot.sign(cipher, privateKey, digest, signature, (short) 0);
 
     LibECDSA.ensureLowS(signature, (short) 0);
 
-    return Utils.duplicateAsGlobal(signature, (short) 0, length);
+    return Utils.duplicateAsTransientDeselect(signature, (short) 0, length);
   }
 }

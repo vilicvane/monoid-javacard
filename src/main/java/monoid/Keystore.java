@@ -3,99 +3,22 @@ package monoid;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.ECPrivateKey;
-import javacard.security.MessageDigest;
+import javacard.security.Key;
 import monoidsafe.MonoidSafe;
 
 public final class Keystore {
 
-  public static final byte SEED_LENGTH = 64;
+  public static final byte SEED_512_LENGTH = 64;
 
   public static final byte MASTER_LENGTH = LibBIP32.COMPONENT_LENGTH * 2;
   public static final byte MASTER_PRIVATE_KEY_OFFSET = MonoidSafe.INDEX_LENGTH;
   public static final byte MASTER_CHAIN_CODE_OFFSET =
     MASTER_PRIVATE_KEY_OFFSET + LibBIP32.COMPONENT_LENGTH;
 
-  private MonoidSafe safe;
+  private Safe safe;
 
-  public Keystore(MonoidSafe safe) {
+  public Keystore(Safe safe) {
     this.safe = safe;
-  }
-
-  public byte[] createRandomSeed() {
-    return createRandom(Safe.TYPE_SEED, SEED_LENGTH);
-  }
-
-  public byte[] createRandomMaster() {
-    return createRandom(Safe.TYPE_MASTER, MASTER_LENGTH);
-  }
-
-  public byte[] createRandomKey(byte length) {
-    return createRandom(Safe.TYPE_KEY, length);
-  }
-
-  private byte[] createRandom(byte type, byte length) {
-    byte[] buffer = JCSystem.makeTransientByteArray(
-      length,
-      JCSystem.CLEAR_ON_DESELECT
-    );
-
-    OneShot.random(buffer, (short) 0, length);
-
-    return addKey(type, buffer);
-  }
-
-  private byte[] addKey(byte type, byte[] key) {
-    byte[] digest = JCSystem.makeTransientByteArray(
-      (short) MessageDigest.LENGTH_SHA_256,
-      JCSystem.CLEAR_ON_DESELECT
-    );
-
-    OneShot.digest(
-      MessageDigest.ALG_SHA_256,
-      key,
-      (short) 0,
-      (short) key.length,
-      digest,
-      (short) 0
-    );
-
-    byte[] index = JCSystem.makeTransientByteArray(
-      (short) MonoidSafe.INDEX_LENGTH,
-      JCSystem.CLEAR_ON_DESELECT
-    );
-
-    index[0] = type;
-    Util.arrayCopyNonAtomic(
-      digest,
-      (short) 0,
-      index,
-      (short) 1,
-      MonoidSafe.INDEX_DIGEST_LENGTH
-    );
-
-    byte[] data = (byte[]) JCSystem.makeGlobalArray(
-      JCSystem.ARRAY_TYPE_BYTE,
-      (short) (MonoidSafe.INDEX_LENGTH + key.length)
-    );
-
-    Util.arrayCopyNonAtomic(
-      index,
-      (short) 0,
-      data,
-      (short) 0,
-      MonoidSafe.INDEX_LENGTH
-    );
-    Util.arrayCopyNonAtomic(
-      key,
-      (short) 0,
-      data,
-      MonoidSafe.INDEX_LENGTH,
-      (short) key.length
-    );
-
-    safe.set(data, (short) 0, (short) data.length);
-
-    return index;
   }
 
   public byte[] getSeedDerivedPublicKeyAndChainCode(
@@ -104,7 +27,9 @@ public final class Keystore {
     Curve curve,
     byte[] path
   ) {
-    if (index[0] != Safe.TYPE_SEED) {
+    short type = Util.getShort(index, MonoidSafe.INDEX_OFFSET);
+
+    if (!Safe.isTypeSeed(type)) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
       return null;
     }
@@ -116,12 +41,10 @@ public final class Keystore {
     return derivePublicKeyAndChainCodeFromMaster(curve, master, path);
   }
 
-  public byte[] getMasterDerivedPublicKeyAndChainCode(
-    byte[] index,
-    Curve curve,
-    byte[] path
-  ) {
-    if (index[0] != Safe.TYPE_MASTER) {
+  public byte[] getMasterDerivedPublicKeyAndChainCode(byte[] index, Curve curve, byte[] path) {
+    short type = Util.getShort(index, MonoidSafe.INDEX_OFFSET);
+
+    if (!Safe.isTypeMaster(type)) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
       return null;
     }
@@ -131,18 +54,21 @@ public final class Keystore {
     return derivePublicKeyAndChainCodeFromMaster(curve, key, path);
   }
 
-  public byte[] getKeyPublicKey(byte[] index, Curve curve) {
-    if (index[0] != Safe.TYPE_KEY) {
-      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
-      return null;
+  public byte[] getECKeyPublicKey(byte[] index) {
+    short type = Util.getShort(index, MonoidSafe.INDEX_OFFSET);
+
+    Curve curve;
+
+    switch (type) {
+      case Safe.TYPE_EC_SECP256K1:
+        curve = Curve.secp256k1;
+        break;
+      default:
+        KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+        return null;
     }
 
     byte[] key = requireKey(index);
-
-    if (key.length != curve.getKeyLength()) {
-      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
-      return null;
-    }
 
     ECPrivateKey privateKey = curve.getSharedPrivateKey(key, (short) 0);
 
@@ -151,70 +77,73 @@ public final class Keystore {
 
   public byte[] sign(
     byte[] index,
-    Curve curve,
-    byte[] cipher,
     byte[] seed,
+    byte[] curveName,
     byte[] path,
+    byte[] cipher,
     byte[] digest
   ) throws KeystoreException, CurveException, SignerException {
-    byte type = index[0];
+    short type = Util.getShort(index, MonoidSafe.INDEX_OFFSET);
 
     byte[] key = requireKey(index);
 
-    if (type == Safe.TYPE_SEED) {
+    if (Safe.isTypeSeed(type)) {
       byte[] master = deriveMasterFromSeed(key, seed);
 
       type = Safe.TYPE_MASTER;
       key = master;
     }
 
-    if (type == Safe.TYPE_MASTER) {
+    Curve curve = null;
+
+    if (Safe.isTypeMaster(type)) {
       if (key.length != MASTER_LENGTH) {
         KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
         return null;
       }
 
-      LibBIP32.deriveInPlace(curve, key, path, (short) 0, (short) path.length);
-
-      type = Safe.TYPE_KEY;
+      curve = Curve.requireSharedCurve(curveName);
+      key = LibBIP32.derive(curve, key, path);
+      type = Safe.TYPE_EC;
     }
 
-    if (type != Safe.TYPE_KEY) {
-      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
-      return null;
+    switch (type) {
+      case Safe.TYPE_EC_SECP256K1:
+        curve = Curve.secp256k1;
+        break;
     }
 
-    ECPrivateKey privateKey = curve.getSharedPrivateKey(key, (short) 0);
+    Key privateKey;
+
+    switch (type & Safe.TYPE_CATEGORY_MASK) {
+      case Safe.TYPE_EC:
+        if (curve == null) {
+          KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+        }
+
+        privateKey = curve.getSharedPrivateKey(key, (short) 0);
+
+        break;
+      default:
+        KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+        return null;
+    }
 
     return Signer.sign(cipher, privateKey, digest);
   }
 
   private byte[] deriveMasterFromSeed(byte[] key, byte[] seed) {
-    byte[] master = JCSystem.makeTransientByteArray(
-      MASTER_LENGTH,
-      JCSystem.CLEAR_ON_DESELECT
-    );
-
-    LibHMACSha512.digest(
-      seed,
-      (short) 0,
-      (short) seed.length,
-      key,
-      (short) 0,
-      (short) key.length,
-      master,
-      (short) 0
-    );
-
-    return master;
+    switch (key.length) {
+      case SEED_512_LENGTH:
+        return LibHMACSha512.digest(seed, key);
+      default:
+        KeystoreException.throwIt(KeystoreException.REASON_UNSUPPORTED_SEED_LENGTH);
+        return null;
+    }
   }
 
-  private byte[] derivePublicKeyAndChainCodeFromMaster(
-    Curve curve,
-    byte[] master,
-    byte[] path
-  ) {
-    LibBIP32.deriveInPlace(curve, master, path, (short) 0, (short) path.length);
+  private byte[] derivePublicKeyAndChainCodeFromMaster(Curve curve, byte[] master, byte[] path) {
+    master = LibBIP32.derive(curve, master, path);
 
     ECPrivateKey privateKey = curve.getSharedPrivateKey(master, (short) 0);
 
@@ -228,29 +157,15 @@ public final class Keystore {
     );
 
     // public key
-    Util.arrayCopyNonAtomic(
-      publicKey,
-      (short) 0,
-      data,
-      (short) 0,
-      (short) publicKey.length
-    );
+    Util.arrayCopyNonAtomic(publicKey, (short) 0, data, (short) 0, (short) publicKey.length);
     // chain code
-    Util.arrayCopyNonAtomic(
-      master,
-      keyLength,
-      data,
-      (short) publicKey.length,
-      keyLength
-    );
+    Util.arrayCopyNonAtomic(master, keyLength, data, (short) publicKey.length, keyLength);
 
     return data;
   }
 
   private byte[] requireKey(byte[] index) {
-    index = Utils.duplicateAsGlobal(index);
-
-    byte[] key = safe.get(index, (short) 0);
+    byte[] key = safe.get(index);
 
     if (key == null) {
       KeystoreException.throwIt(KeystoreException.REASON_KEY_NOT_FOUND);

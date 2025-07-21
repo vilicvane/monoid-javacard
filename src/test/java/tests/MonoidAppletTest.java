@@ -2,13 +2,15 @@ package tests;
 
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.utils.AIDUtil;
+import cz.muni.fi.crocs.rcard.client.CardManager;
 import cz.muni.fi.crocs.rcard.client.CardType;
 import java.util.HashMap;
 import javacard.framework.AID;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import monoid.MonoidApplet;
-import monoid.MonoidException;
+import monoid.Safe;
+import monoid.SafeException;
 import monoidsafe.MonoidSafeApplet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.MethodOrderer;
@@ -18,12 +20,6 @@ import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-/**
- * Example test class for the applet
- * Note: If simulator cannot be started try adding "-noverify" JVM parameter
- *
- * @author xsvenda, Dusan Klinec (ph4r05)
- */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @ExtendWith(BailExtension.class)
@@ -44,38 +40,29 @@ public class MonoidAppletTest extends AppletTest {
   private static final byte[] TEST_SEED = Hex.decode(
     "3100314ef25741e991c7bea11a7542b31d873d45a4b6c3da120d8a60553095ddc9a72a1a46e397495402ab9a2fa1190d62d07480275dc91faf12187d46aa0b63"
   );
-  private static final byte[] TEST_SEED_INDEX = Hex.decode(
-    "01" + "e6e3b7fc12dec011"
-  );
+  private static final byte[] TEST_SEED_INDEX = Hex.decode("0240" + "7e083e348d6eb20e");
 
   private static final byte[] TEST_MASTER = Hex.decode(
     "5857033b6a5b148e096d2548438cc984b15a5c6590476ae4c12360718ef056c05926524c3889eeccfaaca9805ca83bec6038e01557ca41d11329879b64eb9089"
   );
-  private static final byte[] TEST_MASTER_INDEX = Hex.decode(
-    "02" + "62420891bc3ff0e9"
-  );
+  private static final byte[] TEST_MASTER_INDEX = Hex.decode("0320" + "aa169eed841d5f74");
 
-  private static final byte[] TEST_KEY = Hex.decode(
+  private static final byte[] TEST_SECP256K1_KEY = Hex.decode(
     "eff3af6963c58a7a8ad2462bd41486d0a146d8850bd497234da6d419041f4c58"
   );
-  private static final byte[] TEST_KEY_INDEX = Hex.decode(
-    "03" + "9b3bf69b7418006c"
-  );
+  private static final byte[] TEST_SECP256K1_KEY_INDEX = Hex.decode("0401" + "b5519fdc940daeb3");
 
   private static final byte[] TEST_DIGEST = Hex.decode(
     "43ddcab065bcc7bd8d80c479ed29d3658ccf3ac3343b7044013008bde5ca19cf"
   );
 
   // m/44'/60'/0'/0/0
-  private static final byte[] TEST_PATH = Hex.decode(
-    "8000002c8000003c800000000000000000000000"
-  );
+  private static final byte[] TEST_PATH = Hex.decode("8000002c8000003c800000000000000000000000");
 
   public MonoidAppletTest() {
     super(
       MONOID_AID,
-      System.getenv("CARD_TYPE") != null &&
-        System.getenv("CARD_TYPE").equals("physical")
+      System.getenv("CARD_TYPE") != null && System.getenv("CARD_TYPE").equals("physical")
         ? CardType.PHYSICAL
         : CardType.JCARDSIMLOCAL
     );
@@ -86,8 +73,9 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
+  // @inplate-line {{java-test-order reset=true}}
   @Order(1)
-  public void hello() throws Exception {
+  public void firstHello() throws Exception {
     SimpleCBORWriter cbor = new SimpleCBORWriter();
 
     cbor.map((short) 0);
@@ -97,10 +85,45 @@ public class MonoidAppletTest extends AppletTest {
     ResponseAPDU response = connect().transmit(request);
 
     assertNoError(response);
+
+    SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+    reader.map();
+    {
+      Assertions.assertFalse(reader.requireKey("pin".getBytes()).bool());
+
+      reader.requireKey("safe".getBytes()).map();
+      {
+        Assertions.assertFalse(reader.requireKey("pin".getBytes()).bool());
+      }
+    }
   }
 
   @Test
+  // @inplate-line {{java-test-order}}
   @Order(2)
+  public void systemInformation() throws Exception {
+    SimpleCBORWriter cbor = new SimpleCBORWriter();
+
+    cbor.map((short) 0);
+
+    CommandAPDU request = apdu(0x00, 0x2F, 0, 0, cbor.getData());
+
+    ResponseAPDU response = connect().transmit(request);
+
+    assertNoError(response);
+
+    SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+    reader.map();
+    {
+      reader.requireKey("versions".getBytes());
+      reader.requireKey("memories".getBytes());
+      reader.requireKey("features".getBytes());
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(3)
   public void setSafePIN() throws Exception {
     SimpleCBORWriter writer = new SimpleCBORWriter();
 
@@ -121,7 +144,8 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  @Order(3)
+  // @inplate-line {{java-test-order}}
+  @Order(4)
   public void setPIN() throws Exception {
     SimpleCBORWriter writer = new SimpleCBORWriter();
 
@@ -138,12 +162,37 @@ public class MonoidAppletTest extends AppletTest {
     ResponseAPDU response = connect().transmit(request);
 
     assertNoError(response);
-
-    hello();
   }
 
   @Test
-  @Order(4)
+  // @inplate-line {{java-test-order}}
+  @Order(5)
+  public void secondHello() throws Exception {
+    SimpleCBORWriter cbor = new SimpleCBORWriter();
+
+    cbor.map((short) 0);
+
+    CommandAPDU request = apdu(0x00, 0x20, 0, 0, cbor.getData());
+
+    ResponseAPDU response = connect().transmit(request);
+
+    assertNoError(response);
+
+    SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+    reader.map();
+    {
+      Assertions.assertTrue(reader.requireKey("pin".getBytes()).integer() > 0);
+
+      reader.requireKey("safe".getBytes()).map();
+      {
+        Assertions.assertTrue(reader.requireKey("pin".getBytes()).integer() > 0);
+      }
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(6)
   public void unlockSafe() throws Exception {
     SimpleCBORWriter writer = new SimpleCBORWriter();
 
@@ -166,46 +215,36 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  @Order(5)
-  public void list() throws Exception {
-    SimpleCBORWriter writer = new SimpleCBORWriter();
-
-    writer.map((short) 1);
-    {
-      writeAuth(writer, false);
-    }
-
-    CommandAPDU request = apdu(0x00, 0x30, 0, 0, writer.getData());
-
-    ResponseAPDU response = connect().transmit(request);
-
-    assertNoError(response);
-
-    SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
-    reader.map();
-    {
-      reader.requireKey("items".getBytes()).array();
-    }
-  }
-
-  @Test
-  @Order(6)
+  // @inplate-line {{java-test-order}}
+  @Order(7)
   public void createRandomKeys() throws Exception {
-    String[] types = { "seed", "master", "key" };
+    byte[][] types = {
+      Safe.TYPE_TEXT_ENTROPY,
+      Safe.TYPE_TEXT_ENTROPY,
+      Safe.TYPE_TEXT_SEED,
+      Safe.TYPE_TEXT_SEED,
+      Safe.TYPE_TEXT_MASTER,
+      Safe.TYPE_TEXT_SECP256K1,
+    };
 
-    for (String type : types) {
+    short[] lengths = { 32, 48, 64, 128, 32, 0 };
+
+    for (int index = 0; index < types.length; index++) {
+      byte[] type = types[index];
+      short length = lengths[index];
+
       SimpleCBORWriter writer = new SimpleCBORWriter();
 
-      writer.map((short) (type == "key" ? 3 : 2));
+      writer.map((short) (length == 0 ? 2 : 3));
       {
         writeAuth(writer, false);
 
         writer.text("type".getBytes());
-        writer.text(type.getBytes());
+        writer.text(type);
 
-        if (type == "key") {
+        if (length > 0) {
           writer.text("length".getBytes());
-          writer.integer((short) 32);
+          writer.integer(length);
         }
       }
 
@@ -224,9 +263,10 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  @Order(7)
-  public void setGetClear() throws Exception {
-    byte[] index = "someindex".getBytes();
+  // @inplate-line {{java-test-order}}
+  @Order(8)
+  public void setGetRemove() throws Exception {
+    byte[] index = "some index".getBytes(); // "coincidentally" 10 bytes
     byte[] data = "some data".getBytes();
 
     {
@@ -270,10 +310,7 @@ public class MonoidAppletTest extends AppletTest {
       SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
       reader.map();
       {
-        Assertions.assertArrayEquals(
-          data,
-          reader.requireKey("data".getBytes()).bytes()
-        );
+        Assertions.assertArrayEquals(data, reader.requireKey("data".getBytes()).bytes());
       }
     }
 
@@ -310,18 +347,19 @@ public class MonoidAppletTest extends AppletTest {
 
       ResponseAPDU response = connect().transmit(request);
 
-      assertError(response, MonoidException.CODE_NOT_FOUND);
+      assertError(response, SafeException.CODE_NOT_FOUND);
     }
   }
 
   @Test
-  @Order(8)
+  // @inplate-line {{java-test-order}}
+  @Order(9)
   public void addTestKeys() throws Exception {
     HashMap<byte[], byte[]> keys = new HashMap<>();
 
     keys.put(TEST_SEED_INDEX, TEST_SEED);
     keys.put(TEST_MASTER_INDEX, TEST_MASTER);
-    keys.put(TEST_KEY_INDEX, TEST_KEY);
+    keys.put(TEST_SECP256K1_KEY_INDEX, TEST_SECP256K1_KEY);
 
     for (HashMap.Entry<byte[], byte[]> entry : keys.entrySet()) {
       SimpleCBORWriter writer = new SimpleCBORWriter();
@@ -346,7 +384,81 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  @Order(9)
+  // @inplate-line {{java-test-order}}
+  @Order(10)
+  public void list() throws Exception {
+    SimpleCBORWriter writer = new SimpleCBORWriter();
+
+    CardManager manager = connect();
+
+    writer.map((short) 1);
+    {
+      writeAuth(writer, false);
+    }
+
+    byte[] buffer;
+
+    if (simulator == null) {
+      CommandAPDU request = apdu(0x00, 0x30, 0, 0, writer.getData());
+
+      ResponseAPDU response = manager.transmit(request);
+
+      // The middleman already handles chunked responses for physical cards.
+
+      buffer = response.getBytes();
+
+      assertNoError(response);
+    } else {
+      buffer = new byte[1024];
+
+      int offset = 0;
+
+      {
+        CommandAPDU request = apdu(0x00, 0x30, 0, 0, writer.getData());
+
+        ResponseAPDU response = manager.transmit(request);
+
+        int length = response.getBytes().length - 2;
+
+        System.arraycopy(response.getBytes(), 0, buffer, offset, length);
+
+        offset += length;
+
+        Assertions.assertEquals(0x6100, response.getSW() & 0xFF00);
+      }
+
+      {
+        CommandAPDU request = apdu(0x00, 0xC0, 0, 0);
+
+        ResponseAPDU response = manager.transmit(request);
+
+        int length = response.getBytes().length;
+
+        System.arraycopy(response.getBytes(), 0, buffer, offset, length);
+
+        offset += length;
+
+        assertNoError(buffer);
+      }
+    }
+
+    SimpleCBORReader reader = new SimpleCBORReader(buffer);
+    reader.map();
+    {
+      Assertions.assertEquals(9, reader.requireKey("items".getBytes()).array());
+
+      Assertions.assertTrue(reader.index((short) 8));
+      reader.map();
+      {
+        reader.requireKey("type".getBytes()).text();
+        reader.requireKey("index".getBytes()).bytes();
+      }
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(11)
   public void viewKeys() throws Exception {
     {
       SimpleCBORWriter writer = new SimpleCBORWriter();
@@ -380,15 +492,11 @@ public class MonoidAppletTest extends AppletTest {
       {
         Assertions.assertArrayEquals(
           reader.requireKey("publicKey".getBytes()).bytes(),
-          Hex.decode(
-            "0332066e8d312abcaaf8fea7b2c4f5065410c07b315bde3229f778021b2e763912"
-          )
+          Hex.decode("0332066e8d312abcaaf8fea7b2c4f5065410c07b315bde3229f778021b2e763912")
         );
         Assertions.assertArrayEquals(
           reader.requireKey("chainCode".getBytes()).bytes(),
-          Hex.decode(
-            "78307a5fbe683c88809756308869b1e36790820c8a6e6552e1ad848eddbbb8ae"
-          )
+          Hex.decode("78307a5fbe683c88809756308869b1e36790820c8a6e6552e1ad848eddbbb8ae")
         );
       }
     }
@@ -422,15 +530,11 @@ public class MonoidAppletTest extends AppletTest {
       {
         Assertions.assertArrayEquals(
           reader.requireKey("publicKey".getBytes()).bytes(),
-          Hex.decode(
-            "02541cfc913dc568120034e040063f39933ca6965ac6cbd5e41f5a0c641ace57d3"
-          )
+          Hex.decode("02541cfc913dc568120034e040063f39933ca6965ac6cbd5e41f5a0c641ace57d3")
         );
         Assertions.assertArrayEquals(
           reader.requireKey("chainCode".getBytes()).bytes(),
-          Hex.decode(
-            "2ff847394908fdc40c3b30c094f07df6ba5bbb1ac5cac1c978b46434ccffacce"
-          )
+          Hex.decode("2ff847394908fdc40c3b30c094f07df6ba5bbb1ac5cac1c978b46434ccffacce")
         );
       }
     }
@@ -443,7 +547,7 @@ public class MonoidAppletTest extends AppletTest {
         writeAuth(writer, false);
 
         writer.text("index".getBytes());
-        writer.bytes(TEST_KEY_INDEX);
+        writer.bytes(TEST_SECP256K1_KEY_INDEX);
 
         writer.text("curve".getBytes());
         writer.text("secp256k1".getBytes());
@@ -461,16 +565,15 @@ public class MonoidAppletTest extends AppletTest {
       {
         Assertions.assertArrayEquals(
           reader.requireKey("publicKey".getBytes()).bytes(),
-          Hex.decode(
-            "031df0b7bb633f1559b9c17d740a8a42d7f6cc3e79e2cefb27093954885e9e13df"
-          )
+          Hex.decode("031df0b7bb633f1559b9c17d740a8a42d7f6cc3e79e2cefb27093954885e9e13df")
         );
       }
     }
   }
 
   @Test
-  @Order(10)
+  // @inplate-line {{java-test-order}}
+  @Order(12)
   public void sign() throws Exception {
     {
       SimpleCBORWriter writer = new SimpleCBORWriter();
@@ -504,12 +607,7 @@ public class MonoidAppletTest extends AppletTest {
 
       assertNoError(response);
 
-      SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
-
-      reader.map();
-      {
-        reader.requireKey("signature".getBytes()).bytes();
-      }
+      assertSignature(response);
     }
 
     {
@@ -541,26 +639,18 @@ public class MonoidAppletTest extends AppletTest {
 
       assertNoError(response);
 
-      SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
-
-      reader.map();
-      {
-        reader.requireKey("signature".getBytes()).bytes();
-      }
+      assertSignature(response);
     }
 
     {
       SimpleCBORWriter writer = new SimpleCBORWriter();
 
-      writer.map((short) 5);
+      writer.map((short) 4);
       {
         writeAuth(writer, false);
 
         writer.text("index".getBytes());
-        writer.bytes(TEST_KEY_INDEX);
-
-        writer.text("curve".getBytes());
-        writer.text("secp256k1".getBytes());
+        writer.bytes(TEST_SECP256K1_KEY_INDEX);
 
         writer.text("cipher".getBytes());
         writer.text("ecdsa".getBytes());
@@ -575,11 +665,20 @@ public class MonoidAppletTest extends AppletTest {
 
       assertNoError(response);
 
-      SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+      assertSignature(response);
+    }
+  }
 
-      reader.map();
-      {
-        reader.requireKey("signature".getBytes()).bytes();
+  private void assertSignature(ResponseAPDU response) {
+    SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+    reader.map();
+    {
+      byte[] signature = reader.requireKey("signature".getBytes()).bytes();
+
+      if (simulator == null) {
+        System.out.println(String.format("Signature: %s", Hex.toHexString(signature)));
+
+        Assertions.assertEquals(64, signature.length);
       }
     }
   }
@@ -601,9 +700,19 @@ public class MonoidAppletTest extends AppletTest {
   private void assertNoError(ResponseAPDU response) {
     Assertions.assertEquals(0x9000, response.getSW());
 
-    SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+    assertNoError(response.getBytes());
+  }
+
+  private void assertNoError(byte[] buffer) {
+    SimpleCBORReader reader = new SimpleCBORReader(buffer);
     reader.map();
-    Assertions.assertFalse(reader.key("error".getBytes()));
+    byte[] error = reader.key("error".getBytes()) ? reader.text() : null;
+
+    if (error != null) {
+      System.out.println(String.format("Error: %s", new String(error)));
+    }
+
+    Assertions.assertNull(error);
   }
 
   private void assertError(ResponseAPDU response, byte[] code) {
@@ -612,9 +721,6 @@ public class MonoidAppletTest extends AppletTest {
     SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
     reader.map();
     reader.requireKey("error".getBytes()).map();
-    Assertions.assertArrayEquals(
-      code,
-      reader.requireKey("code".getBytes()).text()
-    );
+    Assertions.assertArrayEquals(code, reader.requireKey("code".getBytes()).text());
   }
 }

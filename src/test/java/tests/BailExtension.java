@@ -20,17 +20,14 @@ import org.opentest4j.TestAbortedException;
 public class BailExtension implements TestWatcher, BeforeEachCallback {
 
   // Static map to track failed test classes across the entire test run
-  private static final Map<String, Boolean> failedClasses =
-    new ConcurrentHashMap<>();
+  private static final Map<String, Boolean> failedClasses = new ConcurrentHashMap<>();
 
   @Override
   public void beforeEach(ExtensionContext context) throws Exception {
     String testClassName = getTestClassName(context);
 
     if (Boolean.TRUE.equals(failedClasses.get(testClassName))) {
-      throw new TestAbortedException(
-        "Skipping test because a previous test in this class failed"
-      );
+      throw new TestAbortedException("Skipping test because a previous test in this class failed");
     }
   }
 

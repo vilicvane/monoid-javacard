@@ -8,28 +8,17 @@ public class CommandCreateRandomKey extends Command {
 
     MonoidApplet.checkSafeUnlocked();
 
-    Keystore keystore = MonoidApplet.keystore;
+    Safe safe = MonoidApplet.safe;
 
     reader.map();
-    byte type = Safe.type(reader.requireKey(Text.type).text());
 
-    byte[] index;
+    short type = Safe.type(reader.requireKey(Text.type).text());
 
-    switch (type) {
-      case Safe.TYPE_SEED:
-        index = keystore.createRandomSeed();
-        break;
-      case Safe.TYPE_MASTER:
-        index = keystore.createRandomMaster();
-        break;
-      case Safe.TYPE_KEY:
-        reader.requireKey(Text.length);
-        index = keystore.createRandomKey((byte) reader.integer());
-        break;
-      default:
-        MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
-        return;
+    if (Safe.isKnownExplicitLengthType(type)) {
+      type |= reader.requireKey(Text.length).integer();
     }
+
+    byte[] index = safe.createKnownRandom(type);
 
     writer.map((short) 1);
     {
