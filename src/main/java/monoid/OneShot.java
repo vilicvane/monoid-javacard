@@ -1,5 +1,6 @@
 package monoid;
 
+import javacard.security.CryptoException;
 import javacard.security.Key;
 import javacard.security.MessageDigest;
 import javacard.security.RandomData;
@@ -25,9 +26,9 @@ public final class OneShot {
     );
 
     if (signature == null) {
-      // JCardSim doesn't support equivalent Signature (only a non-PLAIN one
-      // that requires extra handling), so we just return 0.
-      return 0;
+      // JCardSim doesn't support equivalent Signature yet (only a non-PLAIN one
+      // that requires extra handling).
+      CryptoException.throwIt(CryptoException.NO_SUCH_ALGORITHM);
     }
 
     signature.init(privateKey, Signature.MODE_SIGN);

@@ -8,6 +8,7 @@ import java.util.HashMap;
 import javacard.framework.AID;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
+import monoid.Command;
 import monoid.MonoidApplet;
 import monoid.Safe;
 import monoid.SafeException;
@@ -605,8 +606,6 @@ public class MonoidAppletTest extends AppletTest {
 
       ResponseAPDU response = connect().transmit(request);
 
-      assertNoError(response);
-
       assertSignature(response);
     }
 
@@ -637,8 +636,6 @@ public class MonoidAppletTest extends AppletTest {
 
       ResponseAPDU response = connect().transmit(request);
 
-      assertNoError(response);
-
       assertSignature(response);
     }
 
@@ -663,22 +660,25 @@ public class MonoidAppletTest extends AppletTest {
 
       ResponseAPDU response = connect().transmit(request);
 
-      assertNoError(response);
-
       assertSignature(response);
     }
   }
 
   private void assertSignature(ResponseAPDU response) {
-    SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
-    reader.map();
     {
-      byte[] signature = reader.requireKey("signature".getBytes()).bytes();
-
       if (simulator == null) {
+        assertNoError(response);
+
+        SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+        reader.map();
+
+        byte[] signature = reader.requireKey("signature".getBytes()).bytes();
+
         System.out.println(String.format("Signature: %s", Hex.toHexString(signature)));
 
         Assertions.assertEquals(64, signature.length);
+      } else {
+        assertError(response, Command.CODE_INTERNAL);
       }
     }
   }
