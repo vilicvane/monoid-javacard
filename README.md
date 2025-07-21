@@ -288,7 +288,7 @@ The first 2 bytes are the type of the item (`0x0000` to `0x0FFF` and `0xFFFF` ar
   - +1 byte master key length (note data length is master key length \* 2)
   - +8 bytes digest of master key
 - `0x04` EC key
-  - `0x0401` "secp256k1"` SECP256K1 key
+  - `0x0401` `"secp256k1"` SECP256K1 key
     - +8 bytes digest of key
 - `0x0FFF` Generic data (draft, not implemented yet)
   - +8 bytes unique identifier
