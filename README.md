@@ -299,7 +299,7 @@ Monoid JavaCard is a [javacard-gradle-template] fork, which uses projects like [
 
 As this is my first JavaCard project, it would not be possible without great open-source works like these. 🎉
 
-Especially, during prototyping, I was essentially using [keycard] as a manual for verified technical details, which saved me a lot of time and effort for trial-and-error. Keycard is also the reason that I know JavaCard is the ancient technology behind many card-based hardware crypto wallets. 🫡
+Especially, during prototyping, I was extensively using [keycard] as a manual for verified technical details, which saved me a lot of time and effort for trial-and-error. Keycard is also the reason that I know JavaCard is the ancient technology behind many card-based hardware crypto wallets. 🫡
 
 ## License
 
