@@ -1,8 +1,10 @@
-<img src="./res/monoid.png" alt="Monoid" width="160" align="right" />
+<div align="center">
+  <h1>Monoid JavaCard</h1>
+</div>
 
-# Monoid JavaCard
+<img src="./res/monoid.png" alt="Monoid" width="80" align="right" />
 
-A JavaCard with Monoid applets is:
+A JavaCard with Monoid applets installed is:
 
 - [x] A hardware crypto wallet.
 - [ ] A FIDO2 authenticator.
