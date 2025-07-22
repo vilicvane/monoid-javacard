@@ -1,6 +1,12 @@
-<div align="center">
-  <h1>Monoid JavaCard</h1>
-</div>
+<h1 align="center">
+  <span>Monoid JavaCard</span>
+  <sup>
+    <code>
+      <!-- @inplate-line 0x{{hex MONOID_PACKAGE_AID uppercase=true}} -->
+      0xF06D6F6E6F696401
+    </code>
+  </sup>
+</h1>
 
 <img src="./res/monoid.png" alt="Monoid" width="80" align="right" />
 

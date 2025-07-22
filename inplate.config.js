@@ -27,18 +27,11 @@ const data = {
 };
 
 export default {
-  'build.gradle': {
-    data,
-  },
-  'src/main/java/*/Constants.java': {
-    data,
-  },
-  'src/main/java/main/Run.java': {
-    data,
-  },
-  'src/test/java/tests/MonoidAppletTest.java': {
-    data,
-  },
+  'README.md': {data},
+  'build.gradle': {data},
+  'src/main/java/*/Constants.java': {data},
+  'src/main/java/main/Run.java': {data},
+  'src/test/java/tests/MonoidAppletTest.java': {data},
 };
 
 Handlebars.registerHelper('hex', hex);
@@ -47,19 +40,24 @@ Handlebars.registerHelper('java-test-order', javaTestOrder);
 
 /**
  * @param {Buffer} buffer
+ * @param {object} options
+ * @param {object} options.hash
+ * @param {boolean} [options.hash.uppercase]
  * @returns {string}
  */
-function hex(buffer) {
-  return buffer.toString('hex');
+function hex(buffer, {hash: {uppercase = false}}) {
+  let hex = buffer.toString('hex');
+  return uppercase ? hex.toUpperCase() : hex;
 }
 
 /**
  * @param {Buffer} buffer
  * @param {object} options
- * @param {boolean} [options.spaces]
+ * @param {object} options.hash
+ * @param {boolean} [options.hash.spaces]
  * @returns {string}
  */
-function javaReadable(buffer, {spaces = true} = {}) {
+function javaReadable(buffer, {hash: {spaces = true}}) {
   let separator = spaces ? ', ' : ',';
 
   let components = Array.from(buffer, byte => {
@@ -81,17 +79,18 @@ function javaReadable(buffer, {spaces = true} = {}) {
   return components.join(separator);
 }
 
-let javaTestOrderCounter = 0;
+/**
+ * @type {Map<object, number>}
+ */
+const javaTestOrderCounterMap = new Map();
 
 /**
- * @param {object} options
- * @param {boolean} [options.reset]
  * @returns {string}
  */
-function javaTestOrder({reset = false} = {}) {
-  if (reset) {
-    javaTestOrderCounter = 0;
-  }
+function javaTestOrder({data: {root}}) {
+  const counter = (javaTestOrderCounterMap.get(root) ?? 0) + 1;
 
-  return `@Order(${++javaTestOrderCounter})`;
+  javaTestOrderCounterMap.set(root, counter);
+
+  return `@Order(${counter})`;
 }

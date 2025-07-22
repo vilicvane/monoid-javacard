@@ -93,7 +93,7 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   @Test
-  // @inplate-line {{java-test-order reset=true}}
+  // @inplate-line {{java-test-order}}
   @Order(1)
   public void firstHello() throws Exception {
     SimpleCBORWriter cbor = new SimpleCBORWriter();
