@@ -12,12 +12,6 @@ import javax.smartcardio.CardException;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 
-/**
- * Base Test class.
- * Note: If simulator cannot be started try adding "-noverify" JVM parameter
- *
- * @author Petr Svenda, Dusan Klinec (ph4r05)
- */
 public class AppletTest {
 
   protected byte[] aid;
@@ -113,25 +107,24 @@ public class AppletTest {
    * Sending command to the card.
    * Enables to send init commands before the main one.
    *
-   * @param cardMngr
+   * @param manager
    * @param command
    * @param initCommands
    * @return
    * @throws CardException
    */
   public ResponseAPDU sendCommandWithInitSequence(
-    CardManager cardMngr,
+    CardManager manager,
     String command,
     ArrayList<String> initCommands
   ) throws CardException {
     if (initCommands != null) {
       for (String cmd : initCommands) {
-        cardMngr.getChannel().transmit(apdu(cmd));
+        manager.getChannel().transmit(apdu(cmd));
       }
     }
 
-    final ResponseAPDU resp = cardMngr.getChannel().transmit(apdu(command));
-    return resp;
+    return manager.getChannel().transmit(apdu(command));
   }
 
   public CardType getCardType() {
