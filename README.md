@@ -1,8 +1,15 @@
-# Monoid <sup><span style="color: #ea9d34">Java</span><span style="color: #5e82a0">Card</span></sup>
+<img src="./res/monoid.png" alt="Monoid" width="160" align="right" />
 
-Monoid is a secure gateway that connects your keys and data to end-user applications.
+# Monoid JavaCard
 
-**A JavaCard with Monoid applets is already a hardware crypto wallet itself.** However, the goal is to allow third-party applets to interact with Monoid `Shareable` interface for signing/verifying and data access, so that Monoid can manage those keys and data and make it easy for users to backup, restore or even synchronize securely with unified UX.
+A JavaCard with Monoid applets is:
+
+- [x] A hardware crypto wallet.
+- [ ] A FIDO2 authenticator.
+- [ ] A One-Time Password (OTP) generator.
+- [ ] A Tesla key.
+
+The goal is to allow third-party Monoid applets to interact with _Monoid Applet_ `Shareable` interface for signing/verifying and data access, so that Monoid can manage those keys and data and make it easy for users to backup, restore or even synchronize securely with unified UX.
 
 ## Requirements
 
@@ -87,13 +94,13 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for more details.
 
 ### Additional mobile app features
 
-- [ ] Keys and data synchronization
+- [ ] Keys and data sync
 - [ ] Applet gallery
-- [ ] One-time password (OTP)
 
 ### Applets for typical use cases
 
 - [ ] FIDO2
+- [ ] One-time password (OTP)
 - [ ] Tesla key
 
 ### Cryptography
@@ -197,6 +204,10 @@ type Response = {
         available: number;
       };
     };
+  };
+  features: {
+    curves: string[];
+    ciphers: string[];
   };
 };
 ```
