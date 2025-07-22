@@ -2,6 +2,8 @@ package tests;
 
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import monoid.CBOR;
+import monoid.CBORBufferReader;
+import monoid.CBORBufferWriter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +30,7 @@ public class CBORTest {
 
   @Test
   public void read() {
-    SimpleCBORReader cbor = new SimpleCBORReader(example);
+    CBORBufferReader cbor = new CBORBufferReader(example);
 
     Assertions.assertTrue(cbor.is(CBOR.TYPE_ARRAY));
     Assertions.assertFalse(cbor.is(CBOR.TYPE_MAP));
@@ -82,7 +84,7 @@ public class CBORTest {
 
   @Test
   public void read_indefinite() {
-    SimpleCBORReader cbor = new SimpleCBORReader(exampleIndefinite);
+    CBORBufferReader cbor = new CBORBufferReader(exampleIndefinite);
 
     Assertions.assertEquals(cbor.array(), -1);
 
@@ -105,7 +107,7 @@ public class CBORTest {
 
   @Test
   public void read_1() {
-    SimpleCBORReader cbor = new SimpleCBORReader(
+    CBORBufferReader cbor = new CBORBufferReader(
       Hex.decode(
         "A36461757468A26370696E663838383838386473616665F56370696E663132333435366473616665F4"
       )
@@ -117,9 +119,7 @@ public class CBORTest {
 
   @Test
   public void write() {
-    byte[] buffer = new byte[example.length];
-
-    SimpleCBORWriter cbor = new SimpleCBORWriter(buffer);
+    CBORBufferWriter cbor = new CBORBufferWriter();
 
     cbor.array((short) 3);
     {
@@ -163,14 +163,12 @@ public class CBORTest {
       }
     }
 
-    Assertions.assertArrayEquals(buffer, example);
+    Assertions.assertArrayEquals(cbor.getData(), example);
   }
 
   @Test
   public void write_indefinite() {
-    byte[] buffer = new byte[exampleIndefinite.length];
-
-    SimpleCBORWriter cbor = new SimpleCBORWriter(buffer);
+    CBORBufferWriter cbor = new CBORBufferWriter();
 
     cbor.array();
     {
@@ -189,6 +187,8 @@ public class CBORTest {
 
       cbor.br();
     }
+
+    byte[] buffer = cbor.getData();
 
     System.out.println(Hex.toHexString(buffer));
 

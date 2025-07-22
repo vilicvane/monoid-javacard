@@ -3,59 +3,18 @@ package monoid;
 import javacard.framework.APDU;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
-import javacard.framework.JCSystem;
-import javacard.framework.Util;
 
-public class CBORApduWriter extends CBORWriter {
+public class CBORApduWriter extends CBORBufferWriter {
 
   private static final short CHUNK_SIZE = 256;
-  private static final short BUFFER_LENGTH_EXTENSION = 256;
-
-  private byte[] buffer;
 
   protected short sentOffset;
 
-  public CBORApduWriter() {
-    buffer = JCSystem.makeTransientByteArray(BUFFER_LENGTH_EXTENSION, JCSystem.CLEAR_ON_DESELECT);
-
-    reset();
-  }
-
   @Override
-  protected void write(short offset, byte value) {
-    ensureBufferLength((short) (offset + 1));
+  public void reset() {
+    super.reset();
 
-    buffer[offset] = value;
-  }
-
-  @Override
-  protected void write(short offset, byte[] data, short dataOffset, short length) {
-    ensureBufferLength((short) (offset + length));
-
-    Util.arrayCopyNonAtomic(data, dataOffset, buffer, offset, length);
-  }
-
-  private void ensureBufferLength(short length) {
-    if (length <= buffer.length) {
-      return;
-    }
-
-    byte[] extendedBuffer = JCSystem.makeTransientByteArray(
-      (short) (buffer.length + BUFFER_LENGTH_EXTENSION),
-      JCSystem.CLEAR_ON_DESELECT
-    );
-
-    Util.arrayCopyNonAtomic(buffer, (short) 0, extendedBuffer, (short) 0, (short) buffer.length);
-
-    buffer = extendedBuffer;
-
-    JCSystem.requestObjectDeletion();
-  }
-
-  protected void reset() {
-    super.reset((short) 0);
-
-    sentOffset = 0;
+    sentOffset = offset;
   }
 
   public void send() {

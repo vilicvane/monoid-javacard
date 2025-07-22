@@ -1,12 +1,10 @@
-package tests;
+package monoid;
 
-import monoid.CBORReader;
-
-class SimpleCBORReader extends CBORReader {
+public class CBORBufferReader extends CBORReader {
 
   private byte[] buffer;
 
-  public SimpleCBORReader(byte[] buffer) {
+  public CBORBufferReader(byte[] buffer) {
     this.buffer = buffer;
 
     reset((short) 0);

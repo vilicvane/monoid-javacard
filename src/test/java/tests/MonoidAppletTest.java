@@ -9,6 +9,8 @@ import java.util.HashMap;
 import javacard.framework.AID;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
+import monoid.CBORBufferReader;
+import monoid.CBORBufferWriter;
 import monoid.Command;
 import monoid.MonoidApplet;
 import monoid.Safe;
@@ -96,7 +98,7 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(1)
   public void firstHello() throws Exception {
-    SimpleCBORWriter cbor = new SimpleCBORWriter();
+    CBORBufferWriter cbor = new CBORBufferWriter();
 
     cbor.map((short) 0);
 
@@ -106,7 +108,7 @@ public class MonoidAppletTest extends AppletTest {
 
     assertNoError(response);
 
-    SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
     reader.map();
     {
       Assertions.assertFalse(reader.requireKey("pin".getBytes()).bool());
@@ -122,7 +124,7 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(2)
   public void systemInformation() throws Exception {
-    SimpleCBORWriter cbor = new SimpleCBORWriter();
+    CBORBufferWriter cbor = new CBORBufferWriter();
 
     cbor.map((short) 0);
 
@@ -132,7 +134,7 @@ public class MonoidAppletTest extends AppletTest {
 
     assertNoError(response);
 
-    SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
     reader.map();
     {
       reader.requireKey("versions".getBytes());
@@ -145,7 +147,7 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(3)
   public void setSafePIN() throws Exception {
-    SimpleCBORWriter writer = new SimpleCBORWriter();
+    CBORBufferWriter writer = new CBORBufferWriter();
 
     writer.map((short) 2);
     {
@@ -167,7 +169,7 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(4)
   public void setPIN() throws Exception {
-    SimpleCBORWriter writer = new SimpleCBORWriter();
+    CBORBufferWriter writer = new CBORBufferWriter();
 
     writer.map((short) 2);
     {
@@ -188,7 +190,7 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(5)
   public void secondHello() throws Exception {
-    SimpleCBORWriter cbor = new SimpleCBORWriter();
+    CBORBufferWriter cbor = new CBORBufferWriter();
 
     cbor.map((short) 0);
 
@@ -198,7 +200,7 @@ public class MonoidAppletTest extends AppletTest {
 
     assertNoError(response);
 
-    SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
     reader.map();
     {
       Assertions.assertTrue(reader.requireKey("pin".getBytes()).integer() > 0);
@@ -214,7 +216,7 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(6)
   public void unlockSafe() throws Exception {
-    SimpleCBORWriter writer = new SimpleCBORWriter();
+    CBORBufferWriter writer = new CBORBufferWriter();
 
     writer.map((short) 3);
     {
@@ -253,7 +255,7 @@ public class MonoidAppletTest extends AppletTest {
       byte[] type = types[index];
       short length = lengths[index];
 
-      SimpleCBORWriter writer = new SimpleCBORWriter();
+      CBORBufferWriter writer = new CBORBufferWriter();
 
       writer.map((short) (length == 0 ? 2 : 3));
       {
@@ -274,7 +276,7 @@ public class MonoidAppletTest extends AppletTest {
 
       assertNoError(response);
 
-      SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
       reader.map();
       {
         reader.requireKey("index".getBytes()).bytes();
@@ -290,7 +292,7 @@ public class MonoidAppletTest extends AppletTest {
     byte[] data = "some data".getBytes();
 
     {
-      SimpleCBORWriter writer = new SimpleCBORWriter();
+      CBORBufferWriter writer = new CBORBufferWriter();
 
       writer.map((short) 3);
       {
@@ -311,7 +313,7 @@ public class MonoidAppletTest extends AppletTest {
     }
 
     {
-      SimpleCBORWriter writer = new SimpleCBORWriter();
+      CBORBufferWriter writer = new CBORBufferWriter();
 
       writer.map((short) 2);
       {
@@ -327,7 +329,7 @@ public class MonoidAppletTest extends AppletTest {
 
       assertNoError(response);
 
-      SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
       reader.map();
       {
         Assertions.assertArrayEquals(data, reader.requireKey("data".getBytes()).bytes());
@@ -335,7 +337,7 @@ public class MonoidAppletTest extends AppletTest {
     }
 
     {
-      SimpleCBORWriter writer = new SimpleCBORWriter();
+      CBORBufferWriter writer = new CBORBufferWriter();
 
       writer.map((short) 2);
       {
@@ -353,7 +355,7 @@ public class MonoidAppletTest extends AppletTest {
     }
 
     {
-      SimpleCBORWriter writer = new SimpleCBORWriter();
+      CBORBufferWriter writer = new CBORBufferWriter();
 
       writer.map((short) 2);
       {
@@ -382,7 +384,7 @@ public class MonoidAppletTest extends AppletTest {
     keys.put(TEST_SECP256K1_KEY_INDEX, TEST_SECP256K1_KEY);
 
     for (HashMap.Entry<byte[], byte[]> entry : keys.entrySet()) {
-      SimpleCBORWriter writer = new SimpleCBORWriter();
+      CBORBufferWriter writer = new CBORBufferWriter();
 
       writer.map((short) 3);
       {
@@ -407,7 +409,7 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(10)
   public void list() throws Exception {
-    SimpleCBORWriter writer = new SimpleCBORWriter();
+    CBORBufferWriter writer = new CBORBufferWriter();
 
     CardManager manager = connect();
 
@@ -462,7 +464,7 @@ public class MonoidAppletTest extends AppletTest {
       }
     }
 
-    SimpleCBORReader reader = new SimpleCBORReader(buffer);
+    CBORBufferReader reader = new CBORBufferReader(buffer);
     reader.map();
     {
       Assertions.assertEquals(9, reader.requireKey("items".getBytes()).array());
@@ -481,7 +483,7 @@ public class MonoidAppletTest extends AppletTest {
   @Order(11)
   public void viewKeys() throws Exception {
     {
-      SimpleCBORWriter writer = new SimpleCBORWriter();
+      CBORBufferWriter writer = new CBORBufferWriter();
 
       writer.map((short) 5);
       {
@@ -506,7 +508,7 @@ public class MonoidAppletTest extends AppletTest {
 
       assertNoError(response);
 
-      SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
 
       reader.map();
       {
@@ -522,7 +524,7 @@ public class MonoidAppletTest extends AppletTest {
     }
 
     {
-      SimpleCBORWriter writer = new SimpleCBORWriter();
+      CBORBufferWriter writer = new CBORBufferWriter();
 
       writer.map((short) 4);
       {
@@ -544,7 +546,7 @@ public class MonoidAppletTest extends AppletTest {
 
       assertNoError(response);
 
-      SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
 
       reader.map();
       {
@@ -560,7 +562,7 @@ public class MonoidAppletTest extends AppletTest {
     }
 
     {
-      SimpleCBORWriter writer = new SimpleCBORWriter();
+      CBORBufferWriter writer = new CBORBufferWriter();
 
       writer.map((short) 3);
       {
@@ -579,7 +581,7 @@ public class MonoidAppletTest extends AppletTest {
 
       assertNoError(response);
 
-      SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
 
       reader.map();
       {
@@ -596,7 +598,7 @@ public class MonoidAppletTest extends AppletTest {
   @Order(12)
   public void sign() throws Exception {
     {
-      SimpleCBORWriter writer = new SimpleCBORWriter();
+      CBORBufferWriter writer = new CBORBufferWriter();
 
       writer.map((short) 7);
       {
@@ -629,7 +631,7 @@ public class MonoidAppletTest extends AppletTest {
     }
 
     {
-      SimpleCBORWriter writer = new SimpleCBORWriter();
+      CBORBufferWriter writer = new CBORBufferWriter();
 
       writer.map((short) 6);
       {
@@ -659,7 +661,7 @@ public class MonoidAppletTest extends AppletTest {
     }
 
     {
-      SimpleCBORWriter writer = new SimpleCBORWriter();
+      CBORBufferWriter writer = new CBORBufferWriter();
 
       writer.map((short) 4);
       {
@@ -689,7 +691,7 @@ public class MonoidAppletTest extends AppletTest {
       if (simulator == null) {
         assertNoError(response);
 
-        SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+        CBORBufferReader reader = new CBORBufferReader(response.getBytes());
         reader.map();
 
         byte[] signature = reader.requireKey("signature".getBytes()).bytes();
@@ -705,7 +707,7 @@ public class MonoidAppletTest extends AppletTest {
     }
   }
 
-  private void writeAuth(SimpleCBORWriter writer, boolean safeAuth) {
+  private void writeAuth(CBORBufferWriter writer, boolean safeAuth) {
     writer.text("auth".getBytes());
     writer.map((short) (safeAuth ? 2 : 1));
     {
@@ -726,7 +728,7 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   private void assertNoError(byte[] buffer) {
-    SimpleCBORReader reader = new SimpleCBORReader(buffer);
+    CBORBufferReader reader = new CBORBufferReader(buffer);
     reader.map();
     byte[] error = reader.key("error".getBytes()) ? reader.text() : null;
 
@@ -740,7 +742,7 @@ public class MonoidAppletTest extends AppletTest {
   private void assertError(ResponseAPDU response, byte[] code) {
     Assertions.assertEquals(0x9000, response.getSW());
 
-    SimpleCBORReader reader = new SimpleCBORReader(response.getBytes());
+    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
     reader.map();
     reader.requireKey("error".getBytes()).map();
     Assertions.assertArrayEquals(code, reader.requireKey("code".getBytes()).text());
