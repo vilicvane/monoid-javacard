@@ -163,7 +163,7 @@ public class CBORTest {
       }
     }
 
-    Assertions.assertArrayEquals(cbor.getData(), example);
+    Assertions.assertArrayEquals(cbor.getDataBuffer(), example);
   }
 
   @Test
@@ -188,7 +188,7 @@ public class CBORTest {
       cbor.br();
     }
 
-    byte[] buffer = cbor.getData();
+    byte[] buffer = cbor.getDataBuffer();
 
     System.out.println(Hex.toHexString(buffer));
 

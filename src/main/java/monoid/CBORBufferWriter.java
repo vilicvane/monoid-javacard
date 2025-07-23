@@ -50,7 +50,7 @@ public class CBORBufferWriter extends CBORWriter {
     JCSystem.requestObjectDeletion();
   }
 
-  public byte[] getData() {
+  public byte[] getDataBuffer() {
     byte[] data = JCSystem.makeTransientByteArray(getLength(), JCSystem.CLEAR_ON_DESELECT);
     Util.arrayCopyNonAtomic(buffer, (short) 0, data, (short) 0, offset);
     return data;

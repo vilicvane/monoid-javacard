@@ -102,7 +102,7 @@ public class MonoidAppletTest extends AppletTest {
 
     cbor.map((short) 0);
 
-    CommandAPDU request = apdu(0x00, 0x20, 0, 0, cbor.getData());
+    CommandAPDU request = apdu(0x00, 0x20, 0, 0, cbor.getDataBuffer());
 
     ResponseAPDU response = connect().transmit(request);
 
@@ -128,7 +128,7 @@ public class MonoidAppletTest extends AppletTest {
 
     cbor.map((short) 0);
 
-    CommandAPDU request = apdu(0x00, 0x2F, 0, 0, cbor.getData());
+    CommandAPDU request = apdu(0x00, 0x2F, 0, 0, cbor.getDataBuffer());
 
     ResponseAPDU response = connect().transmit(request);
 
@@ -158,7 +158,7 @@ public class MonoidAppletTest extends AppletTest {
       writer.bool(true);
     }
 
-    CommandAPDU request = apdu(0x00, 0x21, 0, 0, writer.getData());
+    CommandAPDU request = apdu(0x00, 0x21, 0, 0, writer.getDataBuffer());
 
     ResponseAPDU response = connect().transmit(request);
 
@@ -179,7 +179,7 @@ public class MonoidAppletTest extends AppletTest {
       writer.text(PIN);
     }
 
-    CommandAPDU request = apdu(0x00, 0x21, 0, 0, writer.getData());
+    CommandAPDU request = apdu(0x00, 0x21, 0, 0, writer.getDataBuffer());
 
     ResponseAPDU response = connect().transmit(request);
 
@@ -194,7 +194,7 @@ public class MonoidAppletTest extends AppletTest {
 
     cbor.map((short) 0);
 
-    CommandAPDU request = apdu(0x00, 0x20, 0, 0, cbor.getData());
+    CommandAPDU request = apdu(0x00, 0x20, 0, 0, cbor.getDataBuffer());
 
     ResponseAPDU response = connect().transmit(request);
 
@@ -229,7 +229,7 @@ public class MonoidAppletTest extends AppletTest {
       writer.bool(true);
     }
 
-    CommandAPDU request = apdu(0x00, 0x21, 0, 0, writer.getData());
+    CommandAPDU request = apdu(0x00, 0x21, 0, 0, writer.getDataBuffer());
 
     ResponseAPDU response = connect().transmit(request);
 
@@ -270,7 +270,7 @@ public class MonoidAppletTest extends AppletTest {
         }
       }
 
-      CommandAPDU request = apdu(0x00, 0x38, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x38, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = connect().transmit(request);
 
@@ -305,7 +305,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.bytes(data);
       }
 
-      CommandAPDU request = apdu(0x00, 0x32, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x32, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = connect().transmit(request);
 
@@ -323,7 +323,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.bytes(index);
       }
 
-      CommandAPDU request = apdu(0x00, 0x31, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x31, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = connect().transmit(request);
 
@@ -347,7 +347,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.bytes(index);
       }
 
-      CommandAPDU request = apdu(0x00, 0x33, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x33, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = connect().transmit(request);
 
@@ -365,7 +365,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.bytes(index);
       }
 
-      CommandAPDU request = apdu(0x00, 0x31, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x31, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = connect().transmit(request);
 
@@ -397,7 +397,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.bytes(entry.getValue());
       }
 
-      CommandAPDU request = apdu(0x00, 0x32, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x32, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = connect().transmit(request);
 
@@ -421,7 +421,7 @@ public class MonoidAppletTest extends AppletTest {
     byte[] buffer;
 
     if (simulator == null) {
-      CommandAPDU request = apdu(0x00, 0x30, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x30, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = manager.transmit(request);
 
@@ -436,7 +436,7 @@ public class MonoidAppletTest extends AppletTest {
       int offset = 0;
 
       {
-        CommandAPDU request = apdu(0x00, 0x30, 0, 0, writer.getData());
+        CommandAPDU request = apdu(0x00, 0x30, 0, 0, writer.getDataBuffer());
 
         ResponseAPDU response = manager.transmit(request);
 
@@ -502,7 +502,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.bytes(TEST_PATH);
       }
 
-      CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = connect().transmit(request);
 
@@ -540,7 +540,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.bytes(TEST_PATH);
       }
 
-      CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = connect().transmit(request);
 
@@ -575,7 +575,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.text("secp256k1".getBytes());
       }
 
-      CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = connect().transmit(request);
 
@@ -623,7 +623,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.bytes(TEST_DIGEST);
       }
 
-      CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = connect().transmit(request);
 
@@ -653,7 +653,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.bytes(TEST_DIGEST);
       }
 
-      CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = connect().transmit(request);
 
@@ -677,7 +677,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.bytes(TEST_DIGEST);
       }
 
-      CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getData());
+      CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getDataBuffer());
 
       ResponseAPDU response = connect().transmit(request);
 
