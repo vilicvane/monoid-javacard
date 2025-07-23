@@ -25,7 +25,7 @@ public abstract class Curve {
   }
 
   public static Curve getSharedCurve(byte[] curveName) {
-    if (Utils.equal(SECP256k1, curveName)) {
+    if (Utils.isEqual(SECP256k1, curveName)) {
       return secp256k1;
     }
 

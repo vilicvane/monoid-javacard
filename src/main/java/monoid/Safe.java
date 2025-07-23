@@ -3,7 +3,8 @@ package monoid;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.MessageDigest;
-import monoidsafe.MonoidSafe;
+import monoidsafe.SafeItemShareable;
+import monoidsafe.SafeShareable;
 
 /**
  * The `Safe` class is a `MonoidSafe` wrapper that validates known data types
@@ -31,9 +32,9 @@ public final class Safe {
   public static final byte[] TYPE_TEXT_SECP256K1 = {'s','e','c','p','2','5','6','k','1'};
   // @formatter:on
 
-  private MonoidSafe safe;
+  private SafeShareable safe;
 
-  public Safe(MonoidSafe safe) {
+  public Safe(SafeShareable safe) {
     this.safe = safe;
   }
 
@@ -55,7 +56,7 @@ public final class Safe {
     return safe.getPINTriesRemaining();
   }
 
-  public byte[] createKnownRandom(short type) throws SafeException {
+  public SafeItemShareable createKnownRandom(short type) throws SafeException {
     switch (type) {
       case TYPE_EC_SECP256K1:
         return createRandomRandom(type, (short) CurveSECP256k1.KEY_LENGTH);
@@ -95,104 +96,86 @@ public final class Safe {
    * possible values of a 32-byte array is valid; a valid Ed25519 key on the
    * other hand ranges from 0 to 2 ^ 255 - 1, thus not a "random random".
    */
-  private byte[] createRandomRandom(short refinedType, short length) {
-    byte[] data = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
+  private SafeItemShareable createRandomRandom(short refinedType, short length) {
+    byte[] data = Utils.makeGlobalByteArray(length);
 
     OneShot.random(data, (short) 0, length);
 
-    byte[] item = buildDigestIndexedItem(refinedType, data);
+    byte[] index = buildGlobalDigestIndex(refinedType, data);
 
-    safe.set(item, (short) 0, (short) item.length);
-
-    return Utils.duplicateAsTransientDeselect(
-      item,
-      MonoidSafe.INDEX_OFFSET,
-      MonoidSafe.INDEX_LENGTH
-    );
+    return safe.create(index, null, data);
   }
 
-  public byte[] list(short type) {
+  public Object[] list(short type) {
     return safe.list(type);
   }
 
-  public byte[] get(byte[] index) {
+  public SafeItemShareable get(byte[] index) {
     index = Utils.duplicateAsGlobal(index);
 
-    return safe.get(index, (short) 0);
+    return safe.get(index);
   }
 
-  public byte[] require(byte[] index) {
-    byte[] data = get(index);
+  public SafeItemShareable require(byte[] index) {
+    SafeItemShareable item = get(index);
 
-    if (data == null) {
+    if (item == null) {
       SafeException.throwIt(SafeException.REASON_NOT_FOUND);
     }
 
-    return data;
+    return item;
   }
 
-  public byte[] set(short type, byte[] data) throws SafeException {
+  public SafeItemShareable create(short type, byte[] alias, byte[] data) throws SafeException {
     if (!isKnownDigestIndexedType(type)) {
       SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     }
 
-    byte[] item = buildDigestIndexedItem(refineType(type, data), data);
+    type = refineType(type, data);
 
-    safe.set(item, (short) 0, (short) item.length);
+    byte[] index = buildGlobalDigestIndex(type, data);
 
-    return Utils.duplicateAsTransientDeselect(
-      item,
-      MonoidSafe.INDEX_OFFSET,
-      MonoidSafe.INDEX_LENGTH
-    );
+    data = Utils.duplicateAsGlobal(data);
+
+    return safe.create(index, alias, data);
   }
 
-  public boolean set(byte[] index, byte[] data) {
-    if (index.length != MonoidSafe.INDEX_LENGTH) {
+  public SafeItemShareable create(byte[] index, byte[] alias, byte[] data) {
+    if (index.length != SafeShareable.INDEX_LENGTH) {
       SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     }
 
-    short type = Util.getShort(index, MonoidSafe.INDEX_TYPE_OFFSET);
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
-    byte[] item;
+    byte[] builtIndex;
 
     if (isKnownDigestIndexedType(type)) {
-      item = buildDigestIndexedItem(refineType(type, data), data);
+      if (type != refineType(type, data)) {
+        SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
+      }
+
+      builtIndex = buildGlobalDigestIndex(type, data);
 
       // Validate digest.
       if (
         Util.arrayCompare(
           index,
-          MonoidSafe.INDEX_ID_OFFSET,
-          item,
-          MonoidSafe.INDEX_ID_OFFSET,
-          MonoidSafe.INDEX_ID_LENGTH
+          SafeShareable.INDEX_ID_OFFSET,
+          builtIndex,
+          SafeShareable.INDEX_ID_OFFSET,
+          SafeShareable.INDEX_ID_LENGTH
         ) !=
         0
       ) {
         SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
       }
     } else {
-      item = Utils.makeGlobalByteArray((short) (MonoidSafe.INDEX_LENGTH + data.length));
-
-      Util.arrayCopyNonAtomic(
-        index,
-        MonoidSafe.INDEX_OFFSET,
-        item,
-        MonoidSafe.INDEX_OFFSET,
-        MonoidSafe.INDEX_LENGTH
-      );
-
-      Util.arrayCopyNonAtomic(data, (short) 0, item, MonoidSafe.DATA_OFFSET, (short) data.length);
+      builtIndex = Utils.duplicateAsGlobal(index);
     }
 
-    return safe.set(item, (short) 0, (short) item.length);
-  }
+    data = Utils.duplicateAsGlobal(data);
 
-  public void remove(byte[] index) {
-    index = Utils.duplicateAsGlobal(index);
-
-    safe.remove(index, (short) 0);
+    return safe.create(builtIndex, alias, data);
   }
 
   public static short type(byte[] buffer, short offset, byte length) throws MonoidException {
@@ -277,10 +260,10 @@ public final class Safe {
     }
   }
 
-  private static byte[] buildDigestIndexedItem(short refinedType, byte[] data) {
-    byte[] item = Utils.makeGlobalByteArray((short) (MonoidSafe.INDEX_LENGTH + data.length));
+  private static byte[] buildGlobalDigestIndex(short refinedType, byte[] data) {
+    byte[] index = Utils.makeGlobalByteArray(SafeShareable.INDEX_LENGTH);
 
-    Util.setShort(item, MonoidSafe.INDEX_TYPE_OFFSET, refinedType);
+    Util.setShort(index, SafeShareable.INDEX_TYPE_OFFSET, refinedType);
 
     byte[] digest = JCSystem.makeTransientByteArray(
       MessageDigest.LENGTH_SHA_256,
@@ -299,14 +282,12 @@ public final class Safe {
     Util.arrayCopyNonAtomic(
       digest,
       (short) 0,
-      item,
-      MonoidSafe.INDEX_ID_OFFSET,
-      MonoidSafe.INDEX_ID_LENGTH
+      index,
+      SafeShareable.INDEX_ID_OFFSET,
+      SafeShareable.INDEX_ID_LENGTH
     );
 
-    Util.arrayCopyNonAtomic(data, (short) 0, item, MonoidSafe.DATA_OFFSET, (short) data.length);
-
-    return item;
+    return index;
   }
 
   private static short refineType(short type, byte[] data) throws SafeException {

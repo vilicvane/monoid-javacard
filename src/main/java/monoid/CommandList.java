@@ -1,7 +1,8 @@
 package monoid;
 
 import javacard.framework.Util;
-import monoidsafe.MonoidSafe;
+import monoidsafe.SafeItemShareable;
+import monoidsafe.SafeShareable;
 
 public class CommandList extends Command {
 
@@ -17,24 +18,43 @@ public class CommandList extends Command {
       ? reader.is(CBOR.TYPE_TEXT) ? Safe.type(reader) : reader.integer()
       : 0;
 
-    byte[] data = MonoidApplet.safe.list(type);
+    Object[] items = MonoidApplet.safe.list(type);
 
     writer.map((short) 1);
     {
       writer.text(Text.items);
-      writer.array((short) (data.length / MonoidSafe.INDEX_LENGTH));
-      for (short offset = 0; offset < data.length; offset += MonoidSafe.INDEX_LENGTH) {
-        byte[] typeName = Safe.type(Util.getShort(data, offset));
+      writer.array((short) items.length);
+      for (short itemIndex = 0; itemIndex < items.length; itemIndex++) {
+        SafeItemShareable item = (SafeItemShareable) items[itemIndex];
 
-        writer.map((short) (typeName == null ? 1 : 2));
+        byte[] index = item.getIndex();
+        byte[] typeName = Safe.type(Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET));
+        byte[] alias = item.getAlias();
+
+        short entries = 1;
+
+        if (typeName != null) {
+          entries++;
+        }
+
+        if (alias != null) {
+          entries++;
+        }
+
+        writer.map(entries);
         {
           if (typeName != null) {
             writer.text(Text.type);
             writer.text(typeName);
           }
 
+          if (alias != null) {
+            writer.text(Text.alias);
+            writer.text(alias);
+          }
+
           writer.text(Text.index);
-          writer.bytes(data, offset, MonoidSafe.INDEX_LENGTH);
+          writer.bytes(index);
         }
       }
     }

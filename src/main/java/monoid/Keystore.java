@@ -4,14 +4,14 @@ import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.ECPrivateKey;
 import javacard.security.Key;
-import monoidsafe.MonoidSafe;
+import monoidsafe.SafeShareable;
 
 public final class Keystore {
 
   public static final byte SEED_512_LENGTH = 64;
 
   public static final byte MASTER_LENGTH = LibBIP32.COMPONENT_LENGTH * 2;
-  public static final byte MASTER_PRIVATE_KEY_OFFSET = MonoidSafe.INDEX_LENGTH;
+  public static final byte MASTER_PRIVATE_KEY_OFFSET = SafeShareable.INDEX_LENGTH;
   public static final byte MASTER_CHAIN_CODE_OFFSET =
     MASTER_PRIVATE_KEY_OFFSET + LibBIP32.COMPONENT_LENGTH;
 
@@ -27,7 +27,7 @@ public final class Keystore {
     Curve curve,
     byte[] path
   ) {
-    short type = Util.getShort(index, MonoidSafe.INDEX_OFFSET);
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     if (!Safe.isTypeSeed(type)) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
@@ -42,7 +42,7 @@ public final class Keystore {
   }
 
   public byte[] getMasterDerivedPublicKeyAndChainCode(byte[] index, Curve curve, byte[] path) {
-    short type = Util.getShort(index, MonoidSafe.INDEX_OFFSET);
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     if (!Safe.isTypeMaster(type)) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
@@ -55,7 +55,7 @@ public final class Keystore {
   }
 
   public byte[] getECKeyPublicKey(byte[] index) {
-    short type = Util.getShort(index, MonoidSafe.INDEX_OFFSET);
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     Curve curve;
 
@@ -83,7 +83,7 @@ public final class Keystore {
     byte[] cipher,
     byte[] digest
   ) throws KeystoreException, CurveException, SignerException {
-    short type = Util.getShort(index, MonoidSafe.INDEX_OFFSET);
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     byte[] key = requireKey(index);
 
@@ -165,13 +165,6 @@ public final class Keystore {
   }
 
   private byte[] requireKey(byte[] index) {
-    byte[] key = safe.get(index);
-
-    if (key == null) {
-      KeystoreException.throwIt(KeystoreException.REASON_KEY_NOT_FOUND);
-      return null;
-    }
-
-    return key;
+    return safe.require(index).getData();
   }
 }

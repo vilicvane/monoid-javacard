@@ -1,7 +1,7 @@
 package monoid;
 
 import javacard.framework.Util;
-import monoidsafe.MonoidSafe;
+import monoidsafe.SafeShareable;
 
 public final class CommandViewKey extends Command {
 
@@ -15,9 +15,9 @@ public final class CommandViewKey extends Command {
 
     reader.map();
 
-    byte[] index = reader.requireKey(Text.index).bytes(MonoidSafe.INDEX_LENGTH);
+    byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
 
-    short type = Util.getShort(index, MonoidSafe.INDEX_OFFSET);
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     switch (type & Safe.TYPE_CATEGORY_MASK) {
       case Safe.TYPE_EC:

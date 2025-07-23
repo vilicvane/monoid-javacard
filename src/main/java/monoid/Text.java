@@ -3,6 +3,7 @@ package monoid;
 public class Text {
 
   // @formatter:off
+  public static final byte[] alias = {'a','l','i','a','s'};
   public static final byte[] auth = {'a','u','t','h'};
   public static final byte[] available = {'a','v','a','i','l','a','b','l','e'};
   public static final byte[] chainCode = {'c','h','a','i','n','C','o','d','e'};

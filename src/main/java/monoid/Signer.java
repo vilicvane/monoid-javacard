@@ -21,7 +21,7 @@ public final class Signer {
     byte cipher;
     short bufferLength;
 
-    if (Utils.equal(CIPHER_ECDSA, cipherType)) {
+    if (Utils.isEqual(CIPHER_ECDSA, cipherType)) {
       cipher = Signature.SIG_CIPHER_ECDSA_PLAIN;
 
       // Signature length is 2 * (key size / 8), + 1 for case that key size is

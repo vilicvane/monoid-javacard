@@ -1,7 +1,7 @@
 package monoid;
 
 import javacard.framework.Util;
-import monoidsafe.MonoidSafe;
+import monoidsafe.SafeShareable;
 
 public class CommandSign extends Command {
 
@@ -15,14 +15,14 @@ public class CommandSign extends Command {
 
     reader.map();
 
-    byte[] index = reader.requireKey(Text.index).bytes(MonoidSafe.INDEX_LENGTH);
+    byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
 
     byte[] cipher = reader.requireKey(Text.cipher).text();
     byte[] digest = reader.requireKey(Text.digest).bytes();
 
     byte[] signature;
 
-    short type = Util.getShort(index, MonoidSafe.INDEX_OFFSET);
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     switch (type & Safe.TYPE_CATEGORY_MASK) {
       case Safe.TYPE_SEED: {

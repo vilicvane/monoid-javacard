@@ -1,5 +1,6 @@
 package monoid;
 
+import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.security.CryptoException;
 
@@ -8,8 +9,9 @@ public abstract class Command {
   // @formatter:off
   public static final byte[] CODE_INTERNAL = {'I','N','T','E','R','N','A','L'};
 
-  public static final byte[] EXCEPTION_Crypto = {'C','r','y','p','t','o'};
-  public static final byte[] EXCEPTION_IndexOutOfBounds = {'I','n','d','e','x','O','u','t','O','f','B','o','u','n','d','s'};
+  public static final byte[] EXCEPTION_CryptoException = {'C','r','y','p','t','o','E','x','c','e','p','t','i','o','n'};
+  public static final byte[] EXCEPTION_SecurityException = {'S','e','c','u','r','i','t','y','E','x','c','e','p','t','i','o','n'};
+  public static final byte[] EXCEPTION_IndexOutOfBoundsException = {'I','n','d','e','x','O','u','t','O','f','B','o','u','n','d','s','E','x','c','e','p','t','i','o','n'};
   // @formatter:on
 
   public static final byte AUTH_ACCESS = 0b01;
@@ -23,8 +25,10 @@ public abstract class Command {
   public static Command systemInformation;
 
   public static Command list;
+  public static Command view;
   public static Command get;
   public static Command set;
+  public static Command create;
   public static Command remove;
   public static Command createRandomKey;
 
@@ -40,8 +44,10 @@ public abstract class Command {
     systemInformation = new CommandSystemInformation();
 
     list = new CommandList();
+    view = new CommandView();
     get = new CommandGet();
     set = new CommandSet();
+    create = new CommandCreate();
     remove = new CommandRemove();
     createRandomKey = new CommandCreateRandomKey();
 
@@ -58,8 +64,10 @@ public abstract class Command {
     systemInformation = null;
 
     list = null;
+    view = null;
     get = null;
     set = null;
+    create = null;
     remove = null;
     createRandomKey = null;
 
@@ -78,10 +86,14 @@ public abstract class Command {
       case 0x30:
         return list;
       case 0x31:
-        return get;
+        return view;
       case 0x32:
-        return set;
+        return get;
       case 0x33:
+        return set;
+      case 0x34:
+        return create;
+      case 0x35:
         return remove;
       case 0x38:
         return createRandomKey;
@@ -129,25 +141,36 @@ public abstract class Command {
 
     try {
       run();
+    } catch (ISOException e) {
+      return;
     } catch (MonoidException e) {
       e.send();
     } catch (CryptoException e) {
       writeError(CODE_INTERNAL, (short) 2);
       {
         writer.text(Text.exception);
-        writer.text(EXCEPTION_Crypto);
+        writer.text(EXCEPTION_CryptoException);
 
         writer.text(Text.reason);
         writer.integer(e.getReason());
+      }
+      writer.send();
+    } catch (SecurityException e) {
+      writeError(CODE_INTERNAL, (short) 1);
+      {
+        writer.text(Text.exception);
+        writer.text(EXCEPTION_SecurityException);
       }
       writer.send();
     } catch (IndexOutOfBoundsException e) {
       writeError(CODE_INTERNAL, (short) 1);
       {
         writer.text(Text.exception);
-        writer.text(EXCEPTION_IndexOutOfBounds);
+        writer.text(EXCEPTION_IndexOutOfBoundsException);
       }
       writer.send();
+    } catch (Exception e) {
+      sendError(CODE_INTERNAL);
     } finally {
       JCSystem.requestObjectDeletion();
     }

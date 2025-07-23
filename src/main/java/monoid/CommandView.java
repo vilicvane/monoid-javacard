@@ -3,11 +3,11 @@ package monoid;
 import monoidsafe.SafeItemShareable;
 import monoidsafe.SafeShareable;
 
-public class CommandGet extends Command {
+public class CommandView extends Command {
 
   @Override
   protected void run() {
-    requireAuth(AUTH_SAFE);
+    requireAuth();
 
     reader.map();
 
@@ -16,9 +16,8 @@ public class CommandGet extends Command {
     SafeItemShareable item = MonoidApplet.safe.require(index);
 
     byte[] alias = item.getAlias();
-    byte[] data = item.getData();
 
-    short entries = 1;
+    short entries = 0;
 
     if (alias != null) {
       entries++;
@@ -30,9 +29,6 @@ public class CommandGet extends Command {
         writer.text(Text.alias);
         writer.text(alias);
       }
-
-      writer.text(Text.data);
-      writer.bytes(data);
     }
   }
 }

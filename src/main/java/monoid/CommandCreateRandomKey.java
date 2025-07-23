@@ -18,7 +18,7 @@ public class CommandCreateRandomKey extends Command {
       type |= reader.requireKey(Text.length).integer();
     }
 
-    byte[] index = safe.createKnownRandom(type);
+    byte[] index = safe.createKnownRandom(type).getIndex();
 
     writer.map((short) 1);
     {

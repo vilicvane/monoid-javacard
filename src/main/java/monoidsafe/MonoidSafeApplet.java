@@ -8,9 +8,8 @@ import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javacard.framework.Shareable;
-import javacard.framework.Util;
 
-public class MonoidSafeApplet extends Applet implements MonoidSafe {
+public class MonoidSafeApplet extends Applet implements SafeShareable {
 
   public static final byte PIN_TRY_LIMIT = 5;
   public static final byte MAX_PIN_SIZE = 16;
@@ -24,7 +23,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   private OwnerPIN pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE);
   private boolean pinSet = false;
 
-  private Item[] items = new Item[ITEM_LENGTH_EXTENSION];
+  private SafeItem[] items = new SafeItem[ITEM_LENGTH_EXTENSION];
 
   private short itemsLength = 0;
 
@@ -65,7 +64,7 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   }
 
   @Override
-  public byte[] list(short type) {
+  public Object[] list(short type) {
     assertAccess();
 
     short count = 0;
@@ -76,39 +75,35 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
       }
     }
 
-    byte[] data = (byte[]) JCSystem.makeGlobalArray(
-      JCSystem.ARRAY_TYPE_BYTE,
-      (short) (INDEX_LENGTH * count)
+    Object[] itemShareables = (Object[]) JCSystem.makeGlobalArray(
+      JCSystem.ARRAY_TYPE_OBJECT,
+      count
     );
 
     short offset = 0;
 
     for (short index = 0; index < itemsLength; index++) {
-      Item item = items[index];
+      SafeItem item = items[index];
 
       if (item.matches(type)) {
-        offset = Util.arrayCopyNonAtomic(item.data, (short) 0, data, offset, INDEX_LENGTH);
+        itemShareables[offset] = item;
+
+        offset++;
       }
     }
 
-    return data;
+    return itemShareables;
   }
 
   @Override
-  public byte[] get(byte[] buffer, short offset) {
+  public SafeItemShareable get(byte[] index) {
     assertAccess();
 
-    for (short index = 0; index < itemsLength; index++) {
-      Item item = items[index];
+    for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
+      SafeItem item = items[itemIndex];
 
-      if (item.matches(buffer, offset)) {
-        short length = (short) (item.data.length - INDEX_LENGTH);
-
-        byte[] data = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, length);
-
-        Util.arrayCopyNonAtomic(item.data, INDEX_LENGTH, data, (short) 0, length);
-
-        return data;
+      if (item.matches(index)) {
+        return item;
       }
     }
 
@@ -116,34 +111,22 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
   }
 
   @Override
-  public boolean set(byte[] buffer, short offset, short length) {
+  public SafeItemShareable create(byte[] index, byte[] alias, byte[] data) {
     assertAccess();
 
-    for (short index = 0; index < itemsLength; index++) {
-      Item item = items[index];
-
-      if (item.matches(buffer, offset)) {
-        JCSystem.beginTransaction();
-
-        item.data = new byte[length];
-
-        Util.arrayCopyNonAtomic(buffer, offset, item.data, (short) 0, length);
-
-        JCSystem.requestObjectDeletion();
-
-        JCSystem.commitTransaction();
-
-        return true;
+    for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
+      if (items[itemIndex].matches(index)) {
+        return null;
       }
     }
 
     JCSystem.beginTransaction();
 
     if (itemsLength == items.length) {
-      Item[] extendedItems = new Item[(short) (items.length + ITEM_LENGTH_EXTENSION)];
+      SafeItem[] extendedItems = new SafeItem[(short) (items.length + ITEM_LENGTH_EXTENSION)];
 
-      for (short index = 0; index < itemsLength; index++) {
-        extendedItems[index] = items[index];
+      for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
+        extendedItems[itemIndex] = items[itemIndex];
       }
 
       items = extendedItems;
@@ -151,38 +134,37 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
       JCSystem.requestObjectDeletion();
     }
 
-    Item item = new Item();
+    index = Utils.duplicateAsPersistent(index);
 
-    item.data = new byte[length];
+    if (alias != null) {
+      alias = Utils.duplicateAsPersistent(alias);
+    }
 
-    Util.arrayCopyNonAtomic(buffer, offset, item.data, (short) 0, length);
+    data = Utils.duplicateAsPersistent(data);
 
-    items[itemsLength] = item;
+    SafeItem item = new SafeItem(index, alias, data, this);
 
-    itemsLength++;
+    items[itemsLength++] = item;
 
     JCSystem.commitTransaction();
 
-    return false;
+    return item;
   }
 
-  @Override
-  public boolean remove(byte[] buffer, short offset) {
+  public void remove(SafeItem item) {
     assertAccess();
 
     short indexToDelete = -1;
 
     for (short index = 0; index < itemsLength; index++) {
-      Item item = items[index];
-
-      if (item.matches(buffer, offset)) {
+      if (items[index] == item) {
         indexToDelete = index;
         break;
       }
     }
 
     if (indexToDelete < 0) {
-      return false;
+      return;
     }
 
     JCSystem.beginTransaction();
@@ -191,18 +173,14 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
       items[index] = items[(short) (index + 1)];
     }
 
-    items[itemsLength] = null;
-
-    itemsLength--;
+    items[itemsLength--] = null;
 
     JCSystem.requestObjectDeletion();
 
     JCSystem.commitTransaction();
-
-    return true;
   }
 
-  private void assertAccess() {
+  public void assertAccess() {
     if (pinSet && !pin.isValidated()) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
     }
@@ -221,29 +199,5 @@ public class MonoidSafeApplet extends Applet implements MonoidSafe {
     }
 
     return null;
-  }
-
-  private class Item {
-
-    public byte[] data;
-
-    public boolean matches(byte[] buffer, short offset) {
-      return Util.arrayCompare(data, INDEX_OFFSET, buffer, offset, INDEX_LENGTH) == 0;
-    }
-
-    public boolean matches(short type) {
-      byte high = (byte) (type >> 8);
-      byte low = (byte) (type & 0xFF);
-
-      if (low == 0) {
-        if (high == 0) {
-          return true;
-        } else {
-          return high == data[INDEX_TYPE_CATEGORY_OFFSET];
-        }
-      } else {
-        return high == data[INDEX_TYPE_CATEGORY_OFFSET] && low == data[INDEX_TYPE_METADATA_OFFSET];
-      }
-    }
   }
 }

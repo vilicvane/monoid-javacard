@@ -220,12 +220,12 @@ type Response = {
 
 ### `0x30` ~ `0x3F` Safe management
 
-#### `0x30` List safe items
-
 ```ts
 type SafeItemKeyType = 'entropy' | 'seed' | 'master' | 'secp256k1';
 type SafeItemType = SafeItemKeyType | byte;
 ```
+
+#### `0x30` List items
 
 ```ts
 type Request = AuthRequest & {
@@ -236,13 +236,28 @@ type Request = AuthRequest & {
 ```ts
 type Response = {
   items: {
-    type: SafeItemType;
     index: byte[];
+    type: SafeItemType;
+    alias?: string;
   }[];
 };
 ```
 
-#### `0x31` Get item
+#### `0x31` View
+
+```ts
+type Request = AuthRequest & {
+  index: byte[];
+};
+```
+
+```ts
+type Response = {
+  alias?: string;
+};
+```
+
+#### `0x32` Get item
 
 ```ts
 type Request = SafeAuthRequest & {
@@ -252,16 +267,18 @@ type Request = SafeAuthRequest & {
 
 ```ts
 type Response = {
+  alias?: string;
   data: byte[];
 };
 ```
 
-#### `0x32` Set item
+#### `0x33` Set item
 
 ```ts
 type Request = AuthRequest & {
   index: byte[];
-  data: byte[];
+  alias?: byte[];
+  data?: byte[];
 };
 ```
 
@@ -269,7 +286,30 @@ type Request = AuthRequest & {
 type Response = {};
 ```
 
-#### `0x33` Clear item
+#### `0x34` Create item
+
+```ts
+type Request = AuthRequest &
+  (
+    | {
+        type: SafeItemType;
+      }
+    | {
+        index: byte[];
+      }
+  ) & {
+    alias?: byte[];
+    data: byte[];
+  };
+```
+
+```ts
+type Response = {
+  index: byte[];
+};
+```
+
+#### `0x35` Remove item
 
 ```ts
 type Request = AuthRequest & {

@@ -1,6 +1,6 @@
 package monoid;
 
-import monoidsafe.MonoidSafe;
+import monoidsafe.SafeShareable;
 
 public class CommandRemove extends Command {
 
@@ -12,9 +12,9 @@ public class CommandRemove extends Command {
 
     reader.map();
 
-    byte[] index = reader.requireKey(Text.index).bytes(MonoidSafe.INDEX_LENGTH);
+    byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
 
-    MonoidApplet.safe.remove(index);
+    MonoidApplet.safe.require(index).remove();
 
     sendEmptyMap();
   }

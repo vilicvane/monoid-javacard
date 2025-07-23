@@ -10,7 +10,7 @@ import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javacard.framework.Shareable;
 import javacard.framework.Util;
-import monoidsafe.MonoidSafe;
+import monoidsafe.SafeShareable;
 
 public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
@@ -92,7 +92,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     }
 
     if (safe == null) {
-      MonoidSafe sio = (MonoidSafe) JCSystem.getAppletShareableInterfaceObject(
+      SafeShareable sio = (SafeShareable) JCSystem.getAppletShareableInterfaceObject(
         JCSystem.lookupAID(
           Constants.MONOID_SAFE_AID,
           (short) 0,
