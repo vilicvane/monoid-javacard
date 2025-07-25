@@ -19,7 +19,9 @@ The goal is to allow third-party Monoid applets to interact with _Monoid Applet_
 
 ## Requirements
 
-- JavaCard 3.0.5+ SecID variant (supports ECC algorithms)
+JavaCard 3.0.5 with ECC support is required.
+
+See [cards](doc/cards.md) for links to vendors.
 
 ## Build & Install
 
@@ -84,7 +86,7 @@ The _Monoid Applet_ stores the safe PIN required by _Monoid Safe Applet_. When i
 1. _Monoid Applet_ itself can access the safe freely (commands probably have their own authentication requirements though).
 2. Applets with granted permissions can interact (sign/verify) with keys and access data in _Monoid Safe Applet_ (via _Monoid Applet_).
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for more details.
+See [architecture](doc/architecture.md) for more details.
 
 ## Roadmap
 

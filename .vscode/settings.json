@@ -17,6 +17,7 @@
     "computedhash",
     "dsasigner",
     "ECDH",
+    "EEPROM",
     "gradlew",
     "HMAC",
     "inplate",
@@ -34,6 +35,7 @@
     "Shareables",
     "SVDP",
     "temurin",
+    "tian",
     "TRNG"
   ]
 }
