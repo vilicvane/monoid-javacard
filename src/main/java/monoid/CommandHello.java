@@ -1,18 +1,16 @@
 package monoid;
 
-import javacard.framework.OwnerPIN;
-
 public final class CommandHello extends Command {
 
   @Override
   protected void run() {
-    OwnerPIN pin = MonoidApplet.pin;
-    Safe safe = MonoidApplet.safe;
-
     reader.map();
 
-    writer.map((short) 4);
+    writer.map((short) 5);
     {
+      writer.text(Text.id);
+      writer.bytes(MonoidApplet.id);
+
       writer.text(Text.version);
       writer.integer(MonoidApplet.version);
 
@@ -20,7 +18,7 @@ public final class CommandHello extends Command {
 
       writer.text(Text.pin);
       if (MonoidApplet.pinSet) {
-        writer.integer(pin.getTriesRemaining());
+        writer.integer(MonoidApplet.pin.getTriesRemaining());
       } else {
         writer.bool(false);
       }
@@ -29,8 +27,8 @@ public final class CommandHello extends Command {
       writer.map((short) 2);
       {
         writer.text(Text.pin);
-        if (safe.isPINSet()) {
-          writer.integer(safe.getPINTriesRemaining());
+        if (MonoidApplet.safe.isPINSet()) {
+          writer.integer(MonoidApplet.safe.getPINTriesRemaining());
         } else {
           writer.bool(false);
         }

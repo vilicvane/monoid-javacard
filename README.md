@@ -155,6 +155,7 @@ type Request = {};
 
 ```ts
 type Response = {
+  id: byte[];
   version: number;
   features: {
     curves: string[];

@@ -14,8 +14,12 @@ import monoidsafe.SafeShareable;
 
 public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
+  public static final byte ID_LENGTH = 4;
+
   public static final byte PIN_TRY_LIMIT = 5;
   public static final byte MAX_PIN_SIZE = 16;
+
+  public static byte[] id;
 
   public static short version = 0;
 
@@ -40,6 +44,10 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
     Command.init();
 
+    id = new byte[ID_LENGTH];
+
+    OneShot.random(id, (short) 0, (short) id.length);
+
     pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE);
 
     new MonoidApplet().register();
@@ -57,12 +65,20 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
     Command.dispose();
 
+    id = null;
+
     pin = null;
 
     safe = null;
     safePIN = null;
 
     keystore = null;
+  }
+
+  private MonoidApplet() {
+    id = new byte[4];
+
+    OneShot.random(id, (short) 0, (short) id.length);
   }
 
   public void process(APDU apdu) {
