@@ -38,6 +38,10 @@ public final class Safe {
     this.safe = safe;
   }
 
+  public byte[] getId() {
+    return safe.getId();
+  }
+
   public boolean isPINSet() {
     return safe.isPINSet();
   }

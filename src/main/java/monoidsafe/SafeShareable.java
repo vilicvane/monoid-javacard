@@ -13,6 +13,8 @@ public interface SafeShareable extends Shareable {
 
   public static final byte INDEX_LENGTH = INDEX_TYPE_LENGTH + INDEX_ID_LENGTH;
 
+  public byte[] getId();
+
   public boolean isPINSet();
 
   public byte getPINTriesRemaining();

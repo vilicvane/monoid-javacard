@@ -8,8 +8,11 @@ import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javacard.framework.Shareable;
+import javacard.security.RandomData;
 
 public class MonoidSafeApplet extends Applet implements SafeShareable {
+
+  public static final byte ID_LENGTH = 4;
 
   public static final byte PIN_TRY_LIMIT = 5;
   public static final byte MAX_PIN_SIZE = 16;
@@ -20,6 +23,8 @@ public class MonoidSafeApplet extends Applet implements SafeShareable {
     new MonoidSafeApplet().register();
   }
 
+  public byte[] id = new byte[ID_LENGTH];
+
   private OwnerPIN pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE);
   private boolean pinSet = false;
 
@@ -27,12 +32,25 @@ public class MonoidSafeApplet extends Applet implements SafeShareable {
 
   private short itemsLength = 0;
 
+  MonoidSafeApplet() {
+    RandomData.OneShot random = RandomData.OneShot.open(RandomData.ALG_TRNG);
+
+    if (random != null) {
+      random.nextBytes(id, (short) 0, (short) id.length);
+    }
+  }
+
   public void process(APDU apdu) {
     if (selectingApplet()) {
       return;
     }
 
     ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+  }
+
+  @Override
+  public byte[] getId() {
+    return Utils.duplicateAsGlobal(id);
   }
 
   @Override

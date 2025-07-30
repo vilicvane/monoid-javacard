@@ -163,7 +163,6 @@ type Request = {};
 
 ```ts
 type Response = {
-  id: byte[];
   version: number;
   features: {
     curves: string[];
@@ -172,6 +171,8 @@ type Response = {
   /** Tries remaining for the PIN, or `false` if the PIN is not set. */
   pin: number | false;
   safe: {
+    /** A 4-byte random id generated on _Monoid Safe Applet_ installation. */
+    id: byte[];
     /** Tries remaining for the PIN, or `false` if the PIN is not set. */
     pin: number | false;
     /** Whether the safe is unlocked (i.e., Monoid Applet stores a validated safe PIN). */

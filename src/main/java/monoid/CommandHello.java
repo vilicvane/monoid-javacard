@@ -6,11 +6,8 @@ public final class CommandHello extends Command {
   protected void run() {
     reader.map();
 
-    writer.map((short) 5);
+    writer.map((short) 4);
     {
-      writer.text(Text.id);
-      writer.bytes(MonoidApplet.id);
-
       writer.text(Text.version);
       writer.integer(MonoidApplet.version);
 
@@ -24,8 +21,11 @@ public final class CommandHello extends Command {
       }
 
       writer.text(Text.safe);
-      writer.map((short) 2);
+      writer.map((short) 3);
       {
+        writer.text(Text.id);
+        writer.bytes(MonoidApplet.safe.getId());
+
         writer.text(Text.pin);
         if (MonoidApplet.safe.isPINSet()) {
           writer.integer(MonoidApplet.safe.getPINTriesRemaining());
