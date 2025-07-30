@@ -1,13 +1,19 @@
 {
   "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx4G -Xms100m -Xlog:disable",
-  "java.import.gradle.java.home": "C:\\Program Files\\Java\\jdk-11",
+  "java.import.gradle.java.home": ".jdk",
   "java.configuration.updateBuildConfiguration": "automatic",
   "java.debug.settings.onBuildFailureProceed": true,
   "[java]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "terminal.integrated.env.windows": {
-    "JAVA_HOME": "C:\\Program Files\\Java\\jdk-11"
+    "JAVA_HOME": ".jdk"
+  },
+  "terminal.integrated.env.osx": {
+    "JAVA_HOME": ".jdk"
+  },
+  "terminal.integrated.env.linux": {
+    "JAVA_HOME": ".jdk"
   },
   "prettier.configPath": ".prettierrc",
   "cSpell.words": [

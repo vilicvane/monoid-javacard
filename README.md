@@ -25,13 +25,21 @@ See [cards](doc/cards.md) for links to vendors.
 
 ## Build & Install
 
+For vscode-based editor, please install the recommended Java extensions pack curated by Microsoft and create symlink `.jdk` to your JDK 11 installation, e.g.:
+
+```sh
+ln -s /path/to/jdk-11 .jdk
+```
+
+For other editors or terminals, please ensure related configurations accordingly.
+
+Now we can build the project with Gradle:
+
 ```sh
 ./gradlew buildJavaCard
 ```
 
-> Make sure `JAVA_HOME` is set to JDK 11. I use VSCode-based editor, checkout [.vscode/settings.json](.vscode/settings.json) for reference.
-
-Then install applets to a card using [gp] command:
+Then install applets to a card with [gp] command:
 
 ```sh
 gp --install build/javacard/monoidsafe.cap
