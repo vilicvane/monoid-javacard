@@ -15,7 +15,7 @@ import monoidsafe.SafeShareable;
 public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   public static final byte PIN_TRY_LIMIT = 5;
-  public static final byte MAX_PIN_SIZE = 16;
+  public static final byte MAX_PIN_LENGTH = 16;
 
   public static short version = 0;
 
@@ -40,7 +40,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
     Command.init();
 
-    pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE);
+    pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_LENGTH);
 
     new MonoidApplet().register();
   }
