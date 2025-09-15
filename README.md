@@ -164,6 +164,8 @@ type Request = {};
 ```ts
 type Response = {
   version: number;
+  /** A 4-byte random id generated on _Monoid Applet_ installation. */
+  id: byte[];
   features: {
     curves: string[];
     ciphers: string[];

@@ -6,10 +6,13 @@ public final class CommandHello extends Command {
   protected void run() {
     reader.map();
 
-    writer.map((short) 4);
+    writer.map((short) 5);
     {
       writer.text(Text.version);
       writer.integer(MonoidApplet.version);
+
+      writer.text(Text.id);
+      writer.bytes(MonoidApplet.id);
 
       CommandSystemInformation.writeFeaturesKeyValue(writer);
 

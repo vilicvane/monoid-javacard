@@ -111,6 +111,7 @@ public class MonoidAppletTest extends AppletTest {
     CBORBufferReader reader = new CBORBufferReader(response.getBytes());
     reader.map();
     {
+      Assertions.assertEquals(4, reader.requireKey("id".getBytes()).bytes().length);
       Assertions.assertFalse(reader.requireKey("pin".getBytes()).bool());
 
       reader.requireKey("safe".getBytes()).map();

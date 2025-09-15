@@ -10,14 +10,19 @@ import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javacard.framework.Shareable;
 import javacard.framework.Util;
+import javacard.security.RandomData;
 import monoidsafe.SafeShareable;
 
 public class MonoidApplet extends Applet implements Monoid, AppletEvent {
+
+  public static final byte ID_LENGTH = 4;
 
   public static final byte PIN_TRY_LIMIT = 5;
   public static final byte MAX_PIN_LENGTH = 16;
 
   public static short version = 0;
+
+  public static byte[] id = new byte[ID_LENGTH];
 
   public static OwnerPIN pin;
   public static boolean pinSet = false;
@@ -63,6 +68,14 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     safePIN = null;
 
     keystore = null;
+  }
+
+  MonoidApplet() {
+    RandomData.OneShot random = RandomData.OneShot.open(RandomData.ALG_TRNG);
+
+    if (random != null) {
+      random.nextBytes(id, (short) 0, (short) id.length);
+    }
   }
 
   public void process(APDU apdu) {
