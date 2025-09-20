@@ -133,25 +133,10 @@ _Monoid Applet_ uses a minimal CBOR-based RPC protocol.
 
 ### Command authentication
 
-Command authentication is done by PIN validation. A request must provide either an access PIN or a safe PIN.
+The authentication is done within a session, using `0x21` command.
 
 - Access PIN: for commands that would not result in keys/data revealed.
-- Safe PIN: for commands that could result in keys/data revealed.
-
-```ts
-type AuthRequest = {
-  auth: {
-    pin: string;
-  };
-};
-
-type SafeAuthRequest = {
-  auth: {
-    pin: string;
-    safe: true;
-  };
-};
-```
+- Safe PIN: for commands that could result in keys/data revealed, or commands that requires access PIN.
 
 ### `0x20` ~ `0x2F` System management
 
@@ -183,12 +168,27 @@ type Response = {
 };
 ```
 
-#### `0x21` Set PIN
-
-- Requires authentication with safe PIN if it is set.
+### `0x21` Authenticate
 
 ```ts
-type Request = (SafeAuthRequest | {}) & {
+type Request = {
+  auth: {
+    pin: string;
+    safe?: true;
+  };
+};
+```
+
+```ts
+type Response = {};
+```
+
+#### `0x22` Set PIN
+
+> Requires authentication with safe PIN if it is set.
+
+```ts
+type Request = {
   pin: string;
   safe?: true;
 };
@@ -241,8 +241,10 @@ type SafeItemType = SafeItemKeyType | byte;
 
 #### `0x30` List items
 
+> Requires authentication.
+
 ```ts
-type Request = AuthRequest & {
+type Request = {
   type?: SafeItemType;
 };
 ```
@@ -259,8 +261,10 @@ type Response = {
 
 #### `0x31` View
 
+> Requires authentication.
+
 ```ts
-type Request = AuthRequest & {
+type Request = {
   index: byte[];
 };
 ```
@@ -273,8 +277,10 @@ type Response = {
 
 #### `0x32` Get item
 
+> Requires authentication with safe PIN.
+
 ```ts
-type Request = SafeAuthRequest & {
+type Request = {
   index: byte[];
 };
 ```
@@ -288,8 +294,10 @@ type Response = {
 
 #### `0x33` Set item
 
+> Requires authentication.
+
 ```ts
-type Request = AuthRequest & {
+type Request = {
   index: byte[];
   alias?: byte[];
   data?: byte[];
@@ -302,8 +310,10 @@ type Response = {};
 
 #### `0x34` Create item
 
+> Requires authentication.
+
 ```ts
-type Request = AuthRequest &
+type Request = {
   (
     | {
         type: SafeItemType;
@@ -325,8 +335,10 @@ type Response = {
 
 #### `0x35` Remove item
 
+> Requires authentication.
+
 ```ts
-type Request = AuthRequest & {
+type Request = {
   index: byte[];
 };
 ```
@@ -337,8 +349,10 @@ type Response = {};
 
 #### `0x38` Create random key
 
+> Requires authentication.
+
 ```ts
-type Request = AuthRequest & {
+type Request = {
   type: SafeItemKeyType;
 };
 ```
@@ -374,8 +388,10 @@ type Key = {
 
 #### `0x40` View key
 
+> Requires authentication.
+
 ```ts
-type Request = AuthRequest & Key;
+type Request = Key;
 ```
 
 ```ts
@@ -394,12 +410,13 @@ type Response = {
 
 #### `0x41` Sign
 
+> Requires authentication.
+
 ```ts
-type Request = AuthRequest &
-  Key & {
-    cipher: string;
-    digest: byte[];
-  };
+type Request = Key & {
+  cipher: string;
+  digest: byte[];
+};
 ```
 
 ```ts

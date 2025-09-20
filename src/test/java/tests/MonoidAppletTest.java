@@ -160,7 +160,7 @@ public class MonoidAppletTest extends AppletTest {
       writer.bool(true);
     }
 
-    CommandAPDU request = apdu(0x00, 0x21, 0, 0, writer.getDataBuffer());
+    CommandAPDU request = apdu(0x00, 0x22, 0, 0, writer.getDataBuffer());
 
     ResponseAPDU response = connect().transmit(request);
 
@@ -171,19 +171,21 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(4)
   public void setPIN() throws Exception {
+    CardManager manager = connect();
+
+    authenticate(manager, true);
+
     CBORBufferWriter writer = new CBORBufferWriter();
 
-    writer.map((short) 2);
+    writer.map((short) 1);
     {
-      writeAuth(writer, true);
-
       writer.text("pin".getBytes());
       writer.text(PIN);
     }
 
-    CommandAPDU request = apdu(0x00, 0x21, 0, 0, writer.getDataBuffer());
+    CommandAPDU request = apdu(0x00, 0x22, 0, 0, writer.getDataBuffer());
 
-    ResponseAPDU response = connect().transmit(request);
+    ResponseAPDU response = manager.transmit(request);
 
     assertNoError(response);
   }
@@ -218,12 +220,14 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(6)
   public void unlockSafe() throws Exception {
+    CardManager manager = connect();
+
+    authenticate(manager, true);
+
     CBORBufferWriter writer = new CBORBufferWriter();
 
-    writer.map((short) 3);
+    writer.map((short) 2);
     {
-      writeAuth(writer, true);
-
       writer.text("pin".getBytes());
       writer.text(SAFE_PIN);
 
@@ -231,9 +235,9 @@ public class MonoidAppletTest extends AppletTest {
       writer.bool(true);
     }
 
-    CommandAPDU request = apdu(0x00, 0x21, 0, 0, writer.getDataBuffer());
+    CommandAPDU request = apdu(0x00, 0x22, 0, 0, writer.getDataBuffer());
 
-    ResponseAPDU response = connect().transmit(request);
+    ResponseAPDU response = manager.transmit(request);
 
     assertNoError(response);
   }
@@ -242,6 +246,10 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(7)
   public void createRandomKeys() throws Exception {
+    CardManager manager = connect();
+
+    authenticate(manager, false);
+
     byte[][] types = {
       Safe.TYPE_TEXT_ENTROPY,
       Safe.TYPE_TEXT_ENTROPY,
@@ -259,10 +267,8 @@ public class MonoidAppletTest extends AppletTest {
 
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) (length == 0 ? 2 : 3));
+      writer.map((short) (length == 0 ? 1 : 2));
       {
-        writeAuth(writer, false);
-
         writer.text("type".getBytes());
         writer.text(type);
 
@@ -274,7 +280,7 @@ public class MonoidAppletTest extends AppletTest {
 
       CommandAPDU request = apdu(0x00, 0x38, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertNoError(response);
 
@@ -297,12 +303,14 @@ public class MonoidAppletTest extends AppletTest {
     {
       // create
 
+      CardManager manager = connect();
+
+      authenticate(manager, false);
+
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 3);
+      writer.map((short) 2);
       {
-        writeAuth(writer, false);
-
         writer.text("index".getBytes());
         writer.bytes(index);
 
@@ -312,7 +320,7 @@ public class MonoidAppletTest extends AppletTest {
 
       CommandAPDU request = apdu(0x00, 0x34, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertNoError(response);
 
@@ -326,12 +334,14 @@ public class MonoidAppletTest extends AppletTest {
     {
       // set
 
+      CardManager manager = connect();
+
+      authenticate(manager, false);
+
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 3);
+      writer.map((short) 2);
       {
-        writeAuth(writer, false);
-
         writer.text("index".getBytes());
         writer.bytes(index);
 
@@ -341,7 +351,7 @@ public class MonoidAppletTest extends AppletTest {
 
       CommandAPDU request = apdu(0x00, 0x33, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertNoError(response);
     }
@@ -349,19 +359,21 @@ public class MonoidAppletTest extends AppletTest {
     {
       // view
 
+      CardManager manager = connect();
+
+      authenticate(manager, false);
+
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 2);
+      writer.map((short) 1);
       {
-        writeAuth(writer, true);
-
         writer.text("index".getBytes());
         writer.bytes(index);
       }
 
       CommandAPDU request = apdu(0x00, 0x31, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertNoError(response);
 
@@ -376,19 +388,21 @@ public class MonoidAppletTest extends AppletTest {
     {
       // get
 
+      CardManager manager = connect();
+
+      authenticate(manager, true);
+
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 2);
+      writer.map((short) 1);
       {
-        writeAuth(writer, true);
-
         writer.text("index".getBytes());
         writer.bytes(index);
       }
 
       CommandAPDU request = apdu(0x00, 0x32, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertNoError(response);
 
@@ -403,19 +417,21 @@ public class MonoidAppletTest extends AppletTest {
     {
       // remove
 
+      CardManager manager = connect();
+
+      authenticate(manager, false);
+
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 2);
+      writer.map((short) 1);
       {
-        writeAuth(writer, false);
-
         writer.text("index".getBytes());
         writer.bytes(index);
       }
 
       CommandAPDU request = apdu(0x00, 0x35, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertNoError(response);
     }
@@ -423,19 +439,21 @@ public class MonoidAppletTest extends AppletTest {
     {
       // get
 
+      CardManager manager = connect();
+
+      authenticate(manager, true);
+
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 2);
+      writer.map((short) 1);
       {
-        writeAuth(writer, true);
-
         writer.text("index".getBytes());
         writer.bytes(index);
       }
 
       CommandAPDU request = apdu(0x00, 0x32, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertError(response, SafeException.CODE_NOT_FOUND);
     }
@@ -451,13 +469,15 @@ public class MonoidAppletTest extends AppletTest {
     keys.put(TEST_MASTER_INDEX, TEST_MASTER);
     keys.put(TEST_SECP256K1_KEY_INDEX, TEST_SECP256K1_KEY);
 
+    CardManager manager = connect();
+
+    authenticate(manager, false);
+
     for (HashMap.Entry<byte[], byte[]> entry : keys.entrySet()) {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 3);
+      writer.map((short) 2);
       {
-        writeAuth(writer, false);
-
         writer.text("index".getBytes());
         writer.bytes(entry.getKey());
 
@@ -467,7 +487,7 @@ public class MonoidAppletTest extends AppletTest {
 
       CommandAPDU request = apdu(0x00, 0x34, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertNoError(response);
     }
@@ -477,14 +497,13 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(10)
   public void list() throws Exception {
-    CBORBufferWriter writer = new CBORBufferWriter();
-
     CardManager manager = connect();
 
-    writer.map((short) 1);
-    {
-      writeAuth(writer, false);
-    }
+    authenticate(manager, false);
+
+    CBORBufferWriter writer = new CBORBufferWriter();
+
+    writer.map((short) 0);
 
     byte[] buffer;
 
@@ -550,13 +569,15 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(11)
   public void viewKeys() throws Exception {
+    CardManager manager = connect();
+
+    authenticate(manager, false);
+
     {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 5);
+      writer.map((short) 4);
       {
-        writeAuth(writer, false);
-
         writer.text("index".getBytes());
         writer.bytes(TEST_SEED_INDEX);
 
@@ -572,7 +593,7 @@ public class MonoidAppletTest extends AppletTest {
 
       CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertNoError(response);
 
@@ -594,10 +615,8 @@ public class MonoidAppletTest extends AppletTest {
     {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 4);
+      writer.map((short) 3);
       {
-        writeAuth(writer, false);
-
         writer.text("index".getBytes());
         writer.bytes(TEST_MASTER_INDEX);
 
@@ -610,7 +629,7 @@ public class MonoidAppletTest extends AppletTest {
 
       CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertNoError(response);
 
@@ -632,10 +651,8 @@ public class MonoidAppletTest extends AppletTest {
     {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 3);
+      writer.map((short) 2);
       {
-        writeAuth(writer, false);
-
         writer.text("index".getBytes());
         writer.bytes(TEST_SECP256K1_KEY_INDEX);
 
@@ -645,7 +662,7 @@ public class MonoidAppletTest extends AppletTest {
 
       CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertNoError(response);
 
@@ -665,13 +682,15 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(12)
   public void sign() throws Exception {
+    CardManager manager = connect();
+
+    authenticate(manager, false);
+
     {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 7);
+      writer.map((short) 6);
       {
-        writeAuth(writer, false);
-
         writer.text("index".getBytes());
         writer.bytes(TEST_SEED_INDEX);
 
@@ -693,7 +712,7 @@ public class MonoidAppletTest extends AppletTest {
 
       CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertSignature(response, TEST_DIGEST, TEST_SEED_DERIVED_PUBLIC_KEY);
     }
@@ -701,10 +720,8 @@ public class MonoidAppletTest extends AppletTest {
     {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 6);
+      writer.map((short) 5);
       {
-        writeAuth(writer, false);
-
         writer.text("index".getBytes());
         writer.bytes(TEST_MASTER_INDEX);
 
@@ -723,7 +740,7 @@ public class MonoidAppletTest extends AppletTest {
 
       CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertSignature(response, TEST_DIGEST, TEST_MASTER_DERIVED_PUBLIC_KEY);
     }
@@ -731,10 +748,8 @@ public class MonoidAppletTest extends AppletTest {
     {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 4);
+      writer.map((short) 3);
       {
-        writeAuth(writer, false);
-
         writer.text("index".getBytes());
         writer.bytes(TEST_SECP256K1_KEY_INDEX);
 
@@ -747,7 +762,7 @@ public class MonoidAppletTest extends AppletTest {
 
       CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getDataBuffer());
 
-      ResponseAPDU response = connect().transmit(request);
+      ResponseAPDU response = manager.transmit(request);
 
       assertSignature(response, TEST_DIGEST, TEST_SECP256K1_DERIVED_PUBLIC_KEY);
     }
@@ -775,8 +790,10 @@ public class MonoidAppletTest extends AppletTest {
     }
   }
 
-  private void writeAuth(CBORBufferWriter writer, boolean safeAuth) {
-    writer.text("auth".getBytes());
+  private void authenticate(CardManager manager, boolean safeAuth)
+    throws javax.smartcardio.CardException {
+    CBORBufferWriter writer = new CBORBufferWriter();
+
     writer.map((short) (safeAuth ? 2 : 1));
     {
       writer.text("pin".getBytes());
@@ -787,6 +804,12 @@ public class MonoidAppletTest extends AppletTest {
         writer.bool(true);
       }
     }
+
+    CommandAPDU request = apdu(0x00, 0x21, 0, 0, writer.getDataBuffer());
+
+    ResponseAPDU response = manager.transmit(request);
+
+    assertNoError(response);
   }
 
   private void assertNoError(ResponseAPDU response) {

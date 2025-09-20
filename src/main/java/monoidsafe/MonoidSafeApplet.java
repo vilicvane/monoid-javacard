@@ -26,6 +26,7 @@ public class MonoidSafeApplet extends Applet implements SafeShareable {
   public byte[] id = new byte[ID_LENGTH];
 
   private OwnerPIN pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_LENGTH);
+
   private boolean pinSet = false;
 
   private SafeItem[] items = new SafeItem[ITEM_LENGTH_EXTENSION];

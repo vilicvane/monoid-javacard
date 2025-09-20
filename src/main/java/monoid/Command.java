@@ -20,7 +20,10 @@ public abstract class Command {
   protected static CBORApduReader reader;
   protected static CBORApduWriter writer;
 
+  private static byte[] auth;
+
   public static Command hello;
+  public static Command authenticate;
   public static Command setPIN;
   public static Command systemInformation;
 
@@ -39,7 +42,10 @@ public abstract class Command {
     reader = new CBORApduReader();
     writer = new CBORApduWriter();
 
+    auth = JCSystem.makeTransientByteArray((short) 1, JCSystem.CLEAR_ON_DESELECT);
+
     hello = new CommandHello();
+    authenticate = new CommandAuthenticate();
     setPIN = new CommandSetPIN();
     systemInformation = new CommandSystemInformation();
 
@@ -59,7 +65,10 @@ public abstract class Command {
     reader = null;
     writer = null;
 
+    auth = null;
+
     hello = null;
+    authenticate = null;
     setPIN = null;
     systemInformation = null;
 
@@ -79,10 +88,12 @@ public abstract class Command {
     switch (ins) {
       case 0x20:
         return hello;
+      case 0x21:
+        return authenticate;
+      case 0x22:
+        return setPIN;
       case 0x2F:
         return systemInformation;
-      case 0x21:
-        return setPIN;
       case 0x30:
         return list;
       case 0x31:
@@ -142,7 +153,7 @@ public abstract class Command {
     try {
       run();
     } catch (ISOException e) {
-      return;
+      throw e;
     } catch (MonoidException e) {
       e.send();
     } catch (CryptoException e) {
@@ -182,15 +193,8 @@ public abstract class Command {
 
   protected abstract void run() throws MonoidException;
 
-  protected byte getAuth() throws MonoidException {
+  protected void authenticate() throws MonoidException {
     reader.snapshot();
-
-    reader.map();
-
-    if (!reader.key(Text.auth)) {
-      reader.restore();
-      return 0;
-    }
 
     reader.map();
 
@@ -207,35 +211,34 @@ public abstract class Command {
 
       if (!safe.isPINSet()) {
         MonoidException.throwIt(MonoidException.CODE_PIN_NOT_SET);
-        return 0;
+        return;
       }
 
       if (safe.checkPIN(pin)) {
-        return AUTH_SAFE | AUTH_ACCESS;
+        auth[0] = AUTH_SAFE | AUTH_ACCESS;
+        return;
       }
 
       tries = safe.getPINTriesRemaining();
     } else {
       if (!MonoidApplet.pinSet) {
         MonoidException.throwIt(MonoidException.CODE_PIN_NOT_SET);
-        return 0;
+        return;
       }
 
       if (MonoidApplet.pin.check(pin, (short) 0, (byte) pin.length)) {
-        return AUTH_ACCESS;
+        auth[0] = AUTH_ACCESS;
+        return;
       }
 
       tries = MonoidApplet.pin.getTriesRemaining();
     }
 
-    CBORApduWriter writer = writeError(MonoidException.CODE_INVALID_PIN, (short) 1);
+    PINException.throwIt(tries);
+  }
 
-    writer.text(Text.tries);
-    writer.integer(tries);
-
-    writer.send();
-
-    return 0;
+  protected byte getAuth() throws MonoidException {
+    return auth[0];
   }
 
   protected byte requireAuth(byte requiredAuth) throws MonoidException {

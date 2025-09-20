@@ -9,6 +9,8 @@ public class CommandGet extends Command {
   protected void run() {
     requireAuth(AUTH_SAFE);
 
+    MonoidApplet.checkSafeUnlocked();
+
     reader.map();
 
     byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);

@@ -47,7 +47,7 @@ public class Run {
 
     CommandAPDU[] commands = new CommandAPDU[] {
       new CommandAPDU(0x00, 0x20, 0x00, 0x00, Hex.decode("A0")),
-      // new CommandAPDU(0x00, 0x21, 0x00, 0x00, Hex.decode("A26370696E663838383838386473616665F5")),
+      // new CommandAPDU(0x00, 0x22, 0x00, 0x00, Hex.decode("A26370696E663838383838386473616665F5")),
       // new CommandAPDU(0x00, 0x01, 0x00, 0x00),
       // new CommandAPDU(0x00, 0x04, 0x00, 0x00,
       //     Hex.decode(

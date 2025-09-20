@@ -19,9 +19,9 @@ public final class CommandSetPIN extends Command {
 
     reader.map();
 
-    boolean safePIN = reader.key(Text.safe) && reader.boolTrue();
-
     byte[] pin = Utils.duplicateAsGlobal(reader.requireKey(Text.pin).text());
+
+    boolean safePIN = reader.key(Text.safe) && reader.boolTrue();
 
     if (safePIN) {
       if (safe.isPINSet()) {
