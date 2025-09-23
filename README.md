@@ -25,10 +25,10 @@ See [cards](doc/cards.md) for links to vendors.
 
 ## Build & Install
 
-For vscode-based editor, please install the recommended Java extensions pack curated by Microsoft and create symlink `.jdk` to your JDK 11 installation, e.g.:
+For vscode-based editor, please install the recommended Java extensions pack curated by Microsoft and create symlink `/jdks/jdk-11` to your JDK 11 installation, e.g.:
 
 ```sh
-ln -s /path/to/jdk-11 .jdk
+ln -s /path/to/jdk-11 /jdks/jdk-11
 ```
 
 For other editors or terminals, please ensure related configurations accordingly.
@@ -172,10 +172,8 @@ type Response = {
 
 ```ts
 type Request = {
-  auth: {
-    pin: string;
-    safe?: true;
-  };
+  pin: string;
+  safe?: true;
 };
 ```
 

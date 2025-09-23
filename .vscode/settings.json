@@ -1,19 +1,19 @@
 {
   "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx4G -Xms100m -Xlog:disable",
-  "java.import.gradle.java.home": ".jdk",
+  "java.import.gradle.java.home": "/jdks/jdk-11",
   "java.configuration.updateBuildConfiguration": "automatic",
   "java.debug.settings.onBuildFailureProceed": true,
   "[java]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "terminal.integrated.env.windows": {
-    "JAVA_HOME": ".jdk"
+    "JAVA_HOME": "/jdks/jdk-11"
   },
   "terminal.integrated.env.osx": {
-    "JAVA_HOME": ".jdk"
+    "JAVA_HOME": "/jdks/jdk-11"
   },
   "terminal.integrated.env.linux": {
-    "JAVA_HOME": ".jdk"
+    "JAVA_HOME": "/jdks/jdk-11"
   },
   "prettier.configPath": ".prettierrc",
   "cSpell.words": [
@@ -30,6 +30,7 @@
     "javacard",
     "jcardsim",
     "JCARDSIMLOCAL",
+    "jdks",
     "KEYGENERATION",
     "klinec",
     "licel",

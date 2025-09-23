@@ -35,6 +35,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   public static void install(byte[] bArray, short bOffset, byte bLength) {
     MonoidException.init();
+    PINException.init();
     SafeException.init();
     KeystoreException.init();
     CurveException.init();
@@ -52,6 +53,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   public void uninstall() {
     MonoidException.dispose();
+    PINException.dispose();
     SafeException.dispose();
     KeystoreException.dispose();
     SignerException.dispose();

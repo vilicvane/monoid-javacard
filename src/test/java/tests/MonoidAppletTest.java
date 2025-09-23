@@ -13,6 +13,7 @@ import monoid.CBORBufferReader;
 import monoid.CBORBufferWriter;
 import monoid.Command;
 import monoid.MonoidApplet;
+import monoid.MonoidException;
 import monoid.Safe;
 import monoid.SafeException;
 import monoidsafe.MonoidSafeApplet;
@@ -170,6 +171,25 @@ public class MonoidAppletTest extends AppletTest {
   @Test
   // @inplate-line {{java-test-order}}
   @Order(4)
+  public void listWithWrongPIN() throws Exception {
+    CBORBufferWriter writer = new CBORBufferWriter();
+
+    writer.map((short) 1);
+    {
+      writer.text("pin".getBytes());
+      writer.text(PIN);
+    }
+
+    CommandAPDU request = apdu(0x00, 0x21, 0, 0, writer.getDataBuffer());
+
+    ResponseAPDU response = connect().transmit(request);
+
+    assertError(response, MonoidException.CODE_INVALID_PIN);
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(5)
   public void setPIN() throws Exception {
     CardManager manager = connect();
 
@@ -192,7 +212,7 @@ public class MonoidAppletTest extends AppletTest {
 
   @Test
   // @inplate-line {{java-test-order}}
-  @Order(5)
+  @Order(6)
   public void secondHello() throws Exception {
     CBORBufferWriter cbor = new CBORBufferWriter();
 
@@ -218,7 +238,7 @@ public class MonoidAppletTest extends AppletTest {
 
   @Test
   // @inplate-line {{java-test-order}}
-  @Order(6)
+  @Order(7)
   public void unlockSafe() throws Exception {
     CardManager manager = connect();
 
@@ -244,7 +264,7 @@ public class MonoidAppletTest extends AppletTest {
 
   @Test
   // @inplate-line {{java-test-order}}
-  @Order(7)
+  @Order(8)
   public void createRandomKeys() throws Exception {
     CardManager manager = connect();
 
@@ -294,7 +314,7 @@ public class MonoidAppletTest extends AppletTest {
 
   @Test
   // @inplate-line {{java-test-order}}
-  @Order(8)
+  @Order(9)
   public void createSetViewGetRemove() throws Exception {
     byte[] index = "some index".getBytes(); // "coincidentally" 10 bytes
     byte[] alias = "some alias".getBytes();
@@ -461,7 +481,7 @@ public class MonoidAppletTest extends AppletTest {
 
   @Test
   // @inplate-line {{java-test-order}}
-  @Order(9)
+  @Order(10)
   public void addTestKeys() throws Exception {
     HashMap<byte[], byte[]> keys = new HashMap<>();
 
@@ -495,7 +515,7 @@ public class MonoidAppletTest extends AppletTest {
 
   @Test
   // @inplate-line {{java-test-order}}
-  @Order(10)
+  @Order(11)
   public void list() throws Exception {
     CardManager manager = connect();
 
@@ -567,7 +587,7 @@ public class MonoidAppletTest extends AppletTest {
 
   @Test
   // @inplate-line {{java-test-order}}
-  @Order(11)
+  @Order(12)
   public void viewKeys() throws Exception {
     CardManager manager = connect();
 
@@ -680,7 +700,7 @@ public class MonoidAppletTest extends AppletTest {
 
   @Test
   // @inplate-line {{java-test-order}}
-  @Order(12)
+  @Order(13)
   public void sign() throws Exception {
     CardManager manager = connect();
 
@@ -821,13 +841,17 @@ public class MonoidAppletTest extends AppletTest {
   private void assertNoError(byte[] buffer) {
     CBORBufferReader reader = new CBORBufferReader(buffer);
     reader.map();
-    byte[] error = reader.key("error".getBytes()) ? reader.text() : null;
-
-    if (error != null) {
-      System.out.println(String.format("Error: %s", new String(error)));
+    if (!reader.key("error".getBytes())) {
+      return;
     }
 
-    Assertions.assertNull(error);
+    reader.map();
+
+    byte[] code = reader.requireKey("code".getBytes()).text();
+
+    System.out.println(String.format("Error: %s", new String(code)));
+
+    Assertions.assertNull(code);
   }
 
   private void assertError(ResponseAPDU response, byte[] code) {
