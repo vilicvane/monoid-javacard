@@ -12,7 +12,7 @@ public final class LibHMACSha512 {
   private static final byte IPAD = (byte) 0x36;
   private static final byte OPAD = (byte) 0x5c;
 
-  private static final short BLOCK_BYTES = (short) 128;
+  public static final short BLOCK_BYTES = (short) 128;
   private static final short OUT_BYTES = (short) 64;
 
   private static Signature sharedSignature;
@@ -50,31 +50,58 @@ public final class LibHMACSha512 {
     byte[] out,
     short outOffset
   ) {
+    byte[] block = sharedSignature == null || sharedKey == null
+      ? JCSystem.makeTransientByteArray(BLOCK_BYTES, JCSystem.CLEAR_ON_DESELECT)
+      : null;
+
+    return digest(key, keyOffset, keyLength, data, dataOffset, dataLength, out, outOffset, block);
+  }
+
+  /** Reuses a separate BLOCK_BYTES workspace; key and data may overlap the output. */
+  public static short digest(
+    byte[] key,
+    short keyOffset,
+    short keyLength,
+    byte[] data,
+    short dataOffset,
+    short dataLength,
+    byte[] out,
+    short outOffset,
+    byte[] block
+  ) {
     if (sharedSignature != null && sharedKey != null) {
-      sharedKey.setKey(key, keyOffset, keyLength);
-      sharedSignature.init(sharedKey, Signature.MODE_SIGN);
+      try {
+        sharedKey.setKey(key, keyOffset, keyLength);
+        sharedSignature.init(sharedKey, Signature.MODE_SIGN);
 
-      return sharedSignature.sign(data, dataOffset, dataLength, out, outOffset);
+        return sharedSignature.sign(data, dataOffset, dataLength, out, outOffset);
+      } finally {
+        sharedKey.clearKey();
+      }
     } else {
-      byte[] block = JCSystem.makeTransientByteArray(BLOCK_BYTES, JCSystem.CLEAR_ON_DESELECT);
+      try {
+        sharedDigest.reset();
+        Util.arrayFillNonAtomic(block, (short) 0, BLOCK_BYTES, IPAD);
 
-      Util.arrayFillNonAtomic(block, (short) 0, BLOCK_BYTES, IPAD);
+        for (short keyIndex = 0; keyIndex < keyLength; keyIndex++) {
+          block[keyIndex] ^= key[(short) (keyOffset + keyIndex)];
+        }
 
-      for (short keyIndex = 0; keyIndex < keyLength; keyIndex++) {
-        block[keyIndex] ^= key[(short) (keyOffset + keyIndex)];
+        sharedDigest.update(block, (short) 0, BLOCK_BYTES);
+        sharedDigest.doFinal(data, dataOffset, dataLength, out, outOffset);
+
+        // The inner digest may have overwritten key. Convert the saved pad in place.
+        for (short index = 0; index < BLOCK_BYTES; index++) {
+          block[index] ^= (byte) (IPAD ^ OPAD);
+        }
+
+        sharedDigest.update(block, (short) 0, BLOCK_BYTES);
+
+        return sharedDigest.doFinal(out, outOffset, OUT_BYTES, out, outOffset);
+      } finally {
+        sharedDigest.reset();
+        Util.arrayFillNonAtomic(block, (short) 0, BLOCK_BYTES, (byte) 0);
       }
-
-      sharedDigest.update(block, (short) 0, BLOCK_BYTES);
-      sharedDigest.doFinal(data, dataOffset, dataLength, out, outOffset);
-
-      Util.arrayFillNonAtomic(block, (short) 0, BLOCK_BYTES, OPAD);
-
-      for (short keyIndex = 0; keyIndex < keyLength; keyIndex++) {
-        block[keyIndex] ^= key[(short) (keyOffset + keyIndex)];
-      }
-
-      sharedDigest.update(block, (short) 0, BLOCK_BYTES);
-      return sharedDigest.doFinal(out, outOffset, OUT_BYTES, out, outOffset);
     }
   }
 
