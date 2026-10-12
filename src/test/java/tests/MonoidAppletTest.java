@@ -1030,7 +1030,14 @@ public class MonoidAppletTest extends AppletTest {
 
     authenticate(manager, false);
 
-    int[] messageLengths = { 512, 1167 };
+    int[] messageLengths = { 512, 1167, 4032, 8096, 8114 };
+    byte[][] indices = {
+      TEST_SEED_INDEX,
+      TEST_SEED_INDEX,
+      TEST_SEED_INDEX,
+      TEST_SEED_INDEX,
+      TEST_MASTER_INDEX,
+    };
     // Node.js crypto HMAC-SHA512 derivation and Ed25519 signing of repeated bytes 0..255.
     byte[][] signatures = {
       Hex.decode(
@@ -1039,9 +1046,19 @@ public class MonoidAppletTest extends AppletTest {
       Hex.decode(
         "67be39bc0d4ab53389fd2d905f2169512622d5b8ebfa3e39b26c7c9bb21cf94285874c9f1f43cefecd7db94ae995f73b8a3207a0f17bd3414c6861f2a86fbe00"
       ),
+      Hex.decode(
+        "2ec71809c29e321a614eae5db09aba73d8695a2104e8b8ea75ecef82a25a0ed32fcca5eb8cd004251b13e0600eb90fb5cb2fcdc35df3799dd4329b35cae1340c"
+      ),
+      Hex.decode(
+        "69ab80854ccec3e35bc85fd04833bd4361e9c3bd85eefd4473a2ce63265bb7bb06a2b72f32d476fb88b8e3934b40a74c10ee9c5694e241b281595050f8267f06"
+      ),
+      Hex.decode(
+        "6cf08b971f6342ebbe331f2fecf832ba3987667039fe2336f37ad996e2d400f75dbc57eab0a38b49e072849f95039fa6cb854afbbc637ebe1fca329ae3502e02"
+      ),
     };
 
     for (int index = 0; index < messageLengths.length; index++) {
+      boolean seed = indices[index] == TEST_SEED_INDEX;
       byte[] message = new byte[messageLengths[index]];
 
       for (int offset = 0; offset < message.length; offset++) {
@@ -1050,7 +1067,7 @@ public class MonoidAppletTest extends AppletTest {
 
       for (boolean messageFirst : new boolean[] { false, true }) {
         CBORBufferWriter writer = new CBORBufferWriter();
-        writer.map((short) 6);
+        writer.map((short) (seed ? 6 : 5));
         {
           if (messageFirst) {
             writer.text("message".getBytes());
@@ -1058,11 +1075,15 @@ public class MonoidAppletTest extends AppletTest {
           }
 
           writer.text("index".getBytes());
-          writer.bytes(TEST_SEED_INDEX);
+          writer.bytes(indices[index]);
           writer.text("curve".getBytes());
           writer.text("ed25519".getBytes());
-          writer.text("seed".getBytes());
-          writer.text("ed25519 seed".getBytes());
+
+          if (seed) {
+            writer.text("seed".getBytes());
+            writer.text("ed25519 seed".getBytes());
+          }
+
           writer.text("path".getBytes());
           writer.bytes(Hex.decode("8000002c800001f58000000080000000"));
           writer.text("cipher".getBytes());
@@ -1074,7 +1095,13 @@ public class MonoidAppletTest extends AppletTest {
           }
         }
 
-        ResponseAPDU response = transmitFragments(manager, 0x41, writer.getDataBuffer(), 255);
+        byte[] request = writer.getDataBuffer();
+
+        if (message.length >= 8096) {
+          Assertions.assertEquals(8192, request.length);
+        }
+
+        ResponseAPDU response = transmitFragments(manager, 0x41, request, 255);
         assertNoError(response);
 
         CBORBufferReader reader = new CBORBufferReader(response.getBytes());

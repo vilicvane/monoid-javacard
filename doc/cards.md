@@ -4,6 +4,60 @@ Some information of the cards are not listed by venders, but all of those cards 
 
 Monoid selects available algorithm APIs at initialization; it does not match card models or run compatibility self-tests on the card. Compatibility results belong in this document and should identify the tested firmware, Monoid revision and operations. The hardware information below does not establish support for every Monoid feature or request size.
 
+## On-demand persistent request overflow — 2026-10-12
+
+The current receiver keeps the first 512B of an assembled request in RAM and
+allocates subsequent 256B chunks in persistent storage as data arrives. This
+budget applies to the complete CBOR request, not only the Message. A complete
+single short APDU still borrows the APDU buffer. There is no full-size payload
+reservation or migration of the RAM prefix. Persistent chunk references survive
+reset so selection can erase abandoned data. Completion, cancellation, errors
+and deselection erase all owned chunks and release their references.
+
+All 69 simulator tests and production/isolated CAP conversion and verification
+passed. The same ACS ACR1552 T=1 card passed nine physical test groups and 14
+signatures using isolated Monoid CAP SHA-256
+`6a8ae584ea69c10702c7a293e5d939450541e9136ba57e006923105e7d2171fc`.
+All 55 production source hashes matched the frozen build. Independent Node/OpenSSL
+signatures matched exactly and verified for the following requests:
+
+| Key source | Message | Complete CBOR request | Complete Sign time |
+| --- | ---: | ---: | ---: |
+| Seed | 4032 B | 4128 B | 3.755–3.761 s |
+| Stored master | 4032 B | 4110 B | 3.604–3.606 s |
+| Seed | 8096 B | 8192 B | 4.689–4.696 s |
+| Stored master | 8114 B | 8192 B | 4.525–4.528 s |
+
+Each row was tested with Message first and last in CBOR, using 255B APDU frames
+and hardened path `m/44'/501'/0'/0'`. Times include transfer, derivation and
+signing, excluding setup, authentication and memory queries. The 8192B request
+uses 512B transient and 7680B persistent payload storage, excluding metadata,
+array overhead and cryptographic workspace. Message capacity depends on key and
+path metadata. This establishes signing capacity, not an 8KB payload guarantee
+for other commands that still copy decoded values into RAM.
+
+The card also passed a 600B Create/Get round trip, 4032B signing after that
+response, replacement of an abandoned persistent request, invalid continuation,
+physical reset/re-authentication and recovery after rejecting an 8193B request
+with `6700`. Reset recovery rejected an orphan last frame before authentication.
+Simulator tests additionally inspect full and partial persistent chunks to
+confirm erasure after reset and selection; hardware APDU tests cannot inspect
+the erased bytes directly.
+
+SystemInformation reported 2416B transient RAM before signing and 2320B after
+warming the shared context. Repeated maximum requests and all recovery paths
+returned to 2320B. The first query after the 600B read returned 2304B, and the
+next returned 2320B. These readings include the query's response allocation and
+are not signing peaks. Persistent-memory readings saturated at 32767B, so they
+do not establish absence of persistent-memory growth. GC remains asynchronous.
+
+Both temporary packages were removed; registry snapshots were byte-identical,
+temporary instances returned `6A82`, and original applets returned `9000`. The
+reader was released. Evidence is in ignored
+`.research/ed25519/persistent-request-card/card-1791787267622.json` and sibling
+build/cleanup files. External APIs and APDU framing are unchanged. The following
+sections describe earlier implementations.
+
 ## Response buffer release verification — 2026-10-12
 
 The subsequent writer fix allocates response storage on demand, retains it only

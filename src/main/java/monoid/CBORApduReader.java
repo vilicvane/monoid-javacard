@@ -11,6 +11,7 @@ public class CBORApduReader extends CBORReader {
   public static final short MAX_LENGTH = 8192;
 
   private static final short CHUNK_LENGTH = 256;
+  private static final short TRANSIENT_LENGTH = 512;
 
   public static final byte CLA_SINGLE = 0x00;
   public static final byte CLA_FIRST = (byte) 0x90;
@@ -28,10 +29,9 @@ public class CBORApduReader extends CBORReader {
     (short) 2,
     JCSystem.CLEAR_ON_DESELECT
   );
-  private final Object[] chunks = JCSystem.makeTransientObjectArray(
-    (short) (MAX_LENGTH / CHUNK_LENGTH),
-    JCSystem.CLEAR_ON_DESELECT
-  );
+
+  // Keep persistent chunks reachable for erasure after reset clears the state.
+  private final Object[] chunks = new Object[MAX_LENGTH / CHUNK_LENGTH];
 
   public CBORApduReader() {
     reset();
@@ -177,7 +177,9 @@ public class CBORApduReader extends CBORReader {
       byte[] chunk = (byte[]) chunks[chunkIndex];
 
       if (chunk == null) {
-        chunk = JCSystem.makeTransientByteArray(CHUNK_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+        chunk = chunkIndex < TRANSIENT_LENGTH / CHUNK_LENGTH
+          ? JCSystem.makeTransientByteArray(CHUNK_LENGTH, JCSystem.CLEAR_ON_DESELECT)
+          : new byte[CHUNK_LENGTH];
         chunks[chunkIndex] = chunk;
       }
 
