@@ -14,6 +14,7 @@ public class Run {
   public static void main(String[] args) {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
     System.setProperty("com.licel.jcardsim.sign.dsasigner.computedhash", "1");
+    System.setProperty("com.licel.jcardsim.bouncycastle.rsa.allow_unsafe_mod", "true");
 
     // 1. create simulator
     CardSimulator simulator = new CardSimulator();

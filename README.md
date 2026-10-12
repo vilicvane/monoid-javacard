@@ -411,11 +411,20 @@ type Response = {
 > Requires authentication.
 
 ```ts
-type Request = Key & {
-  cipher: string;
-  digest: byte[];
-};
+type Request = Key &
+  (
+    | {
+        cipher: 'ecdsa';
+        digest: byte[];
+      }
+    | {
+        cipher: 'eddsa';
+        message: byte[];
+      }
+  );
 ```
+
+EdDSA takes the original message bytes. Request parsing is implemented; the signing branch currently returns `UNSUPPORTED_CIPHER` until Ed25519 is connected.
 
 ```ts
 type Response = {

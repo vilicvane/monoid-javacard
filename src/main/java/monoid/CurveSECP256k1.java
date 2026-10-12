@@ -7,7 +7,7 @@ import javacard.security.KeyAgreement;
 import javacard.security.KeyBuilder;
 import javacard.security.KeyPair;
 
-public class CurveSECP256k1 extends Curve {
+public class CurveSECP256k1 extends WeierstrassCurve {
 
   // @formatter:off
   public static final byte FP[] = {

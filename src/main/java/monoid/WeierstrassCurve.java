@@ -3,13 +3,13 @@ package monoid;
 import javacard.framework.JCSystem;
 import javacard.security.ECPrivateKey;
 
-public abstract class Curve {
+public abstract class WeierstrassCurve {
 
   // @formatter:off
   public static final byte[] SECP256k1 = {'s','e','c','p','2','5','6','k','1'};
   // @formatter:on
 
-  public static Curve secp256k1;
+  public static WeierstrassCurve secp256k1;
 
   public static void init() {
     secp256k1 = new CurveSECP256k1();
@@ -24,7 +24,7 @@ public abstract class Curve {
     writer.text(SECP256k1);
   }
 
-  public static Curve getSharedCurve(byte[] curveName) {
+  public static WeierstrassCurve getSharedCurve(byte[] curveName) {
     if (Utils.isEqual(SECP256k1, curveName)) {
       return secp256k1;
     }
@@ -32,8 +32,8 @@ public abstract class Curve {
     return null;
   }
 
-  public static Curve requireSharedCurve(byte[] curveName) throws CurveException {
-    Curve curve = getSharedCurve(curveName);
+  public static WeierstrassCurve requireSharedCurve(byte[] curveName) throws CurveException {
+    WeierstrassCurve curve = getSharedCurve(curveName);
 
     if (curve == null) {
       CurveException.throwIt(CurveException.REASON_UNSUPPORTED_CURVE);

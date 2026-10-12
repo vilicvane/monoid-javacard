@@ -6,15 +6,11 @@ import javacard.framework.JCSystem;
 import javacard.framework.Util;
 
 /** SLIP-0010 hardened Ed25519 derivation. Initialize LibHMACSha512 before use. */
-public final class SLIP10Ed25519Deriver {
+public final class LibSLIP10Ed25519 {
 
   public static final short EXTENDED_KEY_LENGTH = 64;
   private static final short KEY_LENGTH = 32;
   private static final short PATH_SEGMENT_LENGTH = 4;
-
-  // @formatter:off
-  private static final byte[] MASTER_KEY = {'e','d','2','5','5','1','9',' ','s','e','e','d'};
-  // @formatter:on
 
   private final byte[] extendedKey = JCSystem.makeTransientByteArray(
     EXTENDED_KEY_LENGTH,
@@ -30,15 +26,16 @@ public final class SLIP10Ed25519Deriver {
   );
 
   /**
-   * Writes a 32-byte Ed25519 seed followed by its 32-byte chain code.
+   * Derives from a 64-byte master containing an Ed25519 seed and its chain code.
+   * Writes the derived 32-byte Ed25519 seed followed by its 32-byte chain code.
    * Path components are big-endian hardened indices; an empty path selects the master.
-   * Workspace size is independent of depth. Output may overlap seed or path.
+   * Workspace size is independent of depth. Output may overlap master or path.
    * Scratch secrets are erased on return; the caller owns and must erase the output.
    */
   public short derive(
-    byte[] seed,
-    short seedOffset,
-    short seedLength,
+    byte[] master,
+    short masterOffset,
+    short masterLength,
     byte[] path,
     short pathOffset,
     short pathLength,
@@ -46,11 +43,11 @@ public final class SLIP10Ed25519Deriver {
     short outOffset
   ) {
     try {
-      if (seedLength < 16 || seedLength > 64 || pathLength % PATH_SEGMENT_LENGTH != 0) {
+      if (masterLength != EXTENDED_KEY_LENGTH || pathLength % PATH_SEGMENT_LENGTH != 0) {
         ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
       }
 
-      requireRange(seed, seedOffset, seedLength);
+      requireRange(master, masterOffset, masterLength);
       requireRange(path, pathOffset, pathLength);
       requireRange(out, outOffset, EXTENDED_KEY_LENGTH);
 
@@ -60,39 +57,10 @@ public final class SLIP10Ed25519Deriver {
         }
       }
 
-      LibHMACSha512.digest(
-        MASTER_KEY,
-        (short) 0,
-        (short) MASTER_KEY.length,
-        seed,
-        seedOffset,
-        seedLength,
-        extendedKey,
-        (short) 0,
-        block
-      );
+      Util.arrayCopyNonAtomic(master, masterOffset, extendedKey, (short) 0, EXTENDED_KEY_LENGTH);
 
       for (short offset = 0; offset < pathLength; offset += PATH_SEGMENT_LENGTH) {
-        data[0] = 0;
-        Util.arrayCopyNonAtomic(extendedKey, (short) 0, data, (short) 1, KEY_LENGTH);
-        Util.arrayCopyNonAtomic(
-          path,
-          (short) (pathOffset + offset),
-          data,
-          (short) (1 + KEY_LENGTH),
-          PATH_SEGMENT_LENGTH
-        );
-        LibHMACSha512.digest(
-          extendedKey,
-          KEY_LENGTH,
-          KEY_LENGTH,
-          data,
-          (short) 0,
-          (short) data.length,
-          extendedKey,
-          (short) 0,
-          block
-        );
+        deriveChildKeyInPlace(path, (short) (pathOffset + offset));
       }
 
       Util.arrayCopyNonAtomic(extendedKey, (short) 0, out, outOffset, EXTENDED_KEY_LENGTH);
@@ -107,6 +75,30 @@ public final class SLIP10Ed25519Deriver {
     Util.arrayFillNonAtomic(extendedKey, (short) 0, EXTENDED_KEY_LENGTH, (byte) 0);
     Util.arrayFillNonAtomic(data, (short) 0, (short) data.length, (byte) 0);
     Util.arrayFillNonAtomic(block, (short) 0, (short) block.length, (byte) 0);
+  }
+
+  private void deriveChildKeyInPlace(byte[] path, short pathSegmentOffset) {
+    data[0] = 0;
+    Util.arrayCopyNonAtomic(extendedKey, (short) 0, data, (short) 1, KEY_LENGTH);
+    Util.arrayCopyNonAtomic(
+      path,
+      pathSegmentOffset,
+      data,
+      (short) (1 + KEY_LENGTH),
+      PATH_SEGMENT_LENGTH
+    );
+
+    LibHMACSha512.digest(
+      extendedKey,
+      KEY_LENGTH,
+      KEY_LENGTH,
+      data,
+      (short) 0,
+      (short) data.length,
+      extendedKey,
+      (short) 0,
+      block
+    );
   }
 
   private static void requireRange(byte[] buffer, short offset, short length) {

@@ -1,0 +1,53 @@
+// jCardSim 3.0.6 adaptations for the host JVM only. CAP uses src/main unchanged.
+def simulatorMathNames = ['CurveED25519', 'LibMath']
+
+task prepareSimulatorMath {
+	def originals = simulatorMathNames.collect { file("src/main/java/monoid/${it}.java") }
+	def adapted = simulatorMathNames.collect { file("${buildDir}/generated/simulator/monoid/${it}.java") }
+	inputs.files originals
+	outputs.files adapted
+
+	doLast {
+		def replace = { String source, pattern, int count, replacement ->
+			if ((source =~ pattern).count != count) {
+				throw new GradleException("Unexpected simulator adaptation match count: ${pattern}")
+			}
+			source.replaceAll(pattern, replacement)
+		}
+
+		def curve = originals[0].text
+		// The simulator lacks transient EC allocation and a 255-bit key capacity.
+		curve = replace(curve, /KeyBuilder\.ALG_TYPE_EC_FP_PRIVATE,\s*JCSystem\.MEMORY_TYPE_TRANSIENT_DESELECT,/, 1,
+			'KeyBuilder.TYPE_EC_FP_PRIVATE,')
+		curve = replace(curve, /KEY_BITS = 255;/, 1, 'KEY_BITS = 256;')
+
+		def math = originals[1].text
+		// Reused RSA keys retain stale trailing bytes when a shorter exponent is set.
+		math = replace(math, /byte\[\] buffer = sharedExponentiationBuffer;/, 1,
+			'''sharedExponentiationKey = (RSAPrivateKey) KeyBuilder.buildKey(
+        KeyBuilder.TYPE_RSA_PRIVATE, EXPONENT_BITS, false);
+      byte[] buffer = sharedExponentiationBuffer;''')
+		// The simulator consumes the numerical modulus length, ignoring leading zeroes.
+		math = replace(math, /short modulusLength = EXPONENT_LENGTH;/, 1,
+			'short modulusLength = length;')
+		// Its RSA output also omits leading zeroes; restore the expected buffer width.
+		math = replace(math, /if \(resultLength != modulusLength\) \{\s*CryptoException.throwIt\(CryptoException.ILLEGAL_USE\);\s*\}/, 1,
+			'''if (resultLength != modulusLength) {
+      Util.arrayCopyNonAtomic(buffer, (short) 0, buffer, (short) (modulusLength - resultLength), resultLength);
+      Util.arrayFillNonAtomic(buffer, (short) 0, (short) (modulusLength - resultLength), (byte) 0);
+    }''')
+
+		[curve, math].eachWithIndex { source, index ->
+			adapted[index].parentFile.mkdirs()
+			adapted[index].text = source
+		}
+	}
+}
+
+task compileSimulatorMath(type: JavaCompile, dependsOn: [compileJava, prepareSimulatorMath]) {
+	source(simulatorMathNames.collect {
+		file("${buildDir}/generated/simulator/monoid/${it}.java")
+	})
+	classpath = sourceSets.main.output + sourceSets.main.compileClasspath
+	destinationDir = file("${buildDir}/classes/java/simulator")
+}

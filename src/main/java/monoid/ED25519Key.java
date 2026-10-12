@@ -1,18 +1,20 @@
 package monoid;
 
 import javacard.framework.JCSystem;
+import javacard.framework.Util;
 
 /** Expanded seed, valid only until deselection or explicit destruction. No secret export API. */
 public final class ED25519Key {
 
-  final BigNat scalar;
-  final byte[] prefix = ED25519Signer.transientBytes((short) 32);
-  final byte[] publicKey = ED25519Signer.transientBytes((short) 32);
-  private final byte[] valid = ED25519Signer.transientBytes((short) 1);
+  final byte[] scalar = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
+  final byte[] prefix = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
+  final byte[] publicKey = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
+  private final byte[] valid = JCSystem.makeTransientByteArray(
+    (short) 1,
+    JCSystem.CLEAR_ON_DESELECT
+  );
 
-  ED25519Key(MathResources resources) {
-    scalar = new BigNat((short) 32, JCSystem.MEMORY_TYPE_TRANSIENT_DESELECT, resources);
-  }
+  ED25519Key() {}
 
   void activate() {
     valid[0] = 1;
@@ -24,8 +26,8 @@ public final class ED25519Key {
 
   public void clear() {
     valid[0] = 0;
-    scalar.erase();
-    ED25519Signer.erase(prefix);
-    ED25519Signer.erase(publicKey);
+    Util.arrayFillNonAtomic(scalar, (short) 0, (short) scalar.length, (byte) 0);
+    Util.arrayFillNonAtomic(prefix, (short) 0, (short) prefix.length, (byte) 0);
+    Util.arrayFillNonAtomic(publicKey, (short) 0, (short) publicKey.length, (byte) 0);
   }
 }

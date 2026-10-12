@@ -8,13 +8,13 @@ import java.util.Arrays;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import monoid.LibHMACSha512;
-import monoid.SLIP10Ed25519Deriver;
+import monoid.LibSLIP10Ed25519;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class SLIP10Ed25519DeriverTest {
+public class LibSLIP10Ed25519Test {
 
   @BeforeEach
   public void initialize() {
@@ -28,7 +28,7 @@ public class SLIP10Ed25519DeriverTest {
 
   @Test
   public void officialVectors() throws Exception {
-    SLIP10Ed25519Deriver deriver = new SLIP10Ed25519Deriver();
+    LibSLIP10Ed25519 deriver = new LibSLIP10Ed25519();
     byte[] output = new byte[64];
     short count = 0;
 
@@ -46,12 +46,12 @@ public class SLIP10Ed25519DeriverTest {
         }
 
         String[] fields = line.split("\t", -1);
-        byte[] seed = Hex.decode(fields[0]);
+        byte[] master = deriveMaster(Hex.decode(fields[0]));
         byte[] path = Hex.decode(fields[1]);
         short length = deriver.derive(
-          seed,
+          master,
           (short) 0,
-          (short) seed.length,
+          (short) master.length,
           path,
           (short) 0,
           (short) path.length,
@@ -70,28 +70,37 @@ public class SLIP10Ed25519DeriverTest {
 
   @Test
   public void offsetsAndOverlappingOutput() {
-    SLIP10Ed25519Deriver deriver = new SLIP10Ed25519Deriver();
+    LibSLIP10Ed25519 deriver = new LibSLIP10Ed25519();
     byte[] buffer = new byte[90];
-    byte[] seed = Hex.decode("000102030405060708090a0b0c0d0e0f");
+    byte[] master = deriveMaster(Hex.decode("000102030405060708090a0b0c0d0e0f"));
     byte[] path = Hex.decode("8000000080000001");
-    System.arraycopy(seed, 0, buffer, 3, seed.length);
-    System.arraycopy(path, 0, buffer, 20, path.length);
+    System.arraycopy(master, 0, buffer, 3, master.length);
+    System.arraycopy(path, 0, buffer, 70, path.length);
 
-    deriver.derive(buffer, (short) 3, (short) 16, buffer, (short) 20, (short) 8, buffer, (short) 2);
+    deriver.derive(
+      buffer,
+      (short) 3,
+      (short) 64,
+      buffer,
+      (short) 70,
+      (short) 8,
+      buffer,
+      (short) 16
+    );
 
     Assertions.assertArrayEquals(
       Hex.decode(
         "b1d0bad404bf35da785a64ca1ac54b2617211d2777696fbffaf208f746ae84f2" +
         "a320425f77d1b5c2505a6b1b27382b37368ee640e3557c315416801243552f14"
       ),
-      Arrays.copyOfRange(buffer, 2, 66)
+      Arrays.copyOfRange(buffer, 16, 80)
     );
   }
 
   @Test
   public void rejectsInvalidInputsWithoutPublishingPartialKey() {
-    SLIP10Ed25519Deriver deriver = new SLIP10Ed25519Deriver();
-    byte[] seed = Hex.decode("000102030405060708090a0b0c0d0e0f");
+    LibSLIP10Ed25519 deriver = new LibSLIP10Ed25519();
+    byte[] master = deriveMaster(Hex.decode("000102030405060708090a0b0c0d0e0f"));
     byte[] output = new byte[64];
     Arrays.fill(output, (byte) 0x55);
     byte[] original = output.clone();
@@ -103,9 +112,9 @@ public class SLIP10Ed25519DeriverTest {
     }) {
       ISOException exception = Assertions.assertThrows(ISOException.class, () ->
         deriver.derive(
-          seed,
+          master,
           (short) 0,
-          (short) 16,
+          (short) master.length,
           path,
           (short) 0,
           (short) path.length,
@@ -121,7 +130,7 @@ public class SLIP10Ed25519DeriverTest {
       Assertions.assertArrayEquals(original, output);
     }
 
-    for (short length : new short[] { -1, 0, 15, 65 }) {
+    for (short length : new short[] { -1, 0, 32, 63, 65 }) {
       Assertions.assertThrows(ISOException.class, () ->
         deriver.derive(
           new byte[65],
@@ -138,9 +147,9 @@ public class SLIP10Ed25519DeriverTest {
     }
 
     deriver.derive(
-      seed,
+      master,
       (short) 0,
-      (short) 16,
+      (short) master.length,
       new byte[0],
       (short) 0,
       (short) 0,
@@ -154,5 +163,9 @@ public class SLIP10Ed25519DeriverTest {
       ),
       output
     );
+  }
+
+  private static byte[] deriveMaster(byte[] seed) {
+    return LibHMACSha512.digest("ed25519 seed".getBytes(StandardCharsets.US_ASCII), seed);
   }
 }

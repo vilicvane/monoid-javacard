@@ -8,6 +8,7 @@ public final class Signer {
 
   // @formatter:off
   public static final byte[] CIPHER_ECDSA = {'e','c','d','s','a'};
+  public static final byte[] CIPHER_EDDSA = {'e','d','d','s','a'};
 
   // @formatter:on
 
@@ -16,7 +17,7 @@ public final class Signer {
     writer.text(CIPHER_ECDSA);
   }
 
-  public static byte[] sign(byte[] cipherType, Key privateKey, byte[] digest)
+  public static byte[] signECDSADigest(byte[] cipherType, Key privateKey, byte[] digest)
     throws SignerException {
     byte cipher;
     short bufferLength;
@@ -39,5 +40,23 @@ public final class Signer {
     LibECDSA.ensureLowS(signature, (short) 0);
 
     return Utils.duplicateAsTransientDeselect(signature, (short) 0, length);
+  }
+
+  public static byte[] signEDDSAMessage(CurveED25519 curve, ED25519Key privateKey, byte[] message) {
+    byte[] signature = JCSystem.makeTransientByteArray(
+      LibED25519.SIGNATURE_LENGTH,
+      JCSystem.CLEAR_ON_DESELECT
+    );
+
+    new LibED25519(curve).sign(
+      privateKey,
+      message,
+      (short) 0,
+      (short) message.length,
+      signature,
+      (short) 0
+    );
+
+    return signature;
   }
 }

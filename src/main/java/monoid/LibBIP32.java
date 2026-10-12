@@ -9,7 +9,7 @@ public final class LibBIP32 {
   public static final byte COMPONENT_LENGTH = 32;
   public static final byte PATH_SEGMENT_LENGTH = 4;
 
-  public static byte[] derive(Curve curve, byte[] privateKeyAndChainCode, byte[] path) {
+  public static byte[] derive(WeierstrassCurve curve, byte[] privateKeyAndChainCode, byte[] path) {
     privateKeyAndChainCode = Utils.duplicateAsTransientDeselect(privateKeyAndChainCode);
 
     short pathOffset = 0;
@@ -22,7 +22,7 @@ public final class LibBIP32 {
   }
 
   private static short deriveChildKeyInPlace(
-    Curve curve,
+    WeierstrassCurve curve,
     byte[] privateKeyAndChainCode,
     byte[] path,
     short pathSegmentOffset

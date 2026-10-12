@@ -6,8 +6,6 @@ package monoid;
 public final class CurveWEI25519 {
 
   // @formatter:off
-  public static final short K = 8;
-
   public static final byte[] FP = {
     (byte) 0x7F, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
     (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,

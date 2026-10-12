@@ -62,7 +62,7 @@ public class CommandSystemInformation extends Command {
     writer.map((short) 2);
     {
       writer.text(Text.curves);
-      Curve.writeSupportedCurves(writer);
+      WeierstrassCurve.writeSupportedCurves(writer);
 
       writer.text(Text.ciphers);
       Signer.writeSupportedCiphers(writer);

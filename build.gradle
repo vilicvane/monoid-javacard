@@ -91,6 +91,18 @@ test {
 	}
 }
 
+apply from: 'gradle/simulator.gradle'
+
+test {
+	dependsOn compileSimulatorMath
+	classpath = files(compileSimulatorMath.destinationDir) + classpath
+}
+
+run {
+	dependsOn compileSimulatorMath
+	classpath = files(compileSimulatorMath.destinationDir) + classpath
+}
+
 // JavaCard SDKs and libraries
 final def JC212 = libsSdk + '/jc212_kit'
 final def JC221 = libsSdk + '/jc221_kit'

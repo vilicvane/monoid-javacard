@@ -41,7 +41,9 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     CurveException.init();
     SignerException.init();
 
+    LibMath.init();
     CurveSECP256k1.init();
+    EdwardsCurve.init();
     LibHMACSha512.init();
 
     Command.init();
@@ -56,10 +58,12 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     PINException.dispose();
     SafeException.dispose();
     KeystoreException.dispose();
-    SignerException.dispose();
     CurveException.dispose();
+    SignerException.dispose();
 
+    LibMath.dispose();
     CurveSECP256k1.dispose();
+    EdwardsCurve.dispose();
     LibHMACSha512.dispose();
 
     Command.dispose();

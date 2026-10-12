@@ -27,6 +27,7 @@ public class Text {
   public static final byte[] length = {'l','e','n','g','t','h'};
   public static final byte[] master = {'m','a','s','t','e','r'};
   public static final byte[] memories = {'m','e','m','o','r','i','e','s'};
+  public static final byte[] message = {'m','e','s','s','a','g','e'};
   public static final byte[] monoid = {'m','o','n','o','i','d'};
   public static final byte[] path = {'p','a','t','h'};
   public static final byte[] persistent = {'p','e','r','s','i','s','t','e','n','t'};

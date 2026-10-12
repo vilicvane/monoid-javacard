@@ -30,7 +30,9 @@ public final class CommandViewKey extends Command {
         return;
     }
 
-    Curve curve = Curve.requireSharedCurve(reader.requireKey(Text.curve).text());
+    WeierstrassCurve curve = WeierstrassCurve.requireSharedCurve(
+      reader.requireKey(Text.curve).text()
+    );
 
     byte[] path = reader.requireKey(Text.path).bytes();
 

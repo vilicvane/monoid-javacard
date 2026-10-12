@@ -24,7 +24,7 @@ public final class Keystore {
   public byte[] getSeedDerivedPublicKeyAndChainCode(
     byte[] index,
     byte[] seed,
-    Curve curve,
+    WeierstrassCurve curve,
     byte[] path
   ) {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
@@ -41,7 +41,11 @@ public final class Keystore {
     return derivePublicKeyAndChainCodeFromMaster(curve, master, path);
   }
 
-  public byte[] getMasterDerivedPublicKeyAndChainCode(byte[] index, Curve curve, byte[] path) {
+  public byte[] getMasterDerivedPublicKeyAndChainCode(
+    byte[] index,
+    WeierstrassCurve curve,
+    byte[] path
+  ) {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     if (!Safe.isTypeMaster(type)) {
@@ -57,11 +61,11 @@ public final class Keystore {
   public byte[] getECKeyPublicKey(byte[] index) {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
-    Curve curve;
+    WeierstrassCurve curve;
 
     switch (type) {
       case Safe.TYPE_EC_SECP256K1:
-        curve = Curve.secp256k1;
+        curve = WeierstrassCurve.secp256k1;
         break;
       default:
         KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
@@ -75,12 +79,11 @@ public final class Keystore {
     return curve.derivePublicKey(privateKey);
   }
 
-  public byte[] sign(
+  public byte[] signECDSADigest(
     byte[] index,
     byte[] seed,
     byte[] curveName,
     byte[] path,
-    byte[] cipher,
     byte[] digest
   ) throws KeystoreException, CurveException, SignerException {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
@@ -94,7 +97,7 @@ public final class Keystore {
       key = master;
     }
 
-    Curve curve = null;
+    WeierstrassCurve curve = null;
 
     if (Safe.isTypeMaster(type)) {
       if (key.length != MASTER_LENGTH) {
@@ -102,14 +105,14 @@ public final class Keystore {
         return null;
       }
 
-      curve = Curve.requireSharedCurve(curveName);
+      curve = WeierstrassCurve.requireSharedCurve(curveName);
       key = LibBIP32.derive(curve, key, path);
       type = Safe.TYPE_EC;
     }
 
     switch (type) {
       case Safe.TYPE_EC_SECP256K1:
-        curve = Curve.secp256k1;
+        curve = WeierstrassCurve.secp256k1;
         break;
     }
 
@@ -129,7 +132,37 @@ public final class Keystore {
         return null;
     }
 
-    return Signer.sign(cipher, privateKey, digest);
+    return Signer.signECDSADigest(Signer.CIPHER_ECDSA, privateKey, digest);
+  }
+
+  public byte[] signEDDSAMessage(
+    byte[] index,
+    byte[] seed,
+    byte[] curveName,
+    byte[] path,
+    byte[] message
+  ) throws KeystoreException, CurveException, SignerException {
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+
+    byte[] key = requireKey(index);
+
+    if (Safe.isTypeSeed(type)) {
+      byte[] master = deriveMasterFromSeed(key, seed);
+
+      type = Safe.TYPE_MASTER;
+      key = master;
+    }
+
+    if (!Safe.isTypeMaster(type) || key.length != MASTER_LENGTH) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
+
+    EdwardsCurve.requireSharedCurve(curveName);
+
+    // TODO: Connect SLIP-0010 derivation and Ed25519 signing.
+    SignerException.throwIt(SignerException.REASON_UNSUPPORTED_CIPHER);
+    return null;
   }
 
   private byte[] deriveMasterFromSeed(byte[] key, byte[] seed) {
@@ -142,7 +175,11 @@ public final class Keystore {
     }
   }
 
-  private byte[] derivePublicKeyAndChainCodeFromMaster(Curve curve, byte[] master, byte[] path) {
+  private byte[] derivePublicKeyAndChainCodeFromMaster(
+    WeierstrassCurve curve,
+    byte[] master,
+    byte[] path
+  ) {
     master = LibBIP32.derive(curve, master, path);
 
     ECPrivateKey privateKey = curve.getSharedPrivateKey(master, (short) 0);

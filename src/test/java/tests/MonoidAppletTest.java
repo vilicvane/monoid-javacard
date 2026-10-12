@@ -90,6 +90,8 @@ public class MonoidAppletTest extends AppletTest {
         : CardType.JCARDSIMLOCAL
     );
     if (simulator != null) {
+      System.setProperty("com.licel.jcardsim.bouncycastle.rsa.allow_unsafe_mod", "true");
+
       simulator.installApplet(MONOID_SAFE_AID, MonoidSafeApplet.class);
       simulator.installApplet(MONOID_AID, MonoidApplet.class);
     }

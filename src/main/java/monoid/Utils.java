@@ -5,6 +5,17 @@ import javacard.framework.Util;
 
 public final class Utils {
 
+  public static void reverse(byte[] buffer, short offset, short length) {
+    for (short index = 0; index < (short) (length / 2); index++) {
+      short left = (short) (offset + index);
+      short right = (short) (offset + length - index - 1);
+      byte value = buffer[left];
+
+      buffer[left] = buffer[right];
+      buffer[right] = value;
+    }
+  }
+
   public static boolean isEqual(byte[] a, byte[] b, short bOffset, short bLength) {
     return (a.length == bLength && Util.arrayCompare(a, (short) 0, b, bOffset, bLength) == 0);
   }
