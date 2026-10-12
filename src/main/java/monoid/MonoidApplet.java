@@ -86,19 +86,20 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   public void process(APDU apdu) {
     if (selectingApplet()) {
+      Command.clearTransport();
       return;
     }
 
     ensureInitialization();
 
-    Command command = Command.get(apdu.getBuffer()[ISO7816.OFFSET_INS]);
+    Command.process(apdu);
+  }
 
-    if (command == null) {
-      ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
-      return;
-    }
+  @Override
+  public void deselect() {
+    super.deselect();
 
-    command.runCommand();
+    Command.clearTransport();
   }
 
   private static void ensureInitialization() {

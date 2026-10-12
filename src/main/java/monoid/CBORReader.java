@@ -5,7 +5,7 @@ import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
 
-public abstract class CBORReader {
+public abstract class CBORReader implements ByteSource {
 
   private short offset;
 
@@ -22,7 +22,50 @@ public abstract class CBORReader {
 
   private short snapshotIndex = 0;
 
-  protected abstract byte[] getBuffer();
+  protected abstract short getLength();
+
+  public short getOffset() {
+    return offset;
+  }
+
+  private void requireRange(short offset, short length) {
+    if (offset < 0 || length < 0 || offset > (short) (getLength() - length)) {
+      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+    }
+  }
+
+  private void requireLength(short length) {
+    requireRange(offset, length);
+  }
+
+  private byte read(short offset) {
+    requireRange(offset, (short) 1);
+    return getChunk(offset)[getChunkOffset(offset)];
+  }
+
+  private void read(short offset, byte[] out, short outOffset, short length) {
+    requireRange(offset, length);
+
+    while (length > 0) {
+      short chunkLength = getChunkLength(offset);
+
+      if (chunkLength > length) {
+        chunkLength = length;
+      }
+
+      Util.arrayCopyNonAtomic(
+        getChunk(offset),
+        getChunkOffset(offset),
+        out,
+        outOffset,
+        chunkLength
+      );
+
+      offset += chunkLength;
+      outOffset += chunkLength;
+      length -= chunkLength;
+    }
+  }
 
   protected void reset(short offset) {
     this.offset = offset;
@@ -69,15 +112,11 @@ public abstract class CBORReader {
   }
 
   public boolean is(byte type) {
-    byte[] buffer = getBuffer();
-
-    return (buffer[offset] & CBOR.TYPE_MASK) == type;
+    return (read(offset) & CBOR.TYPE_MASK) == type;
   }
 
   public short integer() {
-    byte[] buffer = getBuffer();
-
-    byte type = (byte) (buffer[offset] & CBOR.TYPE_MASK);
+    byte type = (byte) (read(offset) & CBOR.TYPE_MASK);
 
     switch (type) {
       case CBOR.TYPE_UNSIGNED_INT:
@@ -103,6 +142,11 @@ public abstract class CBORReader {
     return bytesLike(CBOR.TYPE_BYTES);
   }
 
+  /** Read the byte-string header, leaving getOffset() at its logical content offset. */
+  public short bytesLength() {
+    return bytesLikeLength(CBOR.TYPE_BYTES);
+  }
+
   public byte[] bytes(short expectedLength) {
     byte[] bytes = bytesLike(CBOR.TYPE_BYTES);
 
@@ -125,16 +169,22 @@ public abstract class CBORReader {
     return bytesLike(CBOR.TYPE_TEXT);
   }
 
-  private short bytesLike(byte type, byte[] out, short outOffset) {
-    byte[] buffer = getBuffer();
-
-    if ((buffer[offset] & CBOR.TYPE_MASK) != type) {
+  private short bytesLikeLength(byte type) {
+    if ((read(offset) & CBOR.TYPE_MASK) != type) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
     short length = metadataUnsignedInteger();
 
-    Util.arrayCopyNonAtomic(buffer, offset, out, outOffset, length);
+    requireLength(length);
+
+    return length;
+  }
+
+  private short bytesLike(byte type, byte[] out, short outOffset) {
+    short length = bytesLikeLength(type);
+
+    read(offset, out, outOffset, length);
 
     offset += length;
 
@@ -142,25 +192,17 @@ public abstract class CBORReader {
   }
 
   private byte[] bytesLike(byte type) {
-    byte[] buffer = getBuffer();
-
-    if ((buffer[offset] & CBOR.TYPE_MASK) != type) {
-      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
-    }
-
-    short length = metadataUnsignedInteger();
+    short length = bytesLikeLength(type);
 
     byte[] out = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
 
-    Util.arrayCopyNonAtomic(buffer, offset, out, (short) 0, length);
+    read(offset, out, (short) 0, length);
 
     return out;
   }
 
   public short array() {
-    byte[] buffer = getBuffer();
-
-    if ((buffer[offset] & CBOR.TYPE_MASK) != CBOR.TYPE_ARRAY) {
+    if ((read(offset) & CBOR.TYPE_MASK) != CBOR.TYPE_ARRAY) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
@@ -172,12 +214,10 @@ public abstract class CBORReader {
   }
 
   public boolean index(short index) {
-    byte[] buffer = getBuffer();
-
     offset = arrayOffset;
 
     for (short skipping = 0; skipping <= index; skipping++) {
-      if (buffer[offset] == CBOR.BREAK) {
+      if (read(offset) == CBOR.BREAK) {
         break;
       }
 
@@ -194,9 +234,7 @@ public abstract class CBORReader {
   }
 
   public short map() {
-    byte[] buffer = getBuffer();
-
-    if ((buffer[offset] & CBOR.TYPE_MASK) != CBOR.TYPE_MAP) {
+    if ((read(offset) & CBOR.TYPE_MASK) != CBOR.TYPE_MAP) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
@@ -208,24 +246,31 @@ public abstract class CBORReader {
   }
 
   public boolean key(byte[] in, short keyOffset, short keyLength) {
-    byte[] buffer = getBuffer();
-
     offset = mapOffset;
 
     for (short index = 0; mapLength < 0 || index < mapLength; index++) {
-      if (buffer[offset] == CBOR.BREAK) {
+      if (read(offset) == CBOR.BREAK) {
         break;
       }
 
-      if ((buffer[offset] & CBOR.TYPE_MASK) != CBOR.TYPE_TEXT) {
+      if ((read(offset) & CBOR.TYPE_MASK) != CBOR.TYPE_TEXT) {
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
       }
 
       short entryKeyLength = metadataUnsignedInteger();
 
-      boolean matched =
-        entryKeyLength == keyLength &&
-        Util.arrayCompare(buffer, offset, in, keyOffset, keyLength) == 0;
+      requireLength(entryKeyLength);
+
+      boolean matched = entryKeyLength == keyLength;
+
+      if (matched) {
+        for (short keyIndex = 0; keyIndex < keyLength; keyIndex++) {
+          if (read((short) (offset + keyIndex)) != in[(short) (keyOffset + keyIndex)]) {
+            matched = false;
+            break;
+          }
+        }
+      }
 
       offset += entryKeyLength;
 
@@ -262,9 +307,7 @@ public abstract class CBORReader {
   }
 
   public boolean bool() {
-    byte[] buffer = getBuffer();
-
-    switch (buffer[offset]) {
+    switch (read(offset)) {
       case CBOR.FALSE:
         offset++;
         return false;
@@ -278,9 +321,7 @@ public abstract class CBORReader {
   }
 
   public boolean boolFalse() {
-    byte[] buffer = getBuffer();
-
-    if (buffer[offset] != CBOR.FALSE) {
+    if (read(offset) != CBOR.FALSE) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
@@ -290,9 +331,7 @@ public abstract class CBORReader {
   }
 
   public boolean boolTrue() {
-    byte[] buffer = getBuffer();
-
-    if (buffer[offset] != CBOR.TRUE) {
+    if (read(offset) != CBOR.TRUE) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
@@ -302,9 +341,7 @@ public abstract class CBORReader {
   }
 
   public boolean br() {
-    byte[] buffer = getBuffer();
-
-    if (buffer[offset] == CBOR.BREAK) {
+    if (read(offset) == CBOR.BREAK) {
       offset++;
       return true;
     } else {
@@ -313,9 +350,7 @@ public abstract class CBORReader {
   }
 
   public void skip() {
-    byte[] buffer = getBuffer();
-
-    switch (buffer[offset]) {
+    switch (read(offset)) {
       case CBOR.FALSE:
       case CBOR.TRUE:
       case CBOR.BREAK: {
@@ -324,16 +359,18 @@ public abstract class CBORReader {
       }
     }
 
-    switch (buffer[offset] & CBOR.TYPE_MASK) {
+    switch (read(offset) & CBOR.TYPE_MASK) {
       case CBOR.TYPE_UNSIGNED_INT:
       case CBOR.TYPE_NEGATIVE_INT: {
         short length = metadataBytesLength();
+        requireLength(length);
         offset += length;
         break;
       }
       case CBOR.TYPE_BYTES:
       case CBOR.TYPE_TEXT: {
         short length = metadataUnsignedInteger();
+        requireLength(length);
         offset += length;
         break;
       }
@@ -378,9 +415,7 @@ public abstract class CBORReader {
   }
 
   private short metadataItemsLength() {
-    byte[] buffer = getBuffer();
-
-    if ((buffer[offset] & CBOR.METADATA_MASK) == CBOR.VARIABLE_LENGTH_INDEFINITE_MARK) {
+    if ((read(offset) & CBOR.METADATA_MASK) == CBOR.VARIABLE_LENGTH_INDEFINITE_MARK) {
       offset++;
       return -1;
     }
@@ -389,22 +424,20 @@ public abstract class CBORReader {
   }
 
   private short metadataUnsignedInteger() {
-    byte[] buffer = getBuffer();
-
     short bytes = metadataBytesLength();
 
     short value = 0;
 
     switch (bytes) {
       case 1:
-        value = (short) (buffer[offset] & CBOR.METADATA_MASK);
+        value = (short) (read(offset) & CBOR.METADATA_MASK);
         break;
       case 2:
-        value = (short) (buffer[(short) (offset + 1)] & 0xFF);
+        value = (short) (read((short) (offset + 1)) & 0xFF);
         break;
       case 3:
-        short high = (short) (buffer[(short) (offset + 1)] & 0xFF);
-        short low = (short) (buffer[(short) (offset + 2)] & 0xFF);
+        short high = (short) (read((short) (offset + 1)) & 0xFF);
+        short low = (short) (read((short) (offset + 2)) & 0xFF);
 
         if (high >= 0b10000000) {
           // Exceeded the range of short.
@@ -425,9 +458,7 @@ public abstract class CBORReader {
   }
 
   private short metadataBytesLength() {
-    byte[] buffer = getBuffer();
-
-    short metadata = (short) (buffer[offset] & CBOR.METADATA_MASK);
+    short metadata = (short) (read(offset) & CBOR.METADATA_MASK);
 
     if (metadata <= CBOR.MAX_SIMPLE_UNSIGNED_INT) {
       return 1;

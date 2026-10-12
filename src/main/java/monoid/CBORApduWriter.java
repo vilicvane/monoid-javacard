@@ -3,6 +3,7 @@ package monoid;
 import javacard.framework.APDU;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
+import javacard.framework.Util;
 
 public class CBORApduWriter extends CBORBufferWriter {
 
@@ -10,8 +11,14 @@ public class CBORApduWriter extends CBORBufferWriter {
 
   protected short sentOffset;
 
+  public boolean hasPending() {
+    return sentOffset < offset;
+  }
+
   @Override
   public void reset() {
+    Util.arrayFillNonAtomic(buffer, (short) 0, (short) buffer.length, (byte) 0);
+
     super.reset();
 
     sentOffset = offset;
@@ -27,6 +34,8 @@ public class CBORApduWriter extends CBORBufferWriter {
     apdu.setOutgoingLength(sendingLength);
 
     apdu.sendBytesLong(buffer, sentOffset, sendingLength);
+
+    Util.arrayFillNonAtomic(buffer, sentOffset, sendingLength, (byte) 0);
 
     sentOffset += sendingLength;
 

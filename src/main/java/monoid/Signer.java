@@ -37,7 +37,13 @@ public final class Signer {
     return Utils.duplicateAsTransientDeselect(signature, (short) 0, length);
   }
 
-  public static byte[] signEDDSAMessage(EdwardsCurve curve, ED25519Key privateKey, byte[] message) {
+  public static byte[] signEDDSAMessage(
+    EdwardsCurve curve,
+    ED25519Key privateKey,
+    ByteSource message,
+    short messageOffset,
+    short messageLength
+  ) {
     if (!(curve instanceof CurveED25519)) {
       CurveException.throwIt(CurveException.REASON_UNSUPPORTED_CURVE);
       return null;
@@ -52,8 +58,8 @@ public final class Signer {
       (CurveED25519) curve,
       privateKey,
       message,
-      (short) 0,
-      (short) message.length,
+      messageOffset,
+      messageLength,
       signature,
       (short) 0
     );

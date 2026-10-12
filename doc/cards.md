@@ -2,7 +2,107 @@
 
 Some information of the cards are not listed by venders, but all of those cards are of **JavaCard 3.0.5** with **ECC support**.
 
-Monoid selects available algorithm APIs at initialization; it does not match card models or run compatibility self-tests on the card. Compatibility results belong in this document and should identify the tested firmware, Monoid revision and operations. The hardware information below does not establish support for every Monoid feature, including the current Ed25519 integration.
+Monoid selects available algorithm APIs at initialization; it does not match card models or run compatibility self-tests on the card. Compatibility results belong in this document and should identify the tested firmware, Monoid revision and operations. The hardware information below does not establish support for every Monoid feature or request size.
+
+## Chunked request and signing verification — 2026-10-12
+
+The subsequent implementation retains requests in 256-byte transient chunks and
+reads the Message twice through `ByteSource`. It no longer grows a contiguous
+request array. The API and short-APDU framing are unchanged. The same ACS card
+passed 14 physical test groups using isolated Safe/Monoid packages. Tested
+Monoid CAP SHA-256:
+`6589bff3e712b1a3e4b7e222f175df083d7a510e179e02dd7982ac38788c1a3d`.
+
+| Complete authenticated Sign request | Result | APDU time |
+| --- | --- | ---: |
+| Seed → SLIP-0010 → 150-byte Solana transfer Message | Passed, three repetitions | 2.750–2.775 s |
+| Stored master → same path and Message | Passed | 2.617 s |
+| Seed → 512-byte Message, Message first/last | Passed | 2.913–2.923 s |
+| Stored master → 512-byte Message, Message first/last | Passed | 2.731–2.742 s |
+| Seed → 1167-byte Message, Message first/last | Passed | 2.980–2.993 s |
+| Stored master → 1167-byte Message, Message first/last | Passed | 2.829–2.830 s |
+| Seed → BIP32 → secp256k1 digest, alternating with Solana | Passed | 1.196–1.222 s |
+
+Long signatures used 255-byte APDU fragments, with exact signature equality and
+verification against independent Node/OpenSSL results. Timings include request
+transport, derivation and signing, excluding setup/authentication and memory
+queries. They are not primitive-only timings. Compared with the contiguous
+baseline below, 150-byte signing took approximately 0.1 seconds longer; 512-byte
+signing remained close to the previous result.
+
+The previously failing 600-byte Create now passes, followed by a three-part Get.
+A new 1167-byte signing request also succeeds after abandoning 1020 bytes of an
+older request. Request/response cancellation, GET RESPONSE protection, and reset
+followed by authentication and signing all pass.
+
+Fresh idle transient RAM is 2352 B, 64 B lower than the contiguous baseline due
+to the fixed 32-entry chunk reference array. After signing it is 2256 B; after a
+large response and subsequent signing it is 1904 B. The response writer still
+retains its expanded capacity. These are idle readings, not a complete peak
+profile. A 1263-byte request now retains five 256-byte data arrays instead of
+the baseline's final-frame 1024+1280-byte arrays; this payload accounting excludes
+reference/array overhead and cryptographic workspace. All Message bytes still
+remain in RAM until signing ends. The 8192-byte protocol ceiling does not imply
+that a physical card can sign an 8192-byte request.
+
+All 60 simulator tests and Java Card 3.0.5 CAP conversion/verification passed.
+Both temporary packages were fully uninstalled; before/after registries were
+byte-identical, temporary instances returned `6A82`, and original applets returned
+`9000`. Source snapshots, hashes and the APDU report are retained in ignored
+`.research/ed25519/chunk-integration-card/`.
+
+## Contiguous-buffer baseline integration — 2026-10-12
+
+Tested the working tree based on `42eda62`, including transient request assembly
+and Message slices, on the ACS ACR1552 reader using T=1, ATR
+`3b8a800150564a434f503453494471`, IC type `D321`, batch `4839`.
+The isolated Monoid and Safe packages changed only Java package/import names and
+cross-applet AIDs. The tested Monoid CAP SHA-256 is
+`197f2b74761e35b7c842ffe33fd35fde5bb18f950a174b225fb4ffa4f8734ec6`.
+Source hashes and a frozen source copy are retained with the test evidence.
+
+| Complete authenticated Sign request | Result | APDU time |
+| --- | --- | ---: |
+| Seed → SLIP-0010 → 150-byte Solana transfer Message | Passed, three repetitions | 2.634–2.660 s |
+| Stored master → same path and Message | Passed | 2.507 s |
+| Seed → SLIP-0010 → 512-byte Message, Message first/last in CBOR | Passed, three request frames | 2.905–2.915 s |
+| Seed → BIP32 → secp256k1 digest, alternating with Solana | Passed, two repetitions | 1.179–1.183 s |
+| 1167-byte Message, 255-byte request fragments | Failed: transient RAM exhausted | — |
+
+These times include request transport, derivation and signing, but exclude
+authentication, fixture creation, later memory queries and host verification.
+They are not primitive-only signing times. Ed25519 signatures and seed/master
+public keys and chain codes matched independent Node/OpenSSL results for
+`m/44'/501'/0'/0'`; BTC signatures were independently verified against the
+host-derived `m/44'/0'/0'/0/0` public key.
+
+An isolated diagnostic build confirmed `SystemException.NO_TRANSIENT_SPACE`
+(reason 2). The 1167-byte Message produces a 1263-byte CBOR request. Its final
+255-byte frame grows the buffer from 1024 to 1280 bytes; both arrays remain
+allocated during that APDU. Only 16 bytes of transient RAM remained after
+reception, and zero remained at the exception, before entering the EdDSA branch.
+Using 192-byte fragments moved the expansion to an intermediate APDU and the
+same message signed correctly. This is a diagnostic control, not a general
+workaround or a guarantee of supported size. A 600-byte Create request also
+failed with reason 2 at 255-byte fragmentation and succeeded at 192 bytes.
+
+Uninstrumented tests also passed request replacement, GET RESPONSE protection,
+three-part reads of a stored 600-byte value, response cancellation followed by
+signing, and reset/re-authentication followed by signing. Idle transient RAM
+was 2320 bytes after short signing and 1968 bytes after the large response and
+subsequent signing; the response writer retains its expanded capacity. These
+are idle readings, not a complete peak-memory profile. The two reported
+transient memory types overlap and must not be added together.
+
+That tested implementation has working integrated signing and
+transport, but long-request acceptance depends on fragment boundaries and
+retained buffers. The 8192-byte protocol ceiling is not a physical-card capacity
+claim. No transport or memory-policy fix was made during this test.
+
+Both isolated packages (`F06D6F6E6F69647D` and `F06D6F6E6F69647E`) were removed.
+Before/after registries matched, both removed applets returned `6A82`, and both
+original Monoid applets remained selectable. CAPs, source snapshots, diagnostics
+and APDU transcripts are under ignored `.research/ed25519/current-integration-card/`.
 
 ## Ed25519 byte-array refactor verification — 2026-10-12
 

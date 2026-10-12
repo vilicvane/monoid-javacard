@@ -1,5 +1,7 @@
 package monoid;
 
+import javacard.framework.APDU;
+import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.security.CryptoException;
@@ -112,9 +114,6 @@ public abstract class Command {
         return viewKey;
       case 0x41:
         return sign;
-      case (byte) 0xC0:
-        writer.send();
-        return null;
       default:
         return null;
     }
@@ -146,8 +145,75 @@ public abstract class Command {
     return writer;
   }
 
-  public void runCommand() {
-    reader.reset();
+  public static void clearTransport() {
+    reader.clear();
+    writer.reset();
+    JCSystem.requestObjectDeletion();
+  }
+
+  public static void process(APDU apdu) {
+    byte[] header = apdu.getBuffer();
+    byte cla = header[ISO7816.OFFSET_CLA];
+    byte ins = header[ISO7816.OFFSET_INS];
+
+    if (ins == (byte) 0xC0) {
+      if (cla != CBORApduReader.CLA_SINGLE) {
+        ISOException.throwIt(ISO7816.SW_CLA_NOT_SUPPORTED);
+      }
+
+      if (header[ISO7816.OFFSET_P1] != 0 || header[ISO7816.OFFSET_P2] != 0) {
+        ISOException.throwIt(ISO7816.SW_INCORRECT_P1P2);
+      }
+
+      if (reader.isReceiving()) {
+        ISOException.throwIt(ISO7816.SW_LAST_COMMAND_EXPECTED);
+      }
+
+      if (!writer.hasPending()) {
+        ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+      }
+
+      writer.send();
+      return;
+    }
+
+    writer.reset();
+    boolean pending = false;
+
+    try {
+      if (
+        cla != CBORApduReader.CLA_SINGLE &&
+        cla != CBORApduReader.CLA_FIRST &&
+        cla != CBORApduReader.CLA_MORE &&
+        cla != CBORApduReader.CLA_LAST
+      ) {
+        ISOException.throwIt(ISO7816.SW_CLA_NOT_SUPPORTED);
+      }
+
+      Command command = get(ins);
+
+      if (command == null) {
+        ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+      }
+
+      pending = !reader.receive();
+
+      if (pending) {
+        return;
+      }
+
+      reader.reset();
+
+      command.executeCommand();
+    } finally {
+      if (!pending) {
+        reader.clear();
+        JCSystem.requestObjectDeletion();
+      }
+    }
+  }
+
+  private void executeCommand() {
     writer.reset();
 
     try {
@@ -182,8 +248,6 @@ public abstract class Command {
       writer.send();
     } catch (Exception e) {
       sendError(CODE_INTERNAL);
-    } finally {
-      JCSystem.requestObjectDeletion();
     }
 
     // It the code ever reaches here, it means send() hasn't been called (as it

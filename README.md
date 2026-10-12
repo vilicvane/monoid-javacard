@@ -132,6 +132,27 @@ See [architecture](doc/architecture.md) for more details.
 
 _Monoid Applet_ uses a minimal CBOR-based RPC protocol.
 
+### APDU transport
+
+Encode the complete request as CBOR, then send it in short APDUs with 1–255 data bytes per frame. Requests of up to 8192 bytes can be split using these CLA values:
+
+| Frame  | CLA  | Behavior                                                          |
+| ------ | ---- | ----------------------------------------------------------------- |
+| Single | `00` | Replace any unfinished request and execute this complete request. |
+| First  | `90` | Replace any unfinished request and begin receiving a new one.     |
+| Middle | `B0` | Append to the active request.                                     |
+| Last   | `A0` | Append to the active request and execute it.                      |
+
+Every frame carries the business command's INS, P1 and P2. Middle and last frames must match the first frame's header. First and middle frames return an empty `9000`; business commands run only after a single or last frame. The transport layer handles framing without changing command request or response schemas. Extended APDUs are not supported.
+
+A new request cancels any unread response. Responses retain the existing continuation convention: `61xx` means more response data is available, in chunks of up to 256 bytes; send `00 C0 00 00 Le` until `9000`. Always use CLA `00` for GET RESPONSE, including after an `A0` request. Disable middleware that automatically reuses the previous CLA. GET RESPONSE with no pending response returns `6985`; during an unfinished request it returns `6883` and leaves that request intact. Invalid GET RESPONSE headers also leave the pending transfer intact.
+
+An orphan or mismatched middle/last frame returns `6883`. Empty or oversized input returns `6700`; unsupported CLA/INS return `6E00`/`6D00`. Request reception errors discard the unfinished request, so retry with a single or first frame. Selecting or deselecting the applet, or resetting the card, cancels pending transfers.
+
+Fragmented requests are retained in transient 256-byte chunks, allocated as needed without copying previous chunks. CBOR parsing reads across chunk boundaries; Ed25519 signing traverses the Message range twice without joining the chunks or making a separate Message copy. Completion or cancellation erases every chunk and releases its reference. Single-frame requests can use the APDU buffer directly. No request data is written to persistent storage.
+
+The 8192-byte limit is a protocol ceiling, not a preallocated buffer or a guarantee of available card RAM. The complete request, chunk references and cryptographic workspaces must fit in RAM. Replacing an unfinished request releases its chunks and requests garbage collection; reclamation is not synchronous. Simulator tests cover 512-byte and 1167-byte Message signatures, including Message fields before other fields in the request. See [card validation](doc/cards.md) for measured hardware limits. Actual repeated `receiveBytes` delivery within one short APDU remains unverified.
+
 ### Command authentication
 
 The authentication is done within a session, using `0x21` command.

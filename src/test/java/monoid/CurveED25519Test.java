@@ -11,6 +11,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tests.ByteArraySource;
 
 public class CurveED25519Test {
 
@@ -98,7 +99,15 @@ public class CurveED25519Test {
 
     for (int iteration = 0; iteration < 3; iteration++) {
       Assertions.assertArrayEquals(expectedPublicKey, curve.derivePublicKey(key));
-      LibED25519.sign(curve, key, message, (short) 0, (short) message.length, signature, (short) 0);
+      LibED25519.sign(
+        curve,
+        key,
+        new ByteArraySource(message),
+        (short) 0,
+        (short) message.length,
+        signature,
+        (short) 0
+      );
       Assertions.assertArrayEquals(expectedSignature, signature);
       assertScratchCleared();
     }
@@ -107,7 +116,7 @@ public class CurveED25519Test {
       LibED25519.sign(
         curve,
         key,
-        message,
+        new ByteArraySource(message),
         (short) 0,
         (short) message.length,
         new byte[63],
@@ -121,7 +130,15 @@ public class CurveED25519Test {
 
     Assertions.assertThrows(ISOException.class, () -> curve.derivePublicKey(key));
     Assertions.assertThrows(ISOException.class, () ->
-      LibED25519.sign(curve, key, message, (short) 0, (short) message.length, signature, (short) 0)
+      LibED25519.sign(
+        curve,
+        key,
+        new ByteArraySource(message),
+        (short) 0,
+        (short) message.length,
+        signature,
+        (short) 0
+      )
     );
     assertScratchCleared();
 
@@ -129,7 +146,7 @@ public class CurveED25519Test {
     LibED25519.sign(
       curve,
       imported,
-      message,
+      new ByteArraySource(message),
       (short) 0,
       (short) message.length,
       signature,

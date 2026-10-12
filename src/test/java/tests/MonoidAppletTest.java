@@ -4,7 +4,9 @@ import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.utils.AIDUtil;
 import cz.muni.fi.crocs.rcard.client.CardManager;
 import cz.muni.fi.crocs.rcard.client.CardType;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import javacard.framework.AID;
 import javax.smartcardio.CommandAPDU;
@@ -18,6 +20,7 @@ import monoid.Safe;
 import monoid.SafeException;
 import monoidsafe.MonoidSafeApplet;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -904,6 +907,399 @@ public class MonoidAppletTest extends AppletTest {
         reader.requireKey("chainCode".getBytes()).bytes()
       );
     }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(16)
+  public void fragmentedRequests() throws Exception {
+    CardManager manager = connect();
+    byte[] request = paddedHello(513);
+
+    assertAcknowledgement(transmitFrame(manager, 0x90, 0x20, 0, 0, new byte[] { request[0] }));
+    assertInvalidResponseHeaders(manager);
+    Assertions.assertEquals(0x6883, transmitFrame(manager, 0, 0xC0, 0, 0, new byte[0]).getSW());
+    assertAcknowledgement(
+      transmitFrame(manager, 0xB0, 0x20, 0, 0, Arrays.copyOfRange(request, 1, 256))
+    );
+    assertAcknowledgement(
+      transmitFrame(manager, 0xB0, 0x20, 0, 0, Arrays.copyOfRange(request, 256, 511))
+    );
+    ResponseAPDU response = transmitFrame(
+      manager,
+      0xA0,
+      0x20,
+      0,
+      0,
+      Arrays.copyOfRange(request, 511, request.length)
+    );
+
+    assertNoError(response);
+    assertFeatures(response);
+
+    for (int chunkLength : new int[] { 15, 16, 17, 255 }) {
+      response = transmitFragments(manager, 0x20, request, chunkLength);
+      assertNoError(response);
+      assertFeatures(response);
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(17)
+  public void replacementRequests() throws Exception {
+    CardManager manager = connect();
+
+    assertAcknowledgement(transmitFrame(manager, 0x90, 0x20, 0, 0, new byte[] { (byte) 0xFF }));
+    ResponseAPDU response = transmitFragments(manager, 0x20, paddedHello(300), 255);
+    assertNoError(response);
+    assertFeatures(response);
+
+    assertAcknowledgement(transmitFrame(manager, 0x90, 0x20, 0, 0, new byte[] { (byte) 0xFF }));
+    response = transmitFrame(manager, 0, 0x20, 0, 0, new byte[] { (byte) 0xA0 });
+    assertNoError(response);
+    assertFeatures(response);
+    Assertions.assertEquals(
+      0x6883,
+      transmitFrame(manager, 0xA0, 0x20, 0, 0, new byte[] { 0 }).getSW()
+    );
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(18)
+  public void invalidRequestFragments() throws Exception {
+    CardManager manager = connect();
+    // CLA, INS, P1, P2, data length, expected status.
+    int[][] invalidFrames = {
+      { 0x80, 0x20, 0, 0, 1, 0x6E00 },
+      { 0x00, 0x7F, 0, 0, 1, 0x6D00 },
+      { 0xB0, 0x2F, 0, 0, 1, 0x6883 },
+      { 0xB0, 0x20, 1, 0, 1, 0x6883 },
+      { 0xA0, 0x20, 0, 1, 1, 0x6883 },
+      { 0xB0, 0x20, 0, 0, 0, 0x6700 },
+      { 0xA0, 0x20, 0, 0, 0, 0x6700 },
+      { 0x00, 0x20, 0, 0, 0, 0x6700 },
+      { 0x90, 0x20, 0, 0, 0, 0x6700 },
+    };
+
+    for (int[] frame : invalidFrames) {
+      assertAcknowledgement(transmitFrame(manager, 0x90, 0x20, 0, 0, new byte[] { (byte) 0xA1 }));
+      Assertions.assertEquals(
+        frame[5],
+        transmitFrame(manager, frame[0], frame[1], frame[2], frame[3], new byte[frame[4]]).getSW()
+      );
+
+      for (int cla : new int[] { 0xB0, 0xA0 }) {
+        Assertions.assertEquals(
+          0x6883,
+          transmitFrame(manager, cla, 0x20, 0, 0, new byte[] { 0 }).getSW()
+        );
+      }
+
+      assertNoError(transmitFrame(manager, 0, 0x20, 0, 0, new byte[] { (byte) 0xA0 }));
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(19)
+  public void requestLengthLimit() throws Exception {
+    CardManager manager = connect();
+
+    ResponseAPDU response = transmitFragments(manager, 0x20, paddedHello(8192), 255);
+    assertNoError(response);
+    assertFeatures(response);
+
+    Assertions.assertEquals(
+      0x6700,
+      transmitFragments(manager, 0x20, paddedHello(8193), 255).getSW()
+    );
+    Assertions.assertEquals(
+      0x6883,
+      transmitFrame(manager, 0xA0, 0x20, 0, 0, new byte[] { 0 }).getSW()
+    );
+    assertNoError(transmitFragments(manager, 0x20, paddedHello(300), 255));
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(20)
+  public void signFragmentedEDDSAMessage() throws Exception {
+    CardManager manager = connect();
+
+    authenticate(manager, false);
+
+    int[] messageLengths = { 512, 1167 };
+    // Node.js crypto HMAC-SHA512 derivation and Ed25519 signing of repeated bytes 0..255.
+    byte[][] signatures = {
+      Hex.decode(
+        "487e3d6fdfdb499671f05f091e092940b90a848ff115695ef3920d8fa2c0df5a577c547115a04a8bae5ac2fc504db8dd980b8958b19404115edc60579b66570b"
+      ),
+      Hex.decode(
+        "67be39bc0d4ab53389fd2d905f2169512622d5b8ebfa3e39b26c7c9bb21cf94285874c9f1f43cefecd7db94ae995f73b8a3207a0f17bd3414c6861f2a86fbe00"
+      ),
+    };
+
+    for (int index = 0; index < messageLengths.length; index++) {
+      byte[] message = new byte[messageLengths[index]];
+
+      for (int offset = 0; offset < message.length; offset++) {
+        message[offset] = (byte) offset;
+      }
+
+      for (boolean messageFirst : new boolean[] { false, true }) {
+        CBORBufferWriter writer = new CBORBufferWriter();
+        writer.map((short) 6);
+        {
+          if (messageFirst) {
+            writer.text("message".getBytes());
+            writer.bytes(message);
+          }
+
+          writer.text("index".getBytes());
+          writer.bytes(TEST_SEED_INDEX);
+          writer.text("curve".getBytes());
+          writer.text("ed25519".getBytes());
+          writer.text("seed".getBytes());
+          writer.text("ed25519 seed".getBytes());
+          writer.text("path".getBytes());
+          writer.bytes(Hex.decode("8000002c800001f58000000080000000"));
+          writer.text("cipher".getBytes());
+          writer.text("eddsa".getBytes());
+
+          if (!messageFirst) {
+            writer.text("message".getBytes());
+            writer.bytes(message);
+          }
+        }
+
+        ResponseAPDU response = transmitFragments(manager, 0x41, writer.getDataBuffer(), 255);
+        assertNoError(response);
+
+        CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+        Assertions.assertEquals(1, reader.map());
+        Assertions.assertArrayEquals(
+          signatures[index],
+          reader.requireKey("signature".getBytes()).bytes()
+        );
+      }
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(21)
+  public void selectionAndResetCancelRequest() throws Exception {
+    Assumptions.assumeTrue(simulator != null);
+
+    CardManager manager = connect();
+
+    for (int operation = 0; operation < 3; operation++) {
+      assertAcknowledgement(transmitFrame(manager, 0x90, 0x20, 0, 0, new byte[] { (byte) 0xA1 }));
+
+      if (operation == 1) {
+        Assertions.assertTrue(simulator.selectApplet(MONOID_SAFE_AID));
+      } else if (operation == 2) {
+        simulator.reset();
+      }
+
+      Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
+      Assertions.assertEquals(
+        0x6883,
+        transmitFrame(manager, 0xA0, 0x20, 0, 0, new byte[] { 0 }).getSW()
+      );
+      assertNoError(transmitFragments(manager, 0x20, paddedHello(300), 255));
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(22)
+  public void fragmentedRequestAndResponse() throws Exception {
+    CardManager manager = connect();
+
+    authenticate(manager, false);
+
+    ResponseAPDU first = transmitFragments(manager, 0x30, paddedHello(300), 255);
+    Assertions.assertEquals(0x6100, first.getSW() & 0xFF00);
+    Assertions.assertEquals(256, first.getData().length);
+    assertInvalidResponseHeaders(manager);
+
+    ResponseAPDU last = transmitFrame(manager, 0, 0xC0, 0, 0, new byte[0]);
+    Assertions.assertEquals(0x9000, last.getSW());
+
+    byte[] response = Arrays.copyOf(
+      first.getData(),
+      first.getData().length + last.getData().length
+    );
+    System.arraycopy(last.getData(), 0, response, first.getData().length, last.getData().length);
+    assertNoError(response);
+
+    CBORBufferReader reader = new CBORBufferReader(response);
+    reader.map();
+    Assertions.assertEquals(9, reader.requireKey("items".getBytes()).array());
+    Assertions.assertTrue(reader.index((short) 8));
+    reader.map();
+    Assertions.assertEquals(10, reader.requireKey("index".getBytes()).bytes().length);
+    Assertions.assertEquals(0x6985, transmitFrame(manager, 0, 0xC0, 0, 0, new byte[0]).getSW());
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(23)
+  public void newRequestCancelsResponse() throws Exception {
+    CardManager manager = connect();
+
+    authenticate(manager, false);
+
+    for (boolean fragmented : new boolean[] { false, true }) {
+      ResponseAPDU response = transmitFragments(manager, 0x30, paddedHello(300), 255);
+      Assertions.assertEquals(0x6100, response.getSW() & 0xFF00);
+
+      if (fragmented) {
+        assertAcknowledgement(transmitFrame(manager, 0x90, 0x20, 0, 0, new byte[] { (byte) 0xA1 }));
+        Assertions.assertEquals(0x6883, transmitFrame(manager, 0, 0xC0, 0, 0, new byte[0]).getSW());
+        response = transmitFrame(manager, 0xA0, 0x20, 0, 0, Hex.decode("6000"));
+      } else {
+        response = transmitFrame(manager, 0, 0x20, 0, 0, new byte[] { (byte) 0xA0 });
+      }
+
+      assertNoError(response);
+      assertFeatures(response);
+      Assertions.assertEquals(0x6985, transmitFrame(manager, 0, 0xC0, 0, 0, new byte[0]).getSW());
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(24)
+  public void fragmentedDataRoundTrip() throws Exception {
+    CardManager manager = connect();
+
+    authenticate(manager, true);
+
+    byte[] index = "fragmented".getBytes();
+    byte[] data = new byte[600];
+
+    for (int offset = 0; offset < data.length; offset++) {
+      data[offset] = (byte) (offset ^ 0xA5);
+    }
+
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 2);
+    {
+      writer.text("index".getBytes());
+      writer.bytes(index);
+
+      writer.text("data".getBytes());
+      writer.bytes(data);
+    }
+
+    ResponseAPDU response = transmitFragments(manager, 0x34, writer.getDataBuffer(), 255);
+    assertNoError(response);
+
+    writer.reset();
+    writer.map((short) 1);
+    writer.text("index".getBytes());
+    writer.bytes(index);
+    byte[] request = writer.getDataBuffer();
+
+    try {
+      response = transmitFragments(manager, 0x32, request, 7);
+      ByteArrayOutputStream responseData = new ByteArrayOutputStream();
+      int chunks = 0;
+
+      while (true) {
+        responseData.write(response.getData());
+        chunks++;
+
+        if (response.getSW() == 0x9000) {
+          break;
+        }
+
+        Assertions.assertEquals(0x6100, response.getSW() & 0xFF00);
+        Assertions.assertEquals(256, response.getData().length);
+        response = transmitFrame(manager, 0, 0xC0, 0, 0, new byte[0]);
+      }
+
+      Assertions.assertEquals(3, chunks);
+      assertNoError(responseData.toByteArray());
+
+      CBORBufferReader reader = new CBORBufferReader(responseData.toByteArray());
+      reader.map();
+      Assertions.assertArrayEquals(data, reader.requireKey("data".getBytes()).bytes());
+      Assertions.assertEquals(0x6985, transmitFrame(manager, 0, 0xC0, 0, 0, new byte[0]).getSW());
+    } finally {
+      assertNoError(transmitFrame(manager, 0, 0x35, 0, 0, request));
+    }
+  }
+
+  private void assertInvalidResponseHeaders(CardManager manager)
+    throws javax.smartcardio.CardException {
+    int[][] headers = { { 0x90, 0, 0, 0x6E00 }, { 0x00, 1, 0, 0x6A86 }, { 0x00, 0, 1, 0x6A86 } };
+
+    for (int[] header : headers) {
+      Assertions.assertEquals(
+        header[3],
+        transmitFrame(manager, header[0], 0xC0, header[1], header[2], new byte[0]).getSW()
+      );
+    }
+  }
+
+  private byte[] paddedHello(int length) {
+    byte[] request = new byte[length];
+    request[0] = (byte) 0xA1;
+    request[1] = 0x67;
+    System.arraycopy("padding".getBytes(), 0, request, 2, 7);
+    request[9] = 0x59;
+    request[10] = (byte) ((length - 12) >> 8);
+    request[11] = (byte) (length - 12);
+    return request;
+  }
+
+  private ResponseAPDU transmitFragments(CardManager manager, int ins, byte[] request, int length)
+    throws javax.smartcardio.CardException {
+    for (int offset = 0; offset < request.length; offset += length) {
+      int end = Math.min(offset + length, request.length);
+      boolean last = end == request.length;
+      int cla = offset == 0 ? (last ? 0x00 : 0x90) : (last ? 0xA0 : 0xB0);
+      ResponseAPDU response = transmitFrame(
+        manager,
+        cla,
+        ins,
+        0,
+        0,
+        Arrays.copyOfRange(request, offset, end)
+      );
+
+      if (last) {
+        return response;
+      }
+
+      assertAcknowledgement(response);
+    }
+
+    throw new IllegalArgumentException("Empty request");
+  }
+
+  private ResponseAPDU transmitFrame(
+    CardManager manager,
+    int cla,
+    int ins,
+    int p1,
+    int p2,
+    byte[] data
+  ) throws javax.smartcardio.CardException {
+    CommandAPDU request = apdu(cla, ins, p1, p2, data);
+    return simulator == null
+      ? manager.getChannel().transmit(request)
+      : simulator.transmitCommand(request);
+  }
+
+  private void assertAcknowledgement(ResponseAPDU response) {
+    Assertions.assertEquals(0x9000, response.getSW());
+    Assertions.assertEquals(0, response.getData().length);
   }
 
   private void assertFeatures(ResponseAPDU response) {

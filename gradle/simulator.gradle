@@ -1,4 +1,13 @@
 // jCardSim 3.0.6 adaptations for the host JVM only. CAP uses src/main unchanged.
+// Its default random generator starts with the same unseeded state for each instance.
+test {
+	systemProperty 'com.licel.jcardsim.randomdata.secure', '1'
+}
+
+run {
+	systemProperty 'com.licel.jcardsim.randomdata.secure', '1'
+}
+
 def simulatorMathNames = ['CurveED25519', 'LibMath']
 
 task prepareSimulatorMath {

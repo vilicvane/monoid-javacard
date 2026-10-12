@@ -38,12 +38,16 @@ public class CBORBufferWriter extends CBORWriter {
       return;
     }
 
+    short extendedLength = (short) (buffer.length + BUFFER_LENGTH_EXTENSION);
+
     byte[] extendedBuffer = JCSystem.makeTransientByteArray(
-      (short) (buffer.length + BUFFER_LENGTH_EXTENSION),
+      length > extendedLength ? length : extendedLength,
       JCSystem.CLEAR_ON_DESELECT
     );
 
     Util.arrayCopyNonAtomic(buffer, (short) 0, extendedBuffer, (short) 0, (short) buffer.length);
+
+    Util.arrayFillNonAtomic(buffer, (short) 0, (short) buffer.length, (byte) 0);
 
     buffer = extendedBuffer;
 

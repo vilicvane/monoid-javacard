@@ -190,7 +190,9 @@ public final class Keystore {
     byte[] seed,
     byte[] curveName,
     byte[] path,
-    byte[] message
+    ByteSource message,
+    short messageOffset,
+    short messageLength
   ) throws KeystoreException, CurveException, SignerException {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
@@ -223,7 +225,7 @@ public final class Keystore {
       );
       privateKey = curve.getSharedPrivateKey(master, (short) 0);
 
-      return Signer.signEDDSAMessage(curve, privateKey, message);
+      return Signer.signEDDSAMessage(curve, privateKey, message, messageOffset, messageLength);
     } finally {
       if (privateKey != null) {
         privateKey.clear();

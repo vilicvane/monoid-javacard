@@ -50,17 +50,50 @@ public class LibED25519Test {
       }
 
       ED25519Key key = curve.getSharedPrivateKey(Hex.decode(vector[1]), (short) 0);
+      byte[] message = Hex.decode(vector[4]);
 
       Assertions.assertArrayEquals(Hex.decode(vector[3]), curve.derivePublicKey(key), vector[0]);
       Assertions.assertArrayEquals(
         Hex.decode(vector[5]),
-        Signer.signEDDSAMessage(curve, key, Hex.decode(vector[4])),
+        Signer.signEDDSAMessage(
+          curve,
+          key,
+          new ByteArraySource(message),
+          (short) 0,
+          (short) message.length
+        ),
         vector[0]
       );
       count++;
     }
 
     Assertions.assertEquals(5, count);
+  }
+
+  @Test
+  public void officialVectorsAcrossChunkAndHashBoundaries() throws Exception {
+    for (String name : new String[] { "RFC8032_1", "RFC8032_3", "RFC8032_1024" }) {
+      String[] vector = requireVector(name);
+      ED25519Key key = curve.getSharedPrivateKey(Hex.decode(vector[1]), (short) 0);
+      byte[] message = Hex.decode(vector[4]);
+      byte[] source = new byte[message.length + 262];
+      Arrays.fill(source, (byte) 0xA5);
+      System.arraycopy(message, 0, source, 255, message.length);
+
+      for (int chunkLength : new int[] { 127, 128, 129, 256 }) {
+        Assertions.assertArrayEquals(
+          Hex.decode(vector[5]),
+          Signer.signEDDSAMessage(
+            curve,
+            key,
+            new ByteArraySource(source, chunkLength, 7),
+            (short) 255,
+            (short) message.length
+          ),
+          name + " with " + chunkLength + " byte chunks"
+        );
+      }
+    }
   }
 
   @Test
@@ -98,7 +131,13 @@ public class LibED25519Test {
     Assertions.assertArrayEquals(Hex.decode(vector[3]), curve.derivePublicKey(key));
     Assertions.assertArrayEquals(
       Hex.decode(vector[5]),
-      Signer.signEDDSAMessage(curve, key, message)
+      Signer.signEDDSAMessage(
+        curve,
+        key,
+        new ByteArraySource(message),
+        (short) 0,
+        (short) message.length
+      )
     );
   }
 
@@ -117,9 +156,21 @@ public class LibED25519Test {
     Arrays.fill(buffer, (byte) 0x55);
     buffer[20] = 0x72;
 
+    Assertions.assertArrayEquals(
+      Hex.decode(vector[5]),
+      Signer.signEDDSAMessage(curve, key, new ByteArraySource(buffer), (short) 20, (short) 1)
+    );
     Assertions.assertEquals(
       64,
-      LibED25519.sign(curve, key, buffer, (short) 20, (short) 1, buffer, (short) 5)
+      LibED25519.sign(
+        curve,
+        key,
+        new ByteArraySource(buffer),
+        (short) 20,
+        (short) 1,
+        buffer,
+        (short) 5
+      )
     );
     Assertions.assertArrayEquals(Hex.decode(vector[5]), Arrays.copyOfRange(buffer, 5, 69));
 
@@ -137,32 +188,57 @@ public class LibED25519Test {
     key.clear();
 
     Assertions.assertThrows(ISOException.class, () ->
-      Signer.signEDDSAMessage(curve, key, new byte[0])
+      Signer.signEDDSAMessage(curve, key, new ByteArraySource(new byte[0]), (short) 0, (short) 0)
     );
     Assertions.assertThrows(ISOException.class, () -> curve.derivePublicKey(key));
 
     String[] second = requireVector("RFC8032_2");
     ED25519Key imported = curve.getSharedPrivateKey(Hex.decode(second[1]), (short) 0);
+    byte[] message = Hex.decode(second[4]);
 
     Assertions.assertArrayEquals(
       Hex.decode(second[5]),
-      Signer.signEDDSAMessage(curve, imported, Hex.decode(second[4]))
+      Signer.signEDDSAMessage(
+        curve,
+        imported,
+        new ByteArraySource(message),
+        (short) 0,
+        (short) message.length
+      )
     );
 
     ED25519Key replacement = curve.getSharedPrivateKey(Hex.decode(first[1]), (short) 0);
 
     Assertions.assertThrows(ISOException.class, () ->
-      Signer.signEDDSAMessage(curve, imported, new byte[0])
+      Signer.signEDDSAMessage(
+        curve,
+        imported,
+        new ByteArraySource(new byte[0]),
+        (short) 0,
+        (short) 0
+      )
     );
     Assertions.assertArrayEquals(
       Hex.decode(first[5]),
-      Signer.signEDDSAMessage(curve, replacement, new byte[0])
+      Signer.signEDDSAMessage(
+        curve,
+        replacement,
+        new ByteArraySource(new byte[0]),
+        (short) 0,
+        (short) 0
+      )
     );
 
     curve.clear();
 
     Assertions.assertThrows(ISOException.class, () ->
-      Signer.signEDDSAMessage(curve, replacement, new byte[0])
+      Signer.signEDDSAMessage(
+        curve,
+        replacement,
+        new ByteArraySource(new byte[0]),
+        (short) 0,
+        (short) 0
+      )
     );
   }
 
@@ -174,7 +250,7 @@ public class LibED25519Test {
 
     try {
       Assertions.assertThrows(ISOException.class, () ->
-        Signer.signEDDSAMessage(other, key, new byte[0])
+        Signer.signEDDSAMessage(other, key, new ByteArraySource(new byte[0]), (short) 0, (short) 0)
       );
       Assertions.assertThrows(ISOException.class, () -> other.derivePublicKey(key));
     } finally {
@@ -183,7 +259,7 @@ public class LibED25519Test {
 
     Assertions.assertArrayEquals(
       Hex.decode(vector[5]),
-      Signer.signEDDSAMessage(curve, key, new byte[0])
+      Signer.signEDDSAMessage(curve, key, new ByteArraySource(new byte[0]), (short) 0, (short) 0)
     );
   }
 
@@ -197,7 +273,7 @@ public class LibED25519Test {
       LibED25519.sign(
         curve,
         key,
-        message,
+        new ByteArraySource(message),
         (short) 0,
         (short) message.length,
         new byte[63],
@@ -209,7 +285,15 @@ public class LibED25519Test {
 
     Assertions.assertEquals(
       64,
-      LibED25519.sign(curve, key, message, (short) 0, (short) message.length, signature, (short) 0)
+      LibED25519.sign(
+        curve,
+        key,
+        new ByteArraySource(message),
+        (short) 0,
+        (short) message.length,
+        signature,
+        (short) 0
+      )
     );
     Assertions.assertArrayEquals(Hex.decode(vector[5]), signature);
   }

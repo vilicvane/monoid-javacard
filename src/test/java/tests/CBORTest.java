@@ -1,6 +1,9 @@
 package tests;
 
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
+import java.util.Arrays;
+import javacard.framework.ISO7816;
+import javacard.framework.ISOException;
 import monoid.CBOR;
 import monoid.CBORBufferReader;
 import monoid.CBORBufferWriter;
@@ -8,6 +11,47 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class CBORTest {
+
+  @Test
+  public void borrowMessageWithinOriginalBuffer() {
+    byte[] request = Hex.decode("a2676d657373616765430102036174f5");
+    CBORBufferReader reader = new CBORBufferReader(request);
+    reader.map();
+
+    short length = reader.requireKey("message".getBytes()).bytesLength();
+    short offset = reader.getOffset();
+
+    Assertions.assertSame(request, reader.getChunk(offset));
+    Assertions.assertEquals(offset, reader.getChunkOffset(offset));
+    Assertions.assertEquals(request.length - offset, reader.getChunkLength(offset));
+    Assertions.assertEquals(3, length);
+    Assertions.assertArrayEquals(
+      new byte[] { 1, 2, 3 },
+      Arrays.copyOfRange(request, offset, offset + length)
+    );
+    Assertions.assertTrue(reader.requireKey("t".getBytes()).bool());
+  }
+
+  @Test
+  public void rejectTruncatedBytesBeforeAllocation() {
+    CBORBufferReader reader = new CBORBufferReader(Hex.decode("597fff00"));
+
+    ISOException exception = Assertions.assertThrows(ISOException.class, () -> reader.bytes());
+
+    Assertions.assertEquals(ISO7816.SW_WRONG_DATA, exception.getReason());
+  }
+
+  @Test
+  public void rejectTruncatedSkippedValue() {
+    CBORBufferReader reader = new CBORBufferReader(Hex.decode("a2616159040000616200"));
+    reader.map();
+
+    ISOException exception = Assertions.assertThrows(ISOException.class, () ->
+      reader.key("b".getBytes())
+    );
+
+    Assertions.assertEquals(ISO7816.SW_WRONG_DATA, exception.getReason());
+  }
 
   /**
    * [

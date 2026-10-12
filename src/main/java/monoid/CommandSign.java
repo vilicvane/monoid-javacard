@@ -48,9 +48,17 @@ public class CommandSign extends Command {
 
       signature = keystore.signECDSADigest(index, seed, curve, path, digest);
     } else if (Utils.isEqual(Signer.CIPHER_EDDSA, cipher)) {
-      byte[] message = reader.requireKey(Text.message).bytes();
+      short messageLength = reader.requireKey(Text.message).bytesLength();
 
-      signature = keystore.signEDDSAMessage(index, seed, curve, path, message);
+      signature = keystore.signEDDSAMessage(
+        index,
+        seed,
+        curve,
+        path,
+        reader,
+        reader.getOffset(),
+        messageLength
+      );
     } else {
       SignerException.throwIt(SignerException.REASON_UNSUPPORTED_CIPHER);
       return;

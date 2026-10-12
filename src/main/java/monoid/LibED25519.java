@@ -8,13 +8,14 @@ public final class LibED25519 {
   public static final byte SIGNATURE_LENGTH = 64;
 
   /**
-   * Signs a complete message with pure Ed25519. Output may overlap the message.
+   * Signs a complete message with pure Ed25519, reading its chunks twice.
+   * The source must remain unchanged until signing completes. Output may overlap it.
    * Scratch secrets are erased on return; the caller owns and must clear the key.
    */
   public static short sign(
     CurveED25519 curve,
     ED25519Key privateKey,
-    byte[] message,
+    ByteSource message,
     short messageOffset,
     short messageLength,
     byte[] out,
@@ -28,7 +29,7 @@ public final class LibED25519 {
       curve.requirePrivateKey(privateKey);
       curve.hash.reset();
       curve.hash.update(privateKey.prefix, (short) 0, (short) 32);
-      curve.hash.doFinal(message, messageOffset, messageLength, curve.work, (short) 0);
+      digestMessage(curve, message, messageOffset, messageLength);
       Utils.reverse(curve.work, (short) 0, (short) 64);
       LibMath.mod(
         curve.work,
@@ -44,7 +45,7 @@ public final class LibED25519 {
 
       curve.hash.update(publicNonce, (short) 0, (short) 32);
       curve.hash.update(privateKey.publicKey, (short) 0, (short) 32);
-      curve.hash.doFinal(message, messageOffset, messageLength, curve.work, (short) 0);
+      digestMessage(curve, message, messageOffset, messageLength);
       Utils.reverse(curve.work, (short) 0, (short) 64);
       LibMath.mod(
         curve.work,
@@ -91,5 +92,27 @@ public final class LibED25519 {
       Util.arrayFillNonAtomic(publicNonce, (short) 0, (short) publicNonce.length, (byte) 0);
       curve.clearScratch();
     }
+  }
+
+  private static void digestMessage(
+    CurveED25519 curve,
+    ByteSource message,
+    short offset,
+    short length
+  ) {
+    while (length > 0) {
+      short chunkLength = message.getChunkLength(offset);
+
+      if (chunkLength > length) {
+        chunkLength = length;
+      }
+
+      curve.hash.update(message.getChunk(offset), message.getChunkOffset(offset), chunkLength);
+
+      offset += chunkLength;
+      length -= chunkLength;
+    }
+
+    curve.hash.doFinal(curve.work, (short) 0, (short) 0, curve.work, (short) 0);
   }
 }
