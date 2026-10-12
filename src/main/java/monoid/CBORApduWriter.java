@@ -3,6 +3,7 @@ package monoid;
 import javacard.framework.APDU;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
+import javacard.framework.JCSystem;
 import javacard.framework.Util;
 
 public class CBORApduWriter extends CBORBufferWriter {
@@ -17,7 +18,11 @@ public class CBORApduWriter extends CBORBufferWriter {
 
   @Override
   public void reset() {
-    Util.arrayFillNonAtomic(buffer, (short) 0, (short) buffer.length, (byte) 0);
+    if (buffer != null) {
+      Util.arrayFillNonAtomic(buffer, (short) 0, (short) buffer.length, (byte) 0);
+      buffer = null;
+      JCSystem.requestObjectDeletion();
+    }
 
     super.reset();
 
@@ -25,26 +30,33 @@ public class CBORApduWriter extends CBORBufferWriter {
   }
 
   public void send() {
-    APDU apdu = APDU.getCurrentAPDU();
+    boolean pending = false;
 
-    short length = (short) (offset - sentOffset);
-    short sendingLength = Utils.min(length, CHUNK_SIZE);
+    try {
+      APDU apdu = APDU.getCurrentAPDU();
 
-    apdu.setOutgoing();
-    apdu.setOutgoingLength(sendingLength);
+      short length = (short) (offset - sentOffset);
+      short sendingLength = Utils.min(length, CHUNK_SIZE);
 
-    apdu.sendBytesLong(buffer, sentOffset, sendingLength);
+      apdu.setOutgoing();
+      apdu.setOutgoingLength(sendingLength);
 
-    Util.arrayFillNonAtomic(buffer, sentOffset, sendingLength, (byte) 0);
+      apdu.sendBytesLong(buffer, sentOffset, sendingLength);
 
-    sentOffset += sendingLength;
+      Util.arrayFillNonAtomic(buffer, sentOffset, sendingLength, (byte) 0);
 
-    short remainingLength = Utils.min((short) (offset - sentOffset), CHUNK_SIZE);
+      sentOffset += sendingLength;
 
-    ISOException.throwIt(
-      remainingLength > 0
-        ? (short) (ISO7816.SW_BYTES_REMAINING_00 | remainingLength)
-        : ISO7816.SW_NO_ERROR
-    );
+      short remainingLength = Utils.min((short) (offset - sentOffset), CHUNK_SIZE);
+      pending = remainingLength > 0;
+
+      ISOException.throwIt(
+        pending ? (short) (ISO7816.SW_BYTES_REMAINING_00 | remainingLength) : ISO7816.SW_NO_ERROR
+      );
+    } finally {
+      if (!pending) {
+        reset();
+      }
+    }
   }
 }

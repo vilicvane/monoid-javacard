@@ -10,8 +10,6 @@ public class CBORBufferWriter extends CBORWriter {
   protected byte[] buffer;
 
   public CBORBufferWriter() {
-    buffer = JCSystem.makeTransientByteArray(BUFFER_LENGTH_EXTENSION, JCSystem.CLEAR_ON_DESELECT);
-
     reset();
   }
 
@@ -34,35 +32,43 @@ public class CBORBufferWriter extends CBORWriter {
   }
 
   private void ensureBufferLength(short length) {
-    if (length <= buffer.length) {
+    short bufferLength = buffer == null ? 0 : (short) buffer.length;
+
+    if (length <= bufferLength) {
       return;
     }
 
-    short extendedLength = (short) (buffer.length + BUFFER_LENGTH_EXTENSION);
+    short extendedLength = (short) (bufferLength + BUFFER_LENGTH_EXTENSION);
 
     byte[] extendedBuffer = JCSystem.makeTransientByteArray(
       length > extendedLength ? length : extendedLength,
       JCSystem.CLEAR_ON_DESELECT
     );
 
-    Util.arrayCopyNonAtomic(buffer, (short) 0, extendedBuffer, (short) 0, (short) buffer.length);
+    if (buffer != null) {
+      Util.arrayCopyNonAtomic(buffer, (short) 0, extendedBuffer, (short) 0, bufferLength);
 
-    Util.arrayFillNonAtomic(buffer, (short) 0, (short) buffer.length, (byte) 0);
+      Util.arrayFillNonAtomic(buffer, (short) 0, bufferLength, (byte) 0);
+
+      JCSystem.requestObjectDeletion();
+    }
 
     buffer = extendedBuffer;
-
-    JCSystem.requestObjectDeletion();
   }
 
   public byte[] getDataBuffer() {
     byte[] data = JCSystem.makeTransientByteArray(getLength(), JCSystem.CLEAR_ON_DESELECT);
-    Util.arrayCopyNonAtomic(buffer, (short) 0, data, (short) 0, offset);
+    copyDataTo(data, (short) 0);
     return data;
   }
 
   public short copyDataTo(byte[] dest, short destOffset) {
     short length = getLength();
-    Util.arrayCopyNonAtomic(buffer, (short) 0, dest, destOffset, length);
+
+    if (length > 0) {
+      Util.arrayCopyNonAtomic(buffer, (short) 0, dest, destOffset, length);
+    }
+
     return length;
   }
 }

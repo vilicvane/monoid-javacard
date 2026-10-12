@@ -4,6 +4,80 @@ Some information of the cards are not listed by venders, but all of those cards 
 
 Monoid selects available algorithm APIs at initialization; it does not match card models or run compatibility self-tests on the card. Compatibility results belong in this document and should identify the tested firmware, Monoid revision and operations. The hardware information below does not establish support for every Monoid feature or request size.
 
+## Response buffer release verification — 2026-10-12
+
+The subsequent writer fix allocates response storage on demand, retains it only
+while response fragments are pending, and erases/releases it after completion,
+cancellation, deselection or a send failure. Release requests object deletion;
+GC is still asynchronous. The writer object itself remains shared.
+
+All 65 simulator tests and production/isolated CAP conversion and verification
+passed. The same card passed six physical test groups using isolated Monoid CAP
+`8e1ad8a5d74a23f916ef2ecbe458b28a542473de6355ec1ae1ffaf580fe078a9`.
+Seed-derived 1184B and stored-master 1458B messages signed correctly both before
+and after reading a 600B value in three response frames. After that read, their
+complete Sign APDU times were 3.000s and 2.873s. All seven signatures matched
+independent Node/OpenSSL results. Cancelling an unfinished response via Hello,
+or deselecting and re-authenticating, also permitted a subsequent 1184B signature.
+
+The baseline SystemInformation transient-memory reading was 2256B. The first
+query after the large read returned 2240B, the next returned 2256B, and readings
+after subsequent signatures remained 2256B. These include the query's own
+response allocation and are not signing peaks. The previous lasting reduction
+to 1904B was eliminated. Exact upper limits after this fix were not remeasured;
+the capacity table below describes the preceding implementation.
+
+Both temporary packages were removed, registry snapshots were byte-identical,
+the removed instances returned `6A82`, and both original applets returned `9000`.
+Evidence is under ignored `.research/ed25519/writer-release-card/`, including
+`card-1791786261051.json`. The reader was released. External APIs are unchanged.
+
+## RAM-only signing capacity before the writer fix — 2026-10-12
+
+Measured commit `8abf0c5` on the same ACS ACR1552 T=1 card below, using the
+unchanged isolated CAP with SHA-256
+`6589bff3e712b1a3e4b7e222f175df083d7a510e179e02dd7982ac38788c1a3d`.
+All 55 production source hashes matched the CAP's frozen sources. Requests used
+255-byte APDU frames, a 64-byte seed or stored master, and hardened path
+`m/44'/501'/0'/0'`. Each scenario warmed the shared signing context first.
+
+| Response writer state | Key source | Maximum Message | First failure | Complete request at maximum | Repeated maximum APDU time |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Normal, before large responses | Seed | 1184 B | 1185 B | 1280 B (5 chunks) | 3.005–3.020 s |
+| Normal, before large responses | Stored master | 1458 B | 1459 B | 1536 B (6 chunks) | 2.904–2.917 s |
+| After reading a 600-byte value | Seed | 928 B | 929 B | 1024 B (4 chunks) | 3.038–3.054 s |
+| After reading a 600-byte value | Stored master | 946 B | 947 B | 1024 B (4 chunks) | 2.861–2.869 s |
+
+These are repeatable boundaries for this card, request metadata and retained
+buffer state, not universal API limits. At each boundary, adding one Message
+byte requires another 256-byte request chunk. Seed requests have 96 bytes of
+CBOR overhead and also perform seed-to-master conversion; stored-master requests
+have 78 bytes of overhead and skip that conversion. Other paths or metadata can
+change the usable Message length. The 8192-byte ceiling applies to the complete
+request and does not describe available RAM.
+
+Each maximum and maximum-plus-one was repeated, including with Message first
+and last in CBOR. All 71 successful signatures matched and verified against
+independent Node/OpenSSL signatures. All 38 failed probes returned CBOR
+`INTERNAL` with ISO status `9000`; each was followed by a successful 150-byte
+recovery signature without reset or re-authentication. The uninstrumented CAP
+does not expose the underlying exception reason, so these results do not alone
+identify the precise failing allocation. Timings above cover complete Sign
+transport, derivation and signing, excluding setup and memory queries.
+
+After successful signing, idle transient RAM was 2256 B normally and 1904 B
+after the large response. The response writer retains its expanded capacity,
+so a previously successful 1167-byte Message failed for both key sources in
+the latter state. Erasing response contents does not release that capacity.
+These are idle readings, not peak measurements or a worst-case bound for every
+possible earlier response.
+
+The temporary Safe and Monoid packages were uninstalled. Before/after registries
+were byte-identical; removed applets returned `6A82` and both original applets
+returned `9000`. The reader was released. Full evidence is retained in ignored
+`.research/ed25519/chunk-limit-card/card-1791785144739.json` and sibling logs.
+No production implementation or API changes were made during this measurement.
+
 ## Chunked request and signing verification — 2026-10-12
 
 The subsequent implementation retains requests in 256-byte transient chunks and

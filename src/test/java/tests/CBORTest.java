@@ -13,6 +13,16 @@ import org.junit.jupiter.api.Test;
 public class CBORTest {
 
   @Test
+  public void readEmptyWriterData() {
+    CBORBufferWriter writer = new CBORBufferWriter();
+    byte[] destination = { 1, 2, 3 };
+
+    Assertions.assertArrayEquals(new byte[0], writer.getDataBuffer());
+    Assertions.assertEquals(0, writer.copyDataTo(destination, (short) 1));
+    Assertions.assertArrayEquals(new byte[] { 1, 2, 3 }, destination);
+  }
+
+  @Test
   public void borrowMessageWithinOriginalBuffer() {
     byte[] request = Hex.decode("a2676d657373616765430102036174f5");
     CBORBufferReader reader = new CBORBufferReader(request);
