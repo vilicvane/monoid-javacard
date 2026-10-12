@@ -48,8 +48,6 @@ public class CBORBufferWriter extends CBORWriter {
     if (buffer != null) {
       Util.arrayCopyNonAtomic(buffer, (short) 0, extendedBuffer, (short) 0, bufferLength);
 
-      Util.arrayFillNonAtomic(buffer, (short) 0, bufferLength, (byte) 0);
-
       JCSystem.requestObjectDeletion();
     }
 

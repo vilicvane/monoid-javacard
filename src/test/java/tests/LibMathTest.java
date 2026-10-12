@@ -1,11 +1,8 @@
 package tests;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Random;
-import javacard.framework.JCSystem;
 import monoid.LibMath;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -28,12 +25,8 @@ public class LibMathTest {
   }
 
   @AfterEach
-  public void dispose() throws IllegalAccessException {
-    try {
-      assertScratchCleared();
-    } finally {
-      LibMath.dispose();
-    }
+  public void dispose() {
+    LibMath.dispose();
   }
 
   @Test
@@ -342,28 +335,32 @@ public class LibMathTest {
   }
 
   @Test
-  public void failedModularOperationsClearSharedScratchAndCanBeRetried() throws Exception {
+  public void failedModularOperationsCanBeRetried() {
     byte[] input = padded(BigInteger.valueOf(42), 32, 0);
     byte[] modulus = padded(FIELD, 32, 0);
     byte[] shortOutput = new byte[31];
     byte[] exponent = { 3 };
+    byte[] output = new byte[32];
     short offset = 0;
     short length = 32;
 
     Assertions.assertThrows(RuntimeException.class, () ->
       LibMath.mod(input, offset, length, modulus, offset, length, shortOutput, offset)
     );
-    assertScratchCleared();
+    LibMath.mod(input, offset, length, modulus, offset, length, output, offset);
+    assertValue(BigInteger.valueOf(42), output, 0, 32);
 
     Assertions.assertThrows(RuntimeException.class, () ->
       LibMath.modMult(input, offset, input, offset, modulus, offset, shortOutput, offset, length)
     );
-    assertScratchCleared();
+    LibMath.modMult(input, offset, input, offset, modulus, offset, output, offset, length);
+    assertValue(BigInteger.valueOf(42).pow(2), output, 0, 32);
 
     Assertions.assertThrows(RuntimeException.class, () ->
       LibMath.modInv(input, offset, modulus, offset, shortOutput, offset, length)
     );
-    assertScratchCleared();
+    LibMath.modInv(input, offset, modulus, offset, output, offset, length);
+    assertValue(BigInteger.valueOf(42).modInverse(FIELD), output, 0, 32);
 
     Assertions.assertThrows(RuntimeException.class, () ->
       LibMath.modExp(
@@ -379,31 +376,19 @@ public class LibMathTest {
         length
       )
     );
-    assertScratchCleared();
-
-    byte[] output = new byte[32];
-
-    LibMath.modMult(input, offset, input, offset, modulus, offset, output, offset, length);
-    assertValue(BigInteger.valueOf(42).pow(2), output, 0, 32);
-    assertScratchCleared();
-    LibMath.modInv(input, offset, modulus, offset, output, offset, length);
-    assertValue(BigInteger.valueOf(42).modInverse(FIELD), output, 0, 32);
-    assertScratchCleared();
-  }
-
-  private static void assertScratchCleared() throws IllegalAccessException {
-    for (Field field : LibMath.class.getDeclaredFields()) {
-      if (field.getType() != byte[].class || !Modifier.isStatic(field.getModifiers())) {
-        continue;
-      }
-
-      field.setAccessible(true);
-      byte[] buffer = (byte[]) field.get(null);
-
-      if (JCSystem.isTransient(buffer) != JCSystem.NOT_A_TRANSIENT_OBJECT) {
-        Assertions.assertArrayEquals(new byte[buffer.length], buffer, field.getName());
-      }
-    }
+    LibMath.modExp(
+      input,
+      offset,
+      exponent,
+      offset,
+      (short) 1,
+      modulus,
+      offset,
+      output,
+      offset,
+      length
+    );
+    assertValue(BigInteger.valueOf(42).pow(3), output, 0, 32);
   }
 
   private static void checkArithmetic(BigInteger aValue, BigInteger bValue, short length) {

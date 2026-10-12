@@ -3,9 +3,7 @@ package monoid;
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import javacard.framework.AID;
 import javacard.framework.APDU;
 import javacard.framework.Applet;
@@ -50,9 +48,9 @@ public class CBORApduReaderTest {
   }
 
   @Test
-  public void keepsRequestInChunksAndClearsThemAfterUse() throws Exception {
+  public void keepsRequestInChunksAndReleasesThemAfterUse() throws Exception {
     assertEcho((short) 1167);
-    assertReleased(new Object[0]);
+    assertReleased();
     assertEcho((short) 3);
   }
 
@@ -60,7 +58,7 @@ public class CBORApduReaderTest {
   public void allocatesPersistentChunksOnlyAboveTransientLimit() throws Exception {
     Object[] chunks = chunks();
     Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(chunks));
-    assertReleased(new Object[0]);
+    assertReleased();
 
     beginRequest(512);
     assertChunkTypes(2);
@@ -74,7 +72,7 @@ public class CBORApduReaderTest {
   }
 
   @Test
-  public void erasesPersistentChunksWhenRequestIsReplacedOrRejected() throws Exception {
+  public void releasesPersistentChunksWhenRequestIsReplacedOrRejected() throws Exception {
     for (int operation = 0; operation < 4; operation++) {
       beginRequest(513);
       Object[] allocated = chunks().clone();
@@ -90,9 +88,13 @@ public class CBORApduReaderTest {
       }
 
       if (operation == 1) {
-        assertErased(allocated);
+        for (Object previous : allocated) {
+          if (previous != null) {
+            Assertions.assertFalse(Arrays.asList(chunks()).contains(previous));
+          }
+        }
       } else {
-        assertReleased(allocated);
+        assertReleased();
       }
     }
 
@@ -100,22 +102,21 @@ public class CBORApduReaderTest {
   }
 
   @Test
-  public void erasesPersistentChunksOnDeselect() throws Exception {
+  public void releasesPersistentChunksOnDeselect() throws Exception {
     beginRequest(513);
-    Object[] allocated = chunks().clone();
     AID other = AIDUtil.create("f06d6f6e6f69647f02");
     simulator.installApplet(other, EmptyApplet.class);
 
     Assertions.assertTrue(simulator.selectApplet(other));
 
-    assertReleased(allocated);
+    assertReleased();
     Assertions.assertTrue(simulator.selectApplet(READER_AID));
     Assertions.assertEquals(0x6883, transmit(0xA0, 1, new byte[] { 0 }).getSW());
     assertEcho((short) 3);
   }
 
   @Test
-  public void erasesPersistentChunksAfterResetClearsTransientState() throws Exception {
+  public void releasesPersistentChunksAfterResetClearsTransientState() throws Exception {
     beginRequest(769);
     Object[] allocated = chunks().clone();
 
@@ -124,10 +125,9 @@ public class CBORApduReaderTest {
     Assertions.assertFalse(installedReader.isReceiving());
     Assertions.assertEquals(0, installedReader.getLength());
     Assertions.assertSame(allocated[2], chunks()[2]);
-    Assertions.assertEquals((byte) 0xA5, ((byte[]) allocated[2])[0]);
     Assertions.assertTrue(simulator.selectApplet(READER_AID));
 
-    assertReleased(allocated);
+    assertReleased();
     Assertions.assertEquals(0x6883, transmit(0xA0, 1, new byte[] { 0 }).getSW());
     assertEcho((short) 3);
   }
@@ -201,16 +201,9 @@ public class CBORApduReaderTest {
     }
   }
 
-  private void assertErased(Object[] allocated) {
-    for (Object chunk : allocated) {
-      if (chunk != null) {
-        Assertions.assertArrayEquals(new byte[256], (byte[]) chunk);
-      }
-    }
-  }
-
-  private void assertReleased(Object[] allocated) throws Exception {
-    assertErased(allocated);
+  private void assertReleased() throws Exception {
+    Assertions.assertFalse(installedReader.isReceiving());
+    Assertions.assertEquals(0, installedReader.getLength());
 
     for (Object chunk : chunks()) {
       Assertions.assertNull(chunk);
@@ -282,7 +275,6 @@ public class CBORApduReaderTest {
       }
 
       boolean pending = false;
-      List<byte[]> chunks = new ArrayList<>();
 
       try {
         pending = !reader.receive();
@@ -304,7 +296,6 @@ public class CBORApduReaderTest {
           Assertions.assertTrue(available > 0);
           Assertions.assertTrue(available <= reader.getLength() - position);
           Assertions.assertTrue(reader.getChunkOffset(position) + available <= chunk.length);
-          chunks.add(chunk);
           position += available;
         }
 
@@ -357,12 +348,6 @@ public class CBORApduReaderTest {
       } finally {
         if (!pending) {
           reader.clear();
-
-          for (byte[] chunk : chunks) {
-            if (chunk != apdu.getBuffer()) {
-              Assertions.assertArrayEquals(new byte[chunk.length], chunk);
-            }
-          }
         }
       }
     }

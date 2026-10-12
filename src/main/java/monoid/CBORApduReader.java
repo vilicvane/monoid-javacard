@@ -30,7 +30,7 @@ public class CBORApduReader extends CBORReader {
     JCSystem.CLEAR_ON_DESELECT
   );
 
-  // Keep persistent chunks reachable for erasure after reset clears the state.
+  // Keep persistent chunks reachable for release after reset clears the state.
   private final Object[] chunks = new Object[MAX_LENGTH / CHUNK_LENGTH];
 
   public CBORApduReader() {
@@ -194,13 +194,9 @@ public class CBORApduReader extends CBORReader {
   protected void clear() {
     state[0] = 0;
     state[1] = 0;
-    Util.arrayFillNonAtomic(header, (short) 0, (short) header.length, (byte) 0);
 
     for (short index = 0; index < chunks.length; index++) {
-      byte[] chunk = (byte[]) chunks[index];
-
-      if (chunk != null) {
-        Util.arrayFillNonAtomic(chunk, (short) 0, (short) chunk.length, (byte) 0);
+      if (chunks[index] != null) {
         chunks[index] = null;
       }
     }

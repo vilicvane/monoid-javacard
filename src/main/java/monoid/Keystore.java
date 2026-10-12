@@ -72,19 +72,10 @@ public final class Keystore {
     }
 
     byte[] key = requireKey(index);
-    byte[] master = null;
 
-    try {
-      master = deriveMasterFromSeed(key, seed);
+    byte[] master = deriveMasterFromSeed(key, seed);
 
-      return derivePublicKeyAndChainCodeFromMaster(curve, master, path);
-    } finally {
-      Util.arrayFillNonAtomic(key, (short) 0, (short) key.length, (byte) 0);
-
-      if (master != null) {
-        Util.arrayFillNonAtomic(master, (short) 0, (short) master.length, (byte) 0);
-      }
-    }
+    return derivePublicKeyAndChainCodeFromMaster(curve, master, path);
   }
 
   public byte[] getMasterDerivedPublicKeyAndChainCode(
@@ -101,20 +92,16 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    try {
-      return derivePublicKeyAndChainCodeFromMaster(curve, key, path);
-    } finally {
-      Util.arrayFillNonAtomic(key, (short) 0, (short) key.length, (byte) 0);
-    }
+    return derivePublicKeyAndChainCodeFromMaster(curve, key, path);
   }
 
-  public byte[] getECKeyPublicKey(byte[] index) {
+  public byte[] getWeierstrassKeyPublicKey(byte[] index) {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     WeierstrassCurve curve;
 
     switch (type) {
-      case Safe.TYPE_EC_SECP256K1:
+      case Safe.TYPE_WEIERSTRASS_SECP256K1:
         curve = WeierstrassCurve.secp256k1;
         break;
       default:
@@ -127,6 +114,36 @@ public final class Keystore {
     ECPrivateKey privateKey = curve.getSharedPrivateKey(key, (short) 0);
 
     return curve.derivePublicKey(privateKey);
+  }
+
+  public byte[] getEdwardsKeyPublicKey(byte[] index) {
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+
+    EdwardsCurve curve;
+
+    switch (type) {
+      case Safe.TYPE_EDWARDS_ED25519:
+        curve = EdwardsCurve.ed25519;
+        break;
+      default:
+        KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+        return null;
+    }
+
+    byte[] key = requireKey(index);
+
+    if (key.length != curve.getKeyLength()) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
+
+    ED25519Key privateKey = curve.getSharedPrivateKey(key, (short) 0);
+
+    try {
+      return curve.derivePublicKey(privateKey);
+    } finally {
+      privateKey.clear();
+    }
   }
 
   public byte[] signECDSADigest(
@@ -157,11 +174,11 @@ public final class Keystore {
 
       curve = WeierstrassCurve.requireSharedCurve(curveName);
       key = LibBIP32.derive(curve, key, path);
-      type = Safe.TYPE_EC;
+      type = Safe.TYPE_WEIERSTRASS;
     }
 
     switch (type) {
-      case Safe.TYPE_EC_SECP256K1:
+      case Safe.TYPE_WEIERSTRASS_SECP256K1:
         curve = WeierstrassCurve.secp256k1;
         break;
     }
@@ -169,7 +186,7 @@ public final class Keystore {
     Key privateKey;
 
     switch (type & Safe.TYPE_CATEGORY_MASK) {
-      case Safe.TYPE_EC:
+      case Safe.TYPE_WEIERSTRASS:
         if (curve == null) {
           KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
         }
@@ -197,45 +214,45 @@ public final class Keystore {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     byte[] key = requireKey(index);
-    byte[] master = key;
-    ED25519Key privateKey = null;
 
-    try {
-      if (Safe.isTypeSeed(type)) {
-        master = deriveMasterFromSeed(key, seed);
-        type = Safe.TYPE_MASTER;
-      }
+    if (Safe.isTypeSeed(type)) {
+      key = deriveMasterFromSeed(key, seed);
+      type = Safe.TYPE_MASTER;
+    }
 
-      if (!Safe.isTypeMaster(type) || master.length != MASTER_LENGTH) {
+    EdwardsCurve curve;
+
+    if (Safe.isTypeMaster(type)) {
+      if (key.length != MASTER_LENGTH) {
         KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
         return null;
       }
 
-      EdwardsCurve curve = EdwardsCurve.requireSharedCurve(curveName);
+      curve = EdwardsCurve.requireSharedCurve(curveName);
 
       LibSLIP10Ed25519.derive(
-        master,
+        key,
         (short) 0,
-        (short) master.length,
+        (short) key.length,
         path,
         (short) 0,
         (short) path.length,
-        master,
+        key,
         (short) 0
       );
-      privateKey = curve.getSharedPrivateKey(master, (short) 0);
+    } else if (type == Safe.TYPE_EDWARDS_ED25519 && key.length == CurveED25519.KEY_LENGTH) {
+      curve = EdwardsCurve.ed25519;
+    } else {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
 
+    ED25519Key privateKey = curve.getSharedPrivateKey(key, (short) 0);
+
+    try {
       return Signer.signEDDSAMessage(curve, privateKey, message, messageOffset, messageLength);
     } finally {
-      if (privateKey != null) {
-        privateKey.clear();
-      }
-
-      Util.arrayFillNonAtomic(key, (short) 0, (short) key.length, (byte) 0);
-
-      if (master != key) {
-        Util.arrayFillNonAtomic(master, (short) 0, (short) master.length, (byte) 0);
-      }
+      privateKey.clear();
     }
   }
 
@@ -280,21 +297,19 @@ public final class Keystore {
     byte[] master,
     byte[] path
   ) {
-    ED25519Key privateKey = null;
+    LibSLIP10Ed25519.derive(
+      master,
+      (short) 0,
+      (short) master.length,
+      path,
+      (short) 0,
+      (short) path.length,
+      master,
+      (short) 0
+    );
+    ED25519Key privateKey = curve.getSharedPrivateKey(master, (short) 0);
 
     try {
-      LibSLIP10Ed25519.derive(
-        master,
-        (short) 0,
-        (short) master.length,
-        path,
-        (short) 0,
-        (short) path.length,
-        master,
-        (short) 0
-      );
-      privateKey = curve.getSharedPrivateKey(master, (short) 0);
-
       short publicKeyLength = curve.getPublicKeyLength();
       short keyLength = curve.getKeyLength();
 
@@ -308,9 +323,7 @@ public final class Keystore {
 
       return data;
     } finally {
-      if (privateKey != null) {
-        privateKey.clear();
-      }
+      privateKey.clear();
     }
   }
 

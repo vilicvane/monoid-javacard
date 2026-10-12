@@ -238,9 +238,12 @@ type Response = {
 ### `0x30` ~ `0x3F` Safe management
 
 ```ts
-type SafeItemKeyType = 'entropy' | 'seed' | 'master' | 'secp256k1';
+type SafeItemKeyType = 'entropy' | 'seed' | 'master' | 'secp256k1' | 'ed25519';
 type SafeItemType = SafeItemKeyType | byte;
 ```
+
+An `ed25519` item stores a 32-byte private-key seed. It represents an independent
+key, distinct from a `seed` item used for hierarchical derivation.
 
 #### `0x30` List items
 
@@ -395,6 +398,9 @@ type Key = {
 
 For `curve: 'ed25519'`, derives from a stored seed or master using hardened SLIP-0010 and returns the 32-byte encoded public key and 32-byte chain code. A stored seed uses `seed: 'ed25519 seed'` as the master derivation label.
 
+For an independent `secp256k1` or `ed25519` item, supply only `index`; the response
+contains `publicKey` without `chainCode`.
+
 ```ts
 type Request = Key;
 ```
@@ -431,7 +437,9 @@ type Request = Key &
   );
 ```
 
-EdDSA takes the original message bytes and signs with Ed25519 after hardened SLIP-0010 derivation from a stored seed or master.
+EdDSA signs the original message bytes with Ed25519. A stored seed or master uses
+hardened SLIP-0010 derivation. An independent `ed25519` item requires only `index`,
+`cipher: 'eddsa'` and `message`, with no derivation fields.
 
 ```ts
 type Response = {
@@ -457,8 +465,11 @@ The first 2 bytes are the type of the item (`0x0000` to `0x0FFF` and `0xFFFF` ar
 - `0x03` `"master"` Master key
   - +1 byte master key length (note data length is master key length \* 2)
   - +8 bytes digest of master key
-- `0x04` EC key
+- `0x04` Weierstrass key
   - `0x0401` `"secp256k1"` SECP256K1 key
+    - +8 bytes digest of key
+- `0x05` Edwards key
+  - `0x0501` `"ed25519"` Ed25519 key (32-byte private-key seed)
     - +8 bytes digest of key
 - `0x0FFF` Generic data (draft, not implemented yet)
   - +8 bytes unique identifier

@@ -39,7 +39,6 @@ public class CBORApduWriterTest {
     Assertions.assertEquals(0x6100, first.getSW());
     Assertions.assertArrayEquals(Arrays.copyOfRange(expected, 0, 256), first.getData());
     Assertions.assertTrue(Command.writer.hasPending());
-    Assertions.assertArrayEquals(new byte[256], Arrays.copyOf(buffer, 256));
 
     ResponseAPDU second = transmit(0xC0);
 
@@ -51,7 +50,7 @@ public class CBORApduWriterTest {
 
     Assertions.assertEquals(0x9000, last.getSW());
     Assertions.assertArrayEquals(Arrays.copyOfRange(expected, 512, 603), last.getData());
-    assertReleased(buffer);
+    assertReleased();
     Assertions.assertEquals(0x6985, transmit(0xC0).getSW());
 
     Assertions.assertEquals(0x6100, transmit(0x20).getSW());
@@ -61,34 +60,33 @@ public class CBORApduWriterTest {
   @Test
   public void releasesCancelledResponseBeforeNewCommand() {
     Assertions.assertEquals(0x6100, transmit(0x20).getSW());
-    byte[] buffer = Command.writer.buffer;
-
     Assertions.assertEquals(0x6D00, transmit(0x7F).getSW());
 
-    assertReleased(buffer);
+    assertReleased();
     Assertions.assertEquals(0x6985, transmit(0xC0).getSW());
+    Assertions.assertEquals(0x6100, transmit(0x20).getSW());
   }
 
   @Test
   public void releasesPendingResponseOnDeselect() {
     Assertions.assertEquals(0x6100, transmit(0x20).getSW());
-    byte[] buffer = Command.writer.buffer;
+
     AID other = AIDUtil.create("f06d6f6e6f69647f02");
     simulator.installApplet(other, EmptyApplet.class);
 
     Assertions.assertTrue(simulator.selectApplet(other));
 
-    assertReleased(buffer);
+    assertReleased();
   }
 
   @Test
   public void releasesResponseWhenSendFails() {
     Assertions.assertEquals(0x6100, transmit(0x20).getSW());
-    byte[] buffer = Command.writer.buffer;
-
     Assertions.assertEquals(0x6F00, transmit(0x7E).getSW());
 
-    assertReleased(buffer);
+    assertReleased();
+    Assertions.assertEquals(0x6985, transmit(0xC0).getSW());
+    Assertions.assertEquals(0x6100, transmit(0x20).getSW());
   }
 
   private ResponseAPDU transmit(int instruction) {
@@ -99,8 +97,7 @@ public class CBORApduWriterTest {
     );
   }
 
-  private void assertReleased(byte[] buffer) {
-    Assertions.assertArrayEquals(new byte[buffer.length], buffer);
+  private void assertReleased() {
     Assertions.assertNull(Command.writer.buffer);
     Assertions.assertEquals(0, Command.writer.getLength());
     Assertions.assertFalse(Command.writer.hasPending());

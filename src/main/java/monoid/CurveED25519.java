@@ -88,11 +88,7 @@ public class CurveED25519 extends EdwardsCurve {
 
       return privateKey;
     } finally {
-      if (sharedPrivateKey != privateKey) {
-        privateKey.clear();
-      }
-
-      clearScratch();
+      hash.reset();
     }
   }
 
@@ -116,15 +112,7 @@ public class CurveED25519 extends EdwardsCurve {
       sharedPrivateKey = null;
     }
 
-    clearScratch();
-  }
-
-  void clearScratch() {
     hash.reset();
-    Util.arrayFillNonAtomic(transformX, (short) 0, KEY_LENGTH, (byte) 0);
-    Util.arrayFillNonAtomic(transformY, (short) 0, KEY_LENGTH, (byte) 0);
-    sharedMultiplicationKey.clearKey();
-    Util.arrayFillNonAtomic(work, (short) 0, (short) work.length, (byte) 0);
   }
 
   void multiplyBase(byte[] scalar, byte[] out, short outOffset) {

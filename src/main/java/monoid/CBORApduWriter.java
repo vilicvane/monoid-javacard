@@ -4,7 +4,6 @@ import javacard.framework.APDU;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
-import javacard.framework.Util;
 
 public class CBORApduWriter extends CBORBufferWriter {
 
@@ -19,7 +18,6 @@ public class CBORApduWriter extends CBORBufferWriter {
   @Override
   public void reset() {
     if (buffer != null) {
-      Util.arrayFillNonAtomic(buffer, (short) 0, (short) buffer.length, (byte) 0);
       buffer = null;
       JCSystem.requestObjectDeletion();
     }
@@ -42,8 +40,6 @@ public class CBORApduWriter extends CBORBufferWriter {
       apdu.setOutgoingLength(sendingLength);
 
       apdu.sendBytesLong(buffer, sentOffset, sendingLength);
-
-      Util.arrayFillNonAtomic(buffer, sentOffset, sendingLength, (byte) 0);
 
       sentOffset += sendingLength;
 

@@ -61,7 +61,6 @@ public class LibHMACSha512Test {
       );
 
       Assertions.assertArrayEquals(expected, Arrays.copyOf(buffer, 64));
-      Assertions.assertArrayEquals(new byte[block.length], block);
     }
   }
 }

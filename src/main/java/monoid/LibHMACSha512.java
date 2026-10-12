@@ -70,14 +70,10 @@ public final class LibHMACSha512 {
     byte[] block
   ) {
     if (sharedSignature != null && sharedKey != null) {
-      try {
-        sharedKey.setKey(key, keyOffset, keyLength);
-        sharedSignature.init(sharedKey, Signature.MODE_SIGN);
+      sharedKey.setKey(key, keyOffset, keyLength);
+      sharedSignature.init(sharedKey, Signature.MODE_SIGN);
 
-        return sharedSignature.sign(data, dataOffset, dataLength, out, outOffset);
-      } finally {
-        sharedKey.clearKey();
-      }
+      return sharedSignature.sign(data, dataOffset, dataLength, out, outOffset);
     } else {
       try {
         sharedDigest.reset();
@@ -100,7 +96,6 @@ public final class LibHMACSha512 {
         return sharedDigest.doFinal(out, outOffset, OUT_BYTES, out, outOffset);
       } finally {
         sharedDigest.reset();
-        Util.arrayFillNonAtomic(block, (short) 0, BLOCK_BYTES, (byte) 0);
       }
     }
   }

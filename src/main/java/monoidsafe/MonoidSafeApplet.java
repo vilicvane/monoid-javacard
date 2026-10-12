@@ -192,7 +192,7 @@ public class MonoidSafeApplet extends Applet implements SafeShareable {
       items[index] = items[(short) (index + 1)];
     }
 
-    items[itemsLength--] = null;
+    items[--itemsLength] = null;
 
     JCSystem.requestObjectDeletion();
 

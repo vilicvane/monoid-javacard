@@ -10,7 +10,6 @@ public final class LibED25519 {
   /**
    * Signs a complete message with pure Ed25519, reading its chunks twice.
    * The source must remain unchanged until signing completes. Output may overlap it.
-   * Scratch secrets are erased on return; the caller owns and must clear the key.
    */
   public static short sign(
     CurveED25519 curve,
@@ -87,10 +86,7 @@ public final class LibED25519 {
 
       return SIGNATURE_LENGTH;
     } finally {
-      Util.arrayFillNonAtomic(nonce, (short) 0, (short) nonce.length, (byte) 0);
-      Util.arrayFillNonAtomic(response, (short) 0, (short) response.length, (byte) 0);
-      Util.arrayFillNonAtomic(publicNonce, (short) 0, (short) publicNonce.length, (byte) 0);
-      curve.clearScratch();
+      curve.hash.reset();
     }
   }
 

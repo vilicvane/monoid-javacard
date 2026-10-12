@@ -2,11 +2,8 @@ package monoid;
 
 import com.licel.jcardsim.base.SimulatorSystem;
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import javacard.framework.ISOException;
-import javacard.framework.JCSystem;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,12 +76,11 @@ public class CurveED25519Test {
         new byte[] { (byte) 0xA5, (byte) 0xA5, (byte) 0xA5, (byte) 0xA5, (byte) 0xA5 },
         Arrays.copyOfRange(out, 35, 40)
       );
-      curve.clearScratch();
     }
   }
 
   @Test
-  public void signingReusesClearedScratchAndRequiresReimportAfterReset() throws Exception {
+  public void signingReusesScratchAndRequiresReimportAfterReset() throws Exception {
     // RFC 8032 section 7.1, test 2.
     byte[] seed = Hex.decode("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb");
     byte[] message = Hex.decode("72");
@@ -109,7 +105,6 @@ public class CurveED25519Test {
         (short) 0
       );
       Assertions.assertArrayEquals(expectedSignature, signature);
-      assertScratchCleared();
     }
 
     Assertions.assertThrows(RuntimeException.class, () ->
@@ -123,7 +118,6 @@ public class CurveED25519Test {
         (short) 0
       )
     );
-    assertScratchCleared();
 
     // Reset clears transient data, while the shared curve remains reachable.
     SimulatorSystem.instance().reset();
@@ -140,7 +134,6 @@ public class CurveED25519Test {
         (short) 0
       )
     );
-    assertScratchCleared();
 
     ED25519Key imported = curve.getSharedPrivateKey(seed, (short) 0);
     LibED25519.sign(
@@ -155,28 +148,5 @@ public class CurveED25519Test {
 
     Assertions.assertArrayEquals(expectedPublicKey, curve.derivePublicKey(imported));
     Assertions.assertArrayEquals(expectedSignature, signature);
-    assertScratchCleared();
-  }
-
-  private void assertScratchCleared() throws IllegalAccessException {
-    for (Object owner : new Object[] { curve, LibMath.class }) {
-      Class<?> type = owner instanceof Class ? (Class<?>) owner : owner.getClass();
-
-      for (Field field : type.getDeclaredFields()) {
-        if (
-          field.getType() != byte[].class ||
-          Modifier.isStatic(field.getModifiers()) != (owner instanceof Class)
-        ) {
-          continue;
-        }
-
-        field.setAccessible(true);
-        byte[] buffer = (byte[]) field.get(owner instanceof Class ? null : owner);
-
-        if (JCSystem.isTransient(buffer) != JCSystem.NOT_A_TRANSIENT_OBJECT) {
-          Assertions.assertArrayEquals(new byte[buffer.length], buffer, field.getName());
-        }
-      }
-    }
   }
 }

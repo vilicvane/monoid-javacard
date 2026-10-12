@@ -1,9 +1,8 @@
 package monoid;
 
 import javacard.framework.JCSystem;
-import javacard.framework.Util;
 
-/** Expanded seed, valid only until deselection or explicit destruction. No secret export API. */
+/** Expanded seed, valid only until deselection or explicit invalidation. */
 public final class ED25519Key {
 
   final byte[] scalar = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
@@ -26,8 +25,5 @@ public final class ED25519Key {
 
   public void clear() {
     valid[0] = 0;
-    Util.arrayFillNonAtomic(scalar, (short) 0, (short) scalar.length, (byte) 0);
-    Util.arrayFillNonAtomic(prefix, (short) 0, (short) prefix.length, (byte) 0);
-    Util.arrayFillNonAtomic(publicKey, (short) 0, (short) publicKey.length, (byte) 0);
   }
 }

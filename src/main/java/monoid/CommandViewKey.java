@@ -20,11 +20,16 @@ public final class CommandViewKey extends Command {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     switch (type & Safe.TYPE_CATEGORY_MASK) {
-      case Safe.TYPE_EC:
+      case Safe.TYPE_WEIERSTRASS:
+      case Safe.TYPE_EDWARDS:
+        byte[] publicKey = Safe.isTypeWeierstrass(type)
+          ? keystore.getWeierstrassKeyPublicKey(index)
+          : keystore.getEdwardsKeyPublicKey(index);
+
         writer.map((short) 1);
         {
           writer.text(Text.publicKey);
-          writer.bytes(keystore.getECKeyPublicKey(index));
+          writer.bytes(publicKey);
         }
 
         return;

@@ -6,6 +6,7 @@ import cz.muni.fi.crocs.rcard.client.CardManager;
 import cz.muni.fi.crocs.rcard.client.CardType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashMap;
 import javacard.framework.AID;
@@ -1260,6 +1261,287 @@ public class MonoidAppletTest extends AppletTest {
     } finally {
       assertNoError(transmitFrame(manager, 0, 0x35, 0, 0, request));
     }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(25)
+  public void importedED25519Items() throws Exception {
+    CardManager manager = connect();
+    authenticate(manager, false);
+
+    // RFC 8032, section 7.1, test 1; zero is also a valid private key seed.
+    byte[] seed = Hex.decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60");
+
+    for (int mode = 0; mode < 3; mode++) {
+      byte[] data = mode == 1 ? new byte[32] : seed;
+      byte[] index = ed25519Index(data);
+      CBORBufferWriter writer = new CBORBufferWriter();
+      writer.map((short) 2);
+      {
+        writer.text(mode == 2 ? "index".getBytes() : "type".getBytes());
+
+        if (mode == 0) {
+          writer.text("ed25519".getBytes());
+        } else if (mode == 1) {
+          writer.integer((short) 0x0501);
+        } else {
+          writer.bytes(index);
+        }
+
+        writer.text("data".getBytes());
+        writer.bytes(data);
+      }
+
+      ResponseAPDU response = manager.transmit(apdu(0, 0x34, 0, 0, writer.getDataBuffer()));
+      assertNoError(response);
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+      reader.map();
+      Assertions.assertArrayEquals(index, reader.requireKey("index".getBytes()).bytes());
+
+      try {
+        assertED25519Item(manager, index, data, new byte[0]);
+      } finally {
+        assertNoError(manager.transmit(apdu(0, 0x35, 0, 0, itemRequest(index))));
+      }
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(26)
+  public void randomED25519Item() throws Exception {
+    CardManager manager = connect();
+    authenticate(manager, false);
+
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 1);
+    writer.text("type".getBytes());
+    writer.text("ed25519".getBytes());
+
+    ResponseAPDU response = manager.transmit(apdu(0, 0x38, 0, 0, writer.getDataBuffer()));
+    assertNoError(response);
+    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+    reader.map();
+    byte[] index = reader.requireKey("index".getBytes()).bytes();
+
+    try {
+      authenticate(manager, true);
+      response = manager.transmit(apdu(0, 0x32, 0, 0, itemRequest(index)));
+      assertNoError(response);
+      reader = new CBORBufferReader(response.getBytes());
+      reader.map();
+      byte[] data = reader.requireKey("data".getBytes()).bytes();
+      Assertions.assertEquals(32, data.length);
+      Assertions.assertArrayEquals(ed25519Index(data), index);
+
+      assertED25519Item(manager, index, data, Hex.decode("72"));
+    } finally {
+      assertNoError(manager.transmit(apdu(0, 0x35, 0, 0, itemRequest(index))));
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(27)
+  public void invalidED25519Items() throws Exception {
+    CardManager manager = connect();
+    authenticate(manager, false);
+
+    byte[] invalidType = new byte[263];
+    Arrays.fill(invalidType, (byte) 'x');
+    System.arraycopy("ed25519".getBytes(), 0, invalidType, 0, 7);
+
+    for (int instruction : new int[] { 0x30, 0x34, 0x38 }) {
+      CBORBufferWriter writer = new CBORBufferWriter();
+      writer.map((short) (instruction == 0x34 ? 2 : 1));
+      writer.text("type".getBytes());
+      writer.text(invalidType);
+
+      if (instruction == 0x34) {
+        writer.text("data".getBytes());
+        writer.bytes(new byte[32]);
+      }
+
+      assertError(
+        transmitFragments(manager, instruction, writer.getDataBuffer(), 255),
+        MonoidException.CODE_INVALID_PARAMETER
+      );
+    }
+
+    for (int length : new int[] { 0, 31, 33, 64 }) {
+      byte[] data = new byte[length];
+
+      for (boolean explicitIndex : new boolean[] { false, true }) {
+        CBORBufferWriter writer = new CBORBufferWriter();
+        writer.map((short) 2);
+
+        if (explicitIndex) {
+          writer.text("index".getBytes());
+          writer.bytes(ed25519Index(data));
+        } else {
+          writer.text("type".getBytes());
+          writer.text("ed25519".getBytes());
+        }
+
+        writer.text("data".getBytes());
+        writer.bytes(data);
+        assertError(
+          manager.transmit(apdu(0, 0x34, 0, 0, writer.getDataBuffer())),
+          SafeException.CODE_INVALID_PARAMETER
+        );
+      }
+    }
+
+    byte[] data = new byte[32];
+    byte[] index = ed25519Index(data);
+    index[9] ^= 1;
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 2);
+    writer.text("index".getBytes());
+    writer.bytes(index);
+    writer.text("data".getBytes());
+    writer.bytes(data);
+    assertError(
+      manager.transmit(apdu(0, 0x34, 0, 0, writer.getDataBuffer())),
+      SafeException.CODE_INVALID_PARAMETER
+    );
+
+    index[9] ^= 1;
+    writer.reset();
+    writer.map((short) 2);
+    writer.text("index".getBytes());
+    writer.bytes(index);
+    writer.text("data".getBytes());
+    writer.bytes(data);
+    assertNoError(manager.transmit(apdu(0, 0x34, 0, 0, writer.getDataBuffer())));
+
+    try {
+      for (boolean ecdsa : new boolean[] { false, true }) {
+        writer.reset();
+        writer.map((short) 3);
+        writer.text("index".getBytes());
+        writer.bytes(ecdsa ? index : TEST_SECP256K1_KEY_INDEX);
+        writer.text("cipher".getBytes());
+        writer.text(ecdsa ? "ecdsa".getBytes() : "eddsa".getBytes());
+        writer.text(ecdsa ? "digest".getBytes() : "message".getBytes());
+        writer.bytes(TEST_DIGEST);
+        assertError(
+          manager.transmit(apdu(0, 0x41, 0, 0, writer.getDataBuffer())),
+          MonoidException.CODE_INVALID_PARAMETER
+        );
+      }
+    } finally {
+      assertNoError(manager.transmit(apdu(0, 0x35, 0, 0, itemRequest(index))));
+    }
+  }
+
+  private byte[] ed25519Index(byte[] data) throws Exception {
+    byte[] index = new byte[10];
+    index[0] = 0x05;
+    index[1] = 0x01;
+    System.arraycopy(MessageDigest.getInstance("SHA-256").digest(data), 0, index, 2, 8);
+    return index;
+  }
+
+  private byte[] itemRequest(byte[] index) {
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 1);
+    writer.text("index".getBytes());
+    writer.bytes(index);
+    return writer.getDataBuffer();
+  }
+
+  private void assertED25519Item(CardManager manager, byte[] index, byte[] seed, byte[] message)
+    throws Exception {
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 1);
+    writer.text("type".getBytes());
+    writer.text("ed25519".getBytes());
+
+    ResponseAPDU response = manager.transmit(apdu(0, 0x30, 0, 0, writer.getDataBuffer()));
+    assertNoError(response);
+    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+    reader.map();
+    Assertions.assertEquals(1, reader.requireKey("items".getBytes()).array());
+    Assertions.assertTrue(reader.index((short) 0));
+    reader.map();
+    Assertions.assertArrayEquals("ed25519".getBytes(), reader.requireKey("type".getBytes()).text());
+    Assertions.assertArrayEquals(index, reader.requireKey("index".getBytes()).bytes());
+
+    for (short category : new short[] { 0x0400, 0x0500 }) {
+      writer.reset();
+      writer.map((short) 1);
+      writer.text("type".getBytes());
+      writer.integer(category);
+
+      response = manager.transmit(apdu(0, 0x30, 0, 0, writer.getDataBuffer()));
+      assertNoError(response);
+      reader = new CBORBufferReader(response.getBytes());
+      reader.map();
+      short count = reader.requireKey("items".getBytes()).array();
+      Assertions.assertEquals(category == 0x0400 ? 2 : 1, count);
+
+      for (short item = 0; item < count; item++) {
+        Assertions.assertTrue(reader.index(item));
+        reader.map();
+        byte[] listedIndex = reader.requireKey("index".getBytes()).bytes();
+        Assertions.assertEquals(category >> 8, listedIndex[0]);
+        Assertions.assertEquals(0x01, listedIndex[1]);
+      }
+    }
+
+    authenticate(manager, true);
+    response = manager.transmit(apdu(0, 0x32, 0, 0, itemRequest(index)));
+    assertNoError(response);
+    reader = new CBORBufferReader(response.getBytes());
+    reader.map();
+    Assertions.assertArrayEquals(seed, reader.requireKey("data".getBytes()).bytes());
+
+    response = manager.transmit(apdu(0, 0x40, 0, 0, itemRequest(index)));
+    assertNoError(response);
+    reader = new CBORBufferReader(response.getBytes());
+    Assertions.assertEquals(1, reader.map());
+    byte[] publicKey = reader.requireKey("publicKey".getBytes()).bytes();
+    Assertions.assertEquals(32, publicKey.length);
+    Assertions.assertFalse(reader.key("chainCode".getBytes()));
+
+    writer.reset();
+    writer.map((short) 3);
+    writer.text("index".getBytes());
+    writer.bytes(index);
+    writer.text("cipher".getBytes());
+    writer.text("eddsa".getBytes());
+    writer.text("message".getBytes());
+    writer.bytes(message);
+    response = manager.transmit(apdu(0, 0x41, 0, 0, writer.getDataBuffer()));
+    assertNoError(response);
+    reader = new CBORBufferReader(response.getBytes());
+    Assertions.assertEquals(1, reader.map());
+    byte[] signature = reader.requireKey("signature".getBytes()).bytes();
+    Assertions.assertEquals(64, signature.length);
+
+    Process process = new ProcessBuilder(
+      "node",
+      "-e",
+      "const c = require('node:crypto'); " +
+      "const [seed, pub, msg, sig] = process.argv.slice(1).map(x => Buffer.from(x, 'hex')); " +
+      "const key = c.createPrivateKey({key: Buffer.concat([" +
+      "Buffer.from('302e020100300506032b657004220420', 'hex'), seed]), " +
+      "format: 'der', type: 'pkcs8'}); " +
+      "const publicKey = c.createPublicKey(key); " +
+      "const expected = publicKey.export({format: 'der', type: 'spki'}).subarray(-32); " +
+      "process.exit(expected.equals(pub) && c.sign(null, msg, key).equals(sig) && " +
+      "c.verify(null, msg, publicKey, sig) ? 0 : 1);",
+      Hex.toHexString(seed),
+      Hex.toHexString(publicKey),
+      Hex.toHexString(message),
+      Hex.toHexString(signature)
+    )
+      .inheritIO()
+      .start();
+
+    Assertions.assertEquals(0, process.waitFor());
   }
 
   private void assertInvalidResponseHeaders(CardManager manager)

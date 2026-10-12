@@ -17,7 +17,6 @@ public final class LibSLIP10Ed25519 {
    * Writes the derived 32-byte Ed25519 seed followed by its 32-byte chain code.
    * Path components are big-endian hardened indices; an empty path selects the master.
    * Workspace size is independent of depth. Output may overlap master or path.
-   * Scratch secrets are erased on return; the caller owns and must erase the output.
    */
   public static short derive(
     byte[] master,
@@ -42,35 +41,29 @@ public final class LibSLIP10Ed25519 {
       JCSystem.CLEAR_ON_DESELECT
     );
 
-    try {
-      if (masterLength != EXTENDED_KEY_LENGTH || pathLength % PATH_SEGMENT_LENGTH != 0) {
-        ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
-      }
-
-      requireRange(master, masterOffset, masterLength);
-      requireRange(path, pathOffset, pathLength);
-      requireRange(out, outOffset, EXTENDED_KEY_LENGTH);
-
-      for (short offset = 0; offset < pathLength; offset += PATH_SEGMENT_LENGTH) {
-        if ((path[(short) (pathOffset + offset)] & (byte) 0x80) == 0) {
-          ISOException.throwIt(ISO7816.SW_WRONG_DATA);
-        }
-      }
-
-      Util.arrayCopyNonAtomic(master, masterOffset, extendedKey, (short) 0, EXTENDED_KEY_LENGTH);
-
-      for (short offset = 0; offset < pathLength; offset += PATH_SEGMENT_LENGTH) {
-        deriveChildKeyInPlace(extendedKey, path, (short) (pathOffset + offset), data, block);
-      }
-
-      Util.arrayCopyNonAtomic(extendedKey, (short) 0, out, outOffset, EXTENDED_KEY_LENGTH);
-
-      return EXTENDED_KEY_LENGTH;
-    } finally {
-      Util.arrayFillNonAtomic(extendedKey, (short) 0, EXTENDED_KEY_LENGTH, (byte) 0);
-      Util.arrayFillNonAtomic(data, (short) 0, (short) data.length, (byte) 0);
-      Util.arrayFillNonAtomic(block, (short) 0, (short) block.length, (byte) 0);
+    if (masterLength != EXTENDED_KEY_LENGTH || pathLength % PATH_SEGMENT_LENGTH != 0) {
+      ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
     }
+
+    requireRange(master, masterOffset, masterLength);
+    requireRange(path, pathOffset, pathLength);
+    requireRange(out, outOffset, EXTENDED_KEY_LENGTH);
+
+    for (short offset = 0; offset < pathLength; offset += PATH_SEGMENT_LENGTH) {
+      if ((path[(short) (pathOffset + offset)] & (byte) 0x80) == 0) {
+        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+      }
+    }
+
+    Util.arrayCopyNonAtomic(master, masterOffset, extendedKey, (short) 0, EXTENDED_KEY_LENGTH);
+
+    for (short offset = 0; offset < pathLength; offset += PATH_SEGMENT_LENGTH) {
+      deriveChildKeyInPlace(extendedKey, path, (short) (pathOffset + offset), data, block);
+    }
+
+    Util.arrayCopyNonAtomic(extendedKey, (short) 0, out, outOffset, EXTENDED_KEY_LENGTH);
+
+    return EXTENDED_KEY_LENGTH;
   }
 
   private static void deriveChildKeyInPlace(

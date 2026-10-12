@@ -148,21 +148,17 @@ public final class LibMath {
     byte[] out,
     short outOffset
   ) {
-    try {
-      mod(
-        in,
-        inOffset,
-        inLength,
-        modulus,
-        modulusOffset,
-        length,
-        out,
-        outOffset,
-        sharedExponentiationBuffer
-      );
-    } finally {
-      Util.arrayFillNonAtomic(sharedExponentiationBuffer, (short) 0, EXPONENT_LENGTH, (byte) 0);
-    }
+    mod(
+      in,
+      inOffset,
+      inLength,
+      modulus,
+      modulusOffset,
+      length,
+      out,
+      outOffset,
+      sharedExponentiationBuffer
+    );
   }
 
   private static void mod(
@@ -415,61 +411,56 @@ public final class LibMath {
     short outOffset,
     short length
   ) {
-    try {
-      byte[] halfSum = sharedTemporaryA;
-      byte[] difference = sharedTemporaryB;
+    byte[] halfSum = sharedTemporaryA;
+    byte[] difference = sharedTemporaryB;
 
-      modAdd(a, aOffset, b, bOffset, modulus, modulusOffset, halfSum, (short) 0, length);
+    modAdd(a, aOffset, b, bOffset, modulus, modulusOffset, halfSum, (short) 0, length);
 
-      short carry = 0;
+    short carry = 0;
 
-      if ((halfSum[(short) (length - 1)] & 1) != 0) {
-        carry = add(halfSum, (short) 0, modulus, modulusOffset, halfSum, (short) 0, length);
-      }
-
-      shiftRight(halfSum, (short) 0, halfSum, (short) 0, length, (short) 1, (short) (carry << 7));
-      modSub(halfSum, (short) 0, b, bOffset, modulus, modulusOffset, difference, (short) 0, length);
-
-      // With h = (a + b) / 2 modulo m, h^2 - (h - b)^2 = a * b modulo m.
-      modExp(
-        halfSum,
-        (short) 0,
-        TWO,
-        (short) 0,
-        (short) TWO.length,
-        modulus,
-        modulusOffset,
-        halfSum,
-        (short) 0,
-        length
-      );
-      modExp(
-        difference,
-        (short) 0,
-        TWO,
-        (short) 0,
-        (short) TWO.length,
-        modulus,
-        modulusOffset,
-        difference,
-        (short) 0,
-        length
-      );
-      modSub(
-        halfSum,
-        (short) 0,
-        difference,
-        (short) 0,
-        modulus,
-        modulusOffset,
-        out,
-        outOffset,
-        length
-      );
-    } finally {
-      Util.arrayFillNonAtomic(sharedTemporaryA, (short) 0, MAX_LENGTH, (byte) 0);
-      Util.arrayFillNonAtomic(sharedTemporaryB, (short) 0, MAX_LENGTH, (byte) 0);
+    if ((halfSum[(short) (length - 1)] & 1) != 0) {
+      carry = add(halfSum, (short) 0, modulus, modulusOffset, halfSum, (short) 0, length);
     }
+
+    shiftRight(halfSum, (short) 0, halfSum, (short) 0, length, (short) 1, (short) (carry << 7));
+    modSub(halfSum, (short) 0, b, bOffset, modulus, modulusOffset, difference, (short) 0, length);
+
+    // With h = (a + b) / 2 modulo m, h^2 - (h - b)^2 = a * b modulo m.
+    modExp(
+      halfSum,
+      (short) 0,
+      TWO,
+      (short) 0,
+      (short) TWO.length,
+      modulus,
+      modulusOffset,
+      halfSum,
+      (short) 0,
+      length
+    );
+    modExp(
+      difference,
+      (short) 0,
+      TWO,
+      (short) 0,
+      (short) TWO.length,
+      modulus,
+      modulusOffset,
+      difference,
+      (short) 0,
+      length
+    );
+    modSub(
+      halfSum,
+      (short) 0,
+      difference,
+      (short) 0,
+      modulus,
+      modulusOffset,
+      out,
+      outOffset,
+      length
+    );
   }
 
   /**
@@ -486,32 +477,17 @@ public final class LibMath {
     short outOffset,
     short length
   ) {
-    try {
-      byte[] exponent = sharedExponent;
-      short borrow = 2;
+    byte[] exponent = sharedExponent;
+    short borrow = 2;
 
-      for (short index = (short) (length - 1); index >= 0; index--) {
-        short difference = (short) ((modulus[(short) (modulusOffset + index)] & 0xFF) - borrow);
+    for (short index = (short) (length - 1); index >= 0; index--) {
+      short difference = (short) ((modulus[(short) (modulusOffset + index)] & 0xFF) - borrow);
 
-        exponent[index] = (byte) difference;
-        borrow = (short) (difference < 0 ? 1 : 0);
-      }
-
-      modExp(
-        a,
-        aOffset,
-        exponent,
-        (short) 0,
-        length,
-        modulus,
-        modulusOffset,
-        out,
-        outOffset,
-        length
-      );
-    } finally {
-      Util.arrayFillNonAtomic(sharedExponent, (short) 0, MAX_LENGTH, (byte) 0);
+      exponent[index] = (byte) difference;
+      borrow = (short) (difference < 0 ? 1 : 0);
     }
+
+    modExp(a, aOffset, exponent, (short) 0, length, modulus, modulusOffset, out, outOffset, length);
   }
 
   /**
@@ -531,35 +507,31 @@ public final class LibMath {
     short outOffset,
     short length
   ) {
-    try {
-      byte[] buffer = sharedExponentiationBuffer;
-      short modulusLength = EXPONENT_LENGTH;
-      short offset = (short) (modulusLength - length);
+    byte[] buffer = sharedExponentiationBuffer;
+    short modulusLength = EXPONENT_LENGTH;
+    short offset = (short) (modulusLength - length);
 
-      sharedExponentiationKey.setExponent(exponent, exponentOffset, exponentLength);
-      Util.arrayFillNonAtomic(buffer, (short) 0, modulusLength, (byte) 0);
-      Util.arrayCopyNonAtomic(modulus, modulusOffset, buffer, offset, length);
-      sharedExponentiationKey.setModulus(buffer, (short) 0, modulusLength);
-      sharedExponentiationCipher.init(sharedExponentiationKey, Cipher.MODE_DECRYPT);
+    sharedExponentiationKey.setExponent(exponent, exponentOffset, exponentLength);
+    Util.arrayFillNonAtomic(buffer, (short) 0, modulusLength, (byte) 0);
+    Util.arrayCopyNonAtomic(modulus, modulusOffset, buffer, offset, length);
+    sharedExponentiationKey.setModulus(buffer, (short) 0, modulusLength);
+    sharedExponentiationCipher.init(sharedExponentiationKey, Cipher.MODE_DECRYPT);
 
-      Util.arrayFillNonAtomic(buffer, (short) 0, modulusLength, (byte) 0);
-      Util.arrayCopyNonAtomic(a, aOffset, buffer, offset, length);
+    Util.arrayFillNonAtomic(buffer, (short) 0, modulusLength, (byte) 0);
+    Util.arrayCopyNonAtomic(a, aOffset, buffer, offset, length);
 
-      short resultLength = sharedExponentiationCipher.doFinal(
-        buffer,
-        (short) 0,
-        modulusLength,
-        buffer,
-        (short) 0
-      );
+    short resultLength = sharedExponentiationCipher.doFinal(
+      buffer,
+      (short) 0,
+      modulusLength,
+      buffer,
+      (short) 0
+    );
 
-      if (resultLength != modulusLength) {
-        CryptoException.throwIt(CryptoException.ILLEGAL_USE);
-      }
-
-      Util.arrayCopyNonAtomic(buffer, offset, out, outOffset, length);
-    } finally {
-      Util.arrayFillNonAtomic(sharedExponentiationBuffer, (short) 0, EXPONENT_LENGTH, (byte) 0);
+    if (resultLength != modulusLength) {
+      CryptoException.throwIt(CryptoException.ILLEGAL_USE);
     }
+
+    Util.arrayCopyNonAtomic(buffer, offset, out, outOffset, length);
   }
 }

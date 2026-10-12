@@ -33,7 +33,8 @@ public class CommandSign extends Command {
         curve = reader.requireKey(Text.curve).text();
         path = reader.requireKey(Text.path).bytes();
         break;
-      case Safe.TYPE_EC:
+      case Safe.TYPE_WEIERSTRASS:
+      case Safe.TYPE_EDWARDS:
         break;
       default:
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);

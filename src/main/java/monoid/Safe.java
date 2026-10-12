@@ -20,8 +20,10 @@ public final class Safe {
   public static final short TYPE_ENTROPY = 0x0100;
   public static final short TYPE_SEED = 0x0200;
   public static final short TYPE_MASTER = 0x0300;
-  public static final short TYPE_EC = 0x0400;
-  public static final short TYPE_EC_SECP256K1 = TYPE_EC | 0x01;
+  public static final short TYPE_WEIERSTRASS = 0x0400;
+  public static final short TYPE_WEIERSTRASS_SECP256K1 = TYPE_WEIERSTRASS | 0x01;
+  public static final short TYPE_EDWARDS = 0x0500;
+  public static final short TYPE_EDWARDS_ED25519 = TYPE_EDWARDS | 0x01;
   public static final short TYPE_GENERIC = 0x0FFF;
   public static final short TYPE_RESERVED_EXTENSION_MARK = (short) 0xFFFF;
 
@@ -30,6 +32,7 @@ public final class Safe {
   public static final byte[] TYPE_TEXT_SEED = {'s','e','e','d'};
   public static final byte[] TYPE_TEXT_MASTER = {'m','a','s','t','e','r'};
   public static final byte[] TYPE_TEXT_SECP256K1 = {'s','e','c','p','2','5','6','k','1'};
+  public static final byte[] TYPE_TEXT_ED25519 = {'e','d','2','5','5','1','9'};
   // @formatter:on
 
   private SafeShareable safe;
@@ -62,8 +65,10 @@ public final class Safe {
 
   public SafeItemShareable createKnownRandom(short type) throws SafeException {
     switch (type) {
-      case TYPE_EC_SECP256K1:
+      case TYPE_WEIERSTRASS_SECP256K1:
         return createRandomRandom(type, (short) CurveSECP256k1.KEY_LENGTH);
+      case TYPE_EDWARDS_ED25519:
+        return createRandomRandom(type, (short) CurveED25519.KEY_LENGTH);
     }
 
     switch (type & TYPE_CATEGORY_MASK) {
@@ -96,9 +101,9 @@ public final class Safe {
    * By "random random", I mean a random with (practically) all possibilities
    * being valid.
    *
-   * E.g., a valid SECP256K1 key ranges from 1 to 2 ^ 256 - 1, practically all
-   * possible values of a 32-byte array is valid; a valid Ed25519 key on the
-   * other hand ranges from 0 to 2 ^ 255 - 1, thus not a "random random".
+   * A uniformly random 32-byte value is a valid SECP256K1 scalar with
+   * overwhelming probability. Ed25519 stores a 32-byte seed, for which every
+   * bit pattern is valid; expansion and clamping happen when importing it.
    */
   private SafeItemShareable createRandomRandom(short refinedType, short length) {
     byte[] data = Utils.makeGlobalByteArray(length);
@@ -182,7 +187,7 @@ public final class Safe {
     return safe.create(builtIndex, alias, data);
   }
 
-  public static short type(byte[] buffer, short offset, byte length) throws MonoidException {
+  public static short type(byte[] buffer, short offset, short length) throws MonoidException {
     if (Utils.isEqual(TYPE_TEXT_ENTROPY, buffer, offset, length)) {
       return TYPE_ENTROPY;
     } else if (Utils.isEqual(TYPE_TEXT_SEED, buffer, offset, length)) {
@@ -190,7 +195,9 @@ public final class Safe {
     } else if (Utils.isEqual(TYPE_TEXT_MASTER, buffer, offset, length)) {
       return TYPE_MASTER;
     } else if (Utils.isEqual(TYPE_TEXT_SECP256K1, buffer, offset, length)) {
-      return TYPE_EC_SECP256K1;
+      return TYPE_WEIERSTRASS_SECP256K1;
+    } else if (Utils.isEqual(TYPE_TEXT_ED25519, buffer, offset, length)) {
+      return TYPE_EDWARDS_ED25519;
     }
 
     MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
@@ -198,7 +205,7 @@ public final class Safe {
   }
 
   public static short type(byte[] type) throws MonoidException {
-    return type(type, (short) 0, (byte) type.length);
+    return type(type, (short) 0, (short) type.length);
   }
 
   public static byte[] type(short type) throws MonoidException {
@@ -209,10 +216,13 @@ public final class Safe {
         return TYPE_TEXT_SEED;
       case TYPE_MASTER:
         return TYPE_TEXT_MASTER;
-      case TYPE_EC:
+      case TYPE_WEIERSTRASS:
+      case TYPE_EDWARDS:
         switch (type) {
-          case TYPE_EC_SECP256K1:
+          case TYPE_WEIERSTRASS_SECP256K1:
             return TYPE_TEXT_SECP256K1;
+          case TYPE_EDWARDS_ED25519:
+            return TYPE_TEXT_ED25519;
           default:
             return null;
         }
@@ -222,11 +232,7 @@ public final class Safe {
   }
 
   public static short type(CBORReader reader) throws MonoidException {
-    byte[] buffer = JCSystem.makeTransientByteArray((short) 6, JCSystem.CLEAR_ON_DESELECT);
-
-    short length = reader.text(buffer, (short) 0);
-
-    return type(buffer, (short) 0, (byte) length);
+    return type(reader.text());
   }
 
   public static boolean isTypeSeed(short type) {
@@ -237,8 +243,8 @@ public final class Safe {
     return (type & TYPE_CATEGORY_MASK) == (TYPE_MASTER & TYPE_CATEGORY_MASK);
   }
 
-  public static boolean isTypeEC(short type) {
-    return (type & TYPE_CATEGORY_MASK) == (TYPE_EC & TYPE_CATEGORY_MASK);
+  public static boolean isTypeWeierstrass(short type) {
+    return (type & TYPE_CATEGORY_MASK) == (TYPE_WEIERSTRASS & TYPE_CATEGORY_MASK);
   }
 
   public static boolean isKnownExplicitLengthType(short type) {
@@ -257,7 +263,8 @@ public final class Safe {
       case TYPE_ENTROPY:
       case TYPE_SEED:
       case TYPE_MASTER:
-      case TYPE_EC:
+      case TYPE_WEIERSTRASS:
+      case TYPE_EDWARDS:
         return true;
       default:
         return false;
@@ -296,8 +303,14 @@ public final class Safe {
 
   private static short refineType(short type, byte[] data) throws SafeException {
     switch (type) {
-      case TYPE_EC_SECP256K1:
+      case TYPE_WEIERSTRASS_SECP256K1:
         if (data.length != CurveSECP256k1.KEY_LENGTH || Utils.isZero(data)) {
+          SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
+        }
+
+        return type;
+      case TYPE_EDWARDS_ED25519:
+        if (data.length != CurveED25519.KEY_LENGTH) {
           SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
         }
 
