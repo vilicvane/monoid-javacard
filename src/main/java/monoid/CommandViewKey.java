@@ -1,5 +1,6 @@
 package monoid;
 
+import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import monoidsafe.SafeShareable;
 
@@ -16,14 +17,20 @@ public final class CommandViewKey extends Command {
     reader.map();
 
     byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
+    boolean taproot = reader.key(Text.taproot) && (reader.is(CBOR.TYPE_MAP) || reader.bool());
 
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     switch (type & Safe.TYPE_CATEGORY_MASK) {
       case Safe.TYPE_WEIERSTRASS:
       case Safe.TYPE_EDWARDS:
+        if (taproot && !Safe.isTypeWeierstrass(type)) {
+          MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+          return;
+        }
+
         byte[] publicKey = Safe.isTypeWeierstrass(type)
-          ? keystore.getWeierstrassKeyPublicKey(index)
+          ? keystore.getWeierstrassKeyPublicKey(index, taproot ? readTaprootMerkleRoot() : null)
           : keystore.getEdwardsKeyPublicKey(index);
 
         writer.map((short) 1);
@@ -43,23 +50,43 @@ public final class CommandViewKey extends Command {
       : null;
 
     byte[] path = reader.requireKey(Text.path).bytes();
+    byte[] seed = Safe.isTypeSeed(type) ? reader.requireKey(Text.seed).text() : null;
 
-    short publicKeyLength = weierstrassCurve != null
-      ? weierstrassCurve.getPublicKeyLength()
-      : edwardsCurve.getPublicKeyLength();
+    if (taproot && weierstrassCurve == null) {
+      MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+      return;
+    }
+
+    byte[] merkleRoot = taproot ? readTaprootMerkleRoot() : null;
+
+    short publicKeyLength = taproot
+      ? CurveSECP256k1.KEY_LENGTH
+      : weierstrassCurve != null
+        ? weierstrassCurve.getPublicKeyLength()
+        : edwardsCurve.getPublicKeyLength();
 
     byte[] data;
 
     switch (type & Safe.TYPE_CATEGORY_MASK) {
       case Safe.TYPE_SEED:
-        byte[] seed = reader.requireKey(Text.seed).text();
         data = weierstrassCurve != null
-          ? keystore.getSeedDerivedPublicKeyAndChainCode(index, seed, weierstrassCurve, path)
+          ? keystore.getSeedDerivedPublicKeyAndChainCode(
+            index,
+            seed,
+            weierstrassCurve,
+            path,
+            merkleRoot
+          )
           : keystore.getSeedDerivedPublicKeyAndChainCode(index, seed, edwardsCurve, path);
         break;
       case Safe.TYPE_MASTER:
         data = weierstrassCurve != null
-          ? keystore.getMasterDerivedPublicKeyAndChainCode(index, weierstrassCurve, path)
+          ? keystore.getMasterDerivedPublicKeyAndChainCode(
+            index,
+            weierstrassCurve,
+            path,
+            merkleRoot
+          )
           : keystore.getMasterDerivedPublicKeyAndChainCode(index, edwardsCurve, path);
         break;
       default:
@@ -75,5 +102,17 @@ public final class CommandViewKey extends Command {
       writer.text(Text.chainCode);
       writer.bytes(data, publicKeyLength, (short) (data.length - publicKeyLength));
     }
+  }
+
+  private byte[] readTaprootMerkleRoot() {
+    if (reader.requireKey(Text.taproot).is(CBOR.TYPE_MAP)) {
+      reader.map();
+
+      if (reader.key(Text.merkleRoot)) {
+        return reader.bytes(CurveSECP256k1.KEY_LENGTH);
+      }
+    }
+
+    return JCSystem.makeTransientByteArray((short) 0, JCSystem.CLEAR_ON_DESELECT);
   }
 }

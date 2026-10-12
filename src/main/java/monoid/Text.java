@@ -27,6 +27,7 @@ public class Text {
   public static final byte[] length = {'l','e','n','g','t','h'};
   public static final byte[] master = {'m','a','s','t','e','r'};
   public static final byte[] memories = {'m','e','m','o','r','i','e','s'};
+  public static final byte[] merkleRoot = {'m','e','r','k','l','e','R','o','o','t'};
   public static final byte[] message = {'m','e','s','s','a','g','e'};
   public static final byte[] monoid = {'m','o','n','o','i','d'};
   public static final byte[] name = {'n','a','m','e'};
@@ -40,6 +41,7 @@ public class Text {
   public static final byte[] seed = {'s','e','e','d'};
   public static final byte[] signature = {'s','i','g','n','a','t','u','r','e'};
   public static final byte[] system = {'s','y','s','t','e','m'};
+  public static final byte[] taproot = {'t','a','p','r','o','o','t'};
   public static final byte[] transient_ = {'t','r','a','n','s','i','e','n','t'};
   public static final byte[] tries = {'t','r','i','e','s'};
   public static final byte[] type = {'t','y','p','e'};

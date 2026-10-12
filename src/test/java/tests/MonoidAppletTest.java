@@ -1613,7 +1613,7 @@ public class MonoidAppletTest extends AppletTest {
 
   private void assertFeatures(ResponseAPDU response) {
     String[] curves = { "secp256k1", "ed25519" };
-    String[] ciphers = { "ecdsa", "eddsa" };
+    String[][] ciphers = { { "ecdsa", "schnorr" }, { "eddsa" } };
 
     for (short index = 0; index < curves.length; index++) {
       CBORBufferReader reader = new CBORBufferReader(response.getBytes());
@@ -1626,9 +1626,15 @@ public class MonoidAppletTest extends AppletTest {
         curves[index].getBytes(),
         reader.requireKey("name".getBytes()).text()
       );
-      Assertions.assertEquals(1, reader.requireKey("ciphers".getBytes()).array());
-      reader.index((short) 0);
-      Assertions.assertArrayEquals(ciphers[index].getBytes(), reader.text());
+      Assertions.assertEquals(
+        ciphers[index].length,
+        reader.requireKey("ciphers".getBytes()).array()
+      );
+
+      for (short cipher = 0; cipher < ciphers[index].length; cipher++) {
+        reader.index(cipher);
+        Assertions.assertArrayEquals(ciphers[index][cipher].getBytes(), reader.text());
+      }
     }
   }
 

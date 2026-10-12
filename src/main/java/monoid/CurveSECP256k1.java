@@ -6,6 +6,7 @@ import javacard.security.ECPrivateKey;
 import javacard.security.KeyAgreement;
 import javacard.security.KeyBuilder;
 import javacard.security.KeyPair;
+import javacard.security.MessageDigest;
 
 public class CurveSECP256k1 extends WeierstrassCurve {
 
@@ -55,6 +56,8 @@ public class CurveSECP256k1 extends WeierstrassCurve {
 
   public static final short KEY_BITS = KeyBuilder.LENGTH_EC_FP_256;
   public static final byte KEY_LENGTH = KEY_BITS / 8;
+
+  final MessageDigest hash = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
 
   private ECPrivateKey sharedPrivateKey;
 

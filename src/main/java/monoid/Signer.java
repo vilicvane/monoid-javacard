@@ -9,6 +9,7 @@ public final class Signer {
   // @formatter:off
   public static final byte[] CIPHER_ECDSA = {'e','c','d','s','a'};
   public static final byte[] CIPHER_EDDSA = {'e','d','d','s','a'};
+  public static final byte[] CIPHER_SCHNORR = {'s','c','h','n','o','r','r'};
 
   // @formatter:on
 
@@ -60,6 +61,43 @@ public final class Signer {
       message,
       messageOffset,
       messageLength,
+      signature,
+      (short) 0
+    );
+
+    return signature;
+  }
+
+  public static byte[] signSchnorrDigest(WeierstrassCurve curve, byte[] privateKey, byte[] digest) {
+    if (!(curve instanceof CurveSECP256k1)) {
+      CurveException.throwIt(CurveException.REASON_UNSUPPORTED_CURVE);
+      return null;
+    }
+
+    if (digest.length != CurveSECP256k1.KEY_LENGTH) {
+      MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+      return null;
+    }
+
+    byte[] auxiliary = JCSystem.makeTransientByteArray(
+      CurveSECP256k1.KEY_LENGTH,
+      JCSystem.CLEAR_ON_DESELECT
+    );
+    byte[] signature = JCSystem.makeTransientByteArray(
+      LibBIP340.SIGNATURE_LENGTH,
+      JCSystem.CLEAR_ON_DESELECT
+    );
+
+    OneShot.random(auxiliary, (short) 0, (short) auxiliary.length);
+    LibBIP340.sign(
+      (CurveSECP256k1) curve,
+      privateKey,
+      (short) 0,
+      digest,
+      (short) 0,
+      (short) digest.length,
+      auxiliary,
+      (short) 0,
       signature,
       (short) 0
     );

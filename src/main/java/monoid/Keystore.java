@@ -27,6 +27,16 @@ public final class Keystore {
     WeierstrassCurve curve,
     byte[] path
   ) {
+    return getSeedDerivedPublicKeyAndChainCode(index, seed, curve, path, null);
+  }
+
+  public byte[] getSeedDerivedPublicKeyAndChainCode(
+    byte[] index,
+    byte[] seed,
+    WeierstrassCurve curve,
+    byte[] path,
+    byte[] taprootMerkleRoot
+  ) {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     if (!Safe.isTypeSeed(type)) {
@@ -38,13 +48,22 @@ public final class Keystore {
 
     byte[] master = deriveMasterFromSeed(key, seed);
 
-    return derivePublicKeyAndChainCodeFromMaster(curve, master, path);
+    return derivePublicKeyAndChainCodeFromMaster(curve, master, path, taprootMerkleRoot);
   }
 
   public byte[] getMasterDerivedPublicKeyAndChainCode(
     byte[] index,
     WeierstrassCurve curve,
     byte[] path
+  ) {
+    return getMasterDerivedPublicKeyAndChainCode(index, curve, path, null);
+  }
+
+  public byte[] getMasterDerivedPublicKeyAndChainCode(
+    byte[] index,
+    WeierstrassCurve curve,
+    byte[] path,
+    byte[] taprootMerkleRoot
   ) {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
@@ -55,7 +74,7 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    return derivePublicKeyAndChainCodeFromMaster(curve, key, path);
+    return derivePublicKeyAndChainCodeFromMaster(curve, key, path, taprootMerkleRoot);
   }
 
   public byte[] getSeedDerivedPublicKeyAndChainCode(
@@ -96,6 +115,10 @@ public final class Keystore {
   }
 
   public byte[] getWeierstrassKeyPublicKey(byte[] index) {
+    return getWeierstrassKeyPublicKey(index, null);
+  }
+
+  public byte[] getWeierstrassKeyPublicKey(byte[] index, byte[] taprootMerkleRoot) {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     WeierstrassCurve curve;
@@ -111,9 +134,7 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    ECPrivateKey privateKey = curve.getSharedPrivateKey(key, (short) 0);
-
-    return curve.derivePublicKey(privateKey);
+    return derivePublicKey(curve, key, taprootMerkleRoot);
   }
 
   public byte[] getEdwardsKeyPublicKey(byte[] index) {
@@ -256,6 +277,47 @@ public final class Keystore {
     }
   }
 
+  public byte[] signSchnorrDigest(
+    byte[] index,
+    byte[] seed,
+    byte[] curveName,
+    byte[] path,
+    byte[] digest,
+    byte[] taprootMerkleRoot
+  ) throws KeystoreException, CurveException, SignerException {
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+
+    byte[] key = requireKey(index);
+
+    if (Safe.isTypeSeed(type)) {
+      key = deriveMasterFromSeed(key, seed);
+      type = Safe.TYPE_MASTER;
+    }
+
+    WeierstrassCurve curve;
+
+    if (Safe.isTypeMaster(type)) {
+      if (key.length != MASTER_LENGTH || path.length % LibBIP32.PATH_SEGMENT_LENGTH != 0) {
+        KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+        return null;
+      }
+
+      curve = WeierstrassCurve.requireSharedCurve(curveName);
+      key = LibBIP32.derive(curve, key, path);
+    } else if (type == Safe.TYPE_WEIERSTRASS_SECP256K1 && key.length == CurveSECP256k1.KEY_LENGTH) {
+      curve = WeierstrassCurve.secp256k1;
+    } else {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
+
+    if (taprootMerkleRoot != null) {
+      tweakTaprootPrivateKey(curve, key, taprootMerkleRoot);
+    }
+
+    return Signer.signSchnorrDigest(curve, key, digest);
+  }
+
   private byte[] deriveMasterFromSeed(byte[] key, byte[] seed) {
     switch (key.length) {
       case SEED_512_LENGTH:
@@ -269,13 +331,20 @@ public final class Keystore {
   private byte[] derivePublicKeyAndChainCodeFromMaster(
     WeierstrassCurve curve,
     byte[] master,
-    byte[] path
+    byte[] path,
+    byte[] taprootMerkleRoot
   ) {
+    if (
+      taprootMerkleRoot != null &&
+      (master.length != MASTER_LENGTH || path.length % LibBIP32.PATH_SEGMENT_LENGTH != 0)
+    ) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
+
     master = LibBIP32.derive(curve, master, path);
 
-    ECPrivateKey privateKey = curve.getSharedPrivateKey(master, (short) 0);
-
-    byte[] publicKey = curve.derivePublicKey(privateKey);
+    byte[] publicKey = derivePublicKey(curve, master, taprootMerkleRoot);
 
     short keyLength = curve.getKeyLength();
 
@@ -290,6 +359,49 @@ public final class Keystore {
     Util.arrayCopyNonAtomic(master, keyLength, data, (short) publicKey.length, keyLength);
 
     return data;
+  }
+
+  private byte[] derivePublicKey(WeierstrassCurve curve, byte[] key, byte[] taprootMerkleRoot) {
+    if (taprootMerkleRoot != null) {
+      tweakTaprootPrivateKey(curve, key, taprootMerkleRoot);
+    }
+
+    ECPrivateKey privateKey = curve.getSharedPrivateKey(key, (short) 0);
+    byte[] publicKey = curve.derivePublicKey(privateKey);
+
+    return taprootMerkleRoot == null
+      ? publicKey
+      : Utils.duplicateAsTransientDeselect(publicKey, (short) 1, CurveSECP256k1.KEY_LENGTH);
+  }
+
+  /** Adjusts the operation's key copy in place, preserving any BIP32 chain code. */
+  private void tweakTaprootPrivateKey(
+    WeierstrassCurve curve,
+    byte[] key,
+    byte[] taprootMerkleRoot
+  ) {
+    if (!(curve instanceof CurveSECP256k1)) {
+      CurveException.throwIt(CurveException.REASON_UNSUPPORTED_CURVE);
+      return;
+    }
+
+    if (
+      key.length < CurveSECP256k1.KEY_LENGTH ||
+      (taprootMerkleRoot.length != 0 && taprootMerkleRoot.length != CurveSECP256k1.KEY_LENGTH)
+    ) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return;
+    }
+
+    LibBIP341.tweakPrivateKey(
+      (CurveSECP256k1) curve,
+      key,
+      (short) 0,
+      taprootMerkleRoot.length == 0 ? null : taprootMerkleRoot,
+      (short) 0,
+      key,
+      (short) 0
+    );
   }
 
   private byte[] derivePublicKeyAndChainCodeFromMaster(

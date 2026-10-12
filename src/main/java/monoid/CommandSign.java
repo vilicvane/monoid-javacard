@@ -1,5 +1,6 @@
 package monoid;
 
+import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import monoidsafe.SafeShareable;
 
@@ -42,7 +43,13 @@ public class CommandSign extends Command {
     }
 
     byte[] cipher = reader.requireKey(Text.cipher).text();
+    boolean taproot = reader.key(Text.taproot) && (reader.is(CBOR.TYPE_MAP) || reader.bool());
     byte[] signature;
+
+    if (taproot && !Utils.isEqual(Signer.CIPHER_SCHNORR, cipher)) {
+      MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+      return;
+    }
 
     if (Utils.isEqual(Signer.CIPHER_ECDSA, cipher)) {
       byte[] digest = reader.requireKey(Text.digest).bytes();
@@ -60,6 +67,25 @@ public class CommandSign extends Command {
         reader.getOffset(),
         messageLength
       );
+    } else if (Utils.isEqual(Signer.CIPHER_SCHNORR, cipher)) {
+      byte[] digest = reader.requireKey(Text.digest).bytes(CurveSECP256k1.KEY_LENGTH);
+      byte[] merkleRoot = null;
+
+      if (taproot) {
+        if (reader.requireKey(Text.taproot).is(CBOR.TYPE_MAP)) {
+          reader.map();
+
+          if (reader.key(Text.merkleRoot)) {
+            merkleRoot = reader.bytes(CurveSECP256k1.KEY_LENGTH);
+          }
+        }
+
+        if (merkleRoot == null) {
+          merkleRoot = JCSystem.makeTransientByteArray((short) 0, JCSystem.CLEAR_ON_DESELECT);
+        }
+      }
+
+      signature = keystore.signSchnorrDigest(index, seed, curve, path, digest, merkleRoot);
     } else {
       SignerException.throwIt(SignerException.REASON_UNSUPPORTED_CIPHER);
       return;

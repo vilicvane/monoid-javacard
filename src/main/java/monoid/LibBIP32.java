@@ -12,10 +12,35 @@ public final class LibBIP32 {
   public static byte[] derive(WeierstrassCurve curve, byte[] privateKeyAndChainCode, byte[] path) {
     privateKeyAndChainCode = Utils.duplicateAsTransientDeselect(privateKeyAndChainCode);
 
+    if (path.length == 0) {
+      return privateKeyAndChainCode;
+    }
+
+    byte[] data = JCSystem.makeTransientByteArray(
+      (short) (1 + COMPONENT_LENGTH + PATH_SEGMENT_LENGTH),
+      JCSystem.CLEAR_ON_DESELECT
+    );
+    byte[] currentPrivateKeyAndChainCode = JCSystem.makeTransientByteArray(
+      (short) privateKeyAndChainCode.length,
+      JCSystem.CLEAR_ON_DESELECT
+    );
+    byte[] block = JCSystem.makeTransientByteArray(
+      LibHMACSha512.BLOCK_BYTES,
+      JCSystem.CLEAR_ON_DESELECT
+    );
+
     short pathOffset = 0;
 
     while (pathOffset < path.length) {
-      pathOffset = deriveChildKeyInPlace(curve, privateKeyAndChainCode, path, pathOffset);
+      pathOffset = deriveChildKeyInPlace(
+        curve,
+        privateKeyAndChainCode,
+        path,
+        pathOffset,
+        data,
+        currentPrivateKeyAndChainCode,
+        block
+      );
     }
 
     return privateKeyAndChainCode;
@@ -25,16 +50,19 @@ public final class LibBIP32 {
     WeierstrassCurve curve,
     byte[] privateKeyAndChainCode,
     byte[] path,
-    short pathSegmentOffset
+    short pathSegmentOffset,
+    byte[] data,
+    byte[] currentPrivateKeyAndChainCode,
+    byte[] block
   ) {
-    byte[] data = JCSystem.makeTransientByteArray(
-      (short) (1 + COMPONENT_LENGTH + PATH_SEGMENT_LENGTH),
-      JCSystem.CLEAR_ON_DESELECT
-    );
     short dataOffset = 0;
 
-    byte[] currentPrivateKeyAndChainCode = Utils.duplicateAsTransientDeselect(
-      privateKeyAndChainCode
+    Util.arrayCopyNonAtomic(
+      privateKeyAndChainCode,
+      (short) 0,
+      currentPrivateKeyAndChainCode,
+      (short) 0,
+      (short) privateKeyAndChainCode.length
     );
 
     if (isHardened(path, pathSegmentOffset)) {
@@ -67,7 +95,8 @@ public final class LibBIP32 {
       (short) 0,
       (short) data.length,
       privateKeyAndChainCode,
-      (short) 0
+      (short) 0,
+      block
     );
 
     if (

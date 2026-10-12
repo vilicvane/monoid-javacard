@@ -127,6 +127,9 @@ See [architecture](doc/architecture.md) for more details.
 - Ciphers:
   - [x] `"ecdsa"`
   - [x] `"eddsa"`
+  - [x] `"schnorr"` (BIP340)
+
+See [Bitcoin signing](doc/bitcoin.md) for BIP32, Taproot and client responsibilities.
 
 ## ISO-7816 Commands
 
@@ -390,6 +393,11 @@ type Key = {
       // key
     }
 );
+
+type Taproot = {
+  /** Exactly 32 bytes when present; omit for BIP86 without a script tree. */
+  merkleRoot?: byte[];
+};
 ```
 
 #### `0x40` View key
@@ -401,8 +409,16 @@ For `curve: 'ed25519'`, derives from a stored seed or master using hardened SLIP
 For an independent `secp256k1` or `ed25519` item, supply only `index`; the response
 contains `publicKey` without `chainCode`.
 
+For `secp256k1`, `taproot: true` or a `taproot` object returns the tweaked 32-byte
+x-only public key. Omit it or use `false` to retain the compressed 33-byte public
+key. A derived key's `chainCode` always belongs to the original BIP32 node; see
+[Bitcoin signing](doc/bitcoin.md).
+
 ```ts
-type Request = Key;
+type Request = Key & {
+  /** Enabling Taproot is only valid for secp256k1. */
+  taproot?: Taproot | boolean;
+};
 ```
 
 ```ts
@@ -429,10 +445,18 @@ type Request = Key &
     | {
         cipher: 'ecdsa';
         digest: byte[];
+        taproot?: false;
       }
     | {
         cipher: 'eddsa';
         message: byte[];
+        taproot?: false;
+      }
+    | {
+        cipher: 'schnorr';
+        /** Exactly 32 bytes. */
+        digest: byte[];
+        taproot?: Taproot | boolean;
       }
   );
 ```
@@ -440,6 +464,13 @@ type Request = Key &
 EdDSA signs the original message bytes with Ed25519. A stored seed or master uses
 hardened SLIP-0010 derivation. An independent `ed25519` item requires only `index`,
 `cipher: 'eddsa'` and `message`, with no derivation fields.
+
+Schnorr uses BIP340 on `secp256k1` and returns a 64-byte signature. Omit `taproot`
+or use `false` to sign with the original key, use `true` or `{}` for BIP86, or
+provide a 32-byte `merkleRoot` for BIP341 key-path signing with a script-tree
+commitment. ECDSA and EdDSA requests accept `taproot: false` and reject enabled
+Taproot. See [Bitcoin signing](doc/bitcoin.md) for sighash construction and witness
+encoding.
 
 ```ts
 type Response = {
