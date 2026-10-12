@@ -23,6 +23,7 @@
     "computedhash",
     "dsasigner",
     "ECDH",
+    "EDDSA",
     "EEPROM",
     "gradlew",
     "HMAC",

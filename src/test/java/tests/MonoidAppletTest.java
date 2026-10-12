@@ -110,6 +110,7 @@ public class MonoidAppletTest extends AppletTest {
     ResponseAPDU response = connect().transmit(request);
 
     assertNoError(response);
+    assertFeatures(response);
 
     CBORBufferReader reader = new CBORBufferReader(response.getBytes());
     reader.map();
@@ -138,6 +139,7 @@ public class MonoidAppletTest extends AppletTest {
     ResponseAPDU response = connect().transmit(request);
 
     assertNoError(response);
+    assertFeatures(response);
 
     CBORBufferReader reader = new CBORBufferReader(response.getBytes());
     reader.map();
@@ -787,6 +789,141 @@ public class MonoidAppletTest extends AppletTest {
       ResponseAPDU response = manager.transmit(request);
 
       assertSignature(response, TEST_DIGEST, TEST_SECP256K1_DERIVED_PUBLIC_KEY);
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(14)
+  public void signEDDSAMessage() throws Exception {
+    byte[][] indices = { TEST_SEED_INDEX, TEST_MASTER_INDEX };
+    // Node.js crypto HMAC-SHA512 derivation and Ed25519 signing of 0x72 at m/44'/501'/0'/0'.
+    byte[][] signatures = {
+      Hex.decode(
+        "fcc50cf4592b2336b2c7c0915b2102656ee067f3fbff8b5454863cef0cf037a687945e97290a707faf9e20685d2ad9a12c89e8a4c4a59f791ea13644d160990e"
+      ),
+      Hex.decode(
+        "46bd2dd36ded172a640133204aea836f776662dc9ad597393419979bae920a42b626f8efec906a4d4cc238c94350071a4a900298472a096cfa2340cb5ecb5f03"
+      ),
+    };
+
+    CardManager manager = connect();
+
+    authenticate(manager, false);
+
+    for (int index = 0; index < indices.length; index++) {
+      CBORBufferWriter writer = new CBORBufferWriter();
+
+      writer.map((short) 6);
+      {
+        writer.text("index".getBytes());
+        writer.bytes(indices[index]);
+
+        writer.text("curve".getBytes());
+        writer.text("ed25519".getBytes());
+
+        writer.text("seed".getBytes());
+        writer.text("ed25519 seed".getBytes());
+
+        writer.text("path".getBytes());
+        writer.bytes(Hex.decode("8000002c800001f58000000080000000"));
+
+        writer.text("cipher".getBytes());
+        writer.text("eddsa".getBytes());
+
+        writer.text("message".getBytes());
+        writer.bytes(Hex.decode("72"));
+      }
+
+      CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getDataBuffer());
+
+      ResponseAPDU response = manager.transmit(request);
+
+      assertNoError(response);
+
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+      reader.map();
+      Assertions.assertArrayEquals(
+        signatures[index],
+        reader.requireKey("signature".getBytes()).bytes()
+      );
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(15)
+  public void viewEdwardsKeys() throws Exception {
+    byte[][] indices = { TEST_SEED_INDEX, TEST_MASTER_INDEX };
+    // Node.js crypto HMAC-SHA512 derivation and Ed25519 public keys at m/44'/501'/0'/0'.
+    byte[][] publicKeys = {
+      Hex.decode("002dc5ffc81291faa8f95528b8366a3c22671ea7ef34df78a7e114f5fb86c67a"),
+      Hex.decode("7bf87e36e6c74f6e1867d6185b4bada35a2a2b6dde341f108a1354573d787682"),
+    };
+    byte[][] chainCodes = {
+      Hex.decode("a9222e023e472495cc6e674d480b5751e597c681ae819de014f6c781746a5c58"),
+      Hex.decode("1ae04e54c925c17a4a321906bae967dd1ec31d0aad405bcd858dd979e17a0e2a"),
+    };
+
+    CardManager manager = connect();
+
+    authenticate(manager, false);
+
+    for (int index = 0; index < indices.length; index++) {
+      CBORBufferWriter writer = new CBORBufferWriter();
+
+      writer.map((short) 4);
+      {
+        writer.text("index".getBytes());
+        writer.bytes(indices[index]);
+
+        writer.text("curve".getBytes());
+        writer.text("ed25519".getBytes());
+
+        writer.text("seed".getBytes());
+        writer.text("ed25519 seed".getBytes());
+
+        writer.text("path".getBytes());
+        writer.bytes(Hex.decode("8000002c800001f58000000080000000"));
+      }
+
+      CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
+
+      ResponseAPDU response = manager.transmit(request);
+
+      assertNoError(response);
+
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+      Assertions.assertEquals(2, reader.map());
+      Assertions.assertArrayEquals(
+        publicKeys[index],
+        reader.requireKey("publicKey".getBytes()).bytes()
+      );
+      Assertions.assertArrayEquals(
+        chainCodes[index],
+        reader.requireKey("chainCode".getBytes()).bytes()
+      );
+    }
+  }
+
+  private void assertFeatures(ResponseAPDU response) {
+    String[] curves = { "secp256k1", "ed25519" };
+    String[] ciphers = { "ecdsa", "eddsa" };
+
+    for (short index = 0; index < curves.length; index++) {
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+      reader.map();
+      Assertions.assertEquals(1, reader.requireKey("features".getBytes()).map());
+      Assertions.assertEquals(2, reader.requireKey("curves".getBytes()).array());
+      reader.index(index);
+      Assertions.assertEquals(2, reader.map());
+      Assertions.assertArrayEquals(
+        curves[index].getBytes(),
+        reader.requireKey("name".getBytes()).text()
+      );
+      Assertions.assertEquals(1, reader.requireKey("ciphers".getBytes()).array());
+      reader.index((short) 0);
+      Assertions.assertArrayEquals(ciphers[index].getBytes(), reader.text());
     }
   }
 

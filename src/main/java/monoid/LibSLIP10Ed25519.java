@@ -12,19 +12,6 @@ public final class LibSLIP10Ed25519 {
   private static final short KEY_LENGTH = 32;
   private static final short PATH_SEGMENT_LENGTH = 4;
 
-  private final byte[] extendedKey = JCSystem.makeTransientByteArray(
-    EXTENDED_KEY_LENGTH,
-    JCSystem.CLEAR_ON_DESELECT
-  );
-  private final byte[] data = JCSystem.makeTransientByteArray(
-    (short) (1 + KEY_LENGTH + PATH_SEGMENT_LENGTH),
-    JCSystem.CLEAR_ON_DESELECT
-  );
-  private final byte[] block = JCSystem.makeTransientByteArray(
-    LibHMACSha512.BLOCK_BYTES,
-    JCSystem.CLEAR_ON_DESELECT
-  );
-
   /**
    * Derives from a 64-byte master containing an Ed25519 seed and its chain code.
    * Writes the derived 32-byte Ed25519 seed followed by its 32-byte chain code.
@@ -32,7 +19,7 @@ public final class LibSLIP10Ed25519 {
    * Workspace size is independent of depth. Output may overlap master or path.
    * Scratch secrets are erased on return; the caller owns and must erase the output.
    */
-  public short derive(
+  public static short derive(
     byte[] master,
     short masterOffset,
     short masterLength,
@@ -42,6 +29,19 @@ public final class LibSLIP10Ed25519 {
     byte[] out,
     short outOffset
   ) {
+    byte[] extendedKey = JCSystem.makeTransientByteArray(
+      EXTENDED_KEY_LENGTH,
+      JCSystem.CLEAR_ON_DESELECT
+    );
+    byte[] data = JCSystem.makeTransientByteArray(
+      (short) (1 + KEY_LENGTH + PATH_SEGMENT_LENGTH),
+      JCSystem.CLEAR_ON_DESELECT
+    );
+    byte[] block = JCSystem.makeTransientByteArray(
+      LibHMACSha512.BLOCK_BYTES,
+      JCSystem.CLEAR_ON_DESELECT
+    );
+
     try {
       if (masterLength != EXTENDED_KEY_LENGTH || pathLength % PATH_SEGMENT_LENGTH != 0) {
         ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
@@ -60,24 +60,26 @@ public final class LibSLIP10Ed25519 {
       Util.arrayCopyNonAtomic(master, masterOffset, extendedKey, (short) 0, EXTENDED_KEY_LENGTH);
 
       for (short offset = 0; offset < pathLength; offset += PATH_SEGMENT_LENGTH) {
-        deriveChildKeyInPlace(path, (short) (pathOffset + offset));
+        deriveChildKeyInPlace(extendedKey, path, (short) (pathOffset + offset), data, block);
       }
 
       Util.arrayCopyNonAtomic(extendedKey, (short) 0, out, outOffset, EXTENDED_KEY_LENGTH);
 
       return EXTENDED_KEY_LENGTH;
     } finally {
-      clear();
+      Util.arrayFillNonAtomic(extendedKey, (short) 0, EXTENDED_KEY_LENGTH, (byte) 0);
+      Util.arrayFillNonAtomic(data, (short) 0, (short) data.length, (byte) 0);
+      Util.arrayFillNonAtomic(block, (short) 0, (short) block.length, (byte) 0);
     }
   }
 
-  public void clear() {
-    Util.arrayFillNonAtomic(extendedKey, (short) 0, EXTENDED_KEY_LENGTH, (byte) 0);
-    Util.arrayFillNonAtomic(data, (short) 0, (short) data.length, (byte) 0);
-    Util.arrayFillNonAtomic(block, (short) 0, (short) block.length, (byte) 0);
-  }
-
-  private void deriveChildKeyInPlace(byte[] path, short pathSegmentOffset) {
+  private static void deriveChildKeyInPlace(
+    byte[] extendedKey,
+    byte[] path,
+    short pathSegmentOffset,
+    byte[] data,
+    byte[] block
+  ) {
     data[0] = 0;
     Util.arrayCopyNonAtomic(extendedKey, (short) 0, data, (short) 1, KEY_LENGTH);
     Util.arrayCopyNonAtomic(

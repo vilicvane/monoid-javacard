@@ -59,13 +59,26 @@ public class CommandSystemInformation extends Command {
 
   public static void writeFeaturesKeyValue(CBORWriter writer) {
     writer.text(Text.features);
-    writer.map((short) 2);
+    writer.map((short) 1);
     {
       writer.text(Text.curves);
-      WeierstrassCurve.writeSupportedCurves(writer);
+      writer.array((short) 2);
+      {
+        writeCurveFeatures(writer, WeierstrassCurve.SECP256k1, Signer.CIPHER_ECDSA);
+        writeCurveFeatures(writer, EdwardsCurve.ED25519, Signer.CIPHER_EDDSA);
+      }
+    }
+  }
+
+  private static void writeCurveFeatures(CBORWriter writer, byte[] name, byte[] cipher) {
+    writer.map((short) 2);
+    {
+      writer.text(Text.name);
+      writer.text(name);
 
       writer.text(Text.ciphers);
-      Signer.writeSupportedCiphers(writer);
+      writer.array((short) 1);
+      writer.text(cipher);
     }
   }
 }

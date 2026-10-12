@@ -123,9 +123,10 @@ See [architecture](doc/architecture.md) for more details.
 
 - Elliptic curves:
   - [x] `"secp256k1"`
-  - [ ] `"ed25519"`
+  - [x] `"ed25519"`
 - Ciphers:
   - [x] `"ecdsa"`
+  - [x] `"eddsa"`
 
 ## ISO-7816 Commands
 
@@ -152,8 +153,10 @@ type Response = {
   /** A 4-byte random id generated on _Monoid Applet_ installation. */
   id: byte[];
   features: {
-    curves: string[];
-    ciphers: string[];
+    curves: {
+      name: string;
+      ciphers: string[];
+    }[];
   };
   /** Tries remaining for the PIN, or `false` if the PIN is not set. */
   pin: number | false;
@@ -224,8 +227,10 @@ type Response = {
     };
   };
   features: {
-    curves: string[];
-    ciphers: string[];
+    curves: {
+      name: string;
+      ciphers: string[];
+    }[];
   };
 };
 ```
@@ -388,6 +393,8 @@ type Key = {
 
 > Requires authentication.
 
+For `curve: 'ed25519'`, derives from a stored seed or master using hardened SLIP-0010 and returns the 32-byte encoded public key and 32-byte chain code. A stored seed uses `seed: 'ed25519 seed'` as the master derivation label.
+
 ```ts
 type Request = Key;
 ```
@@ -424,7 +431,7 @@ type Request = Key &
   );
 ```
 
-EdDSA takes the original message bytes. Request parsing is implemented; the signing branch currently returns `UNSUPPORTED_CIPHER` until Ed25519 is connected.
+EdDSA takes the original message bytes and signs with Ed25519 after hardened SLIP-0010 derivation from a stored seed or master.
 
 ```ts
 type Response = {

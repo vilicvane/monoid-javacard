@@ -94,40 +94,55 @@ public class CurveED25519Test {
       "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"
     );
     ED25519Key key = curve.getSharedPrivateKey(seed, (short) 0);
-    LibED25519 signer = new LibED25519(curve);
     byte[] signature = new byte[64];
 
     for (int iteration = 0; iteration < 3; iteration++) {
       Assertions.assertArrayEquals(expectedPublicKey, curve.derivePublicKey(key));
-      signer.sign(key, message, (short) 0, (short) message.length, signature, (short) 0);
+      LibED25519.sign(curve, key, message, (short) 0, (short) message.length, signature, (short) 0);
       Assertions.assertArrayEquals(expectedSignature, signature);
-      assertScratchCleared(signer);
+      assertScratchCleared();
     }
 
     Assertions.assertThrows(RuntimeException.class, () ->
-      signer.sign(key, message, (short) 0, (short) message.length, new byte[63], (short) 0)
+      LibED25519.sign(
+        curve,
+        key,
+        message,
+        (short) 0,
+        (short) message.length,
+        new byte[63],
+        (short) 0
+      )
     );
-    assertScratchCleared(signer);
+    assertScratchCleared();
 
-    // Reset clears transient data, while the same curve and signer objects remain reachable.
+    // Reset clears transient data, while the shared curve remains reachable.
     SimulatorSystem.instance().reset();
 
     Assertions.assertThrows(ISOException.class, () -> curve.derivePublicKey(key));
     Assertions.assertThrows(ISOException.class, () ->
-      signer.sign(key, message, (short) 0, (short) message.length, signature, (short) 0)
+      LibED25519.sign(curve, key, message, (short) 0, (short) message.length, signature, (short) 0)
     );
-    assertScratchCleared(signer);
+    assertScratchCleared();
 
     ED25519Key imported = curve.getSharedPrivateKey(seed, (short) 0);
-    signer.sign(imported, message, (short) 0, (short) message.length, signature, (short) 0);
+    LibED25519.sign(
+      curve,
+      imported,
+      message,
+      (short) 0,
+      (short) message.length,
+      signature,
+      (short) 0
+    );
 
     Assertions.assertArrayEquals(expectedPublicKey, curve.derivePublicKey(imported));
     Assertions.assertArrayEquals(expectedSignature, signature);
-    assertScratchCleared(signer);
+    assertScratchCleared();
   }
 
-  private void assertScratchCleared(LibED25519 signer) throws IllegalAccessException {
-    for (Object owner : new Object[] { curve, signer, LibMath.class }) {
+  private void assertScratchCleared() throws IllegalAccessException {
+    for (Object owner : new Object[] { curve, LibMath.class }) {
       Class<?> type = owner instanceof Class ? (Class<?>) owner : owner.getClass();
 
       for (Field field : type.getDeclaredFields()) {

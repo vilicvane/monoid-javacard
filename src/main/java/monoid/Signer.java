@@ -12,11 +12,6 @@ public final class Signer {
 
   // @formatter:on
 
-  public static void writeSupportedCiphers(CBORWriter writer) {
-    writer.array((short) 1);
-    writer.text(CIPHER_ECDSA);
-  }
-
   public static byte[] signECDSADigest(byte[] cipherType, Key privateKey, byte[] digest)
     throws SignerException {
     byte cipher;
@@ -42,13 +37,19 @@ public final class Signer {
     return Utils.duplicateAsTransientDeselect(signature, (short) 0, length);
   }
 
-  public static byte[] signEDDSAMessage(CurveED25519 curve, ED25519Key privateKey, byte[] message) {
+  public static byte[] signEDDSAMessage(EdwardsCurve curve, ED25519Key privateKey, byte[] message) {
+    if (!(curve instanceof CurveED25519)) {
+      CurveException.throwIt(CurveException.REASON_UNSUPPORTED_CURVE);
+      return null;
+    }
+
     byte[] signature = JCSystem.makeTransientByteArray(
       LibED25519.SIGNATURE_LENGTH,
       JCSystem.CLEAR_ON_DESELECT
     );
 
-    new LibED25519(curve).sign(
+    LibED25519.sign(
+      (CurveED25519) curve,
       privateKey,
       message,
       (short) 0,

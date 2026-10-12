@@ -58,6 +58,56 @@ public final class Keystore {
     return derivePublicKeyAndChainCodeFromMaster(curve, key, path);
   }
 
+  public byte[] getSeedDerivedPublicKeyAndChainCode(
+    byte[] index,
+    byte[] seed,
+    EdwardsCurve curve,
+    byte[] path
+  ) {
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+
+    if (!Safe.isTypeSeed(type)) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
+
+    byte[] key = requireKey(index);
+    byte[] master = null;
+
+    try {
+      master = deriveMasterFromSeed(key, seed);
+
+      return derivePublicKeyAndChainCodeFromMaster(curve, master, path);
+    } finally {
+      Util.arrayFillNonAtomic(key, (short) 0, (short) key.length, (byte) 0);
+
+      if (master != null) {
+        Util.arrayFillNonAtomic(master, (short) 0, (short) master.length, (byte) 0);
+      }
+    }
+  }
+
+  public byte[] getMasterDerivedPublicKeyAndChainCode(
+    byte[] index,
+    EdwardsCurve curve,
+    byte[] path
+  ) {
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+
+    if (!Safe.isTypeMaster(type)) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
+
+    byte[] key = requireKey(index);
+
+    try {
+      return derivePublicKeyAndChainCodeFromMaster(curve, key, path);
+    } finally {
+      Util.arrayFillNonAtomic(key, (short) 0, (short) key.length, (byte) 0);
+    }
+  }
+
   public byte[] getECKeyPublicKey(byte[] index) {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
@@ -145,24 +195,46 @@ public final class Keystore {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     byte[] key = requireKey(index);
+    byte[] master = key;
+    ED25519Key privateKey = null;
 
-    if (Safe.isTypeSeed(type)) {
-      byte[] master = deriveMasterFromSeed(key, seed);
+    try {
+      if (Safe.isTypeSeed(type)) {
+        master = deriveMasterFromSeed(key, seed);
+        type = Safe.TYPE_MASTER;
+      }
 
-      type = Safe.TYPE_MASTER;
-      key = master;
+      if (!Safe.isTypeMaster(type) || master.length != MASTER_LENGTH) {
+        KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+        return null;
+      }
+
+      EdwardsCurve curve = EdwardsCurve.requireSharedCurve(curveName);
+
+      LibSLIP10Ed25519.derive(
+        master,
+        (short) 0,
+        (short) master.length,
+        path,
+        (short) 0,
+        (short) path.length,
+        master,
+        (short) 0
+      );
+      privateKey = curve.getSharedPrivateKey(master, (short) 0);
+
+      return Signer.signEDDSAMessage(curve, privateKey, message);
+    } finally {
+      if (privateKey != null) {
+        privateKey.clear();
+      }
+
+      Util.arrayFillNonAtomic(key, (short) 0, (short) key.length, (byte) 0);
+
+      if (master != key) {
+        Util.arrayFillNonAtomic(master, (short) 0, (short) master.length, (byte) 0);
+      }
     }
-
-    if (!Safe.isTypeMaster(type) || key.length != MASTER_LENGTH) {
-      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
-      return null;
-    }
-
-    EdwardsCurve.requireSharedCurve(curveName);
-
-    // TODO: Connect SLIP-0010 derivation and Ed25519 signing.
-    SignerException.throwIt(SignerException.REASON_UNSUPPORTED_CIPHER);
-    return null;
   }
 
   private byte[] deriveMasterFromSeed(byte[] key, byte[] seed) {
@@ -199,6 +271,45 @@ public final class Keystore {
     Util.arrayCopyNonAtomic(master, keyLength, data, (short) publicKey.length, keyLength);
 
     return data;
+  }
+
+  private byte[] derivePublicKeyAndChainCodeFromMaster(
+    EdwardsCurve curve,
+    byte[] master,
+    byte[] path
+  ) {
+    ED25519Key privateKey = null;
+
+    try {
+      LibSLIP10Ed25519.derive(
+        master,
+        (short) 0,
+        (short) master.length,
+        path,
+        (short) 0,
+        (short) path.length,
+        master,
+        (short) 0
+      );
+      privateKey = curve.getSharedPrivateKey(master, (short) 0);
+
+      short publicKeyLength = curve.getPublicKeyLength();
+      short keyLength = curve.getKeyLength();
+
+      byte[] data = JCSystem.makeTransientByteArray(
+        (short) (publicKeyLength + keyLength),
+        JCSystem.CLEAR_ON_DESELECT
+      );
+
+      curve.derivePublicKey(privateKey, data, (short) 0);
+      Util.arrayCopyNonAtomic(master, keyLength, data, publicKeyLength, keyLength);
+
+      return data;
+    } finally {
+      if (privateKey != null) {
+        privateKey.clear();
+      }
+    }
   }
 
   private byte[] requireKey(byte[] index) {

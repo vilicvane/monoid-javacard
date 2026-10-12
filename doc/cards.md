@@ -28,7 +28,7 @@ The derivation starts from a 64-byte master and uses `m/44'/501'/0'/0'`.
 The host computes seed-to-master and independently checks the derived public key
 and signature with Node/OpenSSL. The context and HMAC/deriver are initialized
 before the timed derivation and signing calls. These are crypto-component tests;
-the existing Monoid `0x41` EdDSA branch still awaits Keystore integration.
+the Monoid `0x41` EdDSA branch had not yet been connected to Keystore in this measured build.
 RAM figures are idle readings, not signing peaks; reset and deselect readings
 describe overlapping memory pools and must not be added together.
 

@@ -76,9 +76,8 @@ public class LibED25519Test {
         "ed25519 seed".getBytes(StandardCharsets.US_ASCII),
         Hex.decode(vector[1])
       );
-      LibSLIP10Ed25519 deriver = new LibSLIP10Ed25519();
 
-      deriver.derive(
+      LibSLIP10Ed25519.derive(
         master,
         (short) 0,
         (short) master.length,
@@ -117,9 +116,11 @@ public class LibED25519Test {
     byte[] buffer = new byte[100];
     Arrays.fill(buffer, (byte) 0x55);
     buffer[20] = 0x72;
-    LibED25519 signer = new LibED25519(curve);
 
-    Assertions.assertEquals(64, signer.sign(key, buffer, (short) 20, (short) 1, buffer, (short) 5));
+    Assertions.assertEquals(
+      64,
+      LibED25519.sign(curve, key, buffer, (short) 20, (short) 1, buffer, (short) 5)
+    );
     Assertions.assertArrayEquals(Hex.decode(vector[5]), Arrays.copyOfRange(buffer, 5, 69));
 
     for (int i = 0; i < buffer.length; i++) {
@@ -191,17 +192,24 @@ public class LibED25519Test {
     String[] vector = requireVector("RFC8032_2");
     ED25519Key key = curve.getSharedPrivateKey(Hex.decode(vector[1]), (short) 0);
     byte[] message = Hex.decode(vector[4]);
-    LibED25519 signer = new LibED25519(curve);
 
     Assertions.assertThrows(RuntimeException.class, () ->
-      signer.sign(key, message, (short) 0, (short) message.length, new byte[63], (short) 0)
+      LibED25519.sign(
+        curve,
+        key,
+        message,
+        (short) 0,
+        (short) message.length,
+        new byte[63],
+        (short) 0
+      )
     );
 
     byte[] signature = new byte[64];
 
     Assertions.assertEquals(
       64,
-      signer.sign(key, message, (short) 0, (short) message.length, signature, (short) 0)
+      LibED25519.sign(curve, key, message, (short) 0, (short) message.length, signature, (short) 0)
     );
     Assertions.assertArrayEquals(Hex.decode(vector[5]), signature);
   }

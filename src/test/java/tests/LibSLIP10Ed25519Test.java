@@ -28,7 +28,6 @@ public class LibSLIP10Ed25519Test {
 
   @Test
   public void officialVectors() throws Exception {
-    LibSLIP10Ed25519 deriver = new LibSLIP10Ed25519();
     byte[] output = new byte[64];
     short count = 0;
 
@@ -48,7 +47,7 @@ public class LibSLIP10Ed25519Test {
         String[] fields = line.split("\t", -1);
         byte[] master = deriveMaster(Hex.decode(fields[0]));
         byte[] path = Hex.decode(fields[1]);
-        short length = deriver.derive(
+        short length = LibSLIP10Ed25519.derive(
           master,
           (short) 0,
           (short) master.length,
@@ -70,14 +69,13 @@ public class LibSLIP10Ed25519Test {
 
   @Test
   public void offsetsAndOverlappingOutput() {
-    LibSLIP10Ed25519 deriver = new LibSLIP10Ed25519();
     byte[] buffer = new byte[90];
     byte[] master = deriveMaster(Hex.decode("000102030405060708090a0b0c0d0e0f"));
     byte[] path = Hex.decode("8000000080000001");
     System.arraycopy(master, 0, buffer, 3, master.length);
     System.arraycopy(path, 0, buffer, 70, path.length);
 
-    deriver.derive(
+    LibSLIP10Ed25519.derive(
       buffer,
       (short) 3,
       (short) 64,
@@ -99,7 +97,6 @@ public class LibSLIP10Ed25519Test {
 
   @Test
   public void rejectsInvalidInputsWithoutPublishingPartialKey() {
-    LibSLIP10Ed25519 deriver = new LibSLIP10Ed25519();
     byte[] master = deriveMaster(Hex.decode("000102030405060708090a0b0c0d0e0f"));
     byte[] output = new byte[64];
     Arrays.fill(output, (byte) 0x55);
@@ -111,7 +108,7 @@ public class LibSLIP10Ed25519Test {
       Hex.decode("800000"),
     }) {
       ISOException exception = Assertions.assertThrows(ISOException.class, () ->
-        deriver.derive(
+        LibSLIP10Ed25519.derive(
           master,
           (short) 0,
           (short) master.length,
@@ -132,7 +129,7 @@ public class LibSLIP10Ed25519Test {
 
     for (short length : new short[] { -1, 0, 32, 63, 65 }) {
       Assertions.assertThrows(ISOException.class, () ->
-        deriver.derive(
+        LibSLIP10Ed25519.derive(
           new byte[65],
           (short) 0,
           length,
@@ -146,7 +143,7 @@ public class LibSLIP10Ed25519Test {
       Assertions.assertArrayEquals(original, output);
     }
 
-    deriver.derive(
+    LibSLIP10Ed25519.derive(
       master,
       (short) 0,
       (short) master.length,

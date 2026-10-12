@@ -7,29 +7,12 @@ public final class LibED25519 {
 
   public static final byte SIGNATURE_LENGTH = 64;
 
-  private final CurveED25519 curve;
-  private final byte[] publicNonce = JCSystem.makeTransientByteArray(
-    (short) 32,
-    JCSystem.CLEAR_ON_DESELECT
-  );
-  private final byte[] nonce = JCSystem.makeTransientByteArray(
-    (short) 32,
-    JCSystem.CLEAR_ON_DESELECT
-  );
-  private final byte[] response = JCSystem.makeTransientByteArray(
-    (short) 32,
-    JCSystem.CLEAR_ON_DESELECT
-  );
-
-  public LibED25519(CurveED25519 curve) {
-    this.curve = curve;
-  }
-
   /**
    * Signs a complete message with pure Ed25519. Output may overlap the message.
    * Scratch secrets are erased on return; the caller owns and must clear the key.
    */
-  public short sign(
+  public static short sign(
+    CurveED25519 curve,
     ED25519Key privateKey,
     byte[] message,
     short messageOffset,
@@ -37,6 +20,10 @@ public final class LibED25519 {
     byte[] out,
     short outOffset
   ) {
+    byte[] publicNonce = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
+    byte[] nonce = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
+    byte[] response = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
+
     try {
       curve.requirePrivateKey(privateKey);
       curve.hash.reset();
@@ -99,14 +86,10 @@ public final class LibED25519 {
 
       return SIGNATURE_LENGTH;
     } finally {
-      clear();
+      Util.arrayFillNonAtomic(nonce, (short) 0, (short) nonce.length, (byte) 0);
+      Util.arrayFillNonAtomic(response, (short) 0, (short) response.length, (byte) 0);
+      Util.arrayFillNonAtomic(publicNonce, (short) 0, (short) publicNonce.length, (byte) 0);
+      curve.clearScratch();
     }
-  }
-
-  public void clear() {
-    Util.arrayFillNonAtomic(nonce, (short) 0, (short) nonce.length, (byte) 0);
-    Util.arrayFillNonAtomic(response, (short) 0, (short) response.length, (byte) 0);
-    Util.arrayFillNonAtomic(publicNonce, (short) 0, (short) publicNonce.length, (byte) 0);
-    curve.clearScratch();
   }
 }

@@ -30,23 +30,32 @@ public final class CommandViewKey extends Command {
         return;
     }
 
-    WeierstrassCurve curve = WeierstrassCurve.requireSharedCurve(
-      reader.requireKey(Text.curve).text()
-    );
+    byte[] curveName = reader.requireKey(Text.curve).text();
+
+    WeierstrassCurve weierstrassCurve = WeierstrassCurve.getSharedCurve(curveName);
+    EdwardsCurve edwardsCurve = weierstrassCurve == null
+      ? EdwardsCurve.requireSharedCurve(curveName)
+      : null;
 
     byte[] path = reader.requireKey(Text.path).bytes();
 
-    short publicKeyLength = curve.getPublicKeyLength();
+    short publicKeyLength = weierstrassCurve != null
+      ? weierstrassCurve.getPublicKeyLength()
+      : edwardsCurve.getPublicKeyLength();
 
     byte[] data;
 
     switch (type & Safe.TYPE_CATEGORY_MASK) {
       case Safe.TYPE_SEED:
         byte[] seed = reader.requireKey(Text.seed).text();
-        data = keystore.getSeedDerivedPublicKeyAndChainCode(index, seed, curve, path);
+        data = weierstrassCurve != null
+          ? keystore.getSeedDerivedPublicKeyAndChainCode(index, seed, weierstrassCurve, path)
+          : keystore.getSeedDerivedPublicKeyAndChainCode(index, seed, edwardsCurve, path);
         break;
       case Safe.TYPE_MASTER:
-        data = keystore.getMasterDerivedPublicKeyAndChainCode(index, curve, path);
+        data = weierstrassCurve != null
+          ? keystore.getMasterDerivedPublicKeyAndChainCode(index, weierstrassCurve, path)
+          : keystore.getMasterDerivedPublicKeyAndChainCode(index, edwardsCurve, path);
         break;
       default:
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);

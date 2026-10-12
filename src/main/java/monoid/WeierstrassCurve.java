@@ -19,11 +19,6 @@ public abstract class WeierstrassCurve {
     secp256k1 = null;
   }
 
-  public static void writeSupportedCurves(CBORWriter writer) {
-    writer.array((short) 1);
-    writer.text(SECP256k1);
-  }
-
   public static WeierstrassCurve getSharedCurve(byte[] curveName) {
     if (Utils.isEqual(SECP256k1, curveName)) {
       return secp256k1;
