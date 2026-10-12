@@ -46,7 +46,7 @@
 44. [agent] 开始将实际使用的 BigNat 运算迁入既有 LibMath，沿用字节数组、偏移、长度和输出缓冲区的接口风格。首步仅迁移 shiftRight，由 BigNatInternal 委托调用，因此模乘和 Ed25519 签名实际使用新实现；保留 0–7 位移位、已左对齐 carry 和原地输出语义。新增独立 BigInteger 对照测试，30 项模拟器测试及 Java Card 3.0.5 CAP 转换和校验通过。其余 BigNat 运算及共享 RSA 资源尚未迁移，本轮未测试实体卡，暂存区未改动。
 45. [user] 明确下一阶段重构目标：按当前实际需求，参考 CurveSECP256k1 的组织方式去掉新增的 ECCurve 和 ECPoint；将必要的大整数算法迁入 LibMath，直接用 byte 数组表示大整数，最终去掉 BigNat 和 BigNatInternal。这是阶段目标，不要求一次性完成全部改动。
 46. [user] 同意省去 LibMath 的 Derived from 文件头；来源说明和完整第三方许可证集中保留在 third-party/jced25519，并随分发携带，不为每个基础运算重复文件头声明。
-47. [agent] 完成记录 45 的全部阶段目标：移除 ECCurve、ECPoint、BigNat、BigNatInternal 及无调用的 MathAllocator/MathStatus；CurveED25519 直接持有共享 255-bit ECPrivateKey 和 XY KeyAgreement，保留 setK(1)、零标量单位点及 Wei→Edwards 转换，无随机 keypair 生成；密钥、nonce、响应和转换值使用 byte[]。LibMath 保留按字节估商取模、模加减、RSA 模平方组合的模乘和 p−2 模逆；MathResources 仅一个共享 RSA512 key/Cipher 和 160B transient scratch。39 项模拟器测试（约 10.8 万次取模对照）、Hello 9000、生产 CAP 转换/验证通过；独立代码审查通过。2026-10-12 同实体卡对比冻结的本轮重构前源码，构造 1808→342ms，Solana 四级 SLIP+导入 939→673ms、150B Message 签名 2088→1417ms；均为独立探针 APDU 时间，不含上下文/派生器初始化，构造一项单列。共享曲线+签名器创建后 deselect 空闲 RAM 1616→3088B，带已导入密钥 1520→2992B；静态显式数组合计 1563→482B，不含原生对象。十组实体卡回归及十组取模微基准通过，clear/deselect/物理 reset 后同上下文可重新导入并正确签名。7A/7B 临时包全部删除，卡片 registry 前后一致，原 Monoid 两个应用可选。外部 API、APP 和暂存区未改动；Keystore EdDSA 接线仍属后续工作。中途逐位取模虽正确但签名约 6.4s，已以最终估商实现替换，不能作为当前性能。来源和许可证集中保留，测试脚本与证据位于忽略的 .research/ed25519/byte-array-refactor-card。
+47. [agent] 完成记录 45 的全部阶段目标：移除 ECCurve、ECPoint、BigNat、BigNatInternal 及无调用的 MathAllocator/MathStatus；CurveED25519 直接持有共享 255-bit ECPrivateKey 和 XY KeyAgreement，保留 setK(1)、零标量单位点及 Wei→Edwards 转换，无随机 keypair 生成；密钥、nonce、响应和转换值使用 byte[]。LibMath 保留按字节估商取模、模加减、RSA 模平方组合的模乘和 p−2 模逆；MathResources 仅一个共享 RSA512 key/Cipher 和 160B transient scratch。39 项模拟器测试（约 10.8 万次取模对照）、Hello 9000、生产 CAP 转换/验证通过；独立代码审查通过。2026-10-12 同实体卡对比冻结的本轮重构前源码，构造 1808→342ms，Solana 四级 SLIP+导入 939→673ms、150B Message 签名 2088→1417ms；均为独立探针 APDU 时间，不含上下文/派生器初始化，构造一项单列。共享曲线+签名器创建后 deselect 空闲 RAM 1616→3088B，带已导入密钥 1520→2992B；静态显式数组合计 1563→482B，不含原生对象。十组实体卡回归及十组取模微基准通过，clear/deselect/物理 reset 后同上下文可重新导入并正确签名。7A/7B 临时包全部删除，卡片 registry 前后一致，原 Monoid 两个应用可选。外部 API、APP 和暂存区未改动；Keystore EdDSA 接线仍属后续工作。中途逐位取模虽正确但签名约 6.4s，已以最终估商实现替换，不能作为当前性能。来源和许可证集中保留，测试脚本与证据位于忽略的 .research/ed25519/byte-array-refactor-card。 详见 [重构验证记录](./47.md)。
 48. [agent] 按用户批准的设计移除 MathResources，将一个 RSA512 key/Cipher 和 160B transient scratch 收入 LibMath 私有静态共享字段，沿用 LibHMACSha512 的 init/dispose 并接入 Applet 安装/卸载；mod、modMult、modInv、modExp 删除 resources 参数，CurveED25519 不再持有或清理数学资源。各运算 finally 仅清理自己负责的数组，嵌套模幂不擦除外层中间值；取模用私有重载承载算法，保持 CAP 的异常处理范围较小。40 项模拟器测试、Hello 9000、CAP 转换/校验和格式检查通过；本轮未使用实体卡，记录 47 的时间与 RAM 实测对应此次调整前的源码，后续硬件复测需先适配忽略目录内的旧探针。未修改暂存区或外部 API。
 
 ---
@@ -85,3 +85,7 @@ b883572 ---
 
 70. [user] 批准按需持久化扩展，并明确小型分段请求仍用 RAM，超过阈值才使用持久存储；不采用所有分段请求一律持久化的方案。
 71. [agent] 请求接收器保留前 512B 完整 CBOR 请求于 RAM，溢出部分按 256B 块按需持久分配；持久引用表确保 reset 后仍可擦除未完成请求。69 项模拟器测试、CAP 校验及 9 组实体卡测试通过，8192B 请求可签 seed 8096B / master 8114B Message，详见 [实现与实测](./71.md)。取消/错误/reset/超限恢复通过，隔离包已清理且原应用正常；API 和分片协议保持不变。
+
+--- 74a31cd ---
+
+72. [user] doc/cards.md 面向用户选购卡片，研究过程与详细实测应按 Project Memory 保存到对应数字 MD 文件；README 保持简洁，以命令定义为主，具体传输协议另设对应文档。
