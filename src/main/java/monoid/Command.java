@@ -16,13 +16,13 @@ public abstract class Command {
   public static final byte[] EXCEPTION_IndexOutOfBoundsException = {'I','n','d','e','x','O','u','t','O','f','B','o','u','n','d','s','E','x','c','e','p','t','i','o','n'};
   // @formatter:on
 
-  public static final byte AUTH_ACCESS = 0b01;
-  public static final byte AUTH_SAFE = 0b10;
+  public static final short AUTH_ACCESS = (short) 0xA501;
+  public static final short AUTH_SAFE = (short) 0x5AFE;
 
   protected static CBORApduReader reader;
   protected static CBORApduWriter writer;
 
-  private static byte[] auth;
+  private static short[] auth;
 
   public static Command hello;
   public static Command authenticate;
@@ -44,7 +44,7 @@ public abstract class Command {
     reader = new CBORApduReader();
     writer = new CBORApduWriter();
 
-    auth = JCSystem.makeTransientByteArray((short) 1, JCSystem.CLEAR_ON_DESELECT);
+    auth = JCSystem.makeTransientShortArray((short) 2, JCSystem.CLEAR_ON_DESELECT);
 
     hello = new CommandHello();
     authenticate = new CommandAuthenticate();
@@ -279,7 +279,7 @@ public abstract class Command {
       }
 
       if (safe.checkPIN(pin)) {
-        auth[0] = AUTH_SAFE | AUTH_ACCESS;
+        setAuth(AUTH_SAFE);
         return;
       }
 
@@ -291,7 +291,7 @@ public abstract class Command {
       }
 
       if (MonoidApplet.pin.check(pin, (short) 0, (byte) pin.length)) {
-        auth[0] = AUTH_ACCESS;
+        setAuth(AUTH_ACCESS);
         return;
       }
 
@@ -301,27 +301,41 @@ public abstract class Command {
     PINException.throwIt(tries);
   }
 
-  protected byte getAuth() throws MonoidException {
-    return auth[0];
+  private static void setAuth(short value) {
+    // Invalidate the previous state before publishing the new state and its complement.
+    auth[0] = 0;
+    auth[1] = (short) ~value;
+    auth[0] = value;
   }
 
-  protected byte requireAuth(byte requiredAuth) throws MonoidException {
-    byte auth = getAuth();
+  protected static short getAuth() throws MonoidException {
+    short value = auth[0];
 
-    assertAuth(auth, requiredAuth);
+    // Transient memory is cleared to zero on reset and deselect.
+    if (value == 0 && auth[1] == 0) {
+      return 0;
+    }
 
-    return auth;
+    if ((value != AUTH_ACCESS && value != AUTH_SAFE) || auth[1] != (short) ~value) {
+      MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
+    }
+
+    return value;
   }
 
-  protected byte requireAuth() throws MonoidException {
-    return requireAuth((byte) (AUTH_ACCESS | AUTH_SAFE));
-  }
+  protected static short requireAuth(short requiredAuth) throws MonoidException {
+    short auth = getAuth();
 
-  protected void assertAuth(byte auth, byte requiredAuth) throws MonoidException {
-    if ((auth & requiredAuth) == 0) {
+    if (auth == 0 || (auth != requiredAuth && (auth != AUTH_SAFE || requiredAuth != AUTH_ACCESS))) {
       MonoidException.throwIt(
         auth == 0 ? MonoidException.CODE_UNAUTHORIZED : MonoidException.CODE_ACCESS_DENIED
       );
     }
+
+    return auth;
+  }
+
+  protected static short requireAuth() throws MonoidException {
+    return requireAuth(AUTH_ACCESS);
   }
 }

@@ -27,7 +27,7 @@ public class AppletTest {
       System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
       System.setProperty("com.licel.jcardsim.sign.dsasigner.computedhash", "1");
 
-      this.simulator = new CardSimulator();
+      this.simulator = new CardSimulator(new ShareableSimulatorRuntime());
     }
   }
 

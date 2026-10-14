@@ -2,6 +2,14 @@ package monoidsafe;
 
 import javacard.framework.Shareable;
 
+/**
+ * A Safe session bound to its caller. Data access requires this session to verify
+ * the Safe PIN. Repeated acquisition reuses the caller's authorized session.
+ * Checking the PIN revokes only this caller's previous authorization. Other
+ * callers retain their own authorization.
+ * Updating the PIN, exhausting its shared try counter, or a card reset revokes
+ * all sessions. Item interfaces belong to the session that returned them.
+ */
 public interface SafeShareable extends Shareable {
   public static final byte INDEX_TYPE_OFFSET = 0;
   public static final byte INDEX_TYPE_LENGTH = 2;
@@ -21,8 +29,10 @@ public interface SafeShareable extends Shareable {
 
   public boolean checkPIN(byte[] buffer, short offset, byte length);
 
+  /** Requires authorization except when setting the Safe PIN for the first time. */
   public void updatePIN(byte[] buffer, short offset, byte length);
 
+  /** Reports authorization for this session and its current caller. */
   public boolean isPINValidated();
 
   /**

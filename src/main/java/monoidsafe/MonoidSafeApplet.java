@@ -10,12 +10,15 @@ import javacard.framework.OwnerPIN;
 import javacard.framework.Shareable;
 import javacard.security.RandomData;
 
-public class MonoidSafeApplet extends Applet implements SafeShareable {
+public class MonoidSafeApplet extends Applet {
 
   public static final byte ID_LENGTH = 4;
 
   public static final byte PIN_TRY_LIMIT = 5;
   public static final byte MAX_PIN_LENGTH = 16;
+
+  private static final short PIN_UNSET = (short) 0xA501;
+  private static final short PIN_SET = (short) 0x5AFE;
 
   private static final short ITEM_LENGTH_EXTENSION = 8;
 
@@ -27,7 +30,11 @@ public class MonoidSafeApplet extends Applet implements SafeShareable {
 
   private OwnerPIN pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_LENGTH);
 
-  private boolean pinSet = false;
+  private short pinState = PIN_UNSET;
+  private short pinStateInverse = (short) ~PIN_UNSET;
+
+  // Only authenticated sessions are retained, and only until reset.
+  private Object[] sessions = JCSystem.makeTransientObjectArray((short) 1, JCSystem.CLEAR_ON_RESET);
 
   private SafeItem[] items = new SafeItem[ITEM_LENGTH_EXTENSION];
 
@@ -49,42 +56,93 @@ public class MonoidSafeApplet extends Applet implements SafeShareable {
     ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
   }
 
-  @Override
   public byte[] getId() {
     return Utils.duplicateAsGlobal(id);
   }
 
-  @Override
   public boolean isPINSet() {
-    return pinSet;
+    short state = pinState;
+
+    if ((state != PIN_UNSET && state != PIN_SET) || pinStateInverse != (short) ~state) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+
+    return state == PIN_SET;
   }
 
-  @Override
   public byte getPINTriesRemaining() {
     return pin.getTriesRemaining();
   }
 
-  @Override
-  public boolean checkPIN(byte[] buffer, short offset, byte length) {
-    return pin.check(buffer, offset, length);
+  public boolean checkPIN(SafeSession session, byte[] buffer, short offset, byte length) {
+    session.assertCaller();
+
+    clearAuth(JCSystem.getPreviousContextAID());
+    pin.reset();
+
+    try {
+      if (!isPINSet() || !pin.check(buffer, offset, length)) {
+        return false;
+      }
+
+      if (!pin.isValidated()) {
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+      }
+
+      session.setNext((SafeSession) sessions[0]);
+      sessions[0] = session;
+      session.setAuth();
+
+      return true;
+    } finally {
+      if (pin.getTriesRemaining() == 0) {
+        clearAuth();
+      }
+    }
   }
 
-  @Override
-  public void updatePIN(byte[] buffer, short offset, byte length) {
-    assertAccess();
+  public void updatePIN(SafeSession session, byte[] buffer, short offset, byte length) {
+    checkPINUpdate(session);
 
-    pin.update(buffer, offset, length);
-    pinSet = true;
+    JCSystem.beginTransaction();
+
+    try {
+      checkPINUpdate(session);
+      clearAuth();
+
+      pin.update(buffer, offset, length);
+      pinState = PIN_SET;
+      pinStateInverse = (short) ~PIN_SET;
+
+      JCSystem.commitTransaction();
+    } finally {
+      if (JCSystem.getTransactionDepth() != 0) {
+        JCSystem.abortTransaction();
+      }
+    }
   }
 
-  @Override
-  public boolean isPINValidated() {
-    return pin.isValidated();
+  private void checkPINUpdate(SafeSession session) {
+    session.assertCaller();
+
+    if (isPINSet()) {
+      assertAccess(session);
+    }
   }
 
-  @Override
-  public Object[] list(short type) {
-    assertAccess();
+  public boolean isPINValidated(SafeSession session) {
+    session.assertCaller();
+
+    if (!isPINSet()) {
+      return false;
+    }
+
+    // The native validated flag describes the last PIN check, not each caller's grant.
+    return session.isAuthorized() && pin.getTriesRemaining() != 0;
+  }
+
+  public Object[] list(SafeSession session, short type) {
+    assertAccess(session);
 
     short count = 0;
 
@@ -105,7 +163,7 @@ public class MonoidSafeApplet extends Applet implements SafeShareable {
       SafeItem item = items[index];
 
       if (item.matches(type)) {
-        itemShareables[offset] = item;
+        itemShareables[offset] = new SafeItemSession(session, item);
 
         offset++;
       }
@@ -114,24 +172,22 @@ public class MonoidSafeApplet extends Applet implements SafeShareable {
     return itemShareables;
   }
 
-  @Override
-  public SafeItemShareable get(byte[] index) {
-    assertAccess();
+  public SafeItemShareable get(SafeSession session, byte[] index) {
+    assertAccess(session);
 
     for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
       SafeItem item = items[itemIndex];
 
       if (item.matches(index)) {
-        return item;
+        return new SafeItemSession(session, item);
       }
     }
 
     return null;
   }
 
-  @Override
-  public SafeItemShareable create(byte[] index, byte[] alias, byte[] data) {
-    assertAccess();
+  public SafeItemShareable create(SafeSession session, byte[] index, byte[] alias, byte[] data) {
+    assertAccess(session);
 
     for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
       if (items[itemIndex].matches(index)) {
@@ -161,17 +217,17 @@ public class MonoidSafeApplet extends Applet implements SafeShareable {
 
     data = Utils.duplicateAsPersistent(data);
 
-    SafeItem item = new SafeItem(index, alias, data, this);
+    SafeItem item = new SafeItem(index, alias, data);
 
     items[itemsLength++] = item;
 
     JCSystem.commitTransaction();
 
-    return item;
+    return new SafeItemSession(session, item);
   }
 
-  public void remove(SafeItem item) {
-    assertAccess();
+  public void remove(SafeSession session, SafeItem item) {
+    assertAccess(session);
 
     short indexToDelete = -1;
 
@@ -199,22 +255,74 @@ public class MonoidSafeApplet extends Applet implements SafeShareable {
     JCSystem.commitTransaction();
   }
 
-  public void assertAccess() {
-    if (pinSet && !pin.isValidated()) {
+  public void assertAccess(SafeSession session) {
+    if (!isPINValidated(session)) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+  }
+
+  private void clearAuth() {
+    SafeSession session = (SafeSession) sessions[0];
+
+    while (session != null) {
+      SafeSession next = session.getNext();
+
+      session.clearAuth();
+      sessions[0] = next;
+      session.setNext(null);
+
+      session = next;
+    }
+
+    pin.reset();
+  }
+
+  private void clearAuth(AID caller) {
+    SafeSession previous = null;
+    SafeSession session = (SafeSession) sessions[0];
+
+    while (session != null) {
+      SafeSession next = session.getNext();
+
+      if (session.matches(caller)) {
+        session.clearAuth();
+
+        if (previous == null) {
+          sessions[0] = next;
+        } else {
+          previous.setNext(next);
+        }
+
+        session.setNext(null);
+      } else {
+        previous = session;
+      }
+
+      session = next;
     }
   }
 
   @Override
   public Shareable getShareableInterfaceObject(AID clientAID, byte parameter) {
     if (
+      clientAID != null &&
       clientAID.partialEquals(
         Constants.MONOID_AID_WITHOUT_VERSION,
         (short) 0,
         (byte) Constants.MONOID_AID_WITHOUT_VERSION.length
       )
     ) {
-      return this;
+      SafeSession session = (SafeSession) sessions[0];
+
+      while (session != null) {
+        if (session.matches(clientAID)) {
+          return session;
+        }
+
+        session = session.getNext();
+      }
+
+      return new SafeSession(this, clientAID);
     }
 
     return null;

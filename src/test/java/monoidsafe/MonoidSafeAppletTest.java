@@ -1,6 +1,5 @@
 package monoidsafe;
 
-import com.licel.jcardsim.base.SimulatorRuntime;
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
 import java.util.ArrayList;
@@ -8,10 +7,15 @@ import java.util.List;
 import javacard.framework.AID;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import tests.SafeCallerApplet;
+import tests.ShareableSimulatorRuntime;
 
 public class MonoidSafeAppletTest {
 
   private static final AID SAFE_AID = AIDUtil.create("f06d6f6e6f696400010000");
+  private static final AID CALLER_AID = AIDUtil.create("f06d6f6e6f696401010001");
+
+  private static final byte[] PIN = { 1, 2, 3, 4, 5, 6 };
 
   @Test
   public void removesLastItemAtFullCapacityAndRecreatesIt() {
@@ -30,11 +34,14 @@ public class MonoidSafeAppletTest {
   private void checkRemoval(int capacity, int removedPosition) {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
 
-    SimulatorRuntime runtime = new SimulatorRuntime();
+    ShareableSimulatorRuntime runtime = new ShareableSimulatorRuntime();
     CardSimulator simulator = new CardSimulator(runtime);
     simulator.installApplet(SAFE_AID, MonoidSafeApplet.class);
-    Assertions.assertTrue(simulator.selectApplet(SAFE_AID));
-    MonoidSafeApplet safe = (MonoidSafeApplet) runtime.lookupApplet(SAFE_AID).getApplet();
+    simulator.installApplet(CALLER_AID, SafeCallerApplet.class);
+    Assertions.assertTrue(simulator.selectApplet(CALLER_AID));
+    SafeShareable safe = (SafeShareable) runtime.getSharedObject(SAFE_AID, (byte) 0);
+    safe.updatePIN(PIN, (short) 0, (byte) PIN.length);
+    Assertions.assertTrue(safe.checkPIN(PIN, (short) 0, (byte) PIN.length));
 
     List<byte[]> indexes = new ArrayList<>();
     List<byte[]> values = new ArrayList<>();
@@ -67,7 +74,7 @@ public class MonoidSafeAppletTest {
     assertItems(safe, indexes, values);
   }
 
-  private void assertItems(MonoidSafeApplet safe, List<byte[]> indexes, List<byte[]> values) {
+  private void assertItems(SafeShareable safe, List<byte[]> indexes, List<byte[]> values) {
     Object[] items = safe.list((short) 0);
     Assertions.assertEquals(indexes.size(), items.length);
 
@@ -76,7 +83,10 @@ public class MonoidSafeAppletTest {
 
       Assertions.assertArrayEquals(indexes.get(position), item.getIndex());
       Assertions.assertArrayEquals(values.get(position), item.getData());
-      Assertions.assertSame(item, safe.get(indexes.get(position)));
+      SafeItemShareable found = safe.get(indexes.get(position));
+      Assertions.assertNotNull(found);
+      Assertions.assertArrayEquals(item.getIndex(), found.getIndex());
+      Assertions.assertArrayEquals(item.getData(), found.getData());
     }
   }
 }

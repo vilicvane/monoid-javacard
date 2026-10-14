@@ -133,15 +133,36 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     }
   }
 
+  public static void checkPINUpdate() throws MonoidException {
+    if (safe.isPINSet() || pinSet) {
+      Command.requireAuth(Command.AUTH_SAFE);
+    } else {
+      Command.getAuth();
+    }
+  }
+
   public static void updatePIN(byte[] pinBytes) {
+    checkPINUpdate();
+
+    if (!safe.isPINSet()) {
+      MonoidException.throwIt(MonoidException.CODE_SAFE_PIN_NOT_SET);
+    }
+
     pin.update(pinBytes, (short) 0, (byte) pinBytes.length);
     pinSet = true;
   }
 
   public static void updateSafePIN(byte[] pin) {
+    checkPINUpdate();
+
     safe.updatePIN(pin);
 
     safePIN = Utils.duplicateAsPersistent(pin);
+
+    if (!pinSet) {
+      MonoidApplet.pin.update(pin, (short) 0, (byte) pin.length);
+      pinSet = true;
+    }
   }
 
   public static boolean isSafeUnlocked() {

@@ -61,6 +61,12 @@ public class MonoidAppletTest extends AppletTest {
   );
   private static final byte[] TEST_SECP256K1_KEY_INDEX = Hex.decode("0401" + "b5519fdc940daeb3");
 
+  // RFC 8032, section 7.1, test 2; this is a public example private key seed.
+  private static final byte[] TEST_ED25519_KEY = Hex.decode(
+    "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"
+  );
+  private static final byte[] TEST_ED25519_KEY_INDEX = Hex.decode("0501" + "3d2d9682cdba5296");
+
   private static final byte[] TEST_DIGEST = Hex.decode(
     "43ddcab065bcc7bd8d80c479ed29d3658ccf3ac3343b7044013008bde5ca19cf"
   );
@@ -84,6 +90,10 @@ public class MonoidAppletTest extends AppletTest {
 
   private static final byte[] TEST_SECP256K1_DERIVED_PUBLIC_KEY = Hex.decode(
     "031df0b7bb633f1559b9c17d740a8a42d7f6cc3e79e2cefb27093954885e9e13df"
+  );
+
+  private static final byte[] TEST_ED25519_PUBLIC_KEY = Hex.decode(
+    "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c"
   );
 
   public MonoidAppletTest() {
@@ -496,6 +506,7 @@ public class MonoidAppletTest extends AppletTest {
     keys.put(TEST_SEED_INDEX, TEST_SEED);
     keys.put(TEST_MASTER_INDEX, TEST_MASTER);
     keys.put(TEST_SECP256K1_KEY_INDEX, TEST_SECP256K1_KEY);
+    keys.put(TEST_ED25519_KEY_INDEX, TEST_ED25519_KEY);
 
     CardManager manager = connect();
 
@@ -582,9 +593,9 @@ public class MonoidAppletTest extends AppletTest {
     CBORBufferReader reader = new CBORBufferReader(buffer);
     reader.map();
     {
-      Assertions.assertEquals(9, reader.requireKey("items".getBytes()).array());
+      Assertions.assertEquals(10, reader.requireKey("items".getBytes()).array());
 
-      Assertions.assertTrue(reader.index((short) 8));
+      Assertions.assertTrue(reader.index((short) 9));
       reader.map();
       {
         reader.requireKey("type".getBytes()).text();
@@ -703,6 +714,34 @@ public class MonoidAppletTest extends AppletTest {
           TEST_SECP256K1_DERIVED_PUBLIC_KEY
         );
       }
+    }
+
+    {
+      CBORBufferWriter writer = new CBORBufferWriter();
+
+      writer.map((short) 2);
+      {
+        writer.text("index".getBytes());
+        writer.bytes(TEST_ED25519_KEY_INDEX);
+
+        writer.text("curve".getBytes());
+        writer.text("ed25519".getBytes());
+      }
+
+      CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
+
+      ResponseAPDU response = manager.transmit(request);
+
+      assertNoError(response);
+
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+
+      Assertions.assertEquals(1, reader.map());
+      Assertions.assertArrayEquals(
+        TEST_ED25519_PUBLIC_KEY,
+        reader.requireKey("publicKey".getBytes()).bytes()
+      );
+      Assertions.assertFalse(reader.key("chainCode".getBytes()));
     }
   }
 
@@ -1166,8 +1205,8 @@ public class MonoidAppletTest extends AppletTest {
 
     CBORBufferReader reader = new CBORBufferReader(response);
     reader.map();
-    Assertions.assertEquals(9, reader.requireKey("items".getBytes()).array());
-    Assertions.assertTrue(reader.index((short) 8));
+    Assertions.assertEquals(10, reader.requireKey("items".getBytes()).array());
+    Assertions.assertTrue(reader.index((short) 9));
     reader.map();
     Assertions.assertEquals(10, reader.requireKey("index".getBytes()).bytes().length);
     Assertions.assertEquals(0x6985, transmitFrame(manager, 0, 0xC0, 0, 0, new byte[0]).getSW());
@@ -1463,11 +1502,25 @@ public class MonoidAppletTest extends AppletTest {
     assertNoError(response);
     CBORBufferReader reader = new CBORBufferReader(response.getBytes());
     reader.map();
-    Assertions.assertEquals(1, reader.requireKey("items".getBytes()).array());
-    Assertions.assertTrue(reader.index((short) 0));
-    reader.map();
-    Assertions.assertArrayEquals("ed25519".getBytes(), reader.requireKey("type".getBytes()).text());
-    Assertions.assertArrayEquals(index, reader.requireKey("index".getBytes()).bytes());
+    short count = reader.requireKey("items".getBytes()).array();
+    Assertions.assertEquals(2, count);
+    boolean foundExample = false;
+    boolean foundItem = false;
+
+    for (short item = 0; item < count; item++) {
+      Assertions.assertTrue(reader.index(item));
+      reader.map();
+      Assertions.assertArrayEquals(
+        "ed25519".getBytes(),
+        reader.requireKey("type".getBytes()).text()
+      );
+      byte[] listedIndex = reader.requireKey("index".getBytes()).bytes();
+      foundExample |= Arrays.equals(TEST_ED25519_KEY_INDEX, listedIndex);
+      foundItem |= Arrays.equals(index, listedIndex);
+    }
+
+    Assertions.assertTrue(foundExample);
+    Assertions.assertTrue(foundItem);
 
     for (short category : new short[] { 0x0400, 0x0500 }) {
       writer.reset();
@@ -1479,8 +1532,8 @@ public class MonoidAppletTest extends AppletTest {
       assertNoError(response);
       reader = new CBORBufferReader(response.getBytes());
       reader.map();
-      short count = reader.requireKey("items".getBytes()).array();
-      Assertions.assertEquals(category == 0x0400 ? 2 : 1, count);
+      count = reader.requireKey("items".getBytes()).array();
+      Assertions.assertEquals(2, count);
 
       for (short item = 0; item < count; item++) {
         Assertions.assertTrue(reader.index(item));

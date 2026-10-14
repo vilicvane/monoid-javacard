@@ -2,19 +2,16 @@ package monoidsafe;
 
 import javacard.framework.Util;
 
-public class SafeItem implements SafeItemShareable {
+public class SafeItem {
 
   public byte[] index;
   public byte[] alias;
   public byte[] data;
 
-  private MonoidSafeApplet applet;
-
-  public SafeItem(byte[] index, byte[] alias, byte[] data, MonoidSafeApplet applet) {
+  public SafeItem(byte[] index, byte[] alias, byte[] data) {
     this.index = index;
     this.alias = alias;
     this.data = data;
-    this.applet = applet;
   }
 
   public boolean matches(byte[] index) {
@@ -39,41 +36,5 @@ public class SafeItem implements SafeItemShareable {
         low == index[SafeShareable.INDEX_TYPE_METADATA_OFFSET]
       );
     }
-  }
-
-  @Override
-  public byte[] getIndex() {
-    applet.assertAccess();
-    return Utils.duplicateAsGlobal(index);
-  }
-
-  @Override
-  public byte[] getAlias() {
-    applet.assertAccess();
-    return alias != null ? Utils.duplicateAsGlobal(alias) : null;
-  }
-
-  @Override
-  public byte[] getData() {
-    applet.assertAccess();
-    return Utils.duplicateAsGlobal(data);
-  }
-
-  @Override
-  public void setAlias(byte[] alias) {
-    applet.assertAccess();
-    this.alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
-  }
-
-  @Override
-  public void setData(byte[] data) {
-    applet.assertAccess();
-    this.data = Utils.duplicateAsPersistent(data);
-  }
-
-  @Override
-  public void remove() {
-    applet.assertAccess();
-    applet.remove(this);
   }
 }
