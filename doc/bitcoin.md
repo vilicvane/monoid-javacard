@@ -3,7 +3,7 @@
 Monoid supports BIP32 derivation and ECDSA or BIP340 Schnorr signing on
 `secp256k1`. Taproot uses the existing `0x40` View key and `0x41` Sign commands,
 with the same seed, master and independent `secp256k1` Safe items. Hello and
-System information advertise `['ecdsa', 'schnorr']` under the `secp256k1` curve.
+System information advertise `['ecdsa', 'bip340']` under the `secp256k1` curve.
 The complete request and response definitions are in the [README](../README.md#0x40--0x4f-key-usage).
 
 ## BIP86 single-key accounts
@@ -20,7 +20,7 @@ defines the account layout and no-script-tree output construction.
    the 32-byte output key used to construct the Taproot address.
 2. Build the transaction and calculate its 32-byte Taproot signature hash on
    the client.
-3. Call Sign with the same key description, `cipher: 'schnorr'`, that `digest`
+3. Call Sign with the same key description, `cipher: 'bip340'`, that `digest`
    and `taproot: true`. The result is `{signature}` containing 64 bytes.
 4. Assemble the witness and transaction on the client.
 
@@ -52,7 +52,7 @@ derive child nodes before applying TapTweak. Independent key queries have no
 chain code.
 
 Only `secp256k1` accepts enabled `taproot`; Sign additionally requires
-`cipher: 'schnorr'`. ECDSA and EdDSA requests accept `taproot: false` as equivalent
+`cipher: 'bip340'`. ECDSA and Ed25519 requests accept `taproot: false` as equivalent
 to omitting the field, but reject `true` or an object.
 
 ## Signature hashes and transaction encoding
@@ -76,9 +76,10 @@ can sign a client-prepared [BIP342](https://github.com/bitcoin/bips/blob/master/
 script-path digest for the selected script key. Script construction, control
 blocks and MuSig protocols are outside the card's signing API.
 
-Existing `cipher: 'ecdsa'` requests retain their digest-based behavior and DER
-signature encoding for earlier Bitcoin output types. The client chooses the
-appropriate transaction signature hash and witness or script encoding.
+Existing `cipher: 'ecdsa'` requests sign a 32-byte digest and return a 64-byte
+`r || s` signature, with each integer encoded as 32 big-endian bytes. For earlier
+Bitcoin output types, the client converts it to DER and appends the sighash byte.
+The client chooses the transaction signature hash and witness or script encoding.
 
 ## Signing implementation
 

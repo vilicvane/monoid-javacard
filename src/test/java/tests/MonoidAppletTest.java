@@ -872,7 +872,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.bytes(Hex.decode("8000002c800001f58000000080000000"));
 
         writer.text("cipher".getBytes());
-        writer.text("eddsa".getBytes());
+        writer.text("ed25519".getBytes());
 
         writer.text("message".getBytes());
         writer.bytes(Hex.decode("72"));
@@ -1070,7 +1070,7 @@ public class MonoidAppletTest extends AppletTest {
 
     authenticate(manager, false);
 
-    int[] messageLengths = { 512, 1167, 4032, 8096, 8114 };
+    int[] messageLengths = { 512, 1167, 4032, 8094, 8112 };
     byte[][] indices = {
       TEST_SEED_INDEX,
       TEST_SEED_INDEX,
@@ -1090,10 +1090,10 @@ public class MonoidAppletTest extends AppletTest {
         "2ec71809c29e321a614eae5db09aba73d8695a2104e8b8ea75ecef82a25a0ed32fcca5eb8cd004251b13e0600eb90fb5cb2fcdc35df3799dd4329b35cae1340c"
       ),
       Hex.decode(
-        "69ab80854ccec3e35bc85fd04833bd4361e9c3bd85eefd4473a2ce63265bb7bb06a2b72f32d476fb88b8e3934b40a74c10ee9c5694e241b281595050f8267f06"
+        "75bdade06aab77ba4cb73fa63f81a07d3873de00ea28370a021487a4e6f33d891694d8b01e79b0a3eb61a17e9df19576921b3b68a32c0fe9b006f25c4e8f090b"
       ),
       Hex.decode(
-        "6cf08b971f6342ebbe331f2fecf832ba3987667039fe2336f37ad996e2d400f75dbc57eab0a38b49e072849f95039fa6cb854afbbc637ebe1fca329ae3502e02"
+        "fa1aeb49434f62b8804a49d72416ee131ec48a64a1aebfa9bd39406f3ed4c238fc08aaeaea1c243d1ad41ddf255faeb00c5e90c2a7fe73a6d684e50434036b02"
       ),
     };
 
@@ -1127,7 +1127,7 @@ public class MonoidAppletTest extends AppletTest {
           writer.text("path".getBytes());
           writer.bytes(Hex.decode("8000002c800001f58000000080000000"));
           writer.text("cipher".getBytes());
-          writer.text("eddsa".getBytes());
+          writer.text("ed25519".getBytes());
 
           if (!messageFirst) {
             writer.text("message".getBytes());
@@ -1137,7 +1137,7 @@ public class MonoidAppletTest extends AppletTest {
 
         byte[] request = writer.getDataBuffer();
 
-        if (message.length >= 8096) {
+        if (message.length >= 8094) {
           Assertions.assertEquals(8192, request.length);
         }
 
@@ -1462,7 +1462,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.text("index".getBytes());
         writer.bytes(ecdsa ? index : TEST_SECP256K1_KEY_INDEX);
         writer.text("cipher".getBytes());
-        writer.text(ecdsa ? "ecdsa".getBytes() : "eddsa".getBytes());
+        writer.text(ecdsa ? "ecdsa".getBytes() : "ed25519".getBytes());
         writer.text(ecdsa ? "digest".getBytes() : "message".getBytes());
         writer.bytes(TEST_DIGEST);
         assertError(
@@ -1564,7 +1564,7 @@ public class MonoidAppletTest extends AppletTest {
     writer.text("index".getBytes());
     writer.bytes(index);
     writer.text("cipher".getBytes());
-    writer.text("eddsa".getBytes());
+    writer.text("ed25519".getBytes());
     writer.text("message".getBytes());
     writer.bytes(message);
     response = manager.transmit(apdu(0, 0x41, 0, 0, writer.getDataBuffer()));
@@ -1666,7 +1666,7 @@ public class MonoidAppletTest extends AppletTest {
 
   private void assertFeatures(ResponseAPDU response) {
     String[] curves = { "secp256k1", "ed25519" };
-    String[][] ciphers = { { "ecdsa", "schnorr" }, { "eddsa" } };
+    String[][] ciphers = { { "ecdsa", "bip340" }, { "ed25519" } };
 
     for (short index = 0; index < curves.length; index++) {
       CBORBufferReader reader = new CBORBufferReader(response.getBytes());

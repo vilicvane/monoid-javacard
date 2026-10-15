@@ -46,7 +46,7 @@ public class CommandSign extends Command {
     boolean taproot = reader.key(Text.taproot) && (reader.is(CBOR.TYPE_MAP) || reader.bool());
     byte[] signature;
 
-    if (taproot && !Utils.isEqual(Signer.CIPHER_SCHNORR, cipher)) {
+    if (taproot && !Utils.isEqual(Signer.CIPHER_BIP340, cipher)) {
       MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
       return;
     }
@@ -55,7 +55,7 @@ public class CommandSign extends Command {
       byte[] digest = reader.requireKey(Text.digest).bytes();
 
       signature = keystore.signECDSADigest(index, seed, curve, path, digest);
-    } else if (Utils.isEqual(Signer.CIPHER_EDDSA, cipher)) {
+    } else if (Utils.isEqual(Signer.CIPHER_ED25519, cipher)) {
       short messageLength = reader.requireKey(Text.message).bytesLength();
 
       signature = keystore.signEDDSAMessage(
@@ -67,7 +67,7 @@ public class CommandSign extends Command {
         reader.getOffset(),
         messageLength
       );
-    } else if (Utils.isEqual(Signer.CIPHER_SCHNORR, cipher)) {
+    } else if (Utils.isEqual(Signer.CIPHER_BIP340, cipher)) {
       byte[] digest = reader.requireKey(Text.digest).bytes(CurveSECP256k1.KEY_LENGTH);
       byte[] merkleRoot = null;
 

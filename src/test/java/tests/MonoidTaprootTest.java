@@ -103,12 +103,12 @@ public class MonoidTaprootTest extends AppletTest {
         Assertions.assertArrayEquals(chainCode, field(response, "chainCode"), vector[0]);
 
         assertSignature(
-          transmit(0x41, keyRequest(index, path, "schnorr", DIGEST, new byte[0])),
+          transmit(0x41, keyRequest(index, path, "bip340", DIGEST, new byte[0])),
           DIGEST,
           outputKey
         );
         assertSignature(
-          transmit(0x41, keyRequest(index, path, "schnorr", DIGEST, null)),
+          transmit(0x41, keyRequest(index, path, "bip340", DIGEST, null)),
           DIGEST,
           Arrays.copyOfRange(compressedKey, 1, 33)
         );
@@ -136,7 +136,7 @@ public class MonoidTaprootTest extends AppletTest {
         Assertions.assertArrayEquals(expected, field(response, "publicKey"));
 
         byte[] signature = assertSignature(
-          transmit(0x41, keyRequest(index, null, "schnorr", DIGEST, root)),
+          transmit(0x41, keyRequest(index, null, "bip340", DIGEST, root)),
           DIGEST,
           expected
         );
@@ -145,7 +145,7 @@ public class MonoidTaprootTest extends AppletTest {
       }
 
       assertSignature(
-        transmit(0x41, keyRequest(index, null, "schnorr", DIGEST, null)),
+        transmit(0x41, keyRequest(index, null, "bip340", DIGEST, null)),
         DIGEST,
         Arrays.copyOfRange(compressedKey, 1, 33)
       );
@@ -163,7 +163,7 @@ public class MonoidTaprootTest extends AppletTest {
     Assertions.assertArrayEquals(outputKey, field(response, "publicKey"));
     Assertions.assertArrayEquals(Hex.decode(vector[6]), field(response, "chainCode"));
     assertSignature(
-      transmit(0x41, keyRequest(index, path, "schnorr", DIGEST, MERKLE_ROOT)),
+      transmit(0x41, keyRequest(index, path, "bip340", DIGEST, MERKLE_ROOT)),
       DIGEST,
       outputKey
     );
@@ -194,7 +194,7 @@ public class MonoidTaprootTest extends AppletTest {
         }
 
         assertSignature(
-          transmit(0x41, keyRequest(indices[item], path, "schnorr", DIGEST, taproot)),
+          transmit(0x41, keyRequest(indices[item], path, "bip340", DIGEST, taproot)),
           DIGEST,
           taproot ? publicKey : Arrays.copyOfRange(publicKey, 1, 33)
         );
@@ -224,15 +224,15 @@ public class MonoidTaprootTest extends AppletTest {
     }
 
     Assertions.assertArrayEquals(
-      field(transmit(0x41, keyRequest(edIndex, null, "eddsa", DIGEST, null)), "signature"),
-      field(transmit(0x41, keyRequest(edIndex, null, "eddsa", DIGEST, false)), "signature")
+      field(transmit(0x41, keyRequest(edIndex, null, "ed25519", DIGEST, null)), "signature"),
+      field(transmit(0x41, keyRequest(edIndex, null, "ed25519", DIGEST, false)), "signature")
     );
     assertError(
       transmit(0x41, keyRequest(secpIndex, null, "ecdsa", DIGEST, true)),
       MonoidException.CODE_INVALID_PARAMETER
     );
 
-    for (String cipher : new String[] { null, "eddsa", "schnorr" }) {
+    for (String cipher : new String[] { null, "ed25519", "bip340" }) {
       assertError(
         transmit(cipher == null ? 0x40 : 0x41, keyRequest(edIndex, null, cipher, DIGEST, true)),
         MonoidException.CODE_INVALID_PARAMETER
@@ -245,7 +245,7 @@ public class MonoidTaprootTest extends AppletTest {
     String[] vector = readVectors().get(0);
     byte[] index = create("secp256k1", Hex.decode(vector[2]));
     byte[] publicKey = Hex.decode(vector[4]);
-    byte[] request = keyRequest(index, null, "schnorr", DIGEST, new byte[0]);
+    byte[] request = keyRequest(index, null, "bip340", DIGEST, new byte[0]);
     byte[] first = assertSignature(transmit(0x41, request), DIGEST, publicKey);
     byte[] second = assertSignature(transmit(0x41, request), DIGEST, publicKey);
     Assertions.assertFalse(
@@ -257,7 +257,7 @@ public class MonoidTaprootTest extends AppletTest {
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
 
     // Rebuild transient request buffers after reset, just as a new host command would.
-    request = keyRequest(index, null, "schnorr", DIGEST, new byte[0]);
+    request = keyRequest(index, null, "bip340", DIGEST, new byte[0]);
     assertError(transmit(0x41, request), MonoidException.CODE_UNAUTHORIZED);
     assertError(
       transmit(0x40, keyRequest(index, null, null, null, new byte[0])),
@@ -290,7 +290,7 @@ public class MonoidTaprootTest extends AppletTest {
           writer.text("digest".getBytes());
           writer.bytes(DIGEST);
           writer.text("cipher".getBytes());
-          writer.text("schnorr".getBytes());
+          writer.text("bip340".getBytes());
         }
 
         writer.text("path".getBytes());
@@ -326,7 +326,7 @@ public class MonoidTaprootTest extends AppletTest {
     for (int length : new int[] { 0, 31, 33, 64 }) {
       Assertions.assertEquals(
         0x6A80,
-        transmit(0x41, keyRequest(index, null, "schnorr", new byte[length], null)).getSW()
+        transmit(0x41, keyRequest(index, null, "bip340", new byte[length], null)).getSW()
       );
     }
 
@@ -336,13 +336,7 @@ public class MonoidTaprootTest extends AppletTest {
           0x6A80,
           transmit(
             instruction,
-            keyRequest(
-              index,
-              null,
-              instruction == 0x41 ? "schnorr" : null,
-              DIGEST,
-              new byte[length]
-            )
+            keyRequest(index, null, instruction == 0x41 ? "bip340" : null, DIGEST, new byte[length])
           ).getSW()
         );
       }
@@ -364,7 +358,7 @@ public class MonoidTaprootTest extends AppletTest {
 
         if (instruction == 0x41) {
           writer.text("cipher".getBytes());
-          writer.text("schnorr".getBytes());
+          writer.text("bip340".getBytes());
           writer.text("digest".getBytes());
           writer.bytes(DIGEST);
         }
@@ -376,7 +370,7 @@ public class MonoidTaprootTest extends AppletTest {
         byte[] request = keyRequest(
           index,
           null,
-          instruction == 0x41 ? "schnorr" : null,
+          instruction == 0x41 ? "bip340" : null,
           DIGEST,
           false
         );
@@ -390,13 +384,13 @@ public class MonoidTaprootTest extends AppletTest {
     writer.text("index".getBytes());
     writer.bytes(index);
     writer.text("cipher".getBytes());
-    writer.text("schnorr".getBytes());
+    writer.text("bip340".getBytes());
     writer.text("digest".getBytes());
     writer.text(DIGEST);
     Assertions.assertEquals(0x6A80, transmit(0x41, writer.getDataBuffer()).getSW());
 
     assertSignature(
-      transmit(0x41, keyRequest(index, null, "schnorr", DIGEST, new byte[0])),
+      transmit(0x41, keyRequest(index, null, "bip340", DIGEST, new byte[0])),
       DIGEST,
       Hex.decode(vector[4])
     );
@@ -416,12 +410,12 @@ public class MonoidTaprootTest extends AppletTest {
 
     for (Object root : new Object[] { null, false, new byte[0], MERKLE_ROOT }) {
       assertError(
-        transmit(0x41, keyRequest(edIndex, null, "schnorr", DIGEST, root)),
+        transmit(0x41, keyRequest(edIndex, null, "bip340", DIGEST, root)),
         MonoidException.CODE_INVALID_PARAMETER
       );
     }
 
-    for (String cipher : new String[] { null, "eddsa", "schnorr" }) {
+    for (String cipher : new String[] { null, "ed25519", "bip340" }) {
       assertError(
         transmit(
           cipher == null ? 0x40 : 0x41,
@@ -446,7 +440,7 @@ public class MonoidTaprootTest extends AppletTest {
 
       if (instruction == 0x41) {
         writer.text("cipher".getBytes());
-        writer.text("schnorr".getBytes());
+        writer.text("bip340".getBytes());
         writer.text("digest".getBytes());
         writer.bytes(DIGEST);
       }
@@ -460,7 +454,7 @@ public class MonoidTaprootTest extends AppletTest {
     }
 
     assertSignature(
-      transmit(0x41, keyRequest(secpIndex, null, "schnorr", DIGEST, null)),
+      transmit(0x41, keyRequest(secpIndex, null, "bip340", DIGEST, null)),
       DIGEST,
       Arrays.copyOfRange(Hex.decode(vector[3]), 1, 33)
     );
@@ -518,7 +512,7 @@ public class MonoidTaprootTest extends AppletTest {
     if (cipher != null) {
       writer.text("cipher".getBytes());
       writer.text(cipher.getBytes(StandardCharsets.US_ASCII));
-      writer.text((cipher.equals("eddsa") ? "message" : "digest").getBytes());
+      writer.text((cipher.equals("ed25519") ? "message" : "digest").getBytes());
       writer.bytes(digest);
     }
 

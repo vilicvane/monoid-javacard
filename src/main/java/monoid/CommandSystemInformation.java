@@ -72,7 +72,7 @@ public class CommandSystemInformation extends Command {
           writer.text(Text.ciphers);
           writer.array((short) 2);
           writer.text(Signer.CIPHER_ECDSA);
-          writer.text(Signer.CIPHER_SCHNORR);
+          writer.text(Signer.CIPHER_BIP340);
         }
 
         writer.map((short) 2);
@@ -82,7 +82,7 @@ public class CommandSystemInformation extends Command {
 
           writer.text(Text.ciphers);
           writer.array((short) 1);
-          writer.text(Signer.CIPHER_EDDSA);
+          writer.text(Signer.CIPHER_ED25519);
         }
       }
     }

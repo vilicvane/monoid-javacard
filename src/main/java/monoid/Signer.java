@@ -8,8 +8,8 @@ public final class Signer {
 
   // @formatter:off
   public static final byte[] CIPHER_ECDSA = {'e','c','d','s','a'};
-  public static final byte[] CIPHER_EDDSA = {'e','d','d','s','a'};
-  public static final byte[] CIPHER_SCHNORR = {'s','c','h','n','o','r','r'};
+  public static final byte[] CIPHER_ED25519 = {'e','d','2','5','5','1','9'};
+  public static final byte[] CIPHER_BIP340 = {'b','i','p','3','4','0'};
 
   // @formatter:on
 
