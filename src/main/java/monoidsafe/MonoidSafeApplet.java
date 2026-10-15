@@ -202,12 +202,16 @@ public class MonoidSafeApplet extends Applet {
   }
 
   public Object[] list(SafeSession session, short type) {
+    return list(session, type, null);
+  }
+
+  public Object[] list(SafeSession session, short type, byte[] dataPrefix) {
     assertAccess(session);
 
     short count = 0;
 
     for (short index = 0; index < itemsLength; index++) {
-      if (items[index].matches(type)) {
+      if (items[index].matches(type, dataPrefix)) {
         count++;
       }
     }
@@ -222,8 +226,8 @@ public class MonoidSafeApplet extends Applet {
     for (short index = 0; index < itemsLength; index++) {
       SafeItem item = items[index];
 
-      if (item.matches(type)) {
-        itemShareables[offset] = new SafeItemSession(session, item);
+      if (item.matches(type, dataPrefix)) {
+        itemShareables[offset] = new SafeSessionItem(session, item);
 
         offset++;
       }
@@ -239,7 +243,7 @@ public class MonoidSafeApplet extends Applet {
       SafeItem item = items[itemIndex];
 
       if (item.matches(index)) {
-        return new SafeItemSession(session, item);
+        return new SafeSessionItem(session, item);
       }
     }
 
@@ -283,7 +287,7 @@ public class MonoidSafeApplet extends Applet {
 
     JCSystem.commitTransaction();
 
-    return new SafeItemSession(session, item);
+    return new SafeSessionItem(session, item);
   }
 
   public void remove(SafeSession session, SafeItem item) {

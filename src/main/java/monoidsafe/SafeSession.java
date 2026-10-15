@@ -85,6 +85,11 @@ public class SafeSession implements SafeShareable {
   }
 
   @Override
+  public Object[] list(short type, byte[] dataPrefix) {
+    return applet.list(this, type, dataPrefix);
+  }
+
+  @Override
   public SafeItemShareable get(byte[] index) {
     return applet.get(this, index);
   }

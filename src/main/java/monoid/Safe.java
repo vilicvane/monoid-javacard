@@ -169,6 +169,12 @@ public final class Safe {
     return safe.list(type);
   }
 
+  public Object[] list(short type, byte[] dataPrefix) {
+    dataPrefix = dataPrefix != null ? Utils.duplicateAsGlobal(dataPrefix) : null;
+
+    return safe.list(type, dataPrefix);
+  }
+
   public SafeItemShareable get(byte[] index) {
     index = Utils.duplicateAsGlobal(index);
 

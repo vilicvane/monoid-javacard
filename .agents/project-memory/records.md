@@ -161,3 +161,7 @@ b883572 ---
 101. [user] 要求实现用于Passkey的第一种签名方式，并严格沿用现有实现风格。[agent] 已完成独立P-256/ES256的创建、随机生成、公钥查询、签名及能力声明；实卡定位并修正原生ECDSA输出容量假设，改按getLength分配；149项模拟器测试、两份CAP和实卡9组验证通过，临时包已清理，详见 [ES256实现与实卡验证](./101.md)。
 
 102. [user] 不要对可控数据做防御性的验证。[agent] 移除Keystore对已存P-256密钥的重复校验及对应测试，把摘要长度校验移到CommandSign外部请求入口；保留输入与算法本身的必要约束，详见 [信任可控数据](./102.md)。
+
+--- c6b426c ---
+
+103. [user] 要求为list增加data prefix参数的重载，按Data前缀筛选条目。[agent] Safe Java/Shareable新增list(short type, byte[] dataPrefix)，类型与原始字节前缀同时匹配；null或空前缀不限制数据，保持顺序、返回结构及会话授权，Monoid包装层将前缀复制到global array；未扩展APDU请求。151项模拟器测试、两份CAP和格式检查通过；未测试实体卡。

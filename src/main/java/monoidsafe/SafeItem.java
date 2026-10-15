@@ -37,4 +37,14 @@ public class SafeItem {
       );
     }
   }
+
+  public boolean matches(short type, byte[] dataPrefix) {
+    return (
+      matches(type) &&
+      (dataPrefix == null ||
+        (dataPrefix.length <= data.length &&
+          Util.arrayCompare(data, (short) 0, dataPrefix, (short) 0, (short) dataPrefix.length) ==
+          0))
+    );
+  }
 }

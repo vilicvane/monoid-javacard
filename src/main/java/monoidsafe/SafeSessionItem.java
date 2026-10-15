@@ -1,11 +1,11 @@
 package monoidsafe;
 
-public class SafeItemSession implements SafeItemShareable {
+public class SafeSessionItem implements SafeItemShareable {
 
   private final SafeSession session;
   private final SafeItem item;
 
-  public SafeItemSession(SafeSession session, SafeItem item) {
+  public SafeSessionItem(SafeSession session, SafeItem item) {
     this.session = session;
     this.item = item;
   }
