@@ -5,7 +5,9 @@ description: Monoid Java Card signing workload and RAM lifecycle assumptions. Us
 
 # Monoid Java Card signing lifecycle
 
-Source: `../records.md`, records 12–20, 34, 37–43, 47–51, 57–61, 63–71 and 73–80.
+Source: `../records.md`, records 12–20, 34, 37–43, 47–51, 57–61, 63–71, 73–80 and 106. Treat these records and their references as authoritative and keep them up to date.
+
+- Record 106: design and validate memory use for concrete workloads. Defer relatively large-data support until an actual use case needs it; do not add buffer, protocol or lifecycle complexity for hypothetical extreme sizes. Record observed limits without automatically expanding scope.
 
 Implementation status: record 80 extends taproot to boolean or object; false equals omission and true equals an empty object, including false acceptance for ECDSA/EdDSA. records 78–79 integrate BIP340/BIP341 into the existing secp256k1 curve and LibMath, with static LibBIP340/LibBIP341 and explicit Signer/Keystore.signSchnorrDigest methods. The shared curve owns SHA-256; per-signature values are operation-local and the hash resets in finally. LibBIP32 now allocates its input, parent-node and HMAC workspaces once per nonempty derivation, following LibSLIP10Ed25519. This saves 916B of array payload over five software-HMAC levels and resolves the physical Taproot RAM failures recorded in 79.md without new lifecycle state or relying on mid-command GC. Ed25519 still uses shared CurveED25519, operation-local LibED25519 scratch and finally-based key invalidation. The trusted environment policy removes defensive byte erasure while preserving functional initialization, hash resets, validity transitions and reference release. Transient values need not survive between operations. Request storage retains the 512B transient prefix and on-demand persistent overflow; response storage is released after completion/cancellation. The 89 simulator tests and production CAP checks pass; full physical validation, diagnostic RAM observations and timing scope are recorded in 79.md. Historical draft context recreation and RAM-only transport are superseded.
 

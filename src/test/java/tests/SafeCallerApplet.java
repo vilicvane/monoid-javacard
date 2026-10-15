@@ -87,7 +87,7 @@ public class SafeCallerApplet extends Applet implements SafeCallerShareable {
         safe.checkPIN(null, (short) 0, (byte) 1);
         return;
       case CREATE:
-        item = safe.create(index(), null, duplicate(buffer, ISO7816.OFFSET_CDATA, length));
+        item = safe.create(index(), null, null, duplicate(buffer, ISO7816.OFFSET_CDATA, length));
         sendBoolean(apdu, item != null);
         return;
       case LIST:

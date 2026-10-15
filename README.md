@@ -252,6 +252,8 @@ type SafeItemType = SafeItemKeyType | byte;
 ```ts
 type Request = {
   type?: SafeItemType;
+  /** Matches item key only; omitted or empty means no key filter. */
+  keyPrefix?: byte[];
 };
 ```
 
@@ -260,6 +262,7 @@ type Response = {
   items: {
     index: byte[];
     type: SafeItemType;
+    key?: byte[];
     alias?: string;
   }[];
 };
@@ -277,6 +280,7 @@ type Request = {
 
 ```ts
 type Response = {
+  key?: byte[];
   alias?: string;
 };
 ```
@@ -293,6 +297,7 @@ type Request = {
 
 ```ts
 type Response = {
+  key?: byte[];
   alias?: string;
   data: byte[];
 };
@@ -328,6 +333,8 @@ type Request = {
         index: byte[];
       }
   ) & {
+    /** Set at creation; searchable and readable with access PIN. */
+    key?: byte[];
     alias?: byte[];
     data: byte[];
   };

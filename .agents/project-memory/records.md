@@ -165,3 +165,11 @@ b883572 ---
 --- c6b426c ---
 
 103. [user] 要求为list增加data prefix参数的重载，按Data前缀筛选条目。[agent] Safe Java/Shareable新增list(short type, byte[] dataPrefix)，类型与原始字节前缀同时匹配；null或空前缀不限制数据，保持顺序、返回结构及会话授权，Monoid包装层将前缀复制到global array；未扩展APDU请求。151项模拟器测试、两份CAP和格式检查通过；未测试实体卡。
+
+--- 697188b ---
+
+104. [user] 希望为现有secp256r1密钥增加派生能力，供未来Passkey按Credential ID等信息生成专用密钥，允许标准或自定义方案，先讨论建议。[agent] 比较SLIP-0010、SLIP-0022与HKDF后，建议通用上下文HKDF及P-256拒绝采样；尚未获准具体算法/API，也未实现，详见 [派生方案与凭证边界](./104.md)。
+
+105. [user] 接受先List再Sign，选择新增独立key字段并替换data prefix重载；key仅创建时指定，最终保留keyPrefix便于查询自定义数据格式；保留固定index，推测其8字节ID原用于稳定hex展示；要求实卡验证后提交。[agent] 将可检索元数据与私密Data分离，Create写入key，List/View/Get读取，List支持keyPrefix且保持Access授权，取代103的原始Data匹配；修复两个Create路径已有的alias跨Applet复制遗漏，155项模拟器测试、两份CAP及8组实卡测试通过，临时包已清理；600B key返回的RAM限制按106暂不扩展，详见 [检索字段、历史依据与权限边界](./105.md)。
+
+106. [user] 明确要求相对较大数据的支持必须等遇到具体使用场景再考虑，不为假设的极限场景增加卡片实现和验证成本；本轮key预期通常十几个字节，二三十个字节已足够。[agent] 将实际数据规模作为设计和验收依据，已观察到的超出场景的限制如实记录，不据此自动增加缓冲、协议、容量上限或内存管理复杂度。

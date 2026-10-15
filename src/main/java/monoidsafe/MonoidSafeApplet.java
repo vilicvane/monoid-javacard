@@ -205,13 +205,13 @@ public class MonoidSafeApplet extends Applet {
     return list(session, type, null);
   }
 
-  public Object[] list(SafeSession session, short type, byte[] dataPrefix) {
+  public Object[] list(SafeSession session, short type, byte[] keyPrefix) {
     assertAccess(session);
 
     short count = 0;
 
     for (short index = 0; index < itemsLength; index++) {
-      if (items[index].matches(type, dataPrefix)) {
+      if (items[index].matches(type, keyPrefix)) {
         count++;
       }
     }
@@ -226,7 +226,7 @@ public class MonoidSafeApplet extends Applet {
     for (short index = 0; index < itemsLength; index++) {
       SafeItem item = items[index];
 
-      if (item.matches(type, dataPrefix)) {
+      if (item.matches(type, keyPrefix)) {
         itemShareables[offset] = new SafeSessionItem(session, item);
 
         offset++;
@@ -250,7 +250,13 @@ public class MonoidSafeApplet extends Applet {
     return null;
   }
 
-  public SafeItemShareable create(SafeSession session, byte[] index, byte[] alias, byte[] data) {
+  public SafeItemShareable create(
+    SafeSession session,
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] data
+  ) {
     assertAccess(session);
 
     for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
@@ -275,13 +281,17 @@ public class MonoidSafeApplet extends Applet {
 
     index = Utils.duplicateAsPersistent(index);
 
+    if (key != null) {
+      key = Utils.duplicateAsPersistent(key);
+    }
+
     if (alias != null) {
       alias = Utils.duplicateAsPersistent(alias);
     }
 
     data = Utils.duplicateAsPersistent(data);
 
-    SafeItem item = new SafeItem(index, alias, data);
+    SafeItem item = new SafeItem(index, key, alias, data);
 
     items[itemsLength++] = item;
 

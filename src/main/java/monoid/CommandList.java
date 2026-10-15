@@ -18,7 +18,9 @@ public class CommandList extends Command {
       ? reader.is(CBOR.TYPE_TEXT) ? Safe.type(reader) : reader.integer()
       : 0;
 
-    Object[] items = MonoidApplet.safe.list(type);
+    byte[] keyPrefix = reader.key(Text.keyPrefix) ? reader.bytes() : null;
+
+    Object[] items = MonoidApplet.safe.list(type, keyPrefix);
 
     writer.map((short) 1);
     {
@@ -29,11 +31,16 @@ public class CommandList extends Command {
 
         byte[] index = item.getIndex();
         byte[] typeName = Safe.type(Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET));
+        byte[] key = item.getKey();
         byte[] alias = item.getAlias();
 
         short entries = 1;
 
         if (typeName != null) {
+          entries++;
+        }
+
+        if (key != null) {
           entries++;
         }
 
@@ -46,6 +53,11 @@ public class CommandList extends Command {
           if (typeName != null) {
             writer.text(Text.type);
             writer.text(typeName);
+          }
+
+          if (key != null) {
+            writer.text(Text.key);
+            writer.bytes(key);
           }
 
           if (alias != null) {

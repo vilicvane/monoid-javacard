@@ -45,13 +45,13 @@ public interface SafeShareable extends Shareable {
   public Object[] list(short type);
 
   /**
-   * List items matching the type filter and a prefix of their data.
-   * @param dataPrefix A byte prefix; null or empty matches any data.
+   * List items matching the type filter and a prefix of their key.
+   * @param keyPrefix A byte prefix; null or empty also matches items without a key.
    * @see #list(short)
    */
-  public Object[] list(short type, byte[] dataPrefix);
+  public Object[] list(short type, byte[] keyPrefix);
 
   public SafeItemShareable get(byte[] index);
 
-  public SafeItemShareable create(byte[] index, byte[] alias, byte[] data);
+  public SafeItemShareable create(byte[] index, byte[] key, byte[] alias, byte[] data);
 }

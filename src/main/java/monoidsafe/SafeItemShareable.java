@@ -5,6 +5,7 @@ import javacard.framework.Shareable;
 public interface SafeItemShareable extends Shareable {
   byte[] getIndex();
 
+  byte[] getKey();
   byte[] getAlias();
   byte[] getData();
 

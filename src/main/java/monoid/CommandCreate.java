@@ -14,6 +14,7 @@ public class CommandCreate extends Command {
     reader.map();
 
     byte[] data = reader.requireKey(Text.data).bytes();
+    byte[] key = reader.key(Text.key) ? reader.bytes() : null;
     byte[] alias = reader.key(Text.alias) ? reader.text() : null;
 
     SafeItemShareable item;
@@ -23,11 +24,11 @@ public class CommandCreate extends Command {
         ? reader.is(CBOR.TYPE_TEXT) ? Safe.type(reader) : reader.integer()
         : 0;
 
-      item = MonoidApplet.safe.create(type, alias, data);
+      item = MonoidApplet.safe.create(type, key, alias, data);
     } else {
       byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
 
-      item = MonoidApplet.safe.create(index, alias, data);
+      item = MonoidApplet.safe.create(index, key, alias, data);
     }
 
     writer.map((short) 1);

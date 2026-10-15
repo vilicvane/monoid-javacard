@@ -150,7 +150,7 @@ public final class Safe {
 
     byte[] index = buildGlobalDigestIndex(refinedType, data);
 
-    return safe.create(index, null, data);
+    return safe.create(index, null, null, data);
   }
 
   private SafeItemShareable createRandomScalar(short refinedType, byte[] order) {
@@ -162,17 +162,17 @@ public final class Safe {
 
     byte[] index = buildGlobalDigestIndex(refinedType, data);
 
-    return safe.create(index, null, data);
+    return safe.create(index, null, null, data);
   }
 
   public Object[] list(short type) {
     return safe.list(type);
   }
 
-  public Object[] list(short type, byte[] dataPrefix) {
-    dataPrefix = dataPrefix != null ? Utils.duplicateAsGlobal(dataPrefix) : null;
+  public Object[] list(short type, byte[] keyPrefix) {
+    keyPrefix = keyPrefix != null ? Utils.duplicateAsGlobal(keyPrefix) : null;
 
-    return safe.list(type, dataPrefix);
+    return safe.list(type, keyPrefix);
   }
 
   public SafeItemShareable get(byte[] index) {
@@ -191,7 +191,8 @@ public final class Safe {
     return item;
   }
 
-  public SafeItemShareable create(short type, byte[] alias, byte[] data) throws SafeException {
+  public SafeItemShareable create(short type, byte[] key, byte[] alias, byte[] data)
+    throws SafeException {
     if (!isKnownDigestIndexedType(type)) {
       SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     }
@@ -200,12 +201,14 @@ public final class Safe {
 
     byte[] index = buildGlobalDigestIndex(type, data);
 
+    key = key != null ? Utils.duplicateAsGlobal(key) : null;
+    alias = alias != null ? Utils.duplicateAsGlobal(alias) : null;
     data = Utils.duplicateAsGlobal(data);
 
-    return safe.create(index, alias, data);
+    return safe.create(index, key, alias, data);
   }
 
-  public SafeItemShareable create(byte[] index, byte[] alias, byte[] data) {
+  public SafeItemShareable create(byte[] index, byte[] key, byte[] alias, byte[] data) {
     if (index.length != SafeShareable.INDEX_LENGTH) {
       SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     }
@@ -238,9 +241,11 @@ public final class Safe {
       builtIndex = Utils.duplicateAsGlobal(index);
     }
 
+    key = key != null ? Utils.duplicateAsGlobal(key) : null;
+    alias = alias != null ? Utils.duplicateAsGlobal(alias) : null;
     data = Utils.duplicateAsGlobal(data);
 
-    return safe.create(builtIndex, alias, data);
+    return safe.create(builtIndex, key, alias, data);
   }
 
   public static short type(byte[] buffer, short offset, short length) throws MonoidException {

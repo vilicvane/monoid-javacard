@@ -5,11 +5,13 @@ import javacard.framework.Util;
 public class SafeItem {
 
   public byte[] index;
+  public byte[] key;
   public byte[] alias;
   public byte[] data;
 
-  public SafeItem(byte[] index, byte[] alias, byte[] data) {
+  public SafeItem(byte[] index, byte[] key, byte[] alias, byte[] data) {
     this.index = index;
+    this.key = key;
     this.alias = alias;
     this.data = data;
   }
@@ -38,13 +40,14 @@ public class SafeItem {
     }
   }
 
-  public boolean matches(short type, byte[] dataPrefix) {
+  public boolean matches(short type, byte[] keyPrefix) {
     return (
       matches(type) &&
-      (dataPrefix == null ||
-        (dataPrefix.length <= data.length &&
-          Util.arrayCompare(data, (short) 0, dataPrefix, (short) 0, (short) dataPrefix.length) ==
-          0))
+      (keyPrefix == null ||
+        keyPrefix.length == 0 ||
+        (key != null &&
+          keyPrefix.length <= key.length &&
+          Util.arrayCompare(key, (short) 0, keyPrefix, (short) 0, (short) keyPrefix.length) == 0))
     );
   }
 }

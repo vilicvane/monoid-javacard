@@ -85,8 +85,8 @@ public class SafeSession implements SafeShareable {
   }
 
   @Override
-  public Object[] list(short type, byte[] dataPrefix) {
-    return applet.list(this, type, dataPrefix);
+  public Object[] list(short type, byte[] keyPrefix) {
+    return applet.list(this, type, keyPrefix);
   }
 
   @Override
@@ -95,8 +95,8 @@ public class SafeSession implements SafeShareable {
   }
 
   @Override
-  public SafeItemShareable create(byte[] index, byte[] alias, byte[] data) {
-    return applet.create(this, index, alias, data);
+  public SafeItemShareable create(byte[] index, byte[] key, byte[] alias, byte[] data) {
+    return applet.create(this, index, key, alias, data);
   }
 
   boolean matches(AID caller) {

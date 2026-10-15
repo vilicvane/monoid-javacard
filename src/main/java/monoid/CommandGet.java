@@ -17,10 +17,15 @@ public class CommandGet extends Command {
 
     SafeItemShareable item = MonoidApplet.safe.require(index);
 
+    byte[] key = item.getKey();
     byte[] alias = item.getAlias();
     byte[] data = item.getData();
 
     short entries = 1;
+
+    if (key != null) {
+      entries++;
+    }
 
     if (alias != null) {
       entries++;
@@ -28,6 +33,11 @@ public class CommandGet extends Command {
 
     writer.map(entries);
     {
+      if (key != null) {
+        writer.text(Text.key);
+        writer.bytes(key);
+      }
+
       if (alias != null) {
         writer.text(Text.alias);
         writer.text(alias);

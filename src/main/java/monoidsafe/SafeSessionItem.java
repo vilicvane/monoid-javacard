@@ -17,6 +17,12 @@ public class SafeSessionItem implements SafeItemShareable {
   }
 
   @Override
+  public byte[] getKey() {
+    session.assertAccess();
+    return item.key != null ? Utils.duplicateAsGlobal(item.key) : null;
+  }
+
+  @Override
   public byte[] getAlias() {
     session.assertAccess();
     return item.alias != null ? Utils.duplicateAsGlobal(item.alias) : null;
