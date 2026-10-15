@@ -5,6 +5,8 @@ import com.licel.jcardsim.utils.AIDUtil;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import javacard.framework.AID;
+import javacard.framework.ISO7816;
+import javacard.framework.ISOException;
 import javacard.framework.OwnerPIN;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
@@ -32,8 +34,11 @@ public class MonoidSafeAuthenticationTest {
 
   @BeforeEach
   public void initialize() {
+    initialize(new ShareableSimulatorRuntime());
+  }
+
+  private void initialize(ShareableSimulatorRuntime runtime) {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
-    ShareableSimulatorRuntime runtime = new ShareableSimulatorRuntime();
     simulator = new CardSimulator(runtime);
     simulator.installApplet(SAFE_AID, MonoidSafeApplet.class);
     simulator.installApplet(CALLER_AID, SafeCallerApplet.class);
@@ -63,6 +68,236 @@ public class MonoidSafeAuthenticationTest {
     assertDenied(transmit(SafeCallerApplet.UPDATE_PIN, NEW_PIN));
     authenticate(PIN);
     assertData(transmit(SafeCallerApplet.LIST), new byte[] { 0, 0 });
+  }
+
+  @Test
+  public void PINValidationMustPassEveryReadBeforeGrantingAuthorization() throws Exception {
+    initializeItem();
+
+    for (int failedRead = 0; failedRead <= 3; failedRead++) {
+      final int failure = failedRead;
+      int[] calls = new int[2];
+      OwnerPIN observed = new OwnerPIN(
+        MonoidSafeApplet.PIN_TRY_LIMIT,
+        MonoidSafeApplet.MAX_PIN_LENGTH
+      ) {
+        @Override
+        public boolean check(byte[] buffer, short offset, byte length) {
+          calls[0]++;
+          return super.check(buffer, offset, length);
+        }
+
+        @Override
+        public boolean isValidated() {
+          // OwnerPIN.reset() also reads this flag before the PIN is checked.
+          if (calls[0] == 0) {
+            return super.isValidated();
+          }
+
+          calls[1]++;
+          return super.isValidated() && calls[1] != failure;
+        }
+      };
+      observed.update(PIN, (short) 0, (byte) PIN.length);
+      field("pin").set(safe, observed);
+
+      ResponseAPDU response = transmit(SafeCallerApplet.CHECK_PIN, PIN);
+      Assertions.assertEquals(1, calls[0]);
+      Assertions.assertEquals(failedRead == 0 ? 3 : failedRead, calls[1]);
+
+      if (failedRead == 0) {
+        assertBoolean(response, true);
+        assertData(transmit(SafeCallerApplet.GET_DATA), DATA);
+      } else {
+        assertDenied(response);
+        assertDenied(transmit(SafeCallerApplet.GET_DATA));
+      }
+    }
+  }
+
+  @Test
+  public void PINInitializationRequiresEveryReadToRemainUnset() throws Exception {
+    Field validation = field("pinSetValidation");
+    LibSecurity.Condition original = (LibSecurity.Condition) validation.get(safe);
+    int[] updates = new int[1];
+    OwnerPIN observed = new OwnerPIN(
+      MonoidSafeApplet.PIN_TRY_LIMIT,
+      MonoidSafeApplet.MAX_PIN_LENGTH
+    ) {
+      @Override
+      public void update(byte[] buffer, short offset, byte length) {
+        updates[0]++;
+        super.update(buffer, offset, length);
+      }
+    };
+    field("pin").set(safe, observed);
+
+    for (int setRead = 1; setRead <= 3; setRead++) {
+      final int failure = setRead;
+      int[] calls = new int[1];
+      validation.set(safe, (LibSecurity.Condition) () -> ++calls[0] == failure || original.check());
+
+      assertDenied(transmit(SafeCallerApplet.UPDATE_PIN, PIN));
+      Assertions.assertTrue(calls[0] >= setRead);
+      Assertions.assertEquals(0, updates[0]);
+
+      validation.set(safe, original);
+      assertBoolean(transmit(SafeCallerApplet.IS_PIN_SET), false);
+    }
+
+    assertSuccess(transmit(SafeCallerApplet.UPDATE_PIN, PIN));
+    Assertions.assertEquals(1, updates[0]);
+    authenticate(PIN);
+  }
+
+  @Test
+  public void anyBlockedReadPreventsDataReleaseWithoutConsumingAnAttempt() throws Exception {
+    initializeItem();
+
+    for (int blockedRead = 0; blockedRead <= 3; blockedRead++) {
+      final int failure = blockedRead;
+      int[] calls = new int[1];
+      OwnerPIN observed = new OwnerPIN(
+        MonoidSafeApplet.PIN_TRY_LIMIT,
+        MonoidSafeApplet.MAX_PIN_LENGTH
+      ) {
+        @Override
+        public byte getTriesRemaining() {
+          calls[0]++;
+          return calls[0] == failure ? (byte) 0 : super.getTriesRemaining();
+        }
+      };
+      observed.update(PIN, (short) 0, (byte) PIN.length);
+      field("pin").set(safe, observed);
+      calls[0] = 0;
+
+      ResponseAPDU response = transmit(SafeCallerApplet.GET_DATA);
+      Assertions.assertEquals(blockedRead == 0 ? 3 : blockedRead, calls[0]);
+
+      if (blockedRead == 0) {
+        assertData(response, DATA);
+      } else {
+        assertDenied(response);
+        Assertions.assertEquals(0, response.getData().length);
+      }
+
+      Assertions.assertEquals(MonoidSafeApplet.PIN_TRY_LIMIT, observed.getTriesRemaining());
+      assertData(transmit(SafeCallerApplet.GET_DATA), DATA);
+    }
+  }
+
+  @Test
+  public void anyBlockedReadAfterCheckingPINRevokesEveryCaller() throws Exception {
+    for (int blockedRead = 1; blockedRead <= 3; blockedRead++) {
+      initialize();
+      initializeBothCallers();
+      Field validation = field("pinBlockedValidation");
+      LibSecurity.Condition original = (LibSecurity.Condition) validation.get(safe);
+      final int failure = blockedRead;
+      int[] calls = new int[1];
+      validation.set(safe, (LibSecurity.Condition) () -> ++calls[0] == failure || original.check());
+
+      assertBoolean(transmit(SafeCallerApplet.CHECK_PIN, WRONG_PIN), false);
+      Assertions.assertEquals(blockedRead, calls[0]);
+      validation.set(safe, original);
+
+      for (AID callerAID : new AID[] { CALLER_AID, OTHER_CALLER_AID }) {
+        select(callerAID);
+        assertBoolean(transmit(SafeCallerApplet.IS_PIN_VALIDATED), false);
+        assertDenied(transmit(SafeCallerApplet.GET_DATA));
+        assertData(transmit(SafeCallerApplet.GET_PIN_TRIES), new byte[] { 4 });
+      }
+    }
+  }
+
+  @Test
+  public void oneMissedCallerMatchCannotPreserveARevokedSession() throws Exception {
+    initializeBothCallers();
+    Field validation = field("callerMatchValidation");
+    LibSecurity.Condition original = (LibSecurity.Condition) validation.get(safe);
+    int[] matches = new int[1];
+    validation.set(
+      safe,
+      (LibSecurity.Condition) () -> {
+        if (!original.check()) {
+          return false;
+        }
+
+        return ++matches[0] != 1;
+      }
+    );
+
+    assertBoolean(transmit(SafeCallerApplet.CHECK_PIN, WRONG_PIN), false);
+    Assertions.assertEquals(2, matches[0]);
+    validation.set(safe, original);
+    assertDenied(transmit(SafeCallerApplet.GET_DATA));
+
+    select(OTHER_CALLER_AID);
+    assertData(transmit(SafeCallerApplet.GET_DATA), DATA);
+  }
+
+  @Test
+  public void callerCheckArgumentsAreReleasedWhenAdmissionThrows() throws Exception {
+    initializeItem();
+    Field validation = field("callerAdmissionValidation");
+    LibSecurity.Condition original = (LibSecurity.Condition) validation.get(safe);
+    validation.set(
+      safe,
+      (LibSecurity.Condition) () -> {
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+        return false;
+      }
+    );
+
+    assertDenied(transmit(SafeCallerApplet.GET_SHAREABLE));
+    Assertions.assertArrayEquals(
+      new Object[2],
+      (Object[]) field("callerCheckParameters").get(safe)
+    );
+
+    validation.set(safe, original);
+    assertBoolean(transmit(SafeCallerApplet.GET_SHAREABLE), true);
+    assertData(transmit(SafeCallerApplet.GET_DATA), DATA);
+  }
+
+  @Test
+  public void callerMustMatchOnEveryReadBeforeReleasingData() {
+    for (int failedRead = 0; failedRead <= 3; failedRead++) {
+      final int failure = failedRead;
+      int[] calls = new int[1];
+      boolean[] observing = new boolean[1];
+
+      initialize(
+        new ShareableSimulatorRuntime() {
+          @Override
+          public AID getPreviousContextAID() {
+            AID caller = super.getPreviousContextAID();
+
+            if (!observing[0]) {
+              return caller;
+            }
+
+            calls[0]++;
+            return calls[0] == failure ? OTHER_CALLER_AID : caller;
+          }
+        }
+      );
+      initializeItem();
+      observing[0] = true;
+
+      ResponseAPDU response = transmit(SafeCallerApplet.GET_DATA);
+      Assertions.assertEquals(failedRead == 0 ? 3 : failedRead, calls[0]);
+
+      if (failedRead == 0) {
+        assertData(response, DATA);
+      } else {
+        assertDenied(response);
+        Assertions.assertEquals(0, response.getData().length);
+      }
+
+      observing[0] = false;
+      assertData(transmit(SafeCallerApplet.GET_DATA), DATA);
+    }
   }
 
   @Test
@@ -364,6 +599,49 @@ public class MonoidSafeAuthenticationTest {
     assertDenied(transmit(SafeCallerApplet.GET_DATA));
     assertDenied(transmit(SafeCallerApplet.SET_DATA, DATA));
     assertDenied(transmit(SafeCallerApplet.REMOVE));
+  }
+
+  @Test
+  public void authorizationMustStayValidOnEveryReadBeforeReleasingData() throws Exception {
+    initializeItem();
+    short[] auth = authorization();
+    short[] valid = auth.clone();
+    SafeSession session = (SafeSession) ((Object[]) field("sessions").get(safe))[0];
+    Field validation = SafeSession.class.getDeclaredField("authorizationValidation");
+    validation.setAccessible(true);
+    LibSecurity.Condition original = (LibSecurity.Condition) validation.get(session);
+
+    for (int failedRead = 0; failedRead <= 3; failedRead++) {
+      final int failure = failedRead;
+      int[] calls = new int[1];
+      System.arraycopy(valid, 0, auth, 0, auth.length);
+      validation.set(
+        session,
+        (LibSecurity.Condition) () -> {
+          calls[0]++;
+
+          if (calls[0] == failure) {
+            auth[0] ^= 1;
+          }
+
+          return original.check();
+        }
+      );
+
+      ResponseAPDU response = transmit(SafeCallerApplet.GET_DATA);
+      Assertions.assertEquals(failedRead == 0 ? 3 : failedRead, calls[0]);
+
+      if (failedRead == 0) {
+        assertData(response, DATA);
+      } else {
+        assertDenied(response);
+        Assertions.assertEquals(0, response.getData().length);
+      }
+    }
+
+    validation.set(session, original);
+    System.arraycopy(valid, 0, auth, 0, auth.length);
+    assertData(transmit(SafeCallerApplet.GET_DATA), DATA);
   }
 
   @Test

@@ -1,6 +1,13 @@
 // @ts-check
 
 import {Handlebars} from 'inplate';
+import {readFileSync} from 'node:fs';
+
+// Applet packages cannot export ordinary helper classes to another CAP.
+const libSecurity = readFileSync(
+  new URL('./src/main/java/monoidsafe/LibSecurity.java', import.meta.url),
+  'utf8',
+).replace('package monoidsafe;', 'package monoid;\n\nimport monoidsafe.Constants;');
 
 const MONOID_VERSION = Buffer.from([0x00, 0x00]);
 const MONOID_SAFE_VERSION = Buffer.from([0x00, 0x00]);
@@ -31,6 +38,10 @@ export default {
   'README.md': {data},
   'build.gradle': {data},
   'src/main/java/*/Constants.java': {data},
+  'src/main/java/monoid/LibSecurity.java': {
+    template: '// Generated from monoidsafe/LibSecurity.java by Inplate.\n{{{libSecurity}}}',
+    data: {libSecurity},
+  },
   'src/main/java/main/Run.java': {data},
   'src/test/java/tests/MonoidAppletTest.java': {data},
 };

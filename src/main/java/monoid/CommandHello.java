@@ -1,5 +1,8 @@
 package monoid;
 
+import static monoidsafe.Constants.SAFE_FALSE;
+import static monoidsafe.Constants.SAFE_TRUE;
+
 public final class CommandHello extends Command {
 
   @Override
@@ -17,7 +20,7 @@ public final class CommandHello extends Command {
       CommandSystemInformation.writeFeaturesKeyValue(writer);
 
       writer.text(Text.pin);
-      if (MonoidApplet.pinSet) {
+      if (MonoidApplet.getPINSetResult(SAFE_FALSE) == SAFE_TRUE) {
         writer.integer(MonoidApplet.pin.getTriesRemaining());
       } else {
         writer.bool(false);

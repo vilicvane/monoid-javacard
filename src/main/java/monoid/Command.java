@@ -1,5 +1,8 @@
 package monoid;
 
+import static monoidsafe.Constants.SAFE_FALSE;
+import static monoidsafe.Constants.SAFE_TRUE;
+
 import javacard.framework.APDU;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
@@ -24,6 +27,12 @@ public abstract class Command {
 
   private static short[] auth;
 
+  private static LibSecurity.Condition clearedAuthorization;
+  private static LibSecurity.Condition accessAuthorization;
+  private static LibSecurity.Condition safeAuthorization;
+  private static LibSecurity.Condition accessPermission;
+  private static LibSecurity.Condition pinValidation;
+
   public static Command hello;
   public static Command authenticate;
   public static Command setPIN;
@@ -45,6 +54,37 @@ public abstract class Command {
     writer = new CBORApduWriter();
 
     auth = JCSystem.makeTransientShortArray((short) 2, JCSystem.CLEAR_ON_DESELECT);
+
+    clearedAuthorization = new LibSecurity.Condition() {
+      @Override
+      public boolean check() {
+        return auth[0] == 0 && auth[1] == 0;
+      }
+    };
+    accessAuthorization = new LibSecurity.Condition() {
+      @Override
+      public boolean check() {
+        return matchesAuth(AUTH_ACCESS);
+      }
+    };
+    safeAuthorization = new LibSecurity.Condition() {
+      @Override
+      public boolean check() {
+        return matchesAuth(AUTH_SAFE);
+      }
+    };
+    accessPermission = new LibSecurity.Condition() {
+      @Override
+      public boolean check() {
+        return matchesAuth(AUTH_ACCESS) || matchesAuth(AUTH_SAFE);
+      }
+    };
+    pinValidation = new LibSecurity.Condition() {
+      @Override
+      public boolean check() {
+        return MonoidApplet.pin.isValidated();
+      }
+    };
 
     hello = new CommandHello();
     authenticate = new CommandAuthenticate();
@@ -68,6 +108,12 @@ public abstract class Command {
     writer = null;
 
     auth = null;
+
+    clearedAuthorization = null;
+    accessAuthorization = null;
+    safeAuthorization = null;
+    accessPermission = null;
+    pinValidation = null;
 
     hello = null;
     authenticate = null;
@@ -273,24 +319,32 @@ public abstract class Command {
     if (safeAuth) {
       Safe safe = MonoidApplet.safe;
 
-      if (!safe.isPINSet()) {
+      if (safe.getPINSetResult(SAFE_FALSE) != SAFE_TRUE) {
         MonoidException.throwIt(MonoidException.CODE_PIN_NOT_SET);
         return;
       }
 
       if (safe.checkPIN(pin)) {
+        if (safe.getPINValidationResult() != SAFE_TRUE) {
+          MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
+        }
+
         setAuth(AUTH_SAFE);
         return;
       }
 
       tries = safe.getPINTriesRemaining();
     } else {
-      if (!MonoidApplet.pinSet) {
+      if (MonoidApplet.getPINSetResult(SAFE_FALSE) != SAFE_TRUE) {
         MonoidException.throwIt(MonoidException.CODE_PIN_NOT_SET);
         return;
       }
 
       if (MonoidApplet.pin.check(pin, (short) 0, (byte) pin.length)) {
+        if (LibSecurity.check(pinValidation, SAFE_FALSE) != SAFE_TRUE) {
+          MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
+        }
+
         setAuth(AUTH_ACCESS);
         return;
       }
@@ -309,26 +363,49 @@ public abstract class Command {
   }
 
   protected static short getAuth() throws MonoidException {
-    short value = auth[0];
-
     // Transient memory is cleared to zero on reset and deselect.
-    if (value == 0 && auth[1] == 0) {
+    if (LibSecurity.check(clearedAuthorization, SAFE_FALSE) == SAFE_TRUE) {
       return 0;
     }
 
-    if ((value != AUTH_ACCESS && value != AUTH_SAFE) || auth[1] != (short) ~value) {
-      MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
+    if (LibSecurity.check(accessAuthorization, SAFE_FALSE) == SAFE_TRUE) {
+      return AUTH_ACCESS;
     }
 
-    return value;
+    if (LibSecurity.check(safeAuthorization, SAFE_FALSE) == SAFE_TRUE) {
+      return AUTH_SAFE;
+    }
+
+    MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
+    return 0;
+  }
+
+  private static boolean matchesAuth(short value) {
+    return auth[0] == value && auth[1] == (short) ~value;
   }
 
   protected static short requireAuth(short requiredAuth) throws MonoidException {
     short auth = getAuth();
 
-    if (auth == 0 || (auth != requiredAuth && (auth != AUTH_SAFE || requiredAuth != AUTH_ACCESS))) {
+    LibSecurity.Condition permission;
+
+    switch (requiredAuth) {
+      case AUTH_ACCESS:
+        permission = accessPermission;
+        break;
+      case AUTH_SAFE:
+        permission = safeAuthorization;
+        break;
+      default:
+        MonoidException.throwIt(
+          auth == 0 ? MonoidException.CODE_UNAUTHORIZED : MonoidException.CODE_ACCESS_DENIED
+        );
+        return 0;
+    }
+
+    if (LibSecurity.check(permission, SAFE_FALSE) != SAFE_TRUE) {
       MonoidException.throwIt(
-        auth == 0 ? MonoidException.CODE_UNAUTHORIZED : MonoidException.CODE_ACCESS_DENIED
+        getAuth() == 0 ? MonoidException.CODE_UNAUTHORIZED : MonoidException.CODE_ACCESS_DENIED
       );
     }
 

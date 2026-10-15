@@ -77,7 +77,6 @@ public class MonoidTaprootTest extends AppletTest {
   private void resetAppletState() {
     // Separate simulator instances share Java static fields within the test JVM.
     MonoidApplet.version = 0;
-    MonoidApplet.pinSet = false;
     MonoidApplet.safe = null;
     MonoidApplet.safePIN = null;
     MonoidApplet.keystore = null;

@@ -12,12 +12,34 @@ public class SafeSession implements SafeShareable {
   private final MonoidSafeApplet applet;
   private final AID caller;
 
+  private final LibSecurity.Condition callerValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      return caller != null && JCSystem.getPreviousContextAID() == caller;
+    }
+  };
+
   // SIO calls run with the client selected, so Safe-owned state must use CLEAR_ON_RESET.
   private final short[] auth = JCSystem.makeTransientShortArray((short) 2, JCSystem.CLEAR_ON_RESET);
   private final Object[] next = JCSystem.makeTransientObjectArray(
     (short) 1,
     JCSystem.CLEAR_ON_RESET
   );
+
+  private final LibSecurity.Condition authorizationValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      if (auth[0] == 0 && auth[1] == 0) {
+        return false;
+      }
+
+      if (auth[0] != AUTH_SAFE || auth[1] != (short) ~AUTH_SAFE) {
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+      }
+
+      return true;
+    }
+  };
 
   public SafeSession(MonoidSafeApplet applet, AID caller) {
     this.applet = applet;
@@ -95,20 +117,12 @@ public class SafeSession implements SafeShareable {
     auth[1] = 0;
   }
 
-  boolean isAuthorized() {
-    if (auth[0] == 0 && auth[1] == 0) {
-      return false;
-    }
-
-    if (auth[0] != AUTH_SAFE || auth[1] != (short) ~AUTH_SAFE) {
-      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
-    }
-
-    return true;
+  short isAuthorized() {
+    return LibSecurity.check(authorizationValidation, Constants.SAFE_FALSE);
   }
 
   void assertCaller() {
-    if (caller == null || JCSystem.getPreviousContextAID() != caller) {
+    if (LibSecurity.check(callerValidation, Constants.SAFE_FALSE) != Constants.SAFE_TRUE) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
     }
   }

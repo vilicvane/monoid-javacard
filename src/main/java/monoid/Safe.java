@@ -1,5 +1,8 @@
 package monoid;
 
+import static monoidsafe.Constants.SAFE_FALSE;
+import static monoidsafe.Constants.SAFE_TRUE;
+
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.MessageDigest;
@@ -37,6 +40,25 @@ public final class Safe {
 
   private SafeShareable safe;
 
+  private final LibSecurity.Condition pinSetValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      return safe.isPINSet();
+    }
+  };
+  private final LibSecurity.Condition pinValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      return safe.isPINValidated();
+    }
+  };
+  private final LibSecurity.Condition pinBlocked = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      return safe.getPINTriesRemaining() == 0;
+    }
+  };
+
   public Safe(SafeShareable safe) {
     this.safe = safe;
   }
@@ -47,6 +69,18 @@ public final class Safe {
 
   public boolean isPINSet() {
     return safe.isPINSet();
+  }
+
+  short getPINSetResult(short conservativeResult) {
+    return LibSecurity.check(pinSetValidation, conservativeResult);
+  }
+
+  short getPINValidationResult() {
+    return LibSecurity.check(pinValidation, SAFE_FALSE);
+  }
+
+  short getPINBlockedResult() {
+    return LibSecurity.check(pinBlocked, SAFE_TRUE);
   }
 
   public boolean checkPIN(byte[] pin) {

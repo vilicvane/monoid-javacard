@@ -30,8 +30,66 @@ public class MonoidSafeApplet extends Applet {
 
   private OwnerPIN pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_LENGTH);
 
+  private LibSecurity.Condition pinValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      return pin.isValidated();
+    }
+  };
+
   private short pinState = PIN_UNSET;
   private short pinStateInverse = (short) ~PIN_UNSET;
+
+  private final LibSecurity.Condition pinSetValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      short state = pinState;
+
+      if ((state != PIN_UNSET && state != PIN_SET) || pinStateInverse != (short) ~state) {
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+      }
+
+      return state == PIN_SET;
+    }
+  };
+
+  private final LibSecurity.Condition pinBlockedValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      return pin.getTriesRemaining() == 0;
+    }
+  };
+
+  private final Object[] callerCheckParameters = JCSystem.makeTransientObjectArray(
+    (short) 2,
+    JCSystem.CLEAR_ON_RESET
+  );
+
+  private final LibSecurity.Condition callerAdmissionValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      AID caller = (AID) callerCheckParameters[0];
+
+      return (
+        caller != null &&
+        caller.partialEquals(
+          Constants.MONOID_AID_WITHOUT_VERSION,
+          (short) 0,
+          (byte) Constants.MONOID_AID_WITHOUT_VERSION.length
+        )
+      );
+    }
+  };
+
+  private final LibSecurity.Condition callerMatchValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      AID caller = (AID) callerCheckParameters[0];
+      SafeSession session = (SafeSession) callerCheckParameters[1];
+
+      return session.matches(caller);
+    }
+  };
 
   // Only authenticated sessions are retained, and only until reset.
   private Object[] sessions = JCSystem.makeTransientObjectArray((short) 1, JCSystem.CLEAR_ON_RESET);
@@ -61,13 +119,7 @@ public class MonoidSafeApplet extends Applet {
   }
 
   public boolean isPINSet() {
-    short state = pinState;
-
-    if ((state != PIN_UNSET && state != PIN_SET) || pinStateInverse != (short) ~state) {
-      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
-    }
-
-    return state == PIN_SET;
+    return pinSetValidation.check();
   }
 
   public byte getPINTriesRemaining() {
@@ -81,11 +133,15 @@ public class MonoidSafeApplet extends Applet {
     pin.reset();
 
     try {
-      if (!isPINSet() || !pin.check(buffer, offset, length)) {
+      if (LibSecurity.check(pinSetValidation, Constants.SAFE_FALSE) != Constants.SAFE_TRUE) {
         return false;
       }
 
-      if (!pin.isValidated()) {
+      if (!pin.check(buffer, offset, length)) {
+        return false;
+      }
+
+      if (LibSecurity.check(pinValidation, Constants.SAFE_FALSE) != Constants.SAFE_TRUE) {
         ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
       }
 
@@ -95,7 +151,7 @@ public class MonoidSafeApplet extends Applet {
 
       return true;
     } finally {
-      if (pin.getTriesRemaining() == 0) {
+      if (LibSecurity.check(pinBlockedValidation, Constants.SAFE_TRUE) != Constants.SAFE_FALSE) {
         clearAuth();
       }
     }
@@ -125,7 +181,7 @@ public class MonoidSafeApplet extends Applet {
   private void checkPINUpdate(SafeSession session) {
     session.assertCaller();
 
-    if (isPINSet()) {
+    if (LibSecurity.check(pinSetValidation, Constants.SAFE_TRUE) != Constants.SAFE_FALSE) {
       assertAccess(session);
     }
   }
@@ -133,12 +189,16 @@ public class MonoidSafeApplet extends Applet {
   public boolean isPINValidated(SafeSession session) {
     session.assertCaller();
 
-    if (!isPINSet()) {
+    if (LibSecurity.check(pinSetValidation, Constants.SAFE_FALSE) != Constants.SAFE_TRUE) {
       return false;
     }
 
     // The native validated flag describes the last PIN check, not each caller's grant.
-    return session.isAuthorized() && pin.getTriesRemaining() != 0;
+    if (session.isAuthorized() != Constants.SAFE_TRUE) {
+      return false;
+    }
+
+    return LibSecurity.check(pinBlockedValidation, Constants.SAFE_TRUE) == Constants.SAFE_FALSE;
   }
 
   public Object[] list(SafeSession session, short type) {
@@ -256,7 +316,17 @@ public class MonoidSafeApplet extends Applet {
   }
 
   public void assertAccess(SafeSession session) {
-    if (!isPINValidated(session)) {
+    session.assertCaller();
+
+    if (LibSecurity.check(pinSetValidation, Constants.SAFE_FALSE) != Constants.SAFE_TRUE) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+
+    if (session.isAuthorized() != Constants.SAFE_TRUE) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+
+    if (LibSecurity.check(pinBlockedValidation, Constants.SAFE_TRUE) != Constants.SAFE_FALSE) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
     }
   }
@@ -284,7 +354,10 @@ public class MonoidSafeApplet extends Applet {
     while (session != null) {
       SafeSession next = session.getNext();
 
-      if (session.matches(caller)) {
+      if (
+        checkCaller(callerMatchValidation, caller, session, Constants.SAFE_TRUE) !=
+        Constants.SAFE_FALSE
+      ) {
         session.clearAuth();
 
         if (previous == null) {
@@ -305,26 +378,42 @@ public class MonoidSafeApplet extends Applet {
   @Override
   public Shareable getShareableInterfaceObject(AID clientAID, byte parameter) {
     if (
-      clientAID != null &&
-      clientAID.partialEquals(
-        Constants.MONOID_AID_WITHOUT_VERSION,
-        (short) 0,
-        (byte) Constants.MONOID_AID_WITHOUT_VERSION.length
-      )
+      checkCaller(callerAdmissionValidation, clientAID, null, Constants.SAFE_FALSE) !=
+      Constants.SAFE_TRUE
     ) {
-      SafeSession session = (SafeSession) sessions[0];
-
-      while (session != null) {
-        if (session.matches(clientAID)) {
-          return session;
-        }
-
-        session = session.getNext();
-      }
-
-      return new SafeSession(this, clientAID);
+      return null;
     }
 
-    return null;
+    SafeSession session = (SafeSession) sessions[0];
+
+    while (session != null) {
+      if (
+        checkCaller(callerMatchValidation, clientAID, session, Constants.SAFE_FALSE) ==
+        Constants.SAFE_TRUE
+      ) {
+        return session;
+      }
+
+      session = session.getNext();
+    }
+
+    return new SafeSession(this, clientAID);
+  }
+
+  private short checkCaller(
+    LibSecurity.Condition condition,
+    AID caller,
+    SafeSession session,
+    short conservativeResult
+  ) {
+    callerCheckParameters[0] = caller;
+    callerCheckParameters[1] = session;
+
+    try {
+      return LibSecurity.check(condition, conservativeResult);
+    } finally {
+      callerCheckParameters[0] = null;
+      callerCheckParameters[1] = null;
+    }
   }
 }
