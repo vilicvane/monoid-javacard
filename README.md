@@ -121,19 +121,19 @@ See [architecture](doc/architecture.md) for more details.
 
 ### Cryptography
 
-- Elliptic curves:
-  - [x] `"secp256k1"`
-  - [x] `"ed25519"`
-- Ciphers:
+- `"secp256k1"`
   - [x] `"ecdsa"`
-  - [x] `"eddsa"`
-  - [x] `"schnorr"` (BIP340)
+  - [x] `"bip340"`
+- `"secp256r1"`
+  - [x] `"ecdsa"`
+- `"ed25519"`
+  - [x] `"ed25519"`
 
-See [Bitcoin signing](doc/bitcoin.md) for BIP32, Taproot and client responsibilities.
+See [Bitcoin signing](doc/bitcoin.md).
 
 ## ISO-7816 Commands
 
-_Monoid Applet_ uses a minimal CBOR-based RPC protocol. See [APDU transport](doc/apdu.md) for request fragmentation, response continuation and transport errors. Command definitions below describe complete requests and responses.
+See [APDU transport](doc/apdu.md).
 
 ### Command authentication
 
@@ -143,6 +143,17 @@ The authentication is done within a session, using `0x21` command.
 - Safe PIN: for commands that could result in keys/data revealed, or commands that requires access PIN.
 
 ### `0x20` ~ `0x2F` System management
+
+See [Cryptography](#cryptography).
+
+```ts
+type Features = {
+  curves: {
+    name: string;
+    ciphers: string[];
+  }[];
+};
+```
 
 #### `0x20` Hello
 
@@ -155,12 +166,7 @@ type Response = {
   version: number;
   /** A 4-byte random id generated on _Monoid Applet_ installation. */
   id: byte[];
-  features: {
-    curves: {
-      name: string;
-      ciphers: string[];
-    }[];
-  };
+  features: Features;
   /** Tries remaining for the PIN, or `false` if the PIN is not set. */
   pin: number | false;
   safe: {
@@ -194,6 +200,7 @@ type Response = {};
 ```ts
 type Request = {
   pin: string;
+  /** Also unlocks Safe after Monoid Applet reinstallation. */
   safe?: true;
 };
 ```
@@ -201,8 +208,6 @@ type Request = {
 ```ts
 type Response = {};
 ```
-
-> In case of _Monoid Applet_ reinstallation resulting in its losing the safe PIN, setting safe PIN again (to either the same or a different PIN) will restore the safe PIN stored in _Monoid Applet_ (thus "unlocking" the safe).
 
 #### `0x2F` System information
 
@@ -229,24 +234,16 @@ type Response = {
       };
     };
   };
-  features: {
-    curves: {
-      name: string;
-      ciphers: string[];
-    }[];
-  };
+  features: Features;
 };
 ```
 
 ### `0x30` ~ `0x3F` Safe management
 
 ```ts
-type SafeItemKeyType = 'entropy' | 'seed' | 'master' | 'secp256k1' | 'ed25519';
+type SafeItemKeyType = 'entropy' | 'seed' | 'master' | 'secp256k1' | 'secp256r1' | 'ed25519';
 type SafeItemType = SafeItemKeyType | byte;
 ```
-
-An `ed25519` item stores a 32-byte private-key seed. It represents an independent
-key, distinct from a `seed` item used for hierarchical derivation.
 
 #### `0x30` List items
 
@@ -375,25 +372,28 @@ type Response = {
 ### `0x40` ~ `0x4F` Key usage
 
 ```ts
+/** Seed/master: BIP32 for secp256k1, hardened SLIP-0010 for ed25519. */
 type Key = {
   index: byte[];
 } & (
   | {
       // seed
+      /** 'ed25519 seed' for Ed25519. */
       seed: string;
-      curve: string;
+      curve: 'secp256k1' | 'ed25519';
       path: byte[];
     }
   | {
       // master
-      curve: string;
+      curve: 'secp256k1' | 'ed25519';
       path: byte[];
     }
   | {
-      // key
+      // independent secp256k1 / secp256r1 / ed25519 key
     }
 );
 
+/** secp256k1 only; true/{} enables BIP86, false/omitted disables tweaking. */
 type Taproot = {
   /** Exactly 32 bytes when present; omit for BIP86 without a script tree. */
   merkleRoot?: byte[];
@@ -404,29 +404,20 @@ type Taproot = {
 
 > Requires authentication.
 
-For `curve: 'ed25519'`, derives from a stored seed or master using hardened SLIP-0010 and returns the 32-byte encoded public key and 32-byte chain code. A stored seed uses `seed: 'ed25519 seed'` as the master derivation label.
-
-For an independent `secp256k1` or `ed25519` item, supply only `index`; the response
-contains `publicKey` without `chainCode`.
-
-For `secp256k1`, `taproot: true` or a `taproot` object returns the tweaked 32-byte
-x-only public key. Omit it or use `false` to retain the compressed 33-byte public
-key. A derived key's `chainCode` always belongs to the original BIP32 node; see
-[Bitcoin signing](doc/bitcoin.md).
-
 ```ts
 type Request = Key & {
-  /** Enabling Taproot is only valid for secp256k1. */
   taproot?: Taproot | boolean;
 };
 ```
 
 ```ts
 type Response = {
+  /** 33-byte compressed EC key; 32 bytes for Ed25519 or Taproot x-only. */
   publicKey: byte[];
 } & (
   | {
       // seed / master
+      /** 32 bytes; before Taproot tweaking. */
       chainCode: byte[];
     }
   | {
@@ -444,16 +435,19 @@ type Request = Key &
   (
     | {
         cipher: 'ecdsa';
+        /** Precomputed 32-byte digest; use SHA-256(message) for ES256. */
         digest: byte[];
         taproot?: false;
       }
     | {
-        cipher: 'eddsa';
+        cipher: 'ed25519';
+        /** Original message bytes (pure Ed25519). */
         message: byte[];
         taproot?: false;
       }
     | {
-        cipher: 'schnorr';
+        /** secp256k1 only. */
+        cipher: 'bip340';
         /** Exactly 32 bytes. */
         digest: byte[];
         taproot?: Taproot | boolean;
@@ -461,19 +455,9 @@ type Request = Key &
   );
 ```
 
-EdDSA signs the original message bytes with Ed25519. A stored seed or master uses
-hardened SLIP-0010 derivation. An independent `ed25519` item requires only `index`,
-`cipher: 'eddsa'` and `message`, with no derivation fields.
-
-Schnorr uses BIP340 on `secp256k1` and returns a 64-byte signature. Omit `taproot`
-or use `false` to sign with the original key, use `true` or `{}` for BIP86, or
-provide a 32-byte `merkleRoot` for BIP341 key-path signing with a script-tree
-commitment. ECDSA and EdDSA requests accept `taproot: false` and reject enabled
-Taproot. See [Bitcoin signing](doc/bitcoin.md) for sighash construction and witness
-encoding.
-
 ```ts
 type Response = {
+  /** 64 bytes; ECDSA/BIP340: r || s, each a 32-byte big-endian integer; ECDSA uses low-S. */
   signature: byte[];
 };
 ```
@@ -498,6 +482,8 @@ The first 2 bytes are the type of the item (`0x0000` to `0x0FFF` and `0xFFFF` ar
   - +8 bytes digest of master key
 - `0x04` Weierstrass key
   - `0x0401` `"secp256k1"` SECP256K1 key
+    - +8 bytes digest of key
+  - `0x0402` `"secp256r1"` P-256 key (32-byte big-endian scalar, `1 <= d < n`)
     - +8 bytes digest of key
 - `0x05` Edwards key
   - `0x0501` `"ed25519"` Ed25519 key (32-byte private-key seed)

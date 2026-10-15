@@ -62,7 +62,7 @@ public class CommandSystemInformation extends Command {
     writer.map((short) 1);
     {
       writer.text(Text.curves);
-      writer.array((short) 2);
+      writer.array((short) 3);
       {
         writer.map((short) 2);
         {
@@ -73,6 +73,16 @@ public class CommandSystemInformation extends Command {
           writer.array((short) 2);
           writer.text(Signer.CIPHER_ECDSA);
           writer.text(Signer.CIPHER_BIP340);
+        }
+
+        writer.map((short) 2);
+        {
+          writer.text(Text.name);
+          writer.text(WeierstrassCurve.SECP256r1);
+
+          writer.text(Text.ciphers);
+          writer.array((short) 1);
+          writer.text(Signer.CIPHER_ECDSA);
         }
 
         writer.map((short) 2);

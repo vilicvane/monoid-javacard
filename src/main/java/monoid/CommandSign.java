@@ -2,6 +2,7 @@ package monoid;
 
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
+import javacard.security.MessageDigest;
 import monoidsafe.SafeShareable;
 
 public class CommandSign extends Command {
@@ -53,6 +54,11 @@ public class CommandSign extends Command {
 
     if (Utils.isEqual(Signer.CIPHER_ECDSA, cipher)) {
       byte[] digest = reader.requireKey(Text.digest).bytes();
+
+      if (digest.length != MessageDigest.LENGTH_SHA_256) {
+        MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+        return;
+      }
 
       signature = keystore.signECDSADigest(index, seed, curve, path, digest);
     } else if (Utils.isEqual(Signer.CIPHER_ED25519, cipher)) {

@@ -1,5 +1,6 @@
 package monoid;
 
+import javacard.framework.JCSystem;
 import javacard.security.CryptoException;
 import javacard.security.Key;
 import javacard.security.MessageDigest;
@@ -12,13 +13,7 @@ import javacardx.crypto.Cipher;
  */
 public final class OneShot {
 
-  public static short sign(
-    byte cipher,
-    Key privateKey,
-    byte[] digest,
-    byte[] out,
-    short outOffset
-  ) {
+  public static byte[] sign(byte cipher, Key privateKey, byte[] digest) {
     Signature.OneShot signature = Signature.OneShot.open(
       MessageDigest.ALG_SHA_256,
       cipher,
@@ -29,21 +24,29 @@ public final class OneShot {
       // JCardSim doesn't support equivalent Signature yet (only a non-PLAIN one
       // that requires extra handling).
       CryptoException.throwIt(CryptoException.NO_SUCH_ALGORITHM);
+      return null;
     }
 
-    signature.init(privateKey, Signature.MODE_SIGN);
+    try {
+      signature.init(privateKey, Signature.MODE_SIGN);
 
-    short length = signature.signPreComputedHash(
-      digest,
-      (short) 0,
-      (short) digest.length,
-      out,
-      outOffset
-    );
+      byte[] out = JCSystem.makeTransientByteArray(
+        signature.getLength(),
+        JCSystem.CLEAR_ON_DESELECT
+      );
 
-    signature.close();
+      short length = signature.signPreComputedHash(
+        digest,
+        (short) 0,
+        (short) digest.length,
+        out,
+        (short) 0
+      );
 
-    return length;
+      return Utils.duplicateAsTransientDeselect(out, (short) 0, length);
+    } finally {
+      signature.close();
+    }
   }
 
   public static short digest(

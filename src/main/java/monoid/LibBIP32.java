@@ -10,6 +10,11 @@ public final class LibBIP32 {
   public static final byte PATH_SEGMENT_LENGTH = 4;
 
   public static byte[] derive(WeierstrassCurve curve, byte[] privateKeyAndChainCode, byte[] path) {
+    if (!(curve instanceof CurveSECP256k1)) {
+      CurveException.throwIt(CurveException.REASON_UNSUPPORTED_CURVE);
+      return null;
+    }
+
     privateKeyAndChainCode = Utils.duplicateAsTransientDeselect(privateKeyAndChainCode);
 
     if (path.length == 0) {

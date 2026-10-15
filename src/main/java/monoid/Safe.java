@@ -25,6 +25,7 @@ public final class Safe {
   public static final short TYPE_MASTER = 0x0300;
   public static final short TYPE_WEIERSTRASS = 0x0400;
   public static final short TYPE_WEIERSTRASS_SECP256K1 = TYPE_WEIERSTRASS | 0x01;
+  public static final short TYPE_WEIERSTRASS_SECP256R1 = TYPE_WEIERSTRASS | 0x02;
   public static final short TYPE_EDWARDS = 0x0500;
   public static final short TYPE_EDWARDS_ED25519 = TYPE_EDWARDS | 0x01;
   public static final short TYPE_GENERIC = 0x0FFF;
@@ -35,6 +36,7 @@ public final class Safe {
   public static final byte[] TYPE_TEXT_SEED = {'s','e','e','d'};
   public static final byte[] TYPE_TEXT_MASTER = {'m','a','s','t','e','r'};
   public static final byte[] TYPE_TEXT_SECP256K1 = {'s','e','c','p','2','5','6','k','1'};
+  public static final byte[] TYPE_TEXT_SECP256R1 = {'s','e','c','p','2','5','6','r','1'};
   public static final byte[] TYPE_TEXT_ED25519 = {'e','d','2','5','5','1','9'};
   // @formatter:on
 
@@ -101,6 +103,8 @@ public final class Safe {
     switch (type) {
       case TYPE_WEIERSTRASS_SECP256K1:
         return createRandomRandom(type, (short) CurveSECP256k1.KEY_LENGTH);
+      case TYPE_WEIERSTRASS_SECP256R1:
+        return createRandomScalar(type, CurveSECP256r1.R);
       case TYPE_EDWARDS_ED25519:
         return createRandomRandom(type, (short) CurveED25519.KEY_LENGTH);
     }
@@ -143,6 +147,18 @@ public final class Safe {
     byte[] data = Utils.makeGlobalByteArray(length);
 
     OneShot.random(data, (short) 0, length);
+
+    byte[] index = buildGlobalDigestIndex(refinedType, data);
+
+    return safe.create(index, null, data);
+  }
+
+  private SafeItemShareable createRandomScalar(short refinedType, byte[] order) {
+    byte[] data = Utils.makeGlobalByteArray((short) order.length);
+
+    do {
+      OneShot.random(data, (short) 0, (short) data.length);
+    } while (!isValidScalar(data, order));
 
     byte[] index = buildGlobalDigestIndex(refinedType, data);
 
@@ -230,6 +246,8 @@ public final class Safe {
       return TYPE_MASTER;
     } else if (Utils.isEqual(TYPE_TEXT_SECP256K1, buffer, offset, length)) {
       return TYPE_WEIERSTRASS_SECP256K1;
+    } else if (Utils.isEqual(TYPE_TEXT_SECP256R1, buffer, offset, length)) {
+      return TYPE_WEIERSTRASS_SECP256R1;
     } else if (Utils.isEqual(TYPE_TEXT_ED25519, buffer, offset, length)) {
       return TYPE_EDWARDS_ED25519;
     }
@@ -255,6 +273,8 @@ public final class Safe {
         switch (type) {
           case TYPE_WEIERSTRASS_SECP256K1:
             return TYPE_TEXT_SECP256K1;
+          case TYPE_WEIERSTRASS_SECP256R1:
+            return TYPE_TEXT_SECP256R1;
           case TYPE_EDWARDS_ED25519:
             return TYPE_TEXT_ED25519;
           default:
@@ -343,6 +363,12 @@ public final class Safe {
         }
 
         return type;
+      case TYPE_WEIERSTRASS_SECP256R1:
+        if (!isValidScalar(data, CurveSECP256r1.R)) {
+          SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
+        }
+
+        return type;
       case TYPE_EDWARDS_ED25519:
         if (data.length != CurveED25519.KEY_LENGTH) {
           SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
@@ -388,5 +414,13 @@ public final class Safe {
 
     SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     return type;
+  }
+
+  private static boolean isValidScalar(byte[] data, byte[] order) {
+    return (
+      data.length == order.length &&
+      !Utils.isZero(data) &&
+      LibMath.compare(data, (short) 0, order, (short) 0, (short) order.length) < 0
+    );
   }
 }

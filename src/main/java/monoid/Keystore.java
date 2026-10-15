@@ -127,6 +127,9 @@ public final class Keystore {
       case Safe.TYPE_WEIERSTRASS_SECP256K1:
         curve = WeierstrassCurve.secp256k1;
         break;
+      case Safe.TYPE_WEIERSTRASS_SECP256R1:
+        curve = WeierstrassCurve.secp256r1;
+        break;
       default:
         KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
         return null;
@@ -202,6 +205,9 @@ public final class Keystore {
       case Safe.TYPE_WEIERSTRASS_SECP256K1:
         curve = WeierstrassCurve.secp256k1;
         break;
+      case Safe.TYPE_WEIERSTRASS_SECP256R1:
+        curve = WeierstrassCurve.secp256r1;
+        break;
     }
 
     Key privateKey;
@@ -220,7 +226,7 @@ public final class Keystore {
         return null;
     }
 
-    return Signer.signECDSADigest(Signer.CIPHER_ECDSA, privateKey, digest);
+    return Signer.signECDSADigest(curve, privateKey, digest);
   }
 
   public byte[] signEDDSAMessage(

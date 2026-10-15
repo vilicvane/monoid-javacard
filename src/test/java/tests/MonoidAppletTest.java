@@ -1,11 +1,18 @@
 package tests;
 
+import com.licel.jcardsim.bouncycastle.asn1.sec.SECNamedCurves;
+import com.licel.jcardsim.bouncycastle.asn1.x9.X9ECParameters;
+import com.licel.jcardsim.bouncycastle.crypto.params.ECDomainParameters;
+import com.licel.jcardsim.bouncycastle.crypto.params.ECPublicKeyParameters;
+import com.licel.jcardsim.bouncycastle.crypto.signers.ECDSASigner;
+import com.licel.jcardsim.bouncycastle.util.BigIntegers;
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.utils.AIDUtil;
 import cz.muni.fi.crocs.rcard.client.CardManager;
 import cz.muni.fi.crocs.rcard.client.CardType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -15,6 +22,7 @@ import javax.smartcardio.ResponseAPDU;
 import monoid.CBORBufferReader;
 import monoid.CBORBufferWriter;
 import monoid.Command;
+import monoid.CurveException;
 import monoid.MonoidApplet;
 import monoid.MonoidException;
 import monoid.Safe;
@@ -1475,6 +1483,325 @@ public class MonoidAppletTest extends AppletTest {
     }
   }
 
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(28)
+  public void importedSECP256r1Items() throws Exception {
+    CardManager manager = connect();
+    authenticate(manager, true);
+    BigInteger order = SECNamedCurves.getByName("secp256r1").getN();
+
+    for (BigInteger scalar : new BigInteger[] { BigInteger.ONE, order.subtract(BigInteger.ONE) }) {
+      byte[] data = BigIntegers.asUnsignedByteArray(32, scalar);
+      byte[] index = secp256r1Index(data);
+
+      for (int mode = 0; mode < 3; mode++) {
+        ResponseAPDU response = manager.transmit(
+          apdu(0, 0x34, 0, 0, secp256r1CreateRequest(data, mode))
+        );
+        assertNoError(response);
+        CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+        reader.map();
+        Assertions.assertArrayEquals(index, reader.requireKey("index".getBytes()).bytes());
+
+        try {
+          response = manager.transmit(apdu(0, 0x32, 0, 0, itemRequest(index)));
+          assertNoError(response);
+          reader = new CBORBufferReader(response.getBytes());
+          reader.map();
+          Assertions.assertArrayEquals(data, reader.requireKey("data".getBytes()).bytes());
+
+          CBORBufferWriter writer = new CBORBufferWriter();
+          writer.map((short) 1);
+          writer.text("type".getBytes());
+          writer.text("secp256r1".getBytes());
+          response = manager.transmit(apdu(0, 0x30, 0, 0, writer.getDataBuffer()));
+          assertNoError(response);
+          reader = new CBORBufferReader(response.getBytes());
+          reader.map();
+          Assertions.assertEquals(1, reader.requireKey("items".getBytes()).array());
+          Assertions.assertTrue(reader.index((short) 0));
+          reader.map();
+          Assertions.assertArrayEquals(index, reader.requireKey("index".getBytes()).bytes());
+          Assertions.assertArrayEquals(
+            "secp256r1".getBytes(),
+            reader.requireKey("type".getBytes()).text()
+          );
+
+          assertSECP256r1Item(manager, index, data);
+        } finally {
+          assertNoError(manager.transmit(apdu(0, 0x35, 0, 0, itemRequest(index))));
+        }
+      }
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(29)
+  public void randomSECP256r1Item() throws Exception {
+    CardManager manager = connect();
+    authenticate(manager, false);
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 1);
+    writer.text("type".getBytes());
+    writer.text("secp256r1".getBytes());
+
+    ResponseAPDU response = manager.transmit(apdu(0, 0x38, 0, 0, writer.getDataBuffer()));
+    assertNoError(response);
+    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+    reader.map();
+    byte[] index = reader.requireKey("index".getBytes()).bytes();
+
+    try {
+      authenticate(manager, true);
+      response = manager.transmit(apdu(0, 0x32, 0, 0, itemRequest(index)));
+      assertNoError(response);
+      reader = new CBORBufferReader(response.getBytes());
+      reader.map();
+      byte[] data = reader.requireKey("data".getBytes()).bytes();
+      Assertions.assertEquals(32, data.length);
+      BigInteger scalar = new BigInteger(1, data);
+      Assertions.assertTrue(scalar.signum() > 0);
+      Assertions.assertTrue(scalar.compareTo(SECNamedCurves.getByName("secp256r1").getN()) < 0);
+      Assertions.assertArrayEquals(secp256r1Index(data), index);
+
+      assertSECP256r1Item(manager, index, data);
+    } finally {
+      assertNoError(manager.transmit(apdu(0, 0x35, 0, 0, itemRequest(index))));
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(30)
+  public void invalidSECP256r1Items() throws Exception {
+    CardManager manager = connect();
+    authenticate(manager, false);
+    BigInteger order = SECNamedCurves.getByName("secp256r1").getN();
+
+    for (byte[] data : new byte[][] {
+      new byte[0],
+      new byte[31],
+      new byte[32],
+      new byte[33],
+      new byte[64],
+      BigIntegers.asUnsignedByteArray(32, order),
+      BigIntegers.asUnsignedByteArray(32, order.add(BigInteger.ONE)),
+      BigIntegers.asUnsignedByteArray(32, BigInteger.ONE.shiftLeft(256).subtract(BigInteger.ONE)),
+    }) {
+      for (int mode = 0; mode < 3; mode++) {
+        assertError(
+          manager.transmit(apdu(0, 0x34, 0, 0, secp256r1CreateRequest(data, mode))),
+          SafeException.CODE_INVALID_PARAMETER
+        );
+      }
+    }
+
+    byte[] validData = BigIntegers.asUnsignedByteArray(32, BigInteger.ONE);
+    byte[] index = secp256r1Index(validData);
+    index[9] ^= 1;
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 2);
+    writer.text("index".getBytes());
+    writer.bytes(index);
+    writer.text("data".getBytes());
+    writer.bytes(validData);
+    assertError(
+      manager.transmit(apdu(0, 0x34, 0, 0, writer.getDataBuffer())),
+      SafeException.CODE_INVALID_PARAMETER
+    );
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(31)
+  public void invalidSECP256r1SigningRequests() throws Exception {
+    CardManager manager = connect();
+    authenticate(manager, false);
+    byte[] data = BigIntegers.asUnsignedByteArray(32, BigInteger.ONE);
+    byte[] index = secp256r1Index(data);
+    assertNoError(manager.transmit(apdu(0, 0x34, 0, 0, secp256r1CreateRequest(data, 0))));
+
+    try {
+      for (String cipher : new String[] { "ed25519", "bip340" }) {
+        CBORBufferWriter writer = new CBORBufferWriter();
+        writer.map((short) 3);
+        writer.text("index".getBytes());
+        writer.bytes(index);
+        writer.text("cipher".getBytes());
+        writer.text(cipher.getBytes());
+        writer.text(cipher.equals("ed25519") ? "message".getBytes() : "digest".getBytes());
+        writer.bytes(TEST_DIGEST);
+        assertError(
+          manager.transmit(apdu(0, 0x41, 0, 0, writer.getDataBuffer())),
+          MonoidException.CODE_INVALID_PARAMETER
+        );
+      }
+
+      for (int instruction : new int[] { 0x40, 0x41 }) {
+        for (int mode = 0; mode < 3; mode++) {
+          CBORBufferWriter writer = new CBORBufferWriter();
+          writer.map((short) (instruction == 0x41 ? 4 : 2));
+          writer.text("index".getBytes());
+          writer.bytes(index);
+
+          if (instruction == 0x41) {
+            writer.text("cipher".getBytes());
+            writer.text("ecdsa".getBytes());
+            writer.text("digest".getBytes());
+            writer.bytes(TEST_DIGEST);
+          }
+
+          writer.text("taproot".getBytes());
+
+          if (mode == 0) {
+            writer.bool(true);
+          } else {
+            writer.map((short) (mode == 1 ? 0 : 1));
+
+            if (mode == 2) {
+              writer.text("merkleRoot".getBytes());
+              writer.bytes(new byte[32]);
+            }
+          }
+
+          assertError(
+            manager.transmit(apdu(0, instruction, 0, 0, writer.getDataBuffer())),
+            instruction == 0x40
+              ? CurveException.CODE_UNSUPPORTED_CURVE
+              : MonoidException.CODE_INVALID_PARAMETER
+          );
+        }
+      }
+
+      for (int length : new int[] { 0, 31, 33, 64 }) {
+        assertError(
+          manager.transmit(apdu(0, 0x41, 0, 0, ecdsaRequest(index, new byte[length], false))),
+          MonoidException.CODE_INVALID_PARAMETER
+        );
+      }
+
+      assertSECP256r1Item(manager, index, data);
+
+      assertSignature(
+        manager.transmit(
+          apdu(0, 0x41, 0, 0, ecdsaRequest(TEST_SECP256K1_KEY_INDEX, TEST_DIGEST, false))
+        ),
+        TEST_DIGEST,
+        TEST_SECP256K1_DERIVED_PUBLIC_KEY
+      );
+
+      CBORBufferWriter writer = new CBORBufferWriter();
+      writer.map((short) 3);
+      writer.text("index".getBytes());
+      writer.bytes(TEST_ED25519_KEY_INDEX);
+      writer.text("cipher".getBytes());
+      writer.text("ed25519".getBytes());
+      writer.text("message".getBytes());
+      writer.bytes(Hex.decode("72"));
+      ResponseAPDU response = manager.transmit(apdu(0, 0x41, 0, 0, writer.getDataBuffer()));
+      assertNoError(response);
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+      reader.map();
+      Assertions.assertArrayEquals(
+        Hex.decode(
+          "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da" +
+          "085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"
+        ),
+        reader.requireKey("signature".getBytes()).bytes()
+      );
+
+      assertSECP256r1Item(manager, index, data);
+    } finally {
+      assertNoError(manager.transmit(apdu(0, 0x35, 0, 0, itemRequest(index))));
+    }
+  }
+
+  @Test
+  // @inplate-line {{java-test-order}}
+  @Order(32)
+  public void rejectSECP256r1Derivation() throws Exception {
+    CardManager manager = connect();
+    authenticate(manager, false);
+
+    for (byte[] index : new byte[][] { TEST_SEED_INDEX, TEST_MASTER_INDEX }) {
+      for (byte[] path : new byte[][] { new byte[0], TEST_PATH }) {
+        for (int instruction : new int[] { 0x40, 0x41 }) {
+          CBORBufferWriter writer = new CBORBufferWriter();
+          writer.map((short) (instruction == 0x41 ? 6 : 4));
+          writer.text("index".getBytes());
+          writer.bytes(index);
+          writer.text("curve".getBytes());
+          writer.text("secp256r1".getBytes());
+          writer.text("seed".getBytes());
+          writer.text("Bitcoin seed".getBytes());
+          writer.text("path".getBytes());
+          writer.bytes(path);
+
+          if (instruction == 0x41) {
+            writer.text("cipher".getBytes());
+            writer.text("ecdsa".getBytes());
+            writer.text("digest".getBytes());
+            writer.bytes(TEST_DIGEST);
+          }
+
+          assertError(
+            manager.transmit(apdu(0, instruction, 0, 0, writer.getDataBuffer())),
+            CurveException.CODE_UNSUPPORTED_CURVE
+          );
+        }
+      }
+    }
+
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 3);
+    writer.text("index".getBytes());
+    writer.bytes(TEST_MASTER_INDEX);
+    writer.text("curve".getBytes());
+    writer.text("secp256k1".getBytes());
+    writer.text("path".getBytes());
+    writer.bytes(TEST_PATH);
+    ResponseAPDU response = manager.transmit(apdu(0, 0x40, 0, 0, writer.getDataBuffer()));
+    assertNoError(response);
+    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+    reader.map();
+    Assertions.assertArrayEquals(
+      TEST_MASTER_DERIVED_PUBLIC_KEY,
+      reader.requireKey("publicKey".getBytes()).bytes()
+    );
+    Assertions.assertArrayEquals(
+      TEST_MASTER_DERIVED_CHAIN_CODE,
+      reader.requireKey("chainCode".getBytes()).bytes()
+    );
+  }
+
+  private byte[] secp256r1CreateRequest(byte[] data, int mode) throws Exception {
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 2);
+    writer.text(mode == 2 ? "index".getBytes() : "type".getBytes());
+
+    if (mode == 0) {
+      writer.text("secp256r1".getBytes());
+    } else if (mode == 1) {
+      writer.integer((short) 0x0402);
+    } else {
+      writer.bytes(secp256r1Index(data));
+    }
+
+    writer.text("data".getBytes());
+    writer.bytes(data);
+    return writer.getDataBuffer();
+  }
+
+  private byte[] secp256r1Index(byte[] data) throws Exception {
+    byte[] index = new byte[10];
+    index[0] = 0x04;
+    index[1] = 0x02;
+    System.arraycopy(MessageDigest.getInstance("SHA-256").digest(data), 0, index, 2, 8);
+    return index;
+  }
+
   private byte[] ed25519Index(byte[] data) throws Exception {
     byte[] index = new byte[10];
     index[0] = 0x05;
@@ -1489,6 +1816,83 @@ public class MonoidAppletTest extends AppletTest {
     writer.text("index".getBytes());
     writer.bytes(index);
     return writer.getDataBuffer();
+  }
+
+  private byte[] ecdsaRequest(byte[] index, byte[] digest, boolean explicitTaproot) {
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) (explicitTaproot ? 4 : 3));
+    writer.text("index".getBytes());
+    writer.bytes(index);
+    writer.text("cipher".getBytes());
+    writer.text("ecdsa".getBytes());
+    writer.text("digest".getBytes());
+    writer.bytes(digest);
+
+    if (explicitTaproot) {
+      writer.text("taproot".getBytes());
+      writer.bool(false);
+    }
+
+    return writer.getDataBuffer();
+  }
+
+  private void assertSECP256r1Item(CardManager manager, byte[] index, byte[] data)
+    throws Exception {
+    X9ECParameters parameters = SECNamedCurves.getByName("secp256r1");
+    byte[] expectedPublicKey = parameters.getG().multiply(new BigInteger(1, data)).getEncoded(true);
+
+    for (boolean explicitTaproot : new boolean[] { false, true }) {
+      CBORBufferWriter writer = new CBORBufferWriter();
+      writer.map((short) (explicitTaproot ? 2 : 1));
+      writer.text("index".getBytes());
+      writer.bytes(index);
+
+      if (explicitTaproot) {
+        writer.text("taproot".getBytes());
+        writer.bool(false);
+      }
+
+      ResponseAPDU response = manager.transmit(apdu(0, 0x40, 0, 0, writer.getDataBuffer()));
+      assertNoError(response);
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+      Assertions.assertEquals(1, reader.map());
+      byte[] publicKey = reader.requireKey("publicKey".getBytes()).bytes();
+      Assertions.assertArrayEquals(expectedPublicKey, publicKey);
+      Assertions.assertFalse(reader.key("chainCode".getBytes()));
+
+      response = manager.transmit(
+        apdu(0, 0x41, 0, 0, ecdsaRequest(index, TEST_DIGEST, explicitTaproot))
+      );
+
+      if (simulator != null) {
+        assertError(response, Command.CODE_INTERNAL);
+        continue;
+      }
+
+      assertNoError(response);
+      reader = new CBORBufferReader(response.getBytes());
+      Assertions.assertEquals(1, reader.map());
+      byte[] signature = reader.requireKey("signature".getBytes()).bytes();
+      Assertions.assertEquals(64, signature.length);
+      BigInteger r = new BigInteger(1, Arrays.copyOfRange(signature, 0, 32));
+      BigInteger s = new BigInteger(1, Arrays.copyOfRange(signature, 32, 64));
+      Assertions.assertTrue(s.compareTo(parameters.getN().shiftRight(1)) <= 0);
+
+      ECDSASigner verifier = new ECDSASigner();
+      verifier.init(
+        false,
+        new ECPublicKeyParameters(
+          parameters.getCurve().decodePoint(publicKey),
+          new ECDomainParameters(
+            parameters.getCurve(),
+            parameters.getG(),
+            parameters.getN(),
+            parameters.getH()
+          )
+        )
+      );
+      Assertions.assertTrue(verifier.verifySignature(TEST_DIGEST, r, s));
+    }
   }
 
   private void assertED25519Item(CardManager manager, byte[] index, byte[] seed, byte[] message)
@@ -1665,14 +2069,14 @@ public class MonoidAppletTest extends AppletTest {
   }
 
   private void assertFeatures(ResponseAPDU response) {
-    String[] curves = { "secp256k1", "ed25519" };
-    String[][] ciphers = { { "ecdsa", "bip340" }, { "ed25519" } };
+    String[] curves = { "secp256k1", "secp256r1", "ed25519" };
+    String[][] ciphers = { { "ecdsa", "bip340" }, { "ecdsa" }, { "ed25519" } };
 
     for (short index = 0; index < curves.length; index++) {
       CBORBufferReader reader = new CBORBufferReader(response.getBytes());
       reader.map();
       Assertions.assertEquals(1, reader.requireKey("features".getBytes()).map());
-      Assertions.assertEquals(2, reader.requireKey("curves".getBytes()).array());
+      Assertions.assertEquals(3, reader.requireKey("curves".getBytes()).array());
       reader.index(index);
       Assertions.assertEquals(2, reader.map());
       Assertions.assertArrayEquals(
