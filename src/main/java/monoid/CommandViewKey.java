@@ -86,6 +86,27 @@ public final class CommandViewKey extends Command {
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
         return;
       }
+    } else if (Utils.isEqual(LibMonoid001.NAME, derivation)) {
+      if (hasTaproot || reader.key(Text.curve) || reader.key(Text.path)) {
+        MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+        return;
+      }
+
+      byte[] context = reader.requireKey(Text.context).bytes();
+
+      reader.restore();
+
+      byte[] publicKey = Safe.isTypeSeed(type)
+        ? keystore.getMonoid001PublicKeyFromSeed(index, context)
+        : keystore.getMonoid001PublicKeyFromMaster(index, context);
+
+      writer.map((short) 1);
+      {
+        writer.text(Text.publicKey);
+        writer.bytes(publicKey);
+      }
+
+      return;
     } else {
       MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
       return;

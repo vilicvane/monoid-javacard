@@ -22,6 +22,7 @@ public class CommandSign extends Command {
 
     byte[] curve = null;
     byte[] path = null;
+    byte[] context = null;
 
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
     short declaredType = Safe.type(reader.requireKey(Text.type));
@@ -60,12 +61,22 @@ public class CommandSign extends Command {
             MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
             return;
           }
+        } else if (Utils.isEqual(LibMonoid001.NAME, derivation)) {
+          if (reader.key(Text.curve) || reader.key(Text.path)) {
+            MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+            return;
+          }
+
+          curve = WeierstrassCurve.SECP256r1;
+          context = reader.requireKey(Text.context).bytes();
         } else {
           MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
           return;
         }
 
-        path = reader.requireKey(Text.path).bytes();
+        if (context == null) {
+          path = reader.requireKey(Text.path).bytes();
+        }
 
         reader.restore();
         break;
@@ -87,7 +98,10 @@ public class CommandSign extends Command {
     boolean hasTaproot = reader.key(Text.taproot);
     byte[] signature;
 
-    if (hasTaproot && !Utils.isEqual(Signer.CIPHER_BIP340, cipher)) {
+    if (
+      (hasTaproot && !Utils.isEqual(Signer.CIPHER_BIP340, cipher)) ||
+      (context != null && !Utils.isEqual(Signer.CIPHER_ECDSA, cipher))
+    ) {
       MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
       return;
     }
@@ -102,7 +116,7 @@ public class CommandSign extends Command {
         return;
       }
 
-      signature = keystore.signECDSADigest(index, curve, path, digest);
+      signature = keystore.signECDSADigest(index, curve, path, context, digest);
     } else if (Utils.isEqual(Signer.CIPHER_ED25519, cipher)) {
       short messageLength = reader.requireKey(Text.message).bytesLength();
 

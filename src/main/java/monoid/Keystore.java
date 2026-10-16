@@ -111,6 +111,38 @@ public final class Keystore {
     return deriveSLIP10Ed25519PublicKeyAndChainCodeFromMaster(curve, key, path);
   }
 
+  public byte[] getMonoid001PublicKeyFromSeed(byte[] index, byte[] context) {
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+
+    if (!Safe.isTypeSeed(type)) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
+
+    byte[] seed = requireKey(index);
+    byte[] master = deriveMasterFromSeed(seed, LibMonoid001.MASTER_KEY_LABEL);
+
+    return deriveMonoid001PublicKeyFromMaster(master, context);
+  }
+
+  public byte[] getMonoid001PublicKeyFromMaster(byte[] index, byte[] context) {
+    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+
+    if (!Safe.isTypeMaster(type)) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
+
+    byte[] master = requireKey(index);
+
+    if (master.length != LibMonoid001.MASTER_LENGTH) {
+      KeystoreException.throwIt(KeystoreException.REASON_UNSUPPORTED_MASTER_LENGTH);
+      return null;
+    }
+
+    return deriveMonoid001PublicKeyFromMaster(master, context);
+  }
+
   public byte[] getWeierstrassKeyPublicKey(byte[] index) {
     return getWeierstrassKeyPublicKey(index, null);
   }
@@ -167,14 +199,22 @@ public final class Keystore {
     }
   }
 
-  public byte[] signECDSADigest(byte[] index, byte[] curveName, byte[] path, byte[] digest)
-    throws KeystoreException, CurveException, SignerException {
+  public byte[] signECDSADigest(
+    byte[] index,
+    byte[] curveName,
+    byte[] path,
+    byte[] context,
+    byte[] digest
+  ) throws KeystoreException, CurveException, SignerException {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     byte[] key = requireKey(index);
 
     if (Safe.isTypeSeed(type)) {
-      byte[] master = deriveMasterFromSeed(key, LibBIP32.MASTER_KEY_LABEL);
+      byte[] master = deriveMasterFromSeed(
+        key,
+        context == null ? LibBIP32.MASTER_KEY_LABEL : LibMonoid001.MASTER_KEY_LABEL
+      );
 
       type = Safe.TYPE_MASTER;
       key = master;
@@ -189,7 +229,7 @@ public final class Keystore {
       }
 
       curve = WeierstrassCurve.requireSharedCurve(curveName);
-      key = LibBIP32.derive(curve, key, path);
+      key = context == null ? LibBIP32.derive(curve, key, path) : LibMonoid001.derive(key, context);
       type = Safe.TYPE_WEIERSTRASS;
     }
 
@@ -355,6 +395,12 @@ public final class Keystore {
     Util.arrayCopyNonAtomic(master, keyLength, data, (short) publicKey.length, keyLength);
 
     return data;
+  }
+
+  private byte[] deriveMonoid001PublicKeyFromMaster(byte[] master, byte[] context) {
+    byte[] key = LibMonoid001.derive(master, context);
+
+    return derivePublicKey(WeierstrassCurve.secp256r1, key, null);
   }
 
   private byte[] derivePublicKey(WeierstrassCurve curve, byte[] key, byte[] taprootMerkleRoot) {

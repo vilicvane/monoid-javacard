@@ -424,7 +424,9 @@ type KeySECP256r1 = {
   | {
       type: 'seed' | 'master';
       derivation: {
-        type: 'monoid-p256-v1';
+        /** Monoid-001; master is its 64-byte HKDF PRK. */
+        type: 'monoid-001';
+        /** Opaque bytes; empty context is valid. */
         context: byte[];
       };
     }
@@ -438,6 +440,8 @@ type Taproot = {
   merkleRoot?: byte[];
 };
 ```
+
+[Monoid-001 specification](doc/monoid-001.md)
 
 #### `0x40` View key
 

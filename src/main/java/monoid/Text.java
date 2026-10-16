@@ -10,6 +10,7 @@ public class Text {
   public static final byte[] cipher = {'c','i','p','h','e','r'};
   public static final byte[] ciphers = {'c','i','p','h','e','r','s'};
   public static final byte[] code = {'c','o','d','e'};
+  public static final byte[] context = {'c','o','n','t','e','x','t'};
   public static final byte[] curve = {'c','u','r','v','e'};
   public static final byte[] curves = {'c','u','r','v','e','s'};
   public static final byte[] data = {'d','a','t','a'};

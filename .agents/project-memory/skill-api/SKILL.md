@@ -5,7 +5,13 @@ description: Monoid Java Card API approval rules, project scope, and transparent
 
 # Monoid Java Card API decisions
 
-Source: `../records.md`, records 1–3, 6–10, 17–40, 42, 45–61, 63–65 and 67–108. Treat `records.md` and its numbered references as authoritative; keep them up to date when maintaining this snapshot.
+Source: `../records.md`, records 1–3, 6–10, 17–40, 42, 45–61, 63–65 and 67–110. Treat `records.md` and its numbered references as authoritative; keep them up to date when maintaining this snapshot.
+
+- Record 110 supersedes the provisional custom-KDF name and unsettled algorithm below: the user approved Monoid-001 and implementation. API monoid-001 accepts seed/master plus opaque context. SHA512 HKDF-Extract with ASCII("Monoid-001") as salt produces a 64B master PRK; stored masters skip Extract. Expand info is that label || 00 || context || retry-byte, L=32, retry=0..255; accept only 1..P256.n-1, otherwise fail after exhaustion. ViewKey returns publicKey only; Sign permits ECDSA digest32. No path/curve override, Taproot or independent-key derivation. Keystore owns master generation and LibMonoid001 owns context derivation. Exact rules, source semantics and validation are recorded in 110.
+
+- Record 110 validation: 170 simulator tests and production/isolated CAP conversion checks passed. Physical card 55690320 passed 8 groups with 11 independently verified signatures, including 9 Monoid-001 signatures and BIP32/SLIP-0010 regressions, plus cold-reset authorization/data recovery. Temporary packages were removed and original registry/SELECT/Hello baseline preserved. Ordinary complete Monoid-001 signing commands measured about 1.52–1.59 seconds; this is not an isolated derivation benchmark. No official applet was updated.
+
+- Record 109 separates the general Monoid-001 specification identifier (API monoid-001) from its descriptive title; there is no separate derivation-specific sequence. The user subsequently approved the naming and implementation in record 110. A scheme identifier fixes input interpretation and deterministic outputs; document revisions and conforming implementation changes are separate.
 
 - Record 108's approved follow-up moves monoid-p256-v1/context to a required derivation branch for seed/master, leaving independent secp256r1 direct-only. README is updated. Seed and its corresponding saved master must yield identical contextual keys; the profile must define master generation/representation, and arbitrary HD masters are not implicitly interchangeable. No custom KDF implementation exists yet; its request is rejected until that algorithm is defined and implemented.
 
