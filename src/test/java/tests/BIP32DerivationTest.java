@@ -1,24 +1,30 @@
 package tests;
 
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
+import monoid.BIP32Derivation;
 import monoid.CurveException;
-import monoid.LibBIP32;
+import monoid.KeyDerivation;
 import monoid.WeierstrassCurve;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class LibBIP32Test {
+public class BIP32DerivationTest {
+
+  private BIP32Derivation derivation;
 
   @BeforeEach
   public void initialize() {
     CurveException.init();
     WeierstrassCurve.init();
+    KeyDerivation.init();
+    derivation = new BIP32Derivation();
   }
 
   @AfterEach
   public void dispose() {
+    KeyDerivation.dispose();
     WeierstrassCurve.dispose();
     CurveException.dispose();
   }
@@ -35,14 +41,14 @@ public class LibBIP32Test {
       Hex.decode("80000000"),
     }) {
       CurveException exception = Assertions.assertThrows(CurveException.class, () ->
-        LibBIP32.derive(WeierstrassCurve.secp256r1, master, path)
+        derivation.derive(WeierstrassCurve.secp256r1, master, path)
       );
 
       Assertions.assertEquals(CurveException.REASON_UNSUPPORTED_CURVE, exception.getReason());
       Assertions.assertArrayEquals(original, master);
     }
 
-    byte[] derived = LibBIP32.derive(WeierstrassCurve.secp256k1, master, new byte[0]);
+    byte[] derived = derivation.derive(WeierstrassCurve.secp256k1, master, new byte[0]);
 
     Assertions.assertArrayEquals(original, derived);
     Assertions.assertNotSame(master, derived);

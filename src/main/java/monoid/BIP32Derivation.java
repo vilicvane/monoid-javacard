@@ -4,7 +4,7 @@ import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.ECPrivateKey;
 
-public final class LibBIP32 {
+public final class BIP32Derivation extends KeyDerivation {
 
   // @formatter:off
   public static final byte[] NAME = {'b','i','p','3','2'};
@@ -14,11 +14,18 @@ public final class LibBIP32 {
   public static final byte COMPONENT_LENGTH = 32;
   public static final byte PATH_SEGMENT_LENGTH = 4;
 
-  public static byte[] derive(WeierstrassCurve curve, byte[] privateKeyAndChainCode, byte[] path) {
+  public byte[] derive(WeierstrassCurve curve, byte[] privateKeyAndChainCode, byte[] path) {
     if (!(curve instanceof CurveSECP256k1)) {
       CurveException.throwIt(CurveException.REASON_UNSUPPORTED_CURVE);
       return null;
     }
+
+    return derive(privateKeyAndChainCode, path);
+  }
+
+  @Override
+  protected byte[] deriveKey(byte[] privateKeyAndChainCode, byte[] path) {
+    WeierstrassCurve curve = WeierstrassCurve.secp256k1;
 
     privateKeyAndChainCode = Utils.duplicateAsTransientDeselect(privateKeyAndChainCode);
 
@@ -56,7 +63,7 @@ public final class LibBIP32 {
     return privateKeyAndChainCode;
   }
 
-  private static short deriveChildKeyInPlace(
+  private short deriveChildKeyInPlace(
     WeierstrassCurve curve,
     byte[] privateKeyAndChainCode,
     byte[] path,
@@ -143,7 +150,7 @@ public final class LibBIP32 {
     return (short) (pathSegmentOffset + PATH_SEGMENT_LENGTH);
   }
 
-  private static boolean isHardened(byte[] path, short indexOffset) {
+  private boolean isHardened(byte[] path, short indexOffset) {
     return (path[indexOffset] & (byte) 0x80) == (byte) 0x80;
   }
 }

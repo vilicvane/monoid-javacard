@@ -12,14 +12,15 @@ import javacard.security.Signature;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import monoid.CurveSECP256r1;
+import monoid.KeyDerivation;
 import monoid.LibHMACSha512;
-import monoid.LibMonoid001;
+import monoid.Monoid001Derivation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class LibMonoid001Test {
+public class Monoid001DerivationTest {
 
   private static final byte[] MASTER = Hex.decode(
     "088cd0290439e4f44a9ce20c88c5c0fe01003700a6ab01da261eb736f31ef6ff6acd" +
@@ -27,13 +28,18 @@ public class LibMonoid001Test {
   );
   private static final byte[] CONTEXT = Hex.decode("007f80ff0001");
 
+  private Monoid001Derivation derivation;
+
   @BeforeEach
   public void initialize() {
     LibHMACSha512.init();
+    KeyDerivation.init();
+    derivation = new Monoid001Derivation();
   }
 
   @AfterEach
   public void dispose() {
+    KeyDerivation.dispose();
     LibHMACSha512.dispose();
   }
 
@@ -65,7 +71,7 @@ public class LibMonoid001Test {
       new byte[][] { new byte[32], CurveSECP256r1.R.clone(), largest, lastScalar }
     );
 
-    Assertions.assertArrayEquals(lastScalar, LibMonoid001.derive(MASTER.clone(), CONTEXT.clone()));
+    Assertions.assertArrayEquals(lastScalar, derivation.derive(MASTER.clone(), CONTEXT.clone()));
     Assertions.assertEquals(4, signature.calls);
   }
 
@@ -75,7 +81,7 @@ public class LibMonoid001Test {
     one[31] = 1;
     CandidateSignature signature = useCandidates(new byte[][] { one });
 
-    Assertions.assertArrayEquals(one, LibMonoid001.derive(MASTER.clone(), CONTEXT.clone()));
+    Assertions.assertArrayEquals(one, derivation.derive(MASTER.clone(), CONTEXT.clone()));
     Assertions.assertEquals(1, signature.calls);
   }
 
@@ -87,7 +93,7 @@ public class LibMonoid001Test {
 
     Assertions.assertArrayEquals(
       candidates[255],
-      LibMonoid001.derive(MASTER.clone(), CONTEXT.clone())
+      derivation.derive(MASTER.clone(), CONTEXT.clone())
     );
     Assertions.assertEquals(256, signature.calls);
   }
@@ -98,7 +104,7 @@ public class LibMonoid001Test {
     byte[] master = MASTER.clone();
     byte[] context = CONTEXT.clone();
     CryptoException exception = Assertions.assertThrows(CryptoException.class, () ->
-      LibMonoid001.derive(master, context)
+      derivation.derive(master, context)
     );
 
     Assertions.assertEquals(CryptoException.ILLEGAL_USE, exception.getReason());
@@ -110,13 +116,13 @@ public class LibMonoid001Test {
   private void checkVectors() throws Exception {
     Assertions.assertArrayEquals(
       "monoid-001".getBytes(StandardCharsets.US_ASCII),
-      LibMonoid001.NAME
+      Monoid001Derivation.NAME
     );
     Assertions.assertArrayEquals(
       "Monoid-001".getBytes(StandardCharsets.US_ASCII),
-      LibMonoid001.MASTER_KEY_LABEL
+      Monoid001Derivation.MASTER_KEY_LABEL
     );
-    Assertions.assertEquals(64, LibMonoid001.MASTER_LENGTH);
+    Assertions.assertEquals(64, Monoid001Derivation.MASTER_LENGTH);
 
     Mac extract = Mac.getInstance("HmacSHA512");
     extract.init(new SecretKeySpec("Monoid-001".getBytes(StandardCharsets.US_ASCII), "HmacSHA512"));
@@ -142,8 +148,8 @@ public class LibMonoid001Test {
       byte[] expected = Hex.decode(vector[1]);
 
       Assertions.assertArrayEquals(expected, deriveReference(master, context));
-      Assertions.assertArrayEquals(expected, LibMonoid001.derive(master, context));
-      Assertions.assertArrayEquals(expected, LibMonoid001.derive(master, context));
+      Assertions.assertArrayEquals(expected, derivation.derive(master, context));
+      Assertions.assertArrayEquals(expected, derivation.derive(master, context));
       Assertions.assertArrayEquals(MASTER, master);
       Assertions.assertArrayEquals(originalContext, context);
     }
@@ -153,7 +159,7 @@ public class LibMonoid001Test {
     byte[] expected = deriveReference(changedMaster, CONTEXT);
 
     Assertions.assertFalse(Arrays.equals(deriveReference(MASTER, CONTEXT), expected));
-    Assertions.assertArrayEquals(expected, LibMonoid001.derive(changedMaster, CONTEXT.clone()));
+    Assertions.assertArrayEquals(expected, derivation.derive(changedMaster, CONTEXT.clone()));
   }
 
   private static byte[] deriveReference(byte[] master, byte[] context) throws Exception {

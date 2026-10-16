@@ -57,6 +57,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     WeierstrassCurve.init();
     EdwardsCurve.init();
     LibHMACSha512.init();
+    KeyDerivation.init();
 
     Command.init();
 
@@ -106,6 +107,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     WeierstrassCurve.dispose();
     EdwardsCurve.dispose();
     LibHMACSha512.dispose();
+    KeyDerivation.dispose();
 
     Command.dispose();
 

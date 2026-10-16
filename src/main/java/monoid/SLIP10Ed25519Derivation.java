@@ -6,7 +6,7 @@ import javacard.framework.JCSystem;
 import javacard.framework.Util;
 
 /** SLIP-0010 hardened Ed25519 derivation. Initialize LibHMACSha512 before use. */
-public final class LibSLIP10Ed25519 {
+public final class SLIP10Ed25519Derivation extends KeyDerivation {
 
   // @formatter:off
   public static final byte[] NAME = {'s','l','i','p','1','0'};
@@ -19,20 +19,12 @@ public final class LibSLIP10Ed25519 {
 
   /**
    * Derives from a 64-byte master containing an Ed25519 seed and its chain code.
-   * Writes the derived 32-byte Ed25519 seed followed by its 32-byte chain code.
+   * Returns the derived 32-byte Ed25519 seed followed by its 32-byte chain code.
    * Path components are big-endian hardened indices; an empty path selects the master.
-   * Workspace size is independent of depth. Output may overlap master or path.
+   * Workspace size is independent of depth. Inputs remain unchanged.
    */
-  public static short derive(
-    byte[] master,
-    short masterOffset,
-    short masterLength,
-    byte[] path,
-    short pathOffset,
-    short pathLength,
-    byte[] out,
-    short outOffset
-  ) {
+  @Override
+  protected byte[] deriveKey(byte[] master, byte[] path) {
     byte[] extendedKey = JCSystem.makeTransientByteArray(
       EXTENDED_KEY_LENGTH,
       JCSystem.CLEAR_ON_DESELECT
@@ -46,32 +38,26 @@ public final class LibSLIP10Ed25519 {
       JCSystem.CLEAR_ON_DESELECT
     );
 
-    if (masterLength != EXTENDED_KEY_LENGTH || pathLength % PATH_SEGMENT_LENGTH != 0) {
+    if (master.length != EXTENDED_KEY_LENGTH || path.length % PATH_SEGMENT_LENGTH != 0) {
       ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
     }
 
-    requireRange(master, masterOffset, masterLength);
-    requireRange(path, pathOffset, pathLength);
-    requireRange(out, outOffset, EXTENDED_KEY_LENGTH);
-
-    for (short offset = 0; offset < pathLength; offset += PATH_SEGMENT_LENGTH) {
-      if ((path[(short) (pathOffset + offset)] & (byte) 0x80) == 0) {
+    for (short offset = 0; offset < path.length; offset += PATH_SEGMENT_LENGTH) {
+      if ((path[offset] & (byte) 0x80) == 0) {
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
       }
     }
 
-    Util.arrayCopyNonAtomic(master, masterOffset, extendedKey, (short) 0, EXTENDED_KEY_LENGTH);
+    Util.arrayCopyNonAtomic(master, (short) 0, extendedKey, (short) 0, EXTENDED_KEY_LENGTH);
 
-    for (short offset = 0; offset < pathLength; offset += PATH_SEGMENT_LENGTH) {
-      deriveChildKeyInPlace(extendedKey, path, (short) (pathOffset + offset), data, block);
+    for (short offset = 0; offset < path.length; offset += PATH_SEGMENT_LENGTH) {
+      deriveChildKeyInPlace(extendedKey, path, offset, data, block);
     }
 
-    Util.arrayCopyNonAtomic(extendedKey, (short) 0, out, outOffset, EXTENDED_KEY_LENGTH);
-
-    return EXTENDED_KEY_LENGTH;
+    return extendedKey;
   }
 
-  private static void deriveChildKeyInPlace(
+  private void deriveChildKeyInPlace(
     byte[] extendedKey,
     byte[] path,
     short pathSegmentOffset,
@@ -99,16 +85,5 @@ public final class LibSLIP10Ed25519 {
       (short) 0,
       block
     );
-  }
-
-  private static void requireRange(byte[] buffer, short offset, short length) {
-    if (
-      offset < 0 ||
-      length < 0 ||
-      length > buffer.length ||
-      offset > (short) (buffer.length - length)
-    ) {
-      ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
-    }
   }
 }

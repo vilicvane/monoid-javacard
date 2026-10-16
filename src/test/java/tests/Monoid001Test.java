@@ -312,6 +312,61 @@ public class Monoid001Test extends AppletTest {
     assertPublicKey(transmit(0x40, keyRequest(index, "seed", context, null)), expected);
   }
 
+  @Test
+  public void updatingSourceDataAtTheSameIndexChangesTheDerivedKey() throws Exception {
+    byte[] context = Hex.decode("0102030405");
+
+    for (String type : new String[] { "seed", "master" }) {
+      byte[] source = type.equals("seed") ? SEED.clone() : hmac(SALT, SEED);
+      byte[] index = create(type, source);
+      byte[] master = type.equals("seed") ? hmac(SALT, source) : source;
+      byte[] original = publicKey(master, context);
+      assertPublicKey(transmit(0x40, keyRequest(index, type, context, null)), original);
+      assertPublicKey(transmit(0x40, keyRequest(index, type, context, null)), original);
+
+      source[source.length - 1] ^= 1;
+      CBORBufferWriter writer = new CBORBufferWriter();
+      writer.map((short) 2);
+      writer.text("index".getBytes());
+      writer.bytes(index);
+      writer.text("data".getBytes());
+      writer.bytes(source);
+      assertNoError(transmit(0x33, writer.getDataBuffer()));
+
+      master = type.equals("seed") ? hmac(SALT, source) : source;
+      byte[] updated = publicKey(master, context);
+      Assertions.assertFalse(Arrays.equals(original, updated));
+      assertPublicKey(transmit(0x40, keyRequest(index, type, context, null)), updated);
+      assertError(transmit(0x32, itemRequest(index)), MonoidException.CODE_ACCESS_DENIED);
+    }
+  }
+
+  @Test
+  public void deletedSourcesCannotBeUsedThroughTheDerivationCache() throws Exception {
+    byte[] context = Hex.decode("0102030405");
+
+    for (String type : new String[] { "seed", "master" }) {
+      byte[] source = type.equals("seed") ? SEED.clone() : hmac(SALT, SEED);
+      byte[] index = create(type, source);
+      byte[] master = type.equals("seed") ? hmac(SALT, source) : source;
+      assertPublicKey(
+        transmit(0x40, keyRequest(index, type, context, null)),
+        publicKey(master, context)
+      );
+      assertNoError(transmit(0x35, itemRequest(index)));
+
+      for (int instruction : new int[] { 0x40, 0x41 }) {
+        assertError(
+          transmit(
+            instruction,
+            keyRequest(index, type, context, instruction == 0x41 ? "ecdsa" : null)
+          ),
+          MonoidException.CODE_NOT_FOUND
+        );
+      }
+    }
+  }
+
   private byte[] publicKey(byte[] master, byte[] context) throws Exception {
     return SECNamedCurves.getByName("secp256r1")
       .getG()

@@ -5,7 +5,7 @@ import javacard.framework.Util;
 import javacard.security.CryptoException;
 
 /** Monoid-001 HKDF-SHA512 derivation. Initialize LibHMACSha512 before use. */
-public final class LibMonoid001 {
+public final class Monoid001Derivation extends KeyDerivation {
 
   // @formatter:off
   public static final byte[] NAME = {'m','o','n','o','i','d','-','0','0','1'};
@@ -16,7 +16,8 @@ public final class LibMonoid001 {
   private static final short KEY_LENGTH = CurveSECP256r1.KEY_LENGTH;
 
   /** Derives a P-256 scalar from a 64-byte HKDF PRK and opaque context. */
-  public static byte[] derive(byte[] master, byte[] context) {
+  @Override
+  protected byte[] deriveKey(byte[] master, byte[] context) {
     short contextOffset = (short) (MASTER_KEY_LABEL.length + 1);
     short counterOffset = (short) (contextOffset + context.length);
     byte[] data = JCSystem.makeTransientByteArray(

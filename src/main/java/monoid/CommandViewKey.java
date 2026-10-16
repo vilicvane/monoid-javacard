@@ -72,21 +72,21 @@ public final class CommandViewKey extends Command {
     byte[] derivation = reader.requireKey(Text.type).text();
     byte[] curveName;
 
-    if (Utils.isEqual(LibBIP32.NAME, derivation)) {
+    if (Utils.isEqual(BIP32Derivation.NAME, derivation)) {
       if (reader.key(Text.curve)) {
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
         return;
       }
 
       curveName = WeierstrassCurve.SECP256k1;
-    } else if (Utils.isEqual(LibSLIP10Ed25519.NAME, derivation)) {
+    } else if (Utils.isEqual(SLIP10Ed25519Derivation.NAME, derivation)) {
       curveName = reader.requireKey(Text.curve).text();
 
       if (!Utils.isEqual(EdwardsCurve.ED25519, curveName)) {
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
         return;
       }
-    } else if (Utils.isEqual(LibMonoid001.NAME, derivation)) {
+    } else if (Utils.isEqual(Monoid001Derivation.NAME, derivation)) {
       if (hasTaproot || reader.key(Text.curve) || reader.key(Text.path)) {
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
         return;

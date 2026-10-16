@@ -10,10 +10,11 @@ import java.util.List;
 import javacard.framework.ISOException;
 import monoid.CurveED25519;
 import monoid.ED25519Key;
+import monoid.KeyDerivation;
 import monoid.LibED25519;
 import monoid.LibHMACSha512;
 import monoid.LibMath;
-import monoid.LibSLIP10Ed25519;
+import monoid.SLIP10Ed25519Derivation;
 import monoid.Signer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -28,6 +29,7 @@ public class LibED25519Test {
   public void initialize() {
     System.setProperty("com.licel.jcardsim.bouncycastle.rsa.allow_unsafe_mod", "true");
     LibMath.init();
+    KeyDerivation.init();
     curve = new CurveED25519();
   }
 
@@ -37,6 +39,7 @@ public class LibED25519Test {
       curve.clear();
     }
 
+    KeyDerivation.dispose();
     LibMath.dispose();
   }
 
@@ -100,7 +103,7 @@ public class LibED25519Test {
   public void slip10SolanaDerivationAndSignature() throws Exception {
     String[] vector = requireVector("Solana");
     byte[] path = Hex.decode(vector[2]);
-    byte[] extendedKey = new byte[64];
+    byte[] extendedKey;
 
     LibHMACSha512.init();
 
@@ -110,16 +113,7 @@ public class LibED25519Test {
         Hex.decode(vector[1])
       );
 
-      LibSLIP10Ed25519.derive(
-        master,
-        (short) 0,
-        (short) master.length,
-        path,
-        (short) 0,
-        (short) path.length,
-        extendedKey,
-        (short) 0
-      );
+      extendedKey = new SLIP10Ed25519Derivation().derive(master, path);
     } finally {
       LibHMACSha512.dispose();
     }

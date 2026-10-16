@@ -10,15 +10,23 @@ public final class Keystore {
 
   public static final byte SEED_512_LENGTH = 64;
 
-  public static final byte MASTER_LENGTH = LibBIP32.COMPONENT_LENGTH * 2;
+  public static final byte MASTER_LENGTH = BIP32Derivation.COMPONENT_LENGTH * 2;
   public static final byte MASTER_PRIVATE_KEY_OFFSET = SafeShareable.INDEX_LENGTH;
   public static final byte MASTER_CHAIN_CODE_OFFSET =
-    MASTER_PRIVATE_KEY_OFFSET + LibBIP32.COMPONENT_LENGTH;
+    MASTER_PRIVATE_KEY_OFFSET + BIP32Derivation.COMPONENT_LENGTH;
 
   private Safe safe;
 
+  private BIP32Derivation bip32;
+  private SLIP10Ed25519Derivation slip10Ed25519;
+  private Monoid001Derivation monoid001;
+
   public Keystore(Safe safe) {
     this.safe = safe;
+
+    bip32 = new BIP32Derivation();
+    slip10Ed25519 = new SLIP10Ed25519Derivation();
+    monoid001 = new Monoid001Derivation();
   }
 
   public byte[] getBIP32PublicKeyAndChainCodeFromSeed(
@@ -44,7 +52,7 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    byte[] master = deriveMasterFromSeed(key, LibBIP32.MASTER_KEY_LABEL);
+    byte[] master = deriveMasterFromSeed(key, BIP32Derivation.MASTER_KEY_LABEL);
 
     return deriveBIP32PublicKeyAndChainCodeFromMaster(curve, master, path, taprootMerkleRoot);
   }
@@ -89,7 +97,7 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    byte[] master = deriveMasterFromSeed(key, LibSLIP10Ed25519.MASTER_KEY_LABEL);
+    byte[] master = deriveMasterFromSeed(key, SLIP10Ed25519Derivation.MASTER_KEY_LABEL);
 
     return deriveSLIP10Ed25519PublicKeyAndChainCodeFromMaster(curve, master, path);
   }
@@ -120,7 +128,7 @@ public final class Keystore {
     }
 
     byte[] seed = requireKey(index);
-    byte[] master = deriveMasterFromSeed(seed, LibMonoid001.MASTER_KEY_LABEL);
+    byte[] master = deriveMasterFromSeed(seed, Monoid001Derivation.MASTER_KEY_LABEL);
 
     return deriveMonoid001PublicKeyFromMaster(master, context);
   }
@@ -135,7 +143,7 @@ public final class Keystore {
 
     byte[] master = requireKey(index);
 
-    if (master.length != LibMonoid001.MASTER_LENGTH) {
+    if (master.length != Monoid001Derivation.MASTER_LENGTH) {
       KeystoreException.throwIt(KeystoreException.REASON_UNSUPPORTED_MASTER_LENGTH);
       return null;
     }
@@ -213,7 +221,7 @@ public final class Keystore {
     if (Safe.isTypeSeed(type)) {
       byte[] master = deriveMasterFromSeed(
         key,
-        context == null ? LibBIP32.MASTER_KEY_LABEL : LibMonoid001.MASTER_KEY_LABEL
+        context == null ? BIP32Derivation.MASTER_KEY_LABEL : Monoid001Derivation.MASTER_KEY_LABEL
       );
 
       type = Safe.TYPE_MASTER;
@@ -229,7 +237,7 @@ public final class Keystore {
       }
 
       curve = WeierstrassCurve.requireSharedCurve(curveName);
-      key = context == null ? LibBIP32.derive(curve, key, path) : LibMonoid001.derive(key, context);
+      key = context == null ? bip32.derive(curve, key, path) : monoid001.derive(key, context);
       type = Safe.TYPE_WEIERSTRASS;
     }
 
@@ -274,7 +282,7 @@ public final class Keystore {
     byte[] key = requireKey(index);
 
     if (Safe.isTypeSeed(type)) {
-      key = deriveMasterFromSeed(key, LibSLIP10Ed25519.MASTER_KEY_LABEL);
+      key = deriveMasterFromSeed(key, SLIP10Ed25519Derivation.MASTER_KEY_LABEL);
       type = Safe.TYPE_MASTER;
     }
 
@@ -288,16 +296,7 @@ public final class Keystore {
 
       curve = EdwardsCurve.requireSharedCurve(curveName);
 
-      LibSLIP10Ed25519.derive(
-        key,
-        (short) 0,
-        (short) key.length,
-        path,
-        (short) 0,
-        (short) path.length,
-        key,
-        (short) 0
-      );
+      key = slip10Ed25519.derive(key, path);
     } else if (type == Safe.TYPE_EDWARDS_ED25519 && key.length == CurveED25519.KEY_LENGTH) {
       curve = EdwardsCurve.ed25519;
     } else {
@@ -326,20 +325,20 @@ public final class Keystore {
     byte[] key = requireKey(index);
 
     if (Safe.isTypeSeed(type)) {
-      key = deriveMasterFromSeed(key, LibBIP32.MASTER_KEY_LABEL);
+      key = deriveMasterFromSeed(key, BIP32Derivation.MASTER_KEY_LABEL);
       type = Safe.TYPE_MASTER;
     }
 
     WeierstrassCurve curve;
 
     if (Safe.isTypeMaster(type)) {
-      if (key.length != MASTER_LENGTH || path.length % LibBIP32.PATH_SEGMENT_LENGTH != 0) {
+      if (key.length != MASTER_LENGTH || path.length % BIP32Derivation.PATH_SEGMENT_LENGTH != 0) {
         KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
         return null;
       }
 
       curve = WeierstrassCurve.requireSharedCurve(curveName);
-      key = LibBIP32.derive(curve, key, path);
+      key = bip32.derive(curve, key, path);
     } else if (type == Safe.TYPE_WEIERSTRASS_SECP256K1 && key.length == CurveSECP256k1.KEY_LENGTH) {
       curve = WeierstrassCurve.secp256k1;
     } else {
@@ -372,13 +371,13 @@ public final class Keystore {
   ) {
     if (
       taprootMerkleRoot != null &&
-      (master.length != MASTER_LENGTH || path.length % LibBIP32.PATH_SEGMENT_LENGTH != 0)
+      (master.length != MASTER_LENGTH || path.length % BIP32Derivation.PATH_SEGMENT_LENGTH != 0)
     ) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
       return null;
     }
 
-    master = LibBIP32.derive(curve, master, path);
+    master = bip32.derive(curve, master, path);
 
     byte[] publicKey = derivePublicKey(curve, master, taprootMerkleRoot);
 
@@ -398,7 +397,7 @@ public final class Keystore {
   }
 
   private byte[] deriveMonoid001PublicKeyFromMaster(byte[] master, byte[] context) {
-    byte[] key = LibMonoid001.derive(master, context);
+    byte[] key = monoid001.derive(master, context);
 
     return derivePublicKey(WeierstrassCurve.secp256r1, key, null);
   }
@@ -451,16 +450,7 @@ public final class Keystore {
     byte[] master,
     byte[] path
   ) {
-    LibSLIP10Ed25519.derive(
-      master,
-      (short) 0,
-      (short) master.length,
-      path,
-      (short) 0,
-      (short) path.length,
-      master,
-      (short) 0
-    );
+    master = slip10Ed25519.derive(master, path);
     ED25519Key privateKey = curve.getSharedPrivateKey(master, (short) 0);
 
     try {
