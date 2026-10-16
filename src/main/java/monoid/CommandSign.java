@@ -16,27 +16,67 @@ public class CommandSign extends Command {
     Keystore keystore = MonoidApplet.keystore;
 
     reader.map();
+    reader.snapshot();
 
     byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
 
-    byte[] seed = null;
     byte[] curve = null;
     byte[] path = null;
 
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+    short declaredType = Safe.type(reader.requireKey(Text.type));
+
+    if (
+      declaredType !=
+        (Safe.isTypeSeed(type) || Safe.isTypeMaster(type)
+            ? (short) (type & Safe.TYPE_CATEGORY_MASK)
+            : type) ||
+      reader.key(Text.seed) ||
+      reader.key(Text.curve) ||
+      reader.key(Text.path)
+    ) {
+      MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+      return;
+    }
 
     switch (type & Safe.TYPE_CATEGORY_MASK) {
       case Safe.TYPE_SEED:
-        seed = reader.requireKey(Text.seed).text();
-        curve = reader.requireKey(Text.curve).text();
+      case Safe.TYPE_MASTER: {
+        reader.requireKey(Text.derivation).map();
+
+        byte[] derivation = reader.requireKey(Text.type).text();
+
+        if (Utils.isEqual(LibBIP32.NAME, derivation)) {
+          if (reader.key(Text.curve)) {
+            MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+            return;
+          }
+
+          curve = WeierstrassCurve.SECP256k1;
+        } else if (Utils.isEqual(LibSLIP10Ed25519.NAME, derivation)) {
+          curve = reader.requireKey(Text.curve).text();
+
+          if (!Utils.isEqual(EdwardsCurve.ED25519, curve)) {
+            MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+            return;
+          }
+        } else {
+          MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+          return;
+        }
+
         path = reader.requireKey(Text.path).bytes();
+
+        reader.restore();
         break;
-      case Safe.TYPE_MASTER:
-        curve = reader.requireKey(Text.curve).text();
-        path = reader.requireKey(Text.path).bytes();
-        break;
+      }
       case Safe.TYPE_WEIERSTRASS:
       case Safe.TYPE_EDWARDS:
+        if (reader.key(Text.derivation)) {
+          MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+          return;
+        }
+
         break;
       default:
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
@@ -44,13 +84,15 @@ public class CommandSign extends Command {
     }
 
     byte[] cipher = reader.requireKey(Text.cipher).text();
-    boolean taproot = reader.key(Text.taproot) && (reader.is(CBOR.TYPE_MAP) || reader.bool());
+    boolean hasTaproot = reader.key(Text.taproot);
     byte[] signature;
 
-    if (taproot && !Utils.isEqual(Signer.CIPHER_BIP340, cipher)) {
+    if (hasTaproot && !Utils.isEqual(Signer.CIPHER_BIP340, cipher)) {
       MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
       return;
     }
+
+    boolean taproot = hasTaproot && (reader.is(CBOR.TYPE_MAP) || reader.bool());
 
     if (Utils.isEqual(Signer.CIPHER_ECDSA, cipher)) {
       byte[] digest = reader.requireKey(Text.digest).bytes();
@@ -60,13 +102,12 @@ public class CommandSign extends Command {
         return;
       }
 
-      signature = keystore.signECDSADigest(index, seed, curve, path, digest);
+      signature = keystore.signECDSADigest(index, curve, path, digest);
     } else if (Utils.isEqual(Signer.CIPHER_ED25519, cipher)) {
       short messageLength = reader.requireKey(Text.message).bytesLength();
 
-      signature = keystore.signEDDSAMessage(
+      signature = keystore.signED25519Message(
         index,
-        seed,
         curve,
         path,
         reader,
@@ -91,7 +132,7 @@ public class CommandSign extends Command {
         }
       }
 
-      signature = keystore.signSchnorrDigest(index, seed, curve, path, digest, merkleRoot);
+      signature = keystore.signBIP340Digest(index, curve, path, digest, merkleRoot);
     } else {
       SignerException.throwIt(SignerException.REASON_UNSUPPORTED_CIPHER);
       return;

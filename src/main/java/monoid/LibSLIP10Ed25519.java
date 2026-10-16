@@ -8,6 +8,11 @@ import javacard.framework.Util;
 /** SLIP-0010 hardened Ed25519 derivation. Initialize LibHMACSha512 before use. */
 public final class LibSLIP10Ed25519 {
 
+  // @formatter:off
+  public static final byte[] NAME = {'s','l','i','p','1','0'};
+  public static final byte[] MASTER_KEY_LABEL = {'e','d','2','5','5','1','9',' ','s','e','e','d'};
+  // @formatter:on
+
   public static final short EXTENDED_KEY_LENGTH = 64;
   private static final short KEY_LENGTH = 32;
   private static final short PATH_SEGMENT_LENGTH = 4;

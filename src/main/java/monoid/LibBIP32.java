@@ -6,6 +6,11 @@ import javacard.security.ECPrivateKey;
 
 public final class LibBIP32 {
 
+  // @formatter:off
+  public static final byte[] NAME = {'b','i','p','3','2'};
+  public static final byte[] MASTER_KEY_LABEL = {'B','i','t','c','o','i','n',' ','s','e','e','d'};
+  // @formatter:on
+
   public static final byte COMPONENT_LENGTH = 32;
   public static final byte PATH_SEGMENT_LENGTH = 4;
 

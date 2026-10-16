@@ -22,7 +22,6 @@ import javax.smartcardio.ResponseAPDU;
 import monoid.CBORBufferReader;
 import monoid.CBORBufferWriter;
 import monoid.Command;
-import monoid.CurveException;
 import monoid.MonoidApplet;
 import monoid.MonoidException;
 import monoid.Safe;
@@ -623,19 +622,15 @@ public class MonoidAppletTest extends AppletTest {
     {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 4);
+      writer.map((short) 3);
       {
         writer.text("index".getBytes());
         writer.bytes(TEST_SEED_INDEX);
 
-        writer.text("curve".getBytes());
-        writer.text("secp256k1".getBytes());
-
+        writer.text("type".getBytes());
         writer.text("seed".getBytes());
-        writer.text("Bitcoin seed".getBytes());
 
-        writer.text("path".getBytes());
-        writer.bytes(TEST_PATH);
+        writeDerivation(writer, false, TEST_PATH);
       }
 
       CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
@@ -667,11 +662,10 @@ public class MonoidAppletTest extends AppletTest {
         writer.text("index".getBytes());
         writer.bytes(TEST_MASTER_INDEX);
 
-        writer.text("curve".getBytes());
-        writer.text("secp256k1".getBytes());
+        writer.text("type".getBytes());
+        writer.text("master".getBytes());
 
-        writer.text("path".getBytes());
-        writer.bytes(TEST_PATH);
+        writeDerivation(writer, false, TEST_PATH);
       }
 
       CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
@@ -703,7 +697,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.text("index".getBytes());
         writer.bytes(TEST_SECP256K1_KEY_INDEX);
 
-        writer.text("curve".getBytes());
+        writer.text("type".getBytes());
         writer.text("secp256k1".getBytes());
       }
 
@@ -732,7 +726,7 @@ public class MonoidAppletTest extends AppletTest {
         writer.text("index".getBytes());
         writer.bytes(TEST_ED25519_KEY_INDEX);
 
-        writer.text("curve".getBytes());
+        writer.text("type".getBytes());
         writer.text("ed25519".getBytes());
       }
 
@@ -764,19 +758,15 @@ public class MonoidAppletTest extends AppletTest {
     {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 6);
+      writer.map((short) 5);
       {
         writer.text("index".getBytes());
         writer.bytes(TEST_SEED_INDEX);
 
-        writer.text("curve".getBytes());
-        writer.text("secp256k1".getBytes());
-
+        writer.text("type".getBytes());
         writer.text("seed".getBytes());
-        writer.text("Bitcoin seed".getBytes());
 
-        writer.text("path".getBytes());
-        writer.bytes(TEST_PATH);
+        writeDerivation(writer, false, TEST_PATH);
 
         writer.text("cipher".getBytes());
         writer.text("ecdsa".getBytes());
@@ -800,11 +790,10 @@ public class MonoidAppletTest extends AppletTest {
         writer.text("index".getBytes());
         writer.bytes(TEST_MASTER_INDEX);
 
-        writer.text("curve".getBytes());
-        writer.text("secp256k1".getBytes());
+        writer.text("type".getBytes());
+        writer.text("master".getBytes());
 
-        writer.text("path".getBytes());
-        writer.bytes(TEST_PATH);
+        writeDerivation(writer, false, TEST_PATH);
 
         writer.text("cipher".getBytes());
         writer.text("ecdsa".getBytes());
@@ -823,10 +812,13 @@ public class MonoidAppletTest extends AppletTest {
     {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 3);
+      writer.map((short) 4);
       {
         writer.text("index".getBytes());
         writer.bytes(TEST_SECP256K1_KEY_INDEX);
+
+        writer.text("type".getBytes());
+        writer.text("secp256k1".getBytes());
 
         writer.text("cipher".getBytes());
         writer.text("ecdsa".getBytes());
@@ -846,7 +838,7 @@ public class MonoidAppletTest extends AppletTest {
   @Test
   // @inplate-line {{java-test-order}}
   @Order(14)
-  public void signEDDSAMessage() throws Exception {
+  public void signED25519Message() throws Exception {
     byte[][] indices = { TEST_SEED_INDEX, TEST_MASTER_INDEX };
     // Node.js crypto HMAC-SHA512 derivation and Ed25519 signing of 0x72 at m/44'/501'/0'/0'.
     byte[][] signatures = {
@@ -865,19 +857,15 @@ public class MonoidAppletTest extends AppletTest {
     for (int index = 0; index < indices.length; index++) {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 6);
+      writer.map((short) 5);
       {
         writer.text("index".getBytes());
         writer.bytes(indices[index]);
 
-        writer.text("curve".getBytes());
-        writer.text("ed25519".getBytes());
+        writer.text("type".getBytes());
+        writer.text(index == 0 ? "seed".getBytes() : "master".getBytes());
 
-        writer.text("seed".getBytes());
-        writer.text("ed25519 seed".getBytes());
-
-        writer.text("path".getBytes());
-        writer.bytes(Hex.decode("8000002c800001f58000000080000000"));
+        writeDerivation(writer, true, Hex.decode("8000002c800001f58000000080000000"));
 
         writer.text("cipher".getBytes());
         writer.text("ed25519".getBytes());
@@ -923,19 +911,15 @@ public class MonoidAppletTest extends AppletTest {
     for (int index = 0; index < indices.length; index++) {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 4);
+      writer.map((short) 3);
       {
         writer.text("index".getBytes());
         writer.bytes(indices[index]);
 
-        writer.text("curve".getBytes());
-        writer.text("ed25519".getBytes());
+        writer.text("type".getBytes());
+        writer.text(index == 0 ? "seed".getBytes() : "master".getBytes());
 
-        writer.text("seed".getBytes());
-        writer.text("ed25519 seed".getBytes());
-
-        writer.text("path".getBytes());
-        writer.bytes(Hex.decode("8000002c800001f58000000080000000"));
+        writeDerivation(writer, true, Hex.decode("8000002c800001f58000000080000000"));
       }
 
       CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
@@ -1073,12 +1057,12 @@ public class MonoidAppletTest extends AppletTest {
   @Test
   // @inplate-line {{java-test-order}}
   @Order(20)
-  public void signFragmentedEDDSAMessage() throws Exception {
+  public void signFragmentedED25519Message() throws Exception {
     CardManager manager = connect();
 
     authenticate(manager, false);
 
-    int[] messageLengths = { 512, 1167, 4032, 8094, 8112 };
+    int[] messageLengths = { 512, 1167, 4032, 8078, 8076 };
     byte[][] indices = {
       TEST_SEED_INDEX,
       TEST_SEED_INDEX,
@@ -1098,10 +1082,10 @@ public class MonoidAppletTest extends AppletTest {
         "2ec71809c29e321a614eae5db09aba73d8695a2104e8b8ea75ecef82a25a0ed32fcca5eb8cd004251b13e0600eb90fb5cb2fcdc35df3799dd4329b35cae1340c"
       ),
       Hex.decode(
-        "75bdade06aab77ba4cb73fa63f81a07d3873de00ea28370a021487a4e6f33d891694d8b01e79b0a3eb61a17e9df19576921b3b68a32c0fe9b006f25c4e8f090b"
+        "20e1b5301e69803696619d31eefc06a4651ecec9ea773882676cb370f89461117a34fa79b00e3f4abc08b5520df5b02b7feab8799385105730cb37946b28030f"
       ),
       Hex.decode(
-        "fa1aeb49434f62b8804a49d72416ee131ec48a64a1aebfa9bd39406f3ed4c238fc08aaeaea1c243d1ad41ddf255faeb00c5e90c2a7fe73a6d684e50434036b02"
+        "12e3692f50448f2d2fc55af528df23b7b0c5ad1411b4c598c433ba1d42ee064f228eb03155b4b05b8617c2c8f189c11d837e67ebecbfc0b6f2805221008ee804"
       ),
     };
 
@@ -1115,7 +1099,7 @@ public class MonoidAppletTest extends AppletTest {
 
       for (boolean messageFirst : new boolean[] { false, true }) {
         CBORBufferWriter writer = new CBORBufferWriter();
-        writer.map((short) (seed ? 6 : 5));
+        writer.map((short) 5);
         {
           if (messageFirst) {
             writer.text("message".getBytes());
@@ -1124,16 +1108,9 @@ public class MonoidAppletTest extends AppletTest {
 
           writer.text("index".getBytes());
           writer.bytes(indices[index]);
-          writer.text("curve".getBytes());
-          writer.text("ed25519".getBytes());
-
-          if (seed) {
-            writer.text("seed".getBytes());
-            writer.text("ed25519 seed".getBytes());
-          }
-
-          writer.text("path".getBytes());
-          writer.bytes(Hex.decode("8000002c800001f58000000080000000"));
+          writer.text("type".getBytes());
+          writer.text(seed ? "seed".getBytes() : "master".getBytes());
+          writeDerivation(writer, true, Hex.decode("8000002c800001f58000000080000000"));
           writer.text("cipher".getBytes());
           writer.text("ed25519".getBytes());
 
@@ -1145,7 +1122,7 @@ public class MonoidAppletTest extends AppletTest {
 
         byte[] request = writer.getDataBuffer();
 
-        if (message.length >= 8094) {
+        if (message.length >= 8076) {
           Assertions.assertEquals(8192, request.length);
         }
 
@@ -1466,9 +1443,11 @@ public class MonoidAppletTest extends AppletTest {
     try {
       for (boolean ecdsa : new boolean[] { false, true }) {
         writer.reset();
-        writer.map((short) 3);
+        writer.map((short) 4);
         writer.text("index".getBytes());
         writer.bytes(ecdsa ? index : TEST_SECP256K1_KEY_INDEX);
+        writer.text("type".getBytes());
+        writer.text(ecdsa ? "ed25519".getBytes() : "secp256k1".getBytes());
         writer.text("cipher".getBytes());
         writer.text(ecdsa ? "ecdsa".getBytes() : "ed25519".getBytes());
         writer.text(ecdsa ? "digest".getBytes() : "message".getBytes());
@@ -1626,9 +1605,11 @@ public class MonoidAppletTest extends AppletTest {
     try {
       for (String cipher : new String[] { "ed25519", "bip340" }) {
         CBORBufferWriter writer = new CBORBufferWriter();
-        writer.map((short) 3);
+        writer.map((short) 4);
         writer.text("index".getBytes());
         writer.bytes(index);
+        writer.text("type".getBytes());
+        writer.text("secp256r1".getBytes());
         writer.text("cipher".getBytes());
         writer.text(cipher.getBytes());
         writer.text(cipher.equals("ed25519") ? "message".getBytes() : "digest".getBytes());
@@ -1640,11 +1621,13 @@ public class MonoidAppletTest extends AppletTest {
       }
 
       for (int instruction : new int[] { 0x40, 0x41 }) {
-        for (int mode = 0; mode < 3; mode++) {
+        for (int mode = 0; mode < 4; mode++) {
           CBORBufferWriter writer = new CBORBufferWriter();
-          writer.map((short) (instruction == 0x41 ? 4 : 2));
+          writer.map((short) (instruction == 0x41 ? 5 : 3));
           writer.text("index".getBytes());
           writer.bytes(index);
+          writer.text("type".getBytes());
+          writer.text("secp256r1".getBytes());
 
           if (instruction == 0x41) {
             writer.text("cipher".getBytes());
@@ -1655,12 +1638,12 @@ public class MonoidAppletTest extends AppletTest {
 
           writer.text("taproot".getBytes());
 
-          if (mode == 0) {
-            writer.bool(true);
+          if (mode < 2) {
+            writer.bool(mode == 1);
           } else {
-            writer.map((short) (mode == 1 ? 0 : 1));
+            writer.map((short) (mode == 2 ? 0 : 1));
 
-            if (mode == 2) {
+            if (mode == 3) {
               writer.text("merkleRoot".getBytes());
               writer.bytes(new byte[32]);
             }
@@ -1668,9 +1651,7 @@ public class MonoidAppletTest extends AppletTest {
 
           assertError(
             manager.transmit(apdu(0, instruction, 0, 0, writer.getDataBuffer())),
-            instruction == 0x40
-              ? CurveException.CODE_UNSUPPORTED_CURVE
-              : MonoidException.CODE_INVALID_PARAMETER
+            MonoidException.CODE_INVALID_PARAMETER
           );
         }
       }
@@ -1693,9 +1674,11 @@ public class MonoidAppletTest extends AppletTest {
       );
 
       CBORBufferWriter writer = new CBORBufferWriter();
-      writer.map((short) 3);
+      writer.map((short) 4);
       writer.text("index".getBytes());
       writer.bytes(TEST_ED25519_KEY_INDEX);
+      writer.text("type".getBytes());
+      writer.text("ed25519".getBytes());
       writer.text("cipher".getBytes());
       writer.text("ed25519".getBytes());
       writer.text("message".getBytes());
@@ -1729,13 +1712,17 @@ public class MonoidAppletTest extends AppletTest {
       for (byte[] path : new byte[][] { new byte[0], TEST_PATH }) {
         for (int instruction : new int[] { 0x40, 0x41 }) {
           CBORBufferWriter writer = new CBORBufferWriter();
-          writer.map((short) (instruction == 0x41 ? 6 : 4));
+          writer.map((short) (instruction == 0x41 ? 5 : 3));
           writer.text("index".getBytes());
           writer.bytes(index);
+          writer.text("type".getBytes());
+          writer.text(index == TEST_SEED_INDEX ? "seed".getBytes() : "master".getBytes());
+          writer.text("derivation".getBytes());
+          writer.map((short) 3);
+          writer.text("type".getBytes());
+          writer.text("slip10".getBytes());
           writer.text("curve".getBytes());
           writer.text("secp256r1".getBytes());
-          writer.text("seed".getBytes());
-          writer.text("Bitcoin seed".getBytes());
           writer.text("path".getBytes());
           writer.bytes(path);
 
@@ -1748,7 +1735,7 @@ public class MonoidAppletTest extends AppletTest {
 
           assertError(
             manager.transmit(apdu(0, instruction, 0, 0, writer.getDataBuffer())),
-            CurveException.CODE_UNSUPPORTED_CURVE
+            MonoidException.CODE_INVALID_PARAMETER
           );
         }
       }
@@ -1758,10 +1745,9 @@ public class MonoidAppletTest extends AppletTest {
     writer.map((short) 3);
     writer.text("index".getBytes());
     writer.bytes(TEST_MASTER_INDEX);
-    writer.text("curve".getBytes());
-    writer.text("secp256k1".getBytes());
-    writer.text("path".getBytes());
-    writer.bytes(TEST_PATH);
+    writer.text("type".getBytes());
+    writer.text("master".getBytes());
+    writeDerivation(writer, false, TEST_PATH);
     ResponseAPDU response = manager.transmit(apdu(0, 0x40, 0, 0, writer.getDataBuffer()));
     assertNoError(response);
     CBORBufferReader reader = new CBORBufferReader(response.getBytes());
@@ -1820,9 +1806,11 @@ public class MonoidAppletTest extends AppletTest {
 
   private byte[] ecdsaRequest(byte[] index, byte[] digest, boolean explicitTaproot) {
     CBORBufferWriter writer = new CBORBufferWriter();
-    writer.map((short) (explicitTaproot ? 4 : 3));
+    writer.map((short) (explicitTaproot ? 5 : 4));
     writer.text("index".getBytes());
     writer.bytes(index);
+    writer.text("type".getBytes());
+    writer.text(index[1] == 2 ? "secp256r1".getBytes() : "secp256k1".getBytes());
     writer.text("cipher".getBytes());
     writer.text("ecdsa".getBytes());
     writer.text("digest".getBytes());
@@ -1843,9 +1831,11 @@ public class MonoidAppletTest extends AppletTest {
 
     for (boolean explicitTaproot : new boolean[] { false, true }) {
       CBORBufferWriter writer = new CBORBufferWriter();
-      writer.map((short) (explicitTaproot ? 2 : 1));
+      writer.map((short) (explicitTaproot ? 3 : 2));
       writer.text("index".getBytes());
       writer.bytes(index);
+      writer.text("type".getBytes());
+      writer.text("secp256r1".getBytes());
 
       if (explicitTaproot) {
         writer.text("taproot".getBytes());
@@ -1853,6 +1843,16 @@ public class MonoidAppletTest extends AppletTest {
       }
 
       ResponseAPDU response = manager.transmit(apdu(0, 0x40, 0, 0, writer.getDataBuffer()));
+
+      if (explicitTaproot) {
+        assertError(response, MonoidException.CODE_INVALID_PARAMETER);
+        assertError(
+          manager.transmit(apdu(0, 0x41, 0, 0, ecdsaRequest(index, TEST_DIGEST, true))),
+          MonoidException.CODE_INVALID_PARAMETER
+        );
+        continue;
+      }
+
       assertNoError(response);
       CBORBufferReader reader = new CBORBufferReader(response.getBytes());
       Assertions.assertEquals(1, reader.map());
@@ -1955,7 +1955,13 @@ public class MonoidAppletTest extends AppletTest {
     reader.map();
     Assertions.assertArrayEquals(seed, reader.requireKey("data".getBytes()).bytes());
 
-    response = manager.transmit(apdu(0, 0x40, 0, 0, itemRequest(index)));
+    writer.reset();
+    writer.map((short) 2);
+    writer.text("index".getBytes());
+    writer.bytes(index);
+    writer.text("type".getBytes());
+    writer.text("ed25519".getBytes());
+    response = manager.transmit(apdu(0, 0x40, 0, 0, writer.getDataBuffer()));
     assertNoError(response);
     reader = new CBORBufferReader(response.getBytes());
     Assertions.assertEquals(1, reader.map());
@@ -1964,9 +1970,11 @@ public class MonoidAppletTest extends AppletTest {
     Assertions.assertFalse(reader.key("chainCode".getBytes()));
 
     writer.reset();
-    writer.map((short) 3);
+    writer.map((short) 4);
     writer.text("index".getBytes());
     writer.bytes(index);
+    writer.text("type".getBytes());
+    writer.text("ed25519".getBytes());
     writer.text("cipher".getBytes());
     writer.text("ed25519".getBytes());
     writer.text("message".getBytes());
@@ -1999,6 +2007,21 @@ public class MonoidAppletTest extends AppletTest {
       .start();
 
     Assertions.assertEquals(0, process.waitFor());
+  }
+
+  private void writeDerivation(CBORBufferWriter writer, boolean ed25519, byte[] path) {
+    writer.text("derivation".getBytes());
+    writer.map((short) (ed25519 ? 3 : 2));
+    writer.text("type".getBytes());
+    writer.text(ed25519 ? "slip10".getBytes() : "bip32".getBytes());
+
+    if (ed25519) {
+      writer.text("curve".getBytes());
+      writer.text("ed25519".getBytes());
+    }
+
+    writer.text("path".getBytes());
+    writer.bytes(path);
   }
 
   private void assertInvalidResponseHeaders(CardManager manager)

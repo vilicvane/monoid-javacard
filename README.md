@@ -379,26 +379,58 @@ type Response = {
 ### `0x40` ~ `0x4F` Key usage
 
 ```ts
-/** Seed/master: BIP32 for secp256k1, hardened SLIP-0010 for ed25519. */
-type Key = {
+/** type must match the item selected by index. */
+type KeySECP256k1 = {
   index: byte[];
 } & (
   | {
-      // seed
-      /** 'ed25519 seed' for Ed25519. */
-      seed: string;
-      curve: 'secp256k1' | 'ed25519';
-      path: byte[];
+      type: 'secp256k1';
     }
   | {
-      // master
-      curve: 'secp256k1' | 'ed25519';
-      path: byte[];
-    }
-  | {
-      // independent secp256k1 / secp256r1 / ed25519 key
+      type: 'seed' | 'master';
+      derivation: {
+        /** Uses "Bitcoin seed" for seed-to-master generation. */
+        type: 'bip32';
+        /** 4-byte big-endian indices; high bit means hardened; empty selects master. */
+        path: byte[];
+      };
     }
 );
+
+type KeyED25519 = {
+  index: byte[];
+} & (
+  | {
+      type: 'ed25519';
+    }
+  | {
+      type: 'seed' | 'master';
+      derivation: {
+        /** Uses "ed25519 seed" for seed-to-master generation. */
+        type: 'slip10';
+        curve: 'ed25519';
+        /** 4-byte big-endian hardened indices; empty selects master. */
+        path: byte[];
+      };
+    }
+);
+
+type KeySECP256r1 = {
+  index: byte[];
+} & (
+  | {
+      type: 'secp256r1';
+    }
+  | {
+      type: 'seed' | 'master';
+      derivation: {
+        type: 'monoid-p256-v1';
+        context: byte[];
+      };
+    }
+);
+
+type Key = KeySECP256k1 | KeySECP256r1 | KeyED25519;
 
 /** secp256k1 only; true/{} enables BIP86, false/omitted disables tweaking. */
 type Taproot = {
@@ -412,25 +444,21 @@ type Taproot = {
 > Requires authentication.
 
 ```ts
-type Request = Key & {
-  taproot?: Taproot | boolean;
-};
+type Request =
+  | (KeySECP256k1 & {
+      taproot?: Taproot | boolean;
+    })
+  | KeySECP256r1
+  | KeyED25519;
 ```
 
 ```ts
 type Response = {
   /** 33-byte compressed EC key; 32 bytes for Ed25519 or Taproot x-only. */
   publicKey: byte[];
-} & (
-  | {
-      // seed / master
-      /** 32 bytes; before Taproot tweaking. */
-      chainCode: byte[];
-    }
-  | {
-      // key
-    }
-);
+  /** Present for BIP32/SLIP-0010 derivation; 32 bytes, before Taproot tweaking. */
+  chainCode?: byte[];
+};
 ```
 
 #### `0x41` Sign
@@ -438,28 +466,23 @@ type Response = {
 > Requires authentication.
 
 ```ts
-type Request = Key &
-  (
-    | {
-        cipher: 'ecdsa';
-        /** Precomputed 32-byte digest; use SHA-256(message) for ES256. */
-        digest: byte[];
-        taproot?: false;
-      }
-    | {
-        cipher: 'ed25519';
-        /** Original message bytes (pure Ed25519). */
-        message: byte[];
-        taproot?: false;
-      }
-    | {
-        /** secp256k1 only. */
-        cipher: 'bip340';
-        /** Exactly 32 bytes. */
-        digest: byte[];
-        taproot?: Taproot | boolean;
-      }
-  );
+type Request =
+  | ((KeySECP256k1 | KeySECP256r1) & {
+      cipher: 'ecdsa';
+      /** Precomputed 32-byte digest; use SHA-256(message) for ES256. */
+      digest: byte[];
+    })
+  | (KeyED25519 & {
+      cipher: 'ed25519';
+      /** Original message bytes (pure Ed25519). */
+      message: byte[];
+    })
+  | (KeySECP256k1 & {
+      cipher: 'bip340';
+      /** Exactly 32 bytes. */
+      digest: byte[];
+      taproot?: Taproot | boolean;
+    });
 ```
 
 ```ts

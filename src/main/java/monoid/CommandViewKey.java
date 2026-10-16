@@ -15,16 +15,35 @@ public final class CommandViewKey extends Command {
     Keystore keystore = MonoidApplet.keystore;
 
     reader.map();
+    reader.snapshot();
 
     byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
-    boolean taproot = reader.key(Text.taproot) && (reader.is(CBOR.TYPE_MAP) || reader.bool());
 
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+    short declaredType = Safe.type(reader.requireKey(Text.type));
+
+    if (
+      declaredType !=
+        (Safe.isTypeSeed(type) || Safe.isTypeMaster(type)
+            ? (short) (type & Safe.TYPE_CATEGORY_MASK)
+            : type) ||
+      reader.key(Text.seed) ||
+      reader.key(Text.curve) ||
+      reader.key(Text.path)
+    ) {
+      MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+      return;
+    }
+
+    boolean hasTaproot = reader.key(Text.taproot);
+    boolean taproot = hasTaproot && (reader.is(CBOR.TYPE_MAP) || reader.bool());
 
     switch (type & Safe.TYPE_CATEGORY_MASK) {
       case Safe.TYPE_WEIERSTRASS:
       case Safe.TYPE_EDWARDS:
-        if (taproot && !Safe.isTypeWeierstrass(type)) {
+        if (
+          (hasTaproot && type != Safe.TYPE_WEIERSTRASS_SECP256K1) || reader.key(Text.derivation)
+        ) {
           MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
           return;
         }
@@ -40,19 +59,48 @@ public final class CommandViewKey extends Command {
         }
 
         return;
+      case Safe.TYPE_SEED:
+      case Safe.TYPE_MASTER:
+        break;
+      default:
+        MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+        return;
     }
 
-    byte[] curveName = reader.requireKey(Text.curve).text();
+    reader.requireKey(Text.derivation).map();
+
+    byte[] derivation = reader.requireKey(Text.type).text();
+    byte[] curveName;
+
+    if (Utils.isEqual(LibBIP32.NAME, derivation)) {
+      if (reader.key(Text.curve)) {
+        MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+        return;
+      }
+
+      curveName = WeierstrassCurve.SECP256k1;
+    } else if (Utils.isEqual(LibSLIP10Ed25519.NAME, derivation)) {
+      curveName = reader.requireKey(Text.curve).text();
+
+      if (!Utils.isEqual(EdwardsCurve.ED25519, curveName)) {
+        MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+        return;
+      }
+    } else {
+      MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+      return;
+    }
+
+    byte[] path = reader.requireKey(Text.path).bytes();
+
+    reader.restore();
 
     WeierstrassCurve weierstrassCurve = WeierstrassCurve.getSharedCurve(curveName);
     EdwardsCurve edwardsCurve = weierstrassCurve == null
       ? EdwardsCurve.requireSharedCurve(curveName)
       : null;
 
-    byte[] path = reader.requireKey(Text.path).bytes();
-    byte[] seed = Safe.isTypeSeed(type) ? reader.requireKey(Text.seed).text() : null;
-
-    if (taproot && weierstrassCurve == null) {
+    if (hasTaproot && weierstrassCurve == null) {
       MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
       return;
     }
@@ -70,24 +118,23 @@ public final class CommandViewKey extends Command {
     switch (type & Safe.TYPE_CATEGORY_MASK) {
       case Safe.TYPE_SEED:
         data = weierstrassCurve != null
-          ? keystore.getSeedDerivedPublicKeyAndChainCode(
+          ? keystore.getBIP32PublicKeyAndChainCodeFromSeed(
             index,
-            seed,
             weierstrassCurve,
             path,
             merkleRoot
           )
-          : keystore.getSeedDerivedPublicKeyAndChainCode(index, seed, edwardsCurve, path);
+          : keystore.getSLIP10Ed25519PublicKeyAndChainCodeFromSeed(index, edwardsCurve, path);
         break;
       case Safe.TYPE_MASTER:
         data = weierstrassCurve != null
-          ? keystore.getMasterDerivedPublicKeyAndChainCode(
+          ? keystore.getBIP32PublicKeyAndChainCodeFromMaster(
             index,
             weierstrassCurve,
             path,
             merkleRoot
           )
-          : keystore.getMasterDerivedPublicKeyAndChainCode(index, edwardsCurve, path);
+          : keystore.getSLIP10Ed25519PublicKeyAndChainCodeFromMaster(index, edwardsCurve, path);
         break;
       default:
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);

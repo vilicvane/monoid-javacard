@@ -13,6 +13,7 @@ public class Text {
   public static final byte[] curve = {'c','u','r','v','e'};
   public static final byte[] curves = {'c','u','r','v','e','s'};
   public static final byte[] data = {'d','a','t','a'};
+  public static final byte[] derivation = {'d','e','r','i','v','a','t','i','o','n'};
   public static final byte[] digest = {'d','i','g','e','s','t'};
   public static final byte[] deselect = {'d','e','s','e','l','e','c','t'};
   public static final byte[] error = {'e','r','r','o','r'};

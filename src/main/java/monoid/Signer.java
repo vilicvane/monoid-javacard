@@ -21,7 +21,7 @@ public final class Signer {
     return signature;
   }
 
-  public static byte[] signEDDSAMessage(
+  public static byte[] signED25519Message(
     EdwardsCurve curve,
     ED25519Key privateKey,
     ByteSource message,
@@ -51,7 +51,7 @@ public final class Signer {
     return signature;
   }
 
-  public static byte[] signSchnorrDigest(WeierstrassCurve curve, byte[] privateKey, byte[] digest) {
+  public static byte[] signBIP340Digest(WeierstrassCurve curve, byte[] privateKey, byte[] digest) {
     if (!(curve instanceof CurveSECP256k1)) {
       CurveException.throwIt(CurveException.REASON_UNSUPPORTED_CURVE);
       return null;

@@ -203,40 +203,41 @@ public class MonoidTaprootTest extends AppletTest {
   }
 
   @Test
-  public void disabledTaprootPreservesOtherCiphers() throws Exception {
+  public void rejectTaprootForOtherCiphers() throws Exception {
     String[] vector = readVectors().get(0);
     byte[] secpIndex = create("secp256k1", Hex.decode(vector[2]));
     byte[] edIndex = create("ed25519", new byte[32]);
 
-    for (byte[] index : new byte[][] { secpIndex, edIndex }) {
-      Assertions.assertArrayEquals(
-        field(transmit(0x40, keyRequest(index, null, null, null, null)), "publicKey"),
-        field(transmit(0x40, keyRequest(index, null, null, null, false)), "publicKey")
-      );
-    }
+    Assertions.assertArrayEquals(
+      field(transmit(0x40, keyRequest(secpIndex, null, null, null, null)), "publicKey"),
+      field(transmit(0x40, keyRequest(secpIndex, null, null, null, false)), "publicKey")
+    );
 
     // jCardSim does not support the existing ECDSA precomputed-hash signing path.
-    for (Object taproot : new Object[] { null, false }) {
+    assertError(
+      transmit(0x41, keyRequest(secpIndex, null, "ecdsa", DIGEST, null)),
+      Command.CODE_INTERNAL
+    );
+    Assertions.assertEquals(
+      64,
+      field(transmit(0x41, keyRequest(edIndex, null, "ed25519", DIGEST, null)), "signature").length
+    );
+
+    for (boolean taproot : new boolean[] { false, true }) {
       assertError(
         transmit(0x41, keyRequest(secpIndex, null, "ecdsa", DIGEST, taproot)),
-        Command.CODE_INTERNAL
-      );
-    }
-
-    Assertions.assertArrayEquals(
-      field(transmit(0x41, keyRequest(edIndex, null, "ed25519", DIGEST, null)), "signature"),
-      field(transmit(0x41, keyRequest(edIndex, null, "ed25519", DIGEST, false)), "signature")
-    );
-    assertError(
-      transmit(0x41, keyRequest(secpIndex, null, "ecdsa", DIGEST, true)),
-      MonoidException.CODE_INVALID_PARAMETER
-    );
-
-    for (String cipher : new String[] { null, "ed25519", "bip340" }) {
-      assertError(
-        transmit(cipher == null ? 0x40 : 0x41, keyRequest(edIndex, null, cipher, DIGEST, true)),
         MonoidException.CODE_INVALID_PARAMETER
       );
+
+      for (String cipher : new String[] { null, "ed25519", "bip340" }) {
+        assertError(
+          transmit(
+            cipher == null ? 0x40 : 0x41,
+            keyRequest(edIndex, null, cipher, DIGEST, taproot)
+          ),
+          MonoidException.CODE_INVALID_PARAMETER
+        );
+      }
     }
   }
 
@@ -281,7 +282,7 @@ public class MonoidTaprootTest extends AppletTest {
 
       for (int instruction : new int[] { 0x40, 0x41 }) {
         CBORBufferWriter writer = new CBORBufferWriter();
-        writer.map((short) (instruction == 0x40 ? 6 : 8));
+        writer.map((short) (instruction == 0x40 ? 5 : 7));
         writeTaproot(writer, taproot);
         writer.text("padding".getBytes());
         writer.bytes(new byte[600]);
@@ -293,12 +294,14 @@ public class MonoidTaprootTest extends AppletTest {
           writer.text("bip340".getBytes());
         }
 
+        writer.text("derivation".getBytes());
+        writer.map((short) 2);
         writer.text("path".getBytes());
         writer.bytes(path);
-        writer.text("curve".getBytes());
-        writer.text("secp256k1".getBytes());
+        writer.text("type".getBytes());
+        writer.text("bip32".getBytes());
+        writer.text("type".getBytes());
         writer.text("seed".getBytes());
-        writer.text("Bitcoin seed".getBytes());
         writer.text("index".getBytes());
         writer.bytes(index);
 
@@ -343,9 +346,11 @@ public class MonoidTaprootTest extends AppletTest {
 
       for (boolean rootType : new boolean[] { false, true }) {
         CBORBufferWriter writer = new CBORBufferWriter();
-        writer.map((short) (instruction == 0x41 ? 4 : 2));
+        writer.map((short) (instruction == 0x41 ? 5 : 3));
         writer.text("index".getBytes());
         writer.bytes(index);
+        writer.text("type".getBytes());
+        writer.text("secp256k1".getBytes());
         writer.text("taproot".getBytes());
 
         if (rootType) {
@@ -380,9 +385,11 @@ public class MonoidTaprootTest extends AppletTest {
     }
 
     CBORBufferWriter writer = new CBORBufferWriter();
-    writer.map((short) 3);
+    writer.map((short) 4);
     writer.text("index".getBytes());
     writer.bytes(index);
+    writer.text("type".getBytes());
+    writer.text("secp256k1".getBytes());
     writer.text("cipher".getBytes());
     writer.text("bip340".getBytes());
     writer.text("digest".getBytes());
@@ -427,11 +434,15 @@ public class MonoidTaprootTest extends AppletTest {
 
     for (int instruction : new int[] { 0x40, 0x41 }) {
       CBORBufferWriter writer = new CBORBufferWriter();
-      writer.map((short) (instruction == 0x40 ? 5 : 7));
+      writer.map((short) (instruction == 0x40 ? 4 : 6));
       writer.text("index".getBytes());
       writer.bytes(seedIndex);
+      writer.text("type".getBytes());
       writer.text("seed".getBytes());
-      writer.text("ed25519 seed".getBytes());
+      writer.text("derivation".getBytes());
+      writer.map((short) 3);
+      writer.text("type".getBytes());
+      writer.text("slip10".getBytes());
       writer.text("curve".getBytes());
       writer.text("ed25519".getBytes());
       writer.text("path".getBytes());
@@ -460,6 +471,169 @@ public class MonoidTaprootTest extends AppletTest {
     );
   }
 
+  @Test
+  public void declaredTypesMustMatchStoredItems() throws Exception {
+    String[] vector = readVectors().get(0);
+    byte[][] indices = {
+      create("seed", SEED),
+      create("master", MASTER),
+      create("secp256k1", Hex.decode(vector[2])),
+      create("secp256r1", Hex.decode(vector[2])),
+      create("ed25519", new byte[32]),
+    };
+    String[] mismatchedTypes = { "master", "seed", "secp256r1", "secp256k1", "secp256k1" };
+
+    for (int item = 0; item < indices.length; item++) {
+      for (String type : new String[] { null, mismatchedTypes[item], "unknown" }) {
+        for (int instruction : new int[] { 0x40, 0x41 }) {
+          CBORBufferWriter writer = new CBORBufferWriter();
+          writer.map((short) (1 + (type == null ? 0 : 1) + (instruction == 0x41 ? 2 : 0)));
+          writer.text("index".getBytes());
+          writer.bytes(indices[item]);
+
+          if (type != null) {
+            writer.text("type".getBytes());
+            writer.text(type.getBytes());
+          }
+
+          if (instruction == 0x41) {
+            writer.text("cipher".getBytes());
+            writer.text("bip340".getBytes());
+            writer.text("digest".getBytes());
+            writer.bytes(DIGEST);
+          }
+
+          ResponseAPDU response = transmit(instruction, writer.getDataBuffer());
+
+          if (type == null) {
+            Assertions.assertEquals(0x6A80, response.getSW());
+          } else {
+            assertError(response, MonoidException.CODE_INVALID_PARAMETER);
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void rejectInvalidDerivationAndLegacyFields() throws Exception {
+    String[] vector = readVectors().get(0);
+    byte[] seedIndex = create("seed", SEED);
+    byte[] directIndex = create("secp256k1", Hex.decode(vector[2]));
+
+    for (int instruction : new int[] { 0x40, 0x41 }) {
+      for (String missing : new String[] { "derivation", "type", "path", "curve" }) {
+        CBORBufferWriter writer = new CBORBufferWriter();
+        writer.map(
+          (short) (2 + (missing.equals("derivation") ? 0 : 1) + (instruction == 0x41 ? 2 : 0))
+        );
+        writer.text("index".getBytes());
+        writer.bytes(seedIndex);
+        writer.text("type".getBytes());
+        writer.text("seed".getBytes());
+
+        if (!missing.equals("derivation")) {
+          writer.text("derivation".getBytes());
+          writer.map((short) (missing.equals("curve") ? 2 : 1));
+
+          if (!missing.equals("type")) {
+            writer.text("type".getBytes());
+            writer.text(missing.equals("curve") ? "slip10".getBytes() : "bip32".getBytes());
+          }
+
+          if (!missing.equals("path")) {
+            writer.text("path".getBytes());
+            writer.bytes(new byte[0]);
+          }
+        }
+
+        if (instruction == 0x41) {
+          writer.text("cipher".getBytes());
+          writer.text("bip340".getBytes());
+          writer.text("digest".getBytes());
+          writer.bytes(DIGEST);
+        }
+
+        Assertions.assertEquals(0x6A80, transmit(instruction, writer.getDataBuffer()).getSW());
+      }
+
+      for (String[] derivation : new String[][] {
+        { "bip32", "secp256k1" },
+        { "slip10", "secp256r1" },
+        { "unknown", null },
+      }) {
+        CBORBufferWriter writer = new CBORBufferWriter();
+        writer.map((short) (instruction == 0x41 ? 5 : 3));
+        writer.text("index".getBytes());
+        writer.bytes(seedIndex);
+        writer.text("type".getBytes());
+        writer.text("seed".getBytes());
+        writer.text("derivation".getBytes());
+        writer.map((short) (derivation[1] == null ? 2 : 3));
+        writer.text("type".getBytes());
+        writer.text(derivation[0].getBytes());
+
+        if (derivation[1] != null) {
+          writer.text("curve".getBytes());
+          writer.text(derivation[1].getBytes());
+        }
+
+        writer.text("path".getBytes());
+        writer.bytes(new byte[0]);
+
+        if (instruction == 0x41) {
+          writer.text("cipher".getBytes());
+          writer.text("bip340".getBytes());
+          writer.text("digest".getBytes());
+          writer.bytes(DIGEST);
+        }
+
+        assertError(
+          transmit(instruction, writer.getDataBuffer()),
+          MonoidException.CODE_INVALID_PARAMETER
+        );
+      }
+
+      assertError(
+        transmit(
+          instruction,
+          keyRequest(directIndex, new byte[0], instruction == 0x41 ? "bip340" : null, DIGEST, null)
+        ),
+        MonoidException.CODE_INVALID_PARAMETER
+      );
+
+      for (String legacyField : new String[] { "seed", "curve", "path" }) {
+        CBORBufferWriter writer = new CBORBufferWriter();
+        writer.map((short) (instruction == 0x41 ? 5 : 3));
+        writer.text("index".getBytes());
+        writer.bytes(directIndex);
+        writer.text("type".getBytes());
+        writer.text("secp256k1".getBytes());
+        writer.text(legacyField.getBytes());
+
+        if (legacyField.equals("path")) {
+          writer.bytes(new byte[0]);
+        } else {
+          writer.text(
+            legacyField.equals("seed") ? "Bitcoin seed".getBytes() : "secp256k1".getBytes()
+          );
+        }
+
+        if (instruction == 0x41) {
+          writer.text("cipher".getBytes());
+          writer.text("bip340".getBytes());
+          writer.text("digest".getBytes());
+          writer.bytes(DIGEST);
+        }
+
+        assertError(
+          transmit(instruction, writer.getDataBuffer()),
+          MonoidException.CODE_INVALID_PARAMETER
+        );
+      }
+    }
+  }
+
   private void authenticate() {
     CBORBufferWriter writer = new CBORBufferWriter();
     writer.map((short) 1);
@@ -485,26 +659,25 @@ public class MonoidTaprootTest extends AppletTest {
     byte[] digest,
     Object taproot
   ) {
-    boolean seed = index[0] == 2;
     CBORBufferWriter writer = new CBORBufferWriter();
     writer.map(
-      (short) (1 +
-        (path == null ? 0 : 2) +
-        (seed ? 1 : 0) +
-        (cipher == null ? 0 : 2) +
-        (taproot == null ? 0 : 1))
+      (short) (2 + (path == null ? 0 : 1) + (cipher == null ? 0 : 2) + (taproot == null ? 0 : 1))
     );
     writer.text("index".getBytes());
     writer.bytes(index);
 
-    if (seed) {
-      writer.text("seed".getBytes());
-      writer.text("Bitcoin seed".getBytes());
-    }
+    writer.text("type".getBytes());
+    writer.text(
+      (index[0] == 2
+          ? "seed"
+          : index[0] == 3 ? "master" : index[0] == 4 ? "secp256k1" : "ed25519").getBytes()
+    );
 
     if (path != null) {
-      writer.text("curve".getBytes());
-      writer.text("secp256k1".getBytes());
+      writer.text("derivation".getBytes());
+      writer.map((short) 2);
+      writer.text("type".getBytes());
+      writer.text("bip32".getBytes());
       writer.text("path".getBytes());
       writer.bytes(path);
     }

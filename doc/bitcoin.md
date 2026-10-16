@@ -8,12 +8,14 @@ The complete request and response definitions are in the [README](../README.md#0
 
 ## BIP86 single-key accounts
 
-Use a stored seed with `seed: 'Bitcoin seed'`, `curve: 'secp256k1'` and the
+Use a stored seed with `type: 'seed'` and
+`derivation: {type: 'bip32', path: bytes}` for the
 BIP86 path `m/86'/coin_type'/account'/change/address_index`. For Bitcoin mainnet,
 the first receiving key is `m/86'/0'/0'/0/0`. Encode the path using the existing
 BIP32 format: four bytes per index in big-endian order, with bit 31 set for
-hardened indices. A stored master uses the same curve and path without the
-`seed` field. [BIP86](https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki)
+hardened indices. A stored master uses `type: 'master'` with the same derivation.
+BIP32 fixes secp256k1 and uses `Bitcoin seed` for master generation.
+[BIP86](https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki)
 defines the account layout and no-script-tree output construction.
 
 1. Call View key with the key description and `taproot: true`. Its `publicKey` is
@@ -24,7 +26,7 @@ defines the account layout and no-script-tree output construction.
    and `taproot: true`. The result is `{signature}` containing 64 bytes.
 4. Assemble the witness and transaction on the client.
 
-An independent `secp256k1` item uses only its `index` as the key description.
+An independent `secp256k1` item uses `index` and `type: 'secp256k1'` without derivation.
 The card performs TapTweak after any BIP32 derivation. It does not infer the
 signature mode or apply a tweak based on the derivation path.
 
@@ -51,9 +53,8 @@ tweaked public key and that chain code do not form a BIP32 extended public key:
 derive child nodes before applying TapTweak. Independent key queries have no
 chain code.
 
-Only `secp256k1` accepts enabled `taproot`; Sign additionally requires
-`cipher: 'bip340'`. ECDSA and Ed25519 requests accept `taproot: false` as equivalent
-to omitting the field, but reject `true` or an object.
+Only `secp256k1` View key and `cipher: 'bip340'` Sign accept `taproot`.
+Other branches reject the field even when its value is `false`.
 
 ## Signature hashes and transaction encoding
 

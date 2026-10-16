@@ -21,18 +21,16 @@ public final class Keystore {
     this.safe = safe;
   }
 
-  public byte[] getSeedDerivedPublicKeyAndChainCode(
+  public byte[] getBIP32PublicKeyAndChainCodeFromSeed(
     byte[] index,
-    byte[] seed,
     WeierstrassCurve curve,
     byte[] path
   ) {
-    return getSeedDerivedPublicKeyAndChainCode(index, seed, curve, path, null);
+    return getBIP32PublicKeyAndChainCodeFromSeed(index, curve, path, null);
   }
 
-  public byte[] getSeedDerivedPublicKeyAndChainCode(
+  public byte[] getBIP32PublicKeyAndChainCodeFromSeed(
     byte[] index,
-    byte[] seed,
     WeierstrassCurve curve,
     byte[] path,
     byte[] taprootMerkleRoot
@@ -46,20 +44,20 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    byte[] master = deriveMasterFromSeed(key, seed);
+    byte[] master = deriveMasterFromSeed(key, LibBIP32.MASTER_KEY_LABEL);
 
-    return derivePublicKeyAndChainCodeFromMaster(curve, master, path, taprootMerkleRoot);
+    return deriveBIP32PublicKeyAndChainCodeFromMaster(curve, master, path, taprootMerkleRoot);
   }
 
-  public byte[] getMasterDerivedPublicKeyAndChainCode(
+  public byte[] getBIP32PublicKeyAndChainCodeFromMaster(
     byte[] index,
     WeierstrassCurve curve,
     byte[] path
   ) {
-    return getMasterDerivedPublicKeyAndChainCode(index, curve, path, null);
+    return getBIP32PublicKeyAndChainCodeFromMaster(index, curve, path, null);
   }
 
-  public byte[] getMasterDerivedPublicKeyAndChainCode(
+  public byte[] getBIP32PublicKeyAndChainCodeFromMaster(
     byte[] index,
     WeierstrassCurve curve,
     byte[] path,
@@ -74,12 +72,11 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    return derivePublicKeyAndChainCodeFromMaster(curve, key, path, taprootMerkleRoot);
+    return deriveBIP32PublicKeyAndChainCodeFromMaster(curve, key, path, taprootMerkleRoot);
   }
 
-  public byte[] getSeedDerivedPublicKeyAndChainCode(
+  public byte[] getSLIP10Ed25519PublicKeyAndChainCodeFromSeed(
     byte[] index,
-    byte[] seed,
     EdwardsCurve curve,
     byte[] path
   ) {
@@ -92,12 +89,12 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    byte[] master = deriveMasterFromSeed(key, seed);
+    byte[] master = deriveMasterFromSeed(key, LibSLIP10Ed25519.MASTER_KEY_LABEL);
 
-    return derivePublicKeyAndChainCodeFromMaster(curve, master, path);
+    return deriveSLIP10Ed25519PublicKeyAndChainCodeFromMaster(curve, master, path);
   }
 
-  public byte[] getMasterDerivedPublicKeyAndChainCode(
+  public byte[] getSLIP10Ed25519PublicKeyAndChainCodeFromMaster(
     byte[] index,
     EdwardsCurve curve,
     byte[] path
@@ -111,7 +108,7 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    return derivePublicKeyAndChainCodeFromMaster(curve, key, path);
+    return deriveSLIP10Ed25519PublicKeyAndChainCodeFromMaster(curve, key, path);
   }
 
   public byte[] getWeierstrassKeyPublicKey(byte[] index) {
@@ -170,19 +167,14 @@ public final class Keystore {
     }
   }
 
-  public byte[] signECDSADigest(
-    byte[] index,
-    byte[] seed,
-    byte[] curveName,
-    byte[] path,
-    byte[] digest
-  ) throws KeystoreException, CurveException, SignerException {
+  public byte[] signECDSADigest(byte[] index, byte[] curveName, byte[] path, byte[] digest)
+    throws KeystoreException, CurveException, SignerException {
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
 
     byte[] key = requireKey(index);
 
     if (Safe.isTypeSeed(type)) {
-      byte[] master = deriveMasterFromSeed(key, seed);
+      byte[] master = deriveMasterFromSeed(key, LibBIP32.MASTER_KEY_LABEL);
 
       type = Safe.TYPE_MASTER;
       key = master;
@@ -229,9 +221,8 @@ public final class Keystore {
     return Signer.signECDSADigest(curve, privateKey, digest);
   }
 
-  public byte[] signEDDSAMessage(
+  public byte[] signED25519Message(
     byte[] index,
-    byte[] seed,
     byte[] curveName,
     byte[] path,
     ByteSource message,
@@ -243,7 +234,7 @@ public final class Keystore {
     byte[] key = requireKey(index);
 
     if (Safe.isTypeSeed(type)) {
-      key = deriveMasterFromSeed(key, seed);
+      key = deriveMasterFromSeed(key, LibSLIP10Ed25519.MASTER_KEY_LABEL);
       type = Safe.TYPE_MASTER;
     }
 
@@ -277,15 +268,14 @@ public final class Keystore {
     ED25519Key privateKey = curve.getSharedPrivateKey(key, (short) 0);
 
     try {
-      return Signer.signEDDSAMessage(curve, privateKey, message, messageOffset, messageLength);
+      return Signer.signED25519Message(curve, privateKey, message, messageOffset, messageLength);
     } finally {
       privateKey.clear();
     }
   }
 
-  public byte[] signSchnorrDigest(
+  public byte[] signBIP340Digest(
     byte[] index,
-    byte[] seed,
     byte[] curveName,
     byte[] path,
     byte[] digest,
@@ -296,7 +286,7 @@ public final class Keystore {
     byte[] key = requireKey(index);
 
     if (Safe.isTypeSeed(type)) {
-      key = deriveMasterFromSeed(key, seed);
+      key = deriveMasterFromSeed(key, LibBIP32.MASTER_KEY_LABEL);
       type = Safe.TYPE_MASTER;
     }
 
@@ -321,20 +311,20 @@ public final class Keystore {
       tweakTaprootPrivateKey(curve, key, taprootMerkleRoot);
     }
 
-    return Signer.signSchnorrDigest(curve, key, digest);
+    return Signer.signBIP340Digest(curve, key, digest);
   }
 
-  private byte[] deriveMasterFromSeed(byte[] key, byte[] seed) {
-    switch (key.length) {
+  private byte[] deriveMasterFromSeed(byte[] seed, byte[] label) {
+    switch (seed.length) {
       case SEED_512_LENGTH:
-        return LibHMACSha512.digest(seed, key);
+        return LibHMACSha512.digest(label, seed);
       default:
         KeystoreException.throwIt(KeystoreException.REASON_UNSUPPORTED_SEED_LENGTH);
         return null;
     }
   }
 
-  private byte[] derivePublicKeyAndChainCodeFromMaster(
+  private byte[] deriveBIP32PublicKeyAndChainCodeFromMaster(
     WeierstrassCurve curve,
     byte[] master,
     byte[] path,
@@ -410,7 +400,7 @@ public final class Keystore {
     );
   }
 
-  private byte[] derivePublicKeyAndChainCodeFromMaster(
+  private byte[] deriveSLIP10Ed25519PublicKeyAndChainCodeFromMaster(
     EdwardsCurve curve,
     byte[] master,
     byte[] path
