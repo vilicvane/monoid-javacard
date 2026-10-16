@@ -5,7 +5,9 @@ description: Monoid Java Card API approval rules, project scope, and transparent
 
 # Monoid Java Card API decisions
 
-Source: `../records.md`, records 1–3, 6–10, 17–40, 42, 45–61, 63–65 and 67–110. Treat `records.md` and its numbered references as authoritative; keep them up to date when maintaining this snapshot.
+Source: `../records.md`, records 1–3, 6–10, 17–40, 42, 45–61, 63–65, 67–110 and 114. Treat `records.md` and its numbered references as authoritative; keep them up to date when maintaining this snapshot.
+
+- Record 114 supersedes record 88's installed state on APP card 51433520: official Safe and Monoid now run source commit 1bb6f1b, including lookup keys, explicit Key/derivation/cipher semantics, P-256/Monoid-001, shared derivation cache and CBOR indexing. Both packages were replaced because the old Safe interface predates lookup keys. All four public fixtures, their original indices, seed alias DeFi and prior PIN values were restored and verified after cold reset. New Monoid ID is 304BC794 and Safe ID is FC512DFA; APP may treat them as new identities. Seven signatures independently verified, including fragmented Ed25519. Registry/system packages preserved, authentication cleared and reader released. See 114 for build hashes, measurements and APP acceptance boundary.
 
 - Record 110 supersedes the provisional custom-KDF name and unsettled algorithm below: the user approved Monoid-001 and implementation. API monoid-001 accepts seed/master plus opaque context. SHA512 HKDF-Extract with ASCII("Monoid-001") as salt produces a 64B master PRK; stored masters skip Extract. Expand info is that label || 00 || context || retry-byte, L=32, retry=0..255; accept only 1..P256.n-1, otherwise fail after exhaustion. ViewKey returns publicKey only; Sign permits ECDSA digest32. No path/curve override, Taproot or independent-key derivation. Keystore owns master generation and LibMonoid001 owns context derivation. Exact rules, source semantics and validation are recorded in 110.
 
