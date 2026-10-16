@@ -158,6 +158,45 @@ public class CBORApduReaderTest {
     }
   }
 
+  @Test
+  public void restoresNestedSnapshotsAcrossRequestsDeselectAndReset() {
+    assertNestedRequest((short) 3, 255);
+    assertNestedRequest((short) 512, 17);
+    Assertions.assertTrue(installedReader.getOffset() > 0);
+
+    AID other = AIDUtil.create("f06d6f6e6f69647f02");
+    simulator.installApplet(other, EmptyApplet.class);
+    Assertions.assertTrue(simulator.selectApplet(other));
+
+    Assertions.assertEquals(0, installedReader.getOffset());
+    Assertions.assertTrue(simulator.selectApplet(READER_AID));
+    assertNestedRequest((short) 31, 255);
+    Assertions.assertTrue(installedReader.getOffset() > 0);
+
+    simulator.reset();
+
+    Assertions.assertEquals(0, installedReader.getOffset());
+    Assertions.assertTrue(simulator.selectApplet(READER_AID));
+    assertNestedRequest((short) 512, 17);
+  }
+
+  private void assertNestedRequest(short length, int frameLength) {
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 2);
+    writer.text("options".getBytes());
+    writer.array((short) 2);
+    writer.map((short) 1);
+    writer.text("enabled".getBytes());
+    writer.bool(true);
+    writer.map((short) 1);
+    writer.text("enabled".getBytes());
+    writer.bool(false);
+    writer.text("message".getBytes());
+    writer.bytes(payload(length));
+
+    assertRequest(writer.getDataBuffer(), length, frameLength, 3);
+  }
+
   private void assertEcho(short length) {
     assertEcho(length, 255);
   }
@@ -320,6 +359,24 @@ public class CBORApduReaderTest {
           );
           Assertions.assertEquals((byte) 0xA5, copiedMessage[2]);
           Assertions.assertEquals((byte) 0xA5, copiedMessage[515]);
+          reader.requireKey("message".getBytes());
+        }
+
+        if (apdu.getBuffer()[1] == 3) {
+          Assertions.assertEquals(2, reader.map());
+          reader.snapshot();
+          Assertions.assertEquals(2, reader.requireKey("options".getBytes()).array());
+          reader.snapshot();
+          Assertions.assertEquals(1, reader.map());
+          reader.snapshot();
+          Assertions.assertFalse(reader.key("missing".getBytes()));
+          reader.restore();
+          Assertions.assertTrue(reader.requireKey("enabled".getBytes()).bool());
+          reader.popSnapshot();
+          Assertions.assertTrue(reader.index((short) 1));
+          Assertions.assertEquals(1, reader.map());
+          Assertions.assertFalse(reader.requireKey("enabled".getBytes()).bool());
+          reader.popSnapshot();
           reader.requireKey("message".getBytes());
         }
 

@@ -13,6 +13,31 @@ keys and other metadata. This is a transport ceiling; individual commands and
 cards can have lower capacity limits. Even an empty request map is encoded as
 CBOR data (`A0`), not an APDU with no data.
 
+Recommended CBOR field order is defined in
+[cbor-field-order.json](../cbor-field-order.json), keyed by command INS. `$` denotes
+the request map; `$.derivation` and `$.taproot` denote its named child maps.
+All current CBOR commands are included; an empty field list denotes an empty
+request map. GET RESPONSE (`0xC0`) has no CBOR request and is not listed.
+
+Serialize existing fields in the configured order, then append unlisted fields
+in their original relative order. Do not add absent fields. Leave unconfigured
+maps, arrays and scalar values unchanged, including boolean `taproot` values.
+This configuration is a sorting hint, not a request schema. Other field orders
+remain supported; this is not a canonical CBOR encoding requirement.
+
+The [JavaScript template](examples/order-cbor-request.js) accepts a numeric INS,
+a plain-object request and the parsed field-order configuration:
+
+```js
+const ordered = orderCborRequest(0x41, request, fieldOrders);
+const payload = encode(ordered); // Your CBOR encoder.
+```
+
+Copy the template and configuration into the client. Call it immediately before
+CBOR encoding, then fragment the encoded bytes as usual. The encoder must preserve
+object property order; disable canonical key sorting. The helper leaves the input
+unchanged and preserves byte arrays and other unconfigured values by reference.
+
 | Frame  | CLA  | Behavior                                                          |
 | ------ | ---- | ----------------------------------------------------------------- |
 | Single | `00` | Replace any unfinished request and execute this complete request. |

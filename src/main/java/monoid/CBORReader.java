@@ -7,25 +7,44 @@ import javacard.framework.Util;
 
 public abstract class CBORReader implements ByteSource {
 
-  private short offset;
-
-  private short arrayOffset;
-  private short mapLength;
-  private short mapOffset;
+  private static final short OFFSET = 0;
+  private static final short ARRAY_OFFSET = 1;
+  private static final short MAP_LENGTH = 2;
+  private static final short MAP_OFFSET = 3;
+  private static final short SNAPSHOT_INDEX = 4;
 
   private static final short MAX_SNAPSHOTS = 8;
 
-  private short[] offsetSnapshots = new short[MAX_SNAPSHOTS];
-  private short[] arrayOffsetSnapshots = new short[MAX_SNAPSHOTS];
-  private short[] mapLengthSnapshots = new short[MAX_SNAPSHOTS];
-  private short[] mapOffsetSnapshots = new short[MAX_SNAPSHOTS];
+  private final short[] state = JCSystem.makeTransientShortArray(
+    (short) 5,
+    JCSystem.CLEAR_ON_DESELECT
+  );
 
-  private short snapshotIndex = 0;
+  private final short[] offsetSnapshots = JCSystem.makeTransientShortArray(
+    MAX_SNAPSHOTS,
+    JCSystem.CLEAR_ON_DESELECT
+  );
+  private final short[] arrayOffsetSnapshots = JCSystem.makeTransientShortArray(
+    MAX_SNAPSHOTS,
+    JCSystem.CLEAR_ON_DESELECT
+  );
+  private final short[] mapLengthSnapshots = JCSystem.makeTransientShortArray(
+    MAX_SNAPSHOTS,
+    JCSystem.CLEAR_ON_DESELECT
+  );
+  private final short[] mapOffsetSnapshots = JCSystem.makeTransientShortArray(
+    MAX_SNAPSHOTS,
+    JCSystem.CLEAR_ON_DESELECT
+  );
 
   protected abstract short getLength();
 
   public short getOffset() {
-    return offset;
+    return state[OFFSET];
+  }
+
+  void setOffset(short offset) {
+    state[OFFSET] = offset;
   }
 
   private void requireRange(short offset, short length) {
@@ -35,7 +54,7 @@ public abstract class CBORReader implements ByteSource {
   }
 
   private void requireLength(short length) {
-    requireRange(offset, length);
+    requireRange(state[OFFSET], length);
   }
 
   private byte read(short offset) {
@@ -68,32 +87,32 @@ public abstract class CBORReader implements ByteSource {
   }
 
   protected void reset(short offset) {
-    this.offset = offset;
+    state[OFFSET] = offset;
 
-    arrayOffset = -1;
-    mapOffset = -1;
+    state[ARRAY_OFFSET] = -1;
+    state[MAP_OFFSET] = -1;
 
     resetSnapshot();
   }
 
   public void snapshot() {
-    snapshotIndex++;
-    offsetSnapshots[snapshotIndex] = offset;
-    arrayOffsetSnapshots[snapshotIndex] = arrayOffset;
-    mapLengthSnapshots[snapshotIndex] = mapLength;
-    mapOffsetSnapshots[snapshotIndex] = offset;
+    state[SNAPSHOT_INDEX]++;
+    offsetSnapshots[state[SNAPSHOT_INDEX]] = state[OFFSET];
+    arrayOffsetSnapshots[state[SNAPSHOT_INDEX]] = state[ARRAY_OFFSET];
+    mapLengthSnapshots[state[SNAPSHOT_INDEX]] = state[MAP_LENGTH];
+    mapOffsetSnapshots[state[SNAPSHOT_INDEX]] = state[OFFSET];
   }
 
   public void resetSnapshot() {
-    snapshotIndex = 0;
-    offsetSnapshots[0] = offset;
-    arrayOffsetSnapshots[0] = arrayOffset;
-    mapLengthSnapshots[0] = mapLength;
-    mapOffsetSnapshots[0] = offset;
+    state[SNAPSHOT_INDEX] = 0;
+    offsetSnapshots[0] = state[OFFSET];
+    arrayOffsetSnapshots[0] = state[ARRAY_OFFSET];
+    mapLengthSnapshots[0] = state[MAP_LENGTH];
+    mapOffsetSnapshots[0] = state[OFFSET];
   }
 
   public void popSnapshot(boolean restore) {
-    snapshotIndex--;
+    state[SNAPSHOT_INDEX]--;
 
     if (restore) {
       restore();
@@ -105,18 +124,18 @@ public abstract class CBORReader implements ByteSource {
   }
 
   public void restore() {
-    offset = offsetSnapshots[snapshotIndex];
-    arrayOffset = arrayOffsetSnapshots[snapshotIndex];
-    mapLength = mapLengthSnapshots[snapshotIndex];
-    mapOffset = mapOffsetSnapshots[snapshotIndex];
+    state[OFFSET] = offsetSnapshots[state[SNAPSHOT_INDEX]];
+    state[ARRAY_OFFSET] = arrayOffsetSnapshots[state[SNAPSHOT_INDEX]];
+    state[MAP_LENGTH] = mapLengthSnapshots[state[SNAPSHOT_INDEX]];
+    state[MAP_OFFSET] = mapOffsetSnapshots[state[SNAPSHOT_INDEX]];
   }
 
   public boolean is(byte type) {
-    return (read(offset) & CBOR.TYPE_MASK) == type;
+    return (read(state[OFFSET]) & CBOR.TYPE_MASK) == type;
   }
 
   public short integer() {
-    byte type = (byte) (read(offset) & CBOR.TYPE_MASK);
+    byte type = (byte) (read(state[OFFSET]) & CBOR.TYPE_MASK);
 
     switch (type) {
       case CBOR.TYPE_UNSIGNED_INT:
@@ -170,7 +189,7 @@ public abstract class CBORReader implements ByteSource {
   }
 
   private short bytesLikeLength(byte type) {
-    if ((read(offset) & CBOR.TYPE_MASK) != type) {
+    if ((read(state[OFFSET]) & CBOR.TYPE_MASK) != type) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
@@ -184,9 +203,9 @@ public abstract class CBORReader implements ByteSource {
   private short bytesLike(byte type, byte[] out, short outOffset) {
     short length = bytesLikeLength(type);
 
-    read(offset, out, outOffset, length);
+    read(state[OFFSET], out, outOffset, length);
 
-    offset += length;
+    state[OFFSET] += length;
 
     return length;
   }
@@ -196,28 +215,28 @@ public abstract class CBORReader implements ByteSource {
 
     byte[] out = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
 
-    read(offset, out, (short) 0, length);
+    read(state[OFFSET], out, (short) 0, length);
 
     return out;
   }
 
   public short array() {
-    if ((read(offset) & CBOR.TYPE_MASK) != CBOR.TYPE_ARRAY) {
+    if ((read(state[OFFSET]) & CBOR.TYPE_MASK) != CBOR.TYPE_ARRAY) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
     short length = metadataItemsLength();
 
-    arrayOffset = offset;
+    state[ARRAY_OFFSET] = state[OFFSET];
 
     return length;
   }
 
   public boolean index(short index) {
-    offset = arrayOffset;
+    state[OFFSET] = state[ARRAY_OFFSET];
 
     for (short skipping = 0; skipping <= index; skipping++) {
-      if (read(offset) == CBOR.BREAK) {
+      if (read(state[OFFSET]) == CBOR.BREAK) {
         break;
       }
 
@@ -228,32 +247,63 @@ public abstract class CBORReader implements ByteSource {
       skip();
     }
 
-    offset = arrayOffset;
+    state[OFFSET] = state[ARRAY_OFFSET];
 
     return false;
   }
 
   public short map() {
-    if ((read(offset) & CBOR.TYPE_MASK) != CBOR.TYPE_MAP) {
+    if ((read(state[OFFSET]) & CBOR.TYPE_MASK) != CBOR.TYPE_MAP) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
-    mapLength = metadataItemsLength();
+    state[MAP_LENGTH] = metadataItemsLength();
 
-    mapOffset = offset;
+    state[MAP_OFFSET] = state[OFFSET];
 
-    return mapLength;
+    return state[MAP_LENGTH];
+  }
+
+  public CBORMap map(Object[] keys) {
+    return new CBORMap(this, keys);
+  }
+
+  short readKey(Object[] keys) {
+    short length = bytesLikeLength(CBOR.TYPE_TEXT);
+    short offset = state[OFFSET];
+
+    state[OFFSET] += length;
+
+    for (short index = 0; index < keys.length; index++) {
+      byte[] key = (byte[]) keys[index];
+
+      if (key.length != length) {
+        continue;
+      }
+
+      short matched = 0;
+
+      while (matched < length && read((short) (offset + matched)) == key[matched]) {
+        matched++;
+      }
+
+      if (matched == length) {
+        return index;
+      }
+    }
+
+    return -1;
   }
 
   public boolean key(byte[] in, short keyOffset, short keyLength) {
-    offset = mapOffset;
+    state[OFFSET] = state[MAP_OFFSET];
 
-    for (short index = 0; mapLength < 0 || index < mapLength; index++) {
-      if (read(offset) == CBOR.BREAK) {
+    for (short index = 0; state[MAP_LENGTH] < 0 || index < state[MAP_LENGTH]; index++) {
+      if (read(state[OFFSET]) == CBOR.BREAK) {
         break;
       }
 
-      if ((read(offset) & CBOR.TYPE_MASK) != CBOR.TYPE_TEXT) {
+      if ((read(state[OFFSET]) & CBOR.TYPE_MASK) != CBOR.TYPE_TEXT) {
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
       }
 
@@ -265,14 +315,14 @@ public abstract class CBORReader implements ByteSource {
 
       if (matched) {
         for (short keyIndex = 0; keyIndex < keyLength; keyIndex++) {
-          if (read((short) (offset + keyIndex)) != in[(short) (keyOffset + keyIndex)]) {
+          if (read((short) (state[OFFSET] + keyIndex)) != in[(short) (keyOffset + keyIndex)]) {
             matched = false;
             break;
           }
         }
       }
 
-      offset += entryKeyLength;
+      state[OFFSET] += entryKeyLength;
 
       if (matched) {
         return true;
@@ -281,7 +331,7 @@ public abstract class CBORReader implements ByteSource {
       skip();
     }
 
-    offset = mapOffset;
+    state[OFFSET] = state[MAP_OFFSET];
 
     return false;
   }
@@ -307,12 +357,12 @@ public abstract class CBORReader implements ByteSource {
   }
 
   public boolean bool() {
-    switch (read(offset)) {
+    switch (read(state[OFFSET])) {
       case CBOR.FALSE:
-        offset++;
+        state[OFFSET]++;
         return false;
       case CBOR.TRUE:
-        offset++;
+        state[OFFSET]++;
         return true;
       default:
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
@@ -321,28 +371,28 @@ public abstract class CBORReader implements ByteSource {
   }
 
   public boolean boolFalse() {
-    if (read(offset) != CBOR.FALSE) {
+    if (read(state[OFFSET]) != CBOR.FALSE) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
-    offset++;
+    state[OFFSET]++;
 
     return false;
   }
 
   public boolean boolTrue() {
-    if (read(offset) != CBOR.TRUE) {
+    if (read(state[OFFSET]) != CBOR.TRUE) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
-    offset++;
+    state[OFFSET]++;
 
     return true;
   }
 
   public boolean br() {
-    if (read(offset) == CBOR.BREAK) {
-      offset++;
+    if (read(state[OFFSET]) == CBOR.BREAK) {
+      state[OFFSET]++;
       return true;
     } else {
       return false;
@@ -350,28 +400,28 @@ public abstract class CBORReader implements ByteSource {
   }
 
   public void skip() {
-    switch (read(offset)) {
+    switch (read(state[OFFSET])) {
       case CBOR.FALSE:
       case CBOR.TRUE:
       case CBOR.BREAK: {
-        offset++;
+        state[OFFSET]++;
         return;
       }
     }
 
-    switch (read(offset) & CBOR.TYPE_MASK) {
+    switch (read(state[OFFSET]) & CBOR.TYPE_MASK) {
       case CBOR.TYPE_UNSIGNED_INT:
       case CBOR.TYPE_NEGATIVE_INT: {
         short length = metadataBytesLength();
         requireLength(length);
-        offset += length;
+        state[OFFSET] += length;
         break;
       }
       case CBOR.TYPE_BYTES:
       case CBOR.TYPE_TEXT: {
         short length = metadataUnsignedInteger();
         requireLength(length);
-        offset += length;
+        state[OFFSET] += length;
         break;
       }
       case CBOR.TYPE_ARRAY: {
@@ -415,8 +465,8 @@ public abstract class CBORReader implements ByteSource {
   }
 
   private short metadataItemsLength() {
-    if ((read(offset) & CBOR.METADATA_MASK) == CBOR.VARIABLE_LENGTH_INDEFINITE_MARK) {
-      offset++;
+    if ((read(state[OFFSET]) & CBOR.METADATA_MASK) == CBOR.VARIABLE_LENGTH_INDEFINITE_MARK) {
+      state[OFFSET]++;
       return -1;
     }
 
@@ -430,14 +480,14 @@ public abstract class CBORReader implements ByteSource {
 
     switch (bytes) {
       case 1:
-        value = (short) (read(offset) & CBOR.METADATA_MASK);
+        value = (short) (read(state[OFFSET]) & CBOR.METADATA_MASK);
         break;
       case 2:
-        value = (short) (read((short) (offset + 1)) & 0xFF);
+        value = (short) (read((short) (state[OFFSET] + 1)) & 0xFF);
         break;
       case 3:
-        short high = (short) (read((short) (offset + 1)) & 0xFF);
-        short low = (short) (read((short) (offset + 2)) & 0xFF);
+        short high = (short) (read((short) (state[OFFSET] + 1)) & 0xFF);
+        short low = (short) (read((short) (state[OFFSET] + 2)) & 0xFF);
 
         if (high >= 0b10000000) {
           // Exceeded the range of short.
@@ -452,13 +502,13 @@ public abstract class CBORReader implements ByteSource {
         return -1;
     }
 
-    offset += bytes;
+    state[OFFSET] += bytes;
 
     return value;
   }
 
   private short metadataBytesLength() {
-    short metadata = (short) (read(offset) & CBOR.METADATA_MASK);
+    short metadata = (short) (read(state[OFFSET]) & CBOR.METADATA_MASK);
 
     if (metadata <= CBOR.MAX_SIMPLE_UNSIGNED_INT) {
       return 1;

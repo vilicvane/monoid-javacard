@@ -1,0 +1,45 @@
+{
+  "0x20": {
+    "$": []
+  },
+  "0x21": {
+    "$": ["safe", "pin"]
+  },
+  "0x22": {
+    "$": ["pin", "safe"]
+  },
+  "0x2F": {
+    "$": []
+  },
+  "0x30": {
+    "$": ["type", "keyPrefix"]
+  },
+  "0x31": {
+    "$": ["index"]
+  },
+  "0x32": {
+    "$": ["index"]
+  },
+  "0x33": {
+    "$": ["index", "alias", "data"]
+  },
+  "0x34": {
+    "$": ["data", "key", "alias", "type", "index"]
+  },
+  "0x35": {
+    "$": ["index"]
+  },
+  "0x38": {
+    "$": ["type", "length"]
+  },
+  "0x40": {
+    "$": ["index", "type", "derivation", "taproot"],
+    "$.derivation": ["type", "curve", "path", "context"],
+    "$.taproot": ["merkleRoot"]
+  },
+  "0x41": {
+    "$": ["index", "type", "derivation", "cipher", "taproot", "digest", "message"],
+    "$.derivation": ["type", "curve", "path", "context"],
+    "$.taproot": ["merkleRoot"]
+  }
+}

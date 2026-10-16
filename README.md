@@ -367,6 +367,8 @@ type Response = {};
 ```ts
 type Request = {
   type: SafeItemKeyType;
+  /** Required for entropy/seed/master, in bytes; master stores twice this length. */
+  length?: number;
 };
 ```
 

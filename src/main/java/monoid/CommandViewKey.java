@@ -6,6 +6,18 @@ import monoidsafe.SafeShareable;
 
 public final class CommandViewKey extends Command {
 
+  private final Object[] fields = {
+    Text.index,
+    Text.type,
+    Text.derivation,
+    Text.taproot,
+    Text.seed,
+    Text.curve,
+    Text.path,
+  };
+
+  private final Object[] derivationFields = { Text.type, Text.curve, Text.path, Text.context };
+
   @Override
   protected void run() {
     requireAuth();
@@ -14,42 +26,44 @@ public final class CommandViewKey extends Command {
 
     Keystore keystore = MonoidApplet.keystore;
 
-    reader.map();
-    reader.snapshot();
+    CBORMap request = reader.map(fields);
 
-    byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
+    byte[] index = request.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
 
     short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
-    short declaredType = Safe.type(reader.requireKey(Text.type));
+    short declaredType = Safe.type(request.requireKey(Text.type));
 
     if (
       declaredType !=
         (Safe.isTypeSeed(type) || Safe.isTypeMaster(type)
             ? (short) (type & Safe.TYPE_CATEGORY_MASK)
             : type) ||
-      reader.key(Text.seed) ||
-      reader.key(Text.curve) ||
-      reader.key(Text.path)
+      request.key(Text.seed) ||
+      request.key(Text.curve) ||
+      request.key(Text.path)
     ) {
       MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
       return;
     }
 
-    boolean hasTaproot = reader.key(Text.taproot);
+    boolean hasTaproot = request.key(Text.taproot);
     boolean taproot = hasTaproot && (reader.is(CBOR.TYPE_MAP) || reader.bool());
 
     switch (type & Safe.TYPE_CATEGORY_MASK) {
       case Safe.TYPE_WEIERSTRASS:
       case Safe.TYPE_EDWARDS:
         if (
-          (hasTaproot && type != Safe.TYPE_WEIERSTRASS_SECP256K1) || reader.key(Text.derivation)
+          (hasTaproot && type != Safe.TYPE_WEIERSTRASS_SECP256K1) || request.key(Text.derivation)
         ) {
           MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
           return;
         }
 
         byte[] publicKey = Safe.isTypeWeierstrass(type)
-          ? keystore.getWeierstrassKeyPublicKey(index, taproot ? readTaprootMerkleRoot() : null)
+          ? keystore.getWeierstrassKeyPublicKey(
+            index,
+            taproot ? readTaprootMerkleRoot(request) : null
+          )
           : keystore.getEdwardsKeyPublicKey(index);
 
         writer.map((short) 1);
@@ -67,34 +81,32 @@ public final class CommandViewKey extends Command {
         return;
     }
 
-    reader.requireKey(Text.derivation).map();
+    CBORMap derivationRequest = request.requireKey(Text.derivation).map(derivationFields);
 
-    byte[] derivation = reader.requireKey(Text.type).text();
+    byte[] derivation = derivationRequest.requireKey(Text.type).text();
     byte[] curveName;
 
     if (Utils.isEqual(BIP32Derivation.NAME, derivation)) {
-      if (reader.key(Text.curve)) {
+      if (derivationRequest.key(Text.curve)) {
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
         return;
       }
 
       curveName = WeierstrassCurve.SECP256k1;
     } else if (Utils.isEqual(SLIP10Ed25519Derivation.NAME, derivation)) {
-      curveName = reader.requireKey(Text.curve).text();
+      curveName = derivationRequest.requireKey(Text.curve).text();
 
       if (!Utils.isEqual(EdwardsCurve.ED25519, curveName)) {
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
         return;
       }
     } else if (Utils.isEqual(Monoid001Derivation.NAME, derivation)) {
-      if (hasTaproot || reader.key(Text.curve) || reader.key(Text.path)) {
+      if (hasTaproot || derivationRequest.key(Text.curve) || derivationRequest.key(Text.path)) {
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
         return;
       }
 
-      byte[] context = reader.requireKey(Text.context).bytes();
-
-      reader.restore();
+      byte[] context = derivationRequest.requireKey(Text.context).bytes();
 
       byte[] publicKey = Safe.isTypeSeed(type)
         ? keystore.getMonoid001PublicKeyFromSeed(index, context)
@@ -112,9 +124,7 @@ public final class CommandViewKey extends Command {
       return;
     }
 
-    byte[] path = reader.requireKey(Text.path).bytes();
-
-    reader.restore();
+    byte[] path = derivationRequest.requireKey(Text.path).bytes();
 
     WeierstrassCurve weierstrassCurve = WeierstrassCurve.getSharedCurve(curveName);
     EdwardsCurve edwardsCurve = weierstrassCurve == null
@@ -126,7 +136,7 @@ public final class CommandViewKey extends Command {
       return;
     }
 
-    byte[] merkleRoot = taproot ? readTaprootMerkleRoot() : null;
+    byte[] merkleRoot = taproot ? readTaprootMerkleRoot(request) : null;
 
     short publicKeyLength = taproot
       ? CurveSECP256k1.KEY_LENGTH
@@ -172,8 +182,8 @@ public final class CommandViewKey extends Command {
     }
   }
 
-  private byte[] readTaprootMerkleRoot() {
-    if (reader.requireKey(Text.taproot).is(CBOR.TYPE_MAP)) {
+  private byte[] readTaprootMerkleRoot(CBORMap request) {
+    if (request.requireKey(Text.taproot).is(CBOR.TYPE_MAP)) {
       reader.map();
 
       if (reader.key(Text.merkleRoot)) {
