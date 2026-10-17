@@ -1,6 +1,6 @@
 {
   "0x20": {
-    "$": []
+    "$": ["safe"]
   },
   "0x21": {
     "$": ["safe", "pin"]
@@ -21,13 +21,19 @@
     "$": ["index"]
   },
   "0x33": {
-    "$": ["index", "alias", "data"]
+    "$": ["index", "alias", "data", "secret"]
   },
   "0x34": {
-    "$": ["data", "key", "alias", "type", "index"]
+    "$": ["data", "key", "alias", "secret", "type", "index"]
   },
   "0x35": {
     "$": ["index"]
+  },
+  "0x36": {
+    "$": ["index", "recipientPublicKey"]
+  },
+  "0x37": {
+    "$": ["index", "senderPublicKey", "key", "alias", "data"]
   },
   "0x38": {
     "$": ["type", "length"]

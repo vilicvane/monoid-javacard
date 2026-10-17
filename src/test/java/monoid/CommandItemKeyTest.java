@@ -83,7 +83,8 @@ public class CommandItemKeyTest {
     assertMetadata(first, firstKey);
     assertMetadata(second, secondKey);
     assertMetadata(absent, null);
-    assertError(transmit(0x32, indexRequest(second)), MonoidException.CODE_ACCESS_DENIED);
+    CBORBufferReader reader = assertSuccess(transmit(0x32, indexRequest(second)));
+    Assertions.assertArrayEquals(scalar, reader.requireKey(Text.data).bytes());
   }
 
   @Test
@@ -103,7 +104,7 @@ public class CommandItemKeyTest {
 
     assertSuccess(transmit(0x21, pinRequest(true)));
     CBORBufferReader reader = assertSuccess(transmit(0x32, indexRequest(index)));
-    Assertions.assertArrayEquals(key, reader.requireKey(Text.key).bytes());
+    Assertions.assertFalse(reader.key(Text.key));
     Assertions.assertArrayEquals(replacementData, reader.requireKey(Text.data).bytes());
   }
 

@@ -30,7 +30,7 @@ public final class Utils {
   }
 
   public static byte[] duplicateAsPersistent(byte[] buffer, short offset, short length) {
-    byte[] duplicate = new byte[buffer.length];
+    byte[] duplicate = new byte[length];
 
     Util.arrayCopyNonAtomic(buffer, offset, duplicate, (short) 0, length);
 

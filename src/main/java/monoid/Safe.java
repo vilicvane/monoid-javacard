@@ -69,6 +69,10 @@ public final class Safe {
     return safe.getId();
   }
 
+  public byte[] getPublicKey() {
+    return safe.getPublicKey();
+  }
+
   public boolean isPINSet() {
     return safe.isPINSet();
   }
@@ -150,7 +154,7 @@ public final class Safe {
 
     byte[] index = buildGlobalDigestIndex(refinedType, data);
 
-    return safe.create(index, null, null, data);
+    return safe.create(index, null, null, data, true);
   }
 
   private SafeItemShareable createRandomScalar(short refinedType, byte[] order) {
@@ -162,7 +166,7 @@ public final class Safe {
 
     byte[] index = buildGlobalDigestIndex(refinedType, data);
 
-    return safe.create(index, null, null, data);
+    return safe.create(index, null, null, data, true);
   }
 
   public Object[] list(short type) {
@@ -191,7 +195,7 @@ public final class Safe {
     return item;
   }
 
-  public SafeItemShareable create(short type, byte[] key, byte[] alias, byte[] data)
+  public SafeItemShareable create(short type, byte[] key, byte[] alias, byte[] data, boolean secret)
     throws SafeException {
     if (!isKnownDigestIndexedType(type)) {
       SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
@@ -205,10 +209,16 @@ public final class Safe {
     alias = alias != null ? Utils.duplicateAsGlobal(alias) : null;
     data = Utils.duplicateAsGlobal(data);
 
-    return safe.create(index, key, alias, data);
+    return safe.create(index, key, alias, data, secret);
   }
 
-  public SafeItemShareable create(byte[] index, byte[] key, byte[] alias, byte[] data) {
+  public SafeItemShareable create(
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] data,
+    boolean secret
+  ) {
     if (index.length != SafeShareable.INDEX_LENGTH) {
       SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     }
@@ -245,7 +255,18 @@ public final class Safe {
     alias = alias != null ? Utils.duplicateAsGlobal(alias) : null;
     data = Utils.duplicateAsGlobal(data);
 
-    return safe.create(builtIndex, key, alias, data);
+    return safe.create(builtIndex, key, alias, data, secret);
+  }
+
+  /** The request arrays must be global for the Safe Shareable call. */
+  public void importItem(
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] senderPublicKey,
+    byte[] data
+  ) {
+    safe.importItem(index, key, alias, senderPublicKey, data);
   }
 
   public static short type(byte[] buffer, short offset, short length) throws MonoidException {

@@ -19,7 +19,7 @@ public final class AESGcmCipher {
   private final byte[] operation;
 
   public AESGcmCipher() {
-    // Identity is called through a Shareable while Safe or Monoid is selected.
+    // The owning applet can be called through a Shareable in another selected applet.
     cipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, true);
     hash = new GHASH();
     counter = JCSystem.makeTransientByteArray(BLOCK_LENGTH, JCSystem.CLEAR_ON_RESET);
@@ -28,7 +28,7 @@ public final class AESGcmCipher {
     operation = JCSystem.makeTransientByteArray((short) 1, JCSystem.CLEAR_ON_RESET);
   }
 
-  /** Initializes one operation with the fixed HPKE profile's 12-byte nonce. */
+  /** Initializes one operation with a 12-byte nonce. */
   public void init(AESKey key, byte mode, byte[] nonce, short nonceOffset) {
     operation[0] = mode;
     cipher.init(key, Cipher.MODE_ENCRYPT);
@@ -45,7 +45,7 @@ public final class AESGcmCipher {
 
   /**
    * Processes one complete message after init. Exact in-place operation is supported.
-   * Decrypted output remains internal until CommunicationCipher verifies its tag.
+   * Decrypted output must remain internal until the caller verifies its tag.
    */
   public short doFinal(byte[] input, short offset, short length, byte[] out, short outOffset) {
     short remaining = length;

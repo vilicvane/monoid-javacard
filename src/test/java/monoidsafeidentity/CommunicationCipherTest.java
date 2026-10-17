@@ -9,6 +9,7 @@ import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import javacard.framework.JCSystem;
 import javacard.security.ECPrivateKey;
 import javacard.security.ECPublicKey;
 import javacard.security.KeyPair;
@@ -136,14 +137,18 @@ public class CommunicationCipherTest {
     byte[] second = sender.encrypt(RECIPIENT_PUBLIC_KEY, CONTEXT, COMMUNICATION_KEY);
 
     Assertions.assertEquals(113, first.length);
+    Assertions.assertNotSame(first, second);
+    Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(first));
     Assertions.assertFalse(Arrays.equals(first, second));
 
     for (byte[] encryptedKey : new byte[][] { first, second }) {
       Assertions.assertArrayEquals(COMMUNICATION_KEY, decryptOnHost(encryptedKey));
-      Assertions.assertArrayEquals(
-        COMMUNICATION_KEY,
-        recipient.decrypt(SENDER_PUBLIC_KEY, CONTEXT, encryptedKey)
-      );
+      byte[] original = encryptedKey.clone();
+      byte[] key = recipient.decrypt(SENDER_PUBLIC_KEY, CONTEXT, encryptedKey);
+      Assertions.assertNotSame(encryptedKey, key);
+      Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(key));
+      Assertions.assertArrayEquals(COMMUNICATION_KEY, key);
+      Assertions.assertArrayEquals(original, encryptedKey);
     }
   }
 
@@ -185,10 +190,12 @@ public class CommunicationCipherTest {
     for (int offset : new int[] { 65, 96, 97, 112 }) {
       byte[] corrupted = encryptedKey.clone();
       corrupted[offset] ^= 1;
+      byte[] original = corrupted.clone();
 
       Assertions.assertThrows(RuntimeException.class, () ->
         recipient.decrypt(SENDER_PUBLIC_KEY, CONTEXT, corrupted)
       );
+      Assertions.assertArrayEquals(original, corrupted);
     }
 
     Assertions.assertArrayEquals(

@@ -8,12 +8,14 @@ public class SafeItem {
   public byte[] key;
   public byte[] alias;
   public byte[] data;
+  public short secret;
 
-  public SafeItem(byte[] index, byte[] key, byte[] alias, byte[] data) {
+  public SafeItem(byte[] index, byte[] key, byte[] alias, byte[] data, boolean secret) {
     this.index = index;
     this.key = key;
     this.alias = alias;
     this.data = data;
+    this.secret = secret ? Constants.SAFE_TRUE : Constants.SAFE_FALSE;
   }
 
   public boolean matches(byte[] index) {

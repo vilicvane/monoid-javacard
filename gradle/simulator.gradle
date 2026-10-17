@@ -79,7 +79,7 @@ task prepareSimulatorCommunicationCipher {
 
 		def source = original.text
 		// The four-argument KeyBuilder overload is an unimplemented simulator stub.
-		source = replace(source, /KeyBuilder\.ALG_TYPE_EC_FP_PRIVATE,\s*JCSystem\.MEMORY_TYPE_TRANSIENT_RESET,/, 1,
+		source = replace(source, /KeyBuilder\.ALG_TYPE_EC_FP_PRIVATE,\s*JCSystem\.MEMORY_TYPE_PERSISTENT,/, 1,
 			'KeyBuilder.TYPE_EC_FP_PRIVATE,')
 		source = replace(source, /KeyBuilder\.ALG_TYPE_AES,\s*JCSystem\.MEMORY_TYPE_TRANSIENT_RESET,/, 1,
 			'KeyBuilder.TYPE_AES_TRANSIENT_RESET,')
@@ -93,26 +93,57 @@ task prepareSimulatorCommunicationCipher {
 }
 
 task prepareSimulatorAESGcmCipher {
-	def original = file('src/main/java/monoidsafeidentity/AESGcmCipher.java')
-	def adapted = file("${buildDir}/generated/simulator/monoidsafeidentity/AESGcmCipher.java")
+	def packages = ['monoidsafeidentity', 'monoidsafe']
+	def originals = packages.collect { file("src/main/java/${it}/AESGcmCipher.java") }
+	def adapted = packages.collect { file("${buildDir}/generated/simulator/${it}/AESGcmCipher.java") }
+	inputs.files originals
+	outputs.files adapted
+
+	doLast {
+		originals.eachWithIndex { original, index ->
+			def source = original.text
+			def pattern = /Cipher\.ALG_AES_BLOCK_128_ECB_NOPAD, true/
+			if ((source =~ pattern).count != 1) {
+				throw new GradleException('Unexpected simulator AES shared-access match count')
+			}
+
+			// Keep software GCM unchanged; only the native factory needs a host adaptation.
+			adapted[index].parentFile.mkdirs()
+			adapted[index].text = source.replaceAll(pattern, 'Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, false')
+		}
+	}
+}
+
+task prepareSimulatorItemCipher {
+	def original = file('src/main/java/monoidsafe/ItemCipher.java')
+	def adapted = file("${buildDir}/generated/simulator/monoidsafe/ItemCipher.java")
 	inputs.file original
 	outputs.file adapted
 
 	doLast {
-		def source = original.text
-		def pattern = /Cipher\.ALG_AES_BLOCK_128_ECB_NOPAD, true/
-		if ((source =~ pattern).count != 1) {
-			throw new GradleException('Unexpected simulator AES shared-access match count')
+		def replace = { String source, pattern, replacement ->
+			if ((source =~ pattern).count != 1) {
+				throw new GradleException("Unexpected simulator ItemCipher match count: ${pattern}")
+			}
+
+			source.replaceAll(pattern, replacement)
 		}
 
-		// Keep software GCM unchanged; only the native factory needs a host adaptation.
+		def source = original.text
+		source = replace(source, /KeyBuilder\.ALG_TYPE_AES,\s*JCSystem\.MEMORY_TYPE_TRANSIENT_RESET,/,
+			'KeyBuilder.TYPE_AES_TRANSIENT_RESET,')
+		source = replace(source, /MessageDigest\.ALG_SHA_256, true/,
+			'MessageDigest.ALG_SHA_256, false')
+
 		adapted.parentFile.mkdirs()
-		adapted.text = source.replaceAll(pattern, 'Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, false')
+		adapted.text = source
 	}
 }
 
 compileSimulatorMath {
-	dependsOn prepareSimulatorCommunicationCipher, prepareSimulatorAESGcmCipher
+	dependsOn prepareSimulatorCommunicationCipher, prepareSimulatorAESGcmCipher, prepareSimulatorItemCipher
 	source file("${buildDir}/generated/simulator/monoidsafeidentity/CommunicationCipher.java")
 	source file("${buildDir}/generated/simulator/monoidsafeidentity/AESGcmCipher.java")
+	source file("${buildDir}/generated/simulator/monoidsafe/AESGcmCipher.java")
+	source file("${buildDir}/generated/simulator/monoidsafe/ItemCipher.java")
 }

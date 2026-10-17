@@ -31,7 +31,7 @@ public class CBORBufferWriter extends CBORWriter {
     Util.arrayCopyNonAtomic(data, dataOffset, buffer, offset, length);
   }
 
-  private void ensureBufferLength(short length) {
+  protected void ensureBufferLength(short length) {
     short bufferLength = buffer == null ? 0 : (short) buffer.length;
 
     if (length <= bufferLength) {

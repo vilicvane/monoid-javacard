@@ -1,5 +1,8 @@
 package monoid;
 
+import static monoidsafe.Constants.SAFE_FALSE;
+import static monoidsafe.Constants.SAFE_TRUE;
+
 import monoidsafe.SafeItemShareable;
 import monoidsafe.SafeShareable;
 
@@ -7,7 +10,7 @@ public class CommandGet extends Command {
 
   @Override
   protected void run() {
-    requireAuth(AUTH_SAFE);
+    requireAuth();
 
     MonoidApplet.checkSafeUnlocked();
 
@@ -15,36 +18,23 @@ public class CommandGet extends Command {
 
     byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
 
-    SafeItemShareable item = MonoidApplet.safe.require(index);
+    final SafeItemShareable item = MonoidApplet.safe.require(index);
 
-    byte[] key = item.getKey();
-    byte[] alias = item.getAlias();
-    byte[] data = item.getData();
+    LibSecurity.Condition secret = new LibSecurity.Condition() {
+      @Override
+      public boolean check() {
+        return item.isSecret();
+      }
+    };
 
-    short entries = 1;
-
-    if (key != null) {
-      entries++;
+    if (LibSecurity.check(secret, SAFE_TRUE) != SAFE_FALSE) {
+      MonoidException.throwIt(MonoidException.CODE_ACCESS_DENIED);
     }
 
-    if (alias != null) {
-      entries++;
-    }
-
-    writer.map(entries);
+    writer.map((short) 1);
     {
-      if (key != null) {
-        writer.text(Text.key);
-        writer.bytes(key);
-      }
-
-      if (alias != null) {
-        writer.text(Text.alias);
-        writer.text(alias);
-      }
-
       writer.text(Text.data);
-      writer.bytes(data);
+      writer.bytes(item.getData());
     }
   }
 }

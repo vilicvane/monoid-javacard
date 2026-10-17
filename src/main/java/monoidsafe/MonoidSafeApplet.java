@@ -8,6 +8,7 @@ import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javacard.framework.Shareable;
+import javacard.framework.Util;
 import monoidsafeidentity.SafeIdentityShareable;
 
 public class MonoidSafeApplet extends Applet {
@@ -94,6 +95,8 @@ public class MonoidSafeApplet extends Applet {
 
   private short itemsLength = 0;
 
+  private ItemCipher itemCipher;
+
   public void process(APDU apdu) {
     if (selectingApplet()) {
       return;
@@ -103,6 +106,14 @@ public class MonoidSafeApplet extends Applet {
   }
 
   public byte[] getId() {
+    return requireIdentity().getId();
+  }
+
+  public byte[] getPublicKey() {
+    return requireIdentity().getPublicKey();
+  }
+
+  private SafeIdentityShareable requireIdentity() {
     AID identityAID = JCSystem.lookupAID(
       Constants.MONOID_SAFE_IDENTITY_AID,
       (short) 0,
@@ -116,7 +127,15 @@ public class MonoidSafeApplet extends Applet {
       ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
     }
 
-    return identity.getId();
+    return identity;
+  }
+
+  private ItemCipher requireItemCipher() {
+    if (itemCipher == null) {
+      itemCipher = new ItemCipher();
+    }
+
+    return itemCipher;
   }
 
   public boolean isPINSet() {
@@ -239,12 +258,17 @@ public class MonoidSafeApplet extends Applet {
 
   public SafeItemShareable get(SafeSession session, byte[] index) {
     assertAccess(session);
+    SafeItem item = getItem(index);
 
+    return item != null ? new SafeSessionItem(session, item) : null;
+  }
+
+  private SafeItem getItem(byte[] index) {
     for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
       SafeItem item = items[itemIndex];
 
       if (item.matches(index)) {
-        return new SafeSessionItem(session, item);
+        return item;
       }
     }
 
@@ -256,49 +280,132 @@ public class MonoidSafeApplet extends Applet {
     byte[] index,
     byte[] key,
     byte[] alias,
+    byte[] data,
+    boolean secret
+  ) {
+    assertAccess(session);
+
+    if (getItem(index) != null) {
+      return null;
+    }
+
+    SafeItem item = createItem(index, key, alias, data, (short) 0, (short) data.length, secret);
+
+    return new SafeSessionItem(session, item);
+  }
+
+  private SafeItem createItem(
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] data,
+    short dataOffset,
+    short dataLength,
+    boolean secret
+  ) {
+    index = Utils.duplicateAsPersistent(index);
+    key = key != null ? Utils.duplicateAsPersistent(key) : null;
+    alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
+    data = Utils.duplicateAsPersistent(data, dataOffset, dataLength);
+
+    SafeItem item = new SafeItem(index, key, alias, data, secret);
+    SafeItem[] updatedItems = items;
+
+    if (itemsLength == items.length) {
+      updatedItems = new SafeItem[(short) (items.length + ITEM_LENGTH_EXTENSION)];
+
+      for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
+        updatedItems[itemIndex] = items[itemIndex];
+      }
+    }
+
+    boolean extended = updatedItems != items;
+
+    JCSystem.beginTransaction();
+
+    try {
+      items = updatedItems;
+      items[itemsLength++] = item;
+      JCSystem.commitTransaction();
+    } finally {
+      if (JCSystem.getTransactionDepth() != 0) {
+        JCSystem.abortTransaction();
+      }
+    }
+
+    if (extended) {
+      JCSystem.requestObjectDeletion();
+    }
+
+    return item;
+  }
+
+  public byte[] exportItem(SafeSession session, SafeItem item, byte[] recipientPublicKey) {
+    assertAccess(session);
+    return requireItemCipher().encrypt(requireIdentity(), item, recipientPublicKey);
+  }
+
+  public void importItem(
+    SafeSession session,
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] senderPublicKey,
     byte[] data
   ) {
     assertAccess(session);
 
-    for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
-      if (items[itemIndex].matches(index)) {
-        return null;
+    byte[] plaintext = requireItemCipher().decrypt(
+      requireIdentity(),
+      index,
+      key,
+      alias,
+      senderPublicKey,
+      data
+    );
+    short secret = Util.getShort(plaintext, (short) 0);
+
+    if (secret != Constants.SAFE_TRUE && secret != Constants.SAFE_FALSE) {
+      ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+    }
+
+    short dataLength = (short) (plaintext.length - ItemCipher.SECRET_LENGTH);
+    SafeItem item = getItem(index);
+
+    if (item != null) {
+      if (
+        item.secret != secret ||
+        !equal(item.key, key) ||
+        !equal(item.alias, alias) ||
+        item.data.length != dataLength ||
+        Util.arrayCompare(item.data, (short) 0, plaintext, ItemCipher.SECRET_LENGTH, dataLength) !=
+        0
+      ) {
+        ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
       }
+
+      return;
     }
 
-    JCSystem.beginTransaction();
+    createItem(
+      index,
+      key,
+      alias,
+      plaintext,
+      ItemCipher.SECRET_LENGTH,
+      dataLength,
+      secret == Constants.SAFE_TRUE
+    );
+  }
 
-    if (itemsLength == items.length) {
-      SafeItem[] extendedItems = new SafeItem[(short) (items.length + ITEM_LENGTH_EXTENSION)];
-
-      for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
-        extendedItems[itemIndex] = items[itemIndex];
-      }
-
-      items = extendedItems;
-
-      JCSystem.requestObjectDeletion();
-    }
-
-    index = Utils.duplicateAsPersistent(index);
-
-    if (key != null) {
-      key = Utils.duplicateAsPersistent(key);
-    }
-
-    if (alias != null) {
-      alias = Utils.duplicateAsPersistent(alias);
-    }
-
-    data = Utils.duplicateAsPersistent(data);
-
-    SafeItem item = new SafeItem(index, key, alias, data);
-
-    items[itemsLength++] = item;
-
-    JCSystem.commitTransaction();
-
-    return new SafeSessionItem(session, item);
+  private static boolean equal(byte[] left, byte[] right) {
+    return (
+      left == right ||
+      (left != null &&
+        right != null &&
+        left.length == right.length &&
+        Util.arrayCompare(left, (short) 0, right, (short) 0, (short) left.length) == 0)
+    );
   }
 
   public void remove(SafeSession session, SafeItem item) {

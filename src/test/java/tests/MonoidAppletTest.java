@@ -128,27 +128,59 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(1)
   public void firstHello() throws Exception {
-    CBORBufferWriter cbor = new CBORBufferWriter();
+    CardManager manager = connect();
+    byte[] expectedId = null;
+    short expectedVersion = 0;
+    byte[] defaultResponse = null;
 
-    cbor.map((short) 0);
+    for (int mode = 0; mode < 3; mode++) {
+      boolean includeSafe = mode == 2;
+      CBORBufferWriter cbor = new CBORBufferWriter();
 
-    CommandAPDU request = apdu(0x00, 0x20, 0, 0, cbor.getDataBuffer());
+      cbor.map((short) (mode == 0 ? 0 : 1));
+      if (mode != 0) {
+        cbor.text("safe".getBytes());
+        cbor.bool(includeSafe);
+      }
 
-    ResponseAPDU response = connect().transmit(request);
+      CommandAPDU request = apdu(0x00, 0x20, 0, 0, cbor.getDataBuffer());
+      ResponseAPDU response = manager.transmit(request);
 
-    assertNoError(response);
-    assertFeatures(response);
+      assertNoError(response);
+      assertFeatures(response);
 
-    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
-    reader.map();
-    {
-      Assertions.assertEquals(4, reader.requireKey("id".getBytes()).bytes().length);
-      Assertions.assertFalse(reader.requireKey("pin".getBytes()).bool());
+      if (mode == 0) {
+        defaultResponse = response.getData();
+      } else if (mode == 1) {
+        Assertions.assertArrayEquals(defaultResponse, response.getData());
+      }
 
-      reader.requireKey("safe".getBytes()).map();
+      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+      Assertions.assertEquals(includeSafe ? 5 : 4, reader.map());
       {
-        Assertions.assertEquals(4, reader.requireKey("id".getBytes()).bytes().length);
+        short version = reader.requireKey("version".getBytes()).integer();
+        byte[] id = reader.requireKey("id".getBytes()).bytes();
+        Assertions.assertEquals(4, id.length);
+        if (mode == 0) {
+          expectedVersion = version;
+          expectedId = id.clone();
+        } else {
+          Assertions.assertEquals(expectedVersion, version);
+          Assertions.assertArrayEquals(expectedId, id);
+        }
+
         Assertions.assertFalse(reader.requireKey("pin".getBytes()).bool());
+        Assertions.assertEquals(includeSafe, reader.key("safe".getBytes()));
+
+        if (includeSafe) {
+          Assertions.assertEquals(4, reader.map());
+          Assertions.assertEquals(4, reader.requireKey("id".getBytes()).bytes().length);
+          byte[] publicKey = reader.requireKey("publicKey".getBytes()).bytes();
+          Assertions.assertEquals(65, publicKey.length);
+          Assertions.assertEquals(0x04, publicKey[0]);
+          Assertions.assertFalse(reader.requireKey("pin".getBytes()).bool());
+          Assertions.assertFalse(reader.requireKey("unlocked".getBytes()).bool());
+        }
       }
     }
   }
@@ -247,7 +279,11 @@ public class MonoidAppletTest extends AppletTest {
   public void secondHello() throws Exception {
     CBORBufferWriter cbor = new CBORBufferWriter();
 
-    cbor.map((short) 0);
+    cbor.map((short) 1);
+    {
+      cbor.text("safe".getBytes());
+      cbor.bool(true);
+    }
 
     CommandAPDU request = apdu(0x00, 0x20, 0, 0, cbor.getDataBuffer());
 
@@ -432,6 +468,7 @@ public class MonoidAppletTest extends AppletTest {
       reader.map();
       {
         Assertions.assertArrayEquals(alias, reader.requireKey("alias".getBytes()).text());
+        Assertions.assertFalse(reader.requireKey("secret".getBytes()).bool());
         Assertions.assertFalse(reader.key("data".getBytes()));
       }
     }
@@ -441,7 +478,7 @@ public class MonoidAppletTest extends AppletTest {
 
       CardManager manager = connect();
 
-      authenticate(manager, true);
+      authenticate(manager, false);
 
       CBORBufferWriter writer = new CBORBufferWriter();
 
@@ -458,9 +495,8 @@ public class MonoidAppletTest extends AppletTest {
       assertNoError(response);
 
       CBORBufferReader reader = new CBORBufferReader(response.getBytes());
-      reader.map();
+      Assertions.assertEquals(1, reader.map());
       {
-        Assertions.assertArrayEquals(alias, reader.requireKey("alias".getBytes()).text());
         Assertions.assertArrayEquals(data, reader.requireKey("data".getBytes()).bytes());
       }
     }
@@ -1356,16 +1392,7 @@ public class MonoidAppletTest extends AppletTest {
     byte[] index = reader.requireKey("index".getBytes()).bytes();
 
     try {
-      authenticate(manager, true);
-      response = manager.transmit(apdu(0, 0x32, 0, 0, itemRequest(index)));
-      assertNoError(response);
-      reader = new CBORBufferReader(response.getBytes());
-      reader.map();
-      byte[] data = reader.requireKey("data".getBytes()).bytes();
-      Assertions.assertEquals(32, data.length);
-      Assertions.assertArrayEquals(ed25519Index(data), index);
-
-      assertED25519Item(manager, index, data, Hex.decode("72"));
+      assertED25519Item(manager, index, null, Hex.decode("72"));
     } finally {
       assertNoError(manager.transmit(apdu(0, 0x35, 0, 0, itemRequest(index))));
     }
@@ -1539,19 +1566,21 @@ public class MonoidAppletTest extends AppletTest {
     byte[] index = reader.requireKey("index".getBytes()).bytes();
 
     try {
-      authenticate(manager, true);
-      response = manager.transmit(apdu(0, 0x32, 0, 0, itemRequest(index)));
+      for (boolean safeAuth : new boolean[] { false, true }) {
+        authenticate(manager, safeAuth);
+        assertError(
+          manager.transmit(apdu(0, 0x32, 0, 0, itemRequest(index))),
+          MonoidException.CODE_ACCESS_DENIED
+        );
+      }
+
+      response = manager.transmit(apdu(0, 0x31, 0, 0, itemRequest(index)));
       assertNoError(response);
       reader = new CBORBufferReader(response.getBytes());
       reader.map();
-      byte[] data = reader.requireKey("data".getBytes()).bytes();
-      Assertions.assertEquals(32, data.length);
-      BigInteger scalar = new BigInteger(1, data);
-      Assertions.assertTrue(scalar.signum() > 0);
-      Assertions.assertTrue(scalar.compareTo(SECNamedCurves.getByName("secp256r1").getN()) < 0);
-      Assertions.assertArrayEquals(secp256r1Index(data), index);
+      Assertions.assertTrue(reader.requireKey("secret".getBytes()).bool());
 
-      assertSECP256r1Item(manager, index, data);
+      assertSECP256r1Item(manager, index, null);
     } finally {
       assertNoError(manager.transmit(apdu(0, 0x35, 0, 0, itemRequest(index))));
     }
@@ -1833,7 +1862,6 @@ public class MonoidAppletTest extends AppletTest {
   private void assertSECP256r1Item(CardManager manager, byte[] index, byte[] data)
     throws Exception {
     X9ECParameters parameters = SECNamedCurves.getByName("secp256r1");
-    byte[] expectedPublicKey = parameters.getG().multiply(new BigInteger(1, data)).getEncoded(true);
 
     for (boolean explicitTaproot : new boolean[] { false, true }) {
       CBORBufferWriter writer = new CBORBufferWriter();
@@ -1863,7 +1891,15 @@ public class MonoidAppletTest extends AppletTest {
       CBORBufferReader reader = new CBORBufferReader(response.getBytes());
       Assertions.assertEquals(1, reader.map());
       byte[] publicKey = reader.requireKey("publicKey".getBytes()).bytes();
-      Assertions.assertArrayEquals(expectedPublicKey, publicKey);
+      Assertions.assertTrue(parameters.getCurve().decodePoint(publicKey).isValid());
+
+      if (data != null) {
+        Assertions.assertArrayEquals(
+          parameters.getG().multiply(new BigInteger(1, data)).getEncoded(true),
+          publicKey
+        );
+      }
+
       Assertions.assertFalse(reader.key("chainCode".getBytes()));
 
       response = manager.transmit(
@@ -1927,6 +1963,10 @@ public class MonoidAppletTest extends AppletTest {
       byte[] listedIndex = reader.requireKey("index".getBytes()).bytes();
       foundExample |= Arrays.equals(TEST_ED25519_KEY_INDEX, listedIndex);
       foundItem |= Arrays.equals(index, listedIndex);
+
+      if (Arrays.equals(index, listedIndex)) {
+        Assertions.assertEquals(seed == null, reader.requireKey("secret".getBytes()).bool());
+      }
     }
 
     Assertions.assertTrue(foundExample);
@@ -1956,10 +1996,15 @@ public class MonoidAppletTest extends AppletTest {
 
     authenticate(manager, true);
     response = manager.transmit(apdu(0, 0x32, 0, 0, itemRequest(index)));
-    assertNoError(response);
-    reader = new CBORBufferReader(response.getBytes());
-    reader.map();
-    Assertions.assertArrayEquals(seed, reader.requireKey("data".getBytes()).bytes());
+
+    if (seed == null) {
+      assertError(response, MonoidException.CODE_ACCESS_DENIED);
+    } else {
+      assertNoError(response);
+      reader = new CBORBufferReader(response.getBytes());
+      reader.map();
+      Assertions.assertArrayEquals(seed, reader.requireKey("data".getBytes()).bytes());
+    }
 
     writer.reset();
     writer.map((short) 2);
@@ -1997,14 +2042,16 @@ public class MonoidAppletTest extends AppletTest {
       "-e",
       "const c = require('node:crypto'); " +
       "const [seed, pub, msg, sig] = process.argv.slice(1).map(x => Buffer.from(x, 'hex')); " +
-      "const key = c.createPrivateKey({key: Buffer.concat([" +
+      "const publicKey = c.createPublicKey({key: Buffer.concat([" +
+      "Buffer.from('302a300506032b6570032100', 'hex'), pub]), " +
+      "format: 'der', type: 'spki'}); " +
+      "if (!c.verify(null, msg, publicKey, sig)) process.exit(1); " +
+      "if (seed.length) { const key = c.createPrivateKey({key: Buffer.concat([" +
       "Buffer.from('302e020100300506032b657004220420', 'hex'), seed]), " +
       "format: 'der', type: 'pkcs8'}); " +
-      "const publicKey = c.createPublicKey(key); " +
-      "const expected = publicKey.export({format: 'der', type: 'spki'}).subarray(-32); " +
-      "process.exit(expected.equals(pub) && c.sign(null, msg, key).equals(sig) && " +
-      "c.verify(null, msg, publicKey, sig) ? 0 : 1);",
-      Hex.toHexString(seed),
+      "const expected = c.createPublicKey(key).export({format: 'der', type: 'spki'}).subarray(-32); " +
+      "if (!expected.equals(pub) || !c.sign(null, msg, key).equals(sig)) process.exit(1); }",
+      seed != null ? Hex.toHexString(seed) : "",
       Hex.toHexString(publicKey),
       Hex.toHexString(message),
       Hex.toHexString(signature)

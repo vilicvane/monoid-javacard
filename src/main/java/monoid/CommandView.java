@@ -20,7 +20,7 @@ public class CommandView extends Command {
     byte[] key = item.getKey();
     byte[] alias = item.getAlias();
 
-    short entries = 0;
+    short entries = 1;
 
     if (key != null) {
       entries++;
@@ -41,6 +41,9 @@ public class CommandView extends Command {
         writer.text(Text.alias);
         writer.text(alias);
       }
+
+      writer.text(Text.secret);
+      writer.bool(item.isSecret());
     }
   }
 }

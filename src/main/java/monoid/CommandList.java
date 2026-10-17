@@ -34,7 +34,7 @@ public class CommandList extends Command {
         byte[] key = item.getKey();
         byte[] alias = item.getAlias();
 
-        short entries = 1;
+        short entries = 2;
 
         if (typeName != null) {
           entries++;
@@ -67,6 +67,9 @@ public class CommandList extends Command {
 
           writer.text(Text.index);
           writer.bytes(index);
+
+          writer.text(Text.secret);
+          writer.bool(item.isSecret());
         }
       }
     }

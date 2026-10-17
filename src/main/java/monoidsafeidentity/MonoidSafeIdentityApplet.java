@@ -93,9 +93,7 @@ public class MonoidSafeIdentityApplet extends Applet implements SafeIdentityShar
   public byte[] encryptCommunicationKey(byte[] recipientPublicKey, byte[] context, byte[] key) {
     assertCaller();
 
-    return duplicateAsGlobal(
-      requireCommunicationCipher().encrypt(recipientPublicKey, context, key)
-    );
+    return requireCommunicationCipher().encrypt(recipientPublicKey, context, key);
   }
 
   @Override
@@ -106,9 +104,7 @@ public class MonoidSafeIdentityApplet extends Applet implements SafeIdentityShar
   ) {
     assertCaller();
 
-    return duplicateAsGlobal(
-      requireCommunicationCipher().decrypt(senderPublicKey, context, encryptedKey)
-    );
+    return requireCommunicationCipher().decrypt(senderPublicKey, context, encryptedKey);
   }
 
   private CommunicationCipher requireCommunicationCipher() {

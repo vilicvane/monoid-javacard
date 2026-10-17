@@ -28,7 +28,8 @@ public interface SafeIdentityShareable extends Shareable {
 - Context: byte string; empty is valid. Decryption requires the same bytes.
 - Arguments and results: global arrays for card-local cross-context calls.
 - Admission: Safe's version-independent AID prefix, checked on acquisition and invocation.
-- Direct APDUs: SELECT only. Item backup commands belong to Safe/Monoid.
+- Direct APDUs: SELECT only. [Item transfer](item-transfer.md) belongs to Safe/Monoid;
+  Hello with `safe: true` exposes the Identity public key as `safe.publicKey`.
 
 ## Encryption format
 

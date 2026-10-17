@@ -48,19 +48,18 @@ public class CommunicationCipher {
   private AESKey encryptionKey;
   private AESGcmCipher cipher;
 
-  private byte[] point;
+  // EC points, the HPKE key schedule context and the expected tag are used in order.
+  private byte[] workspace;
   private byte[] dh;
   private byte[] secret;
-  private byte[] keyScheduleContext;
   private byte[] keyBytes;
-  private byte[] nonce;
   private byte[] hmacBlock;
   private byte[] hmacSuffix;
 
   private final LibSecurity.Condition tagValidation = new LibSecurity.Condition() {
     @Override
     public boolean check() {
-      return cipher.verifyTag(point, (short) 0);
+      return cipher.verifyTag(workspace, (short) 0);
     }
   };
 
@@ -69,10 +68,12 @@ public class CommunicationCipher {
 
     ephemeralPrivateKey = (ECPrivateKey) KeyBuilder.buildKey(
       KeyBuilder.ALG_TYPE_EC_FP_PRIVATE,
-      JCSystem.MEMORY_TYPE_TRANSIENT_RESET,
+      JCSystem.MEMORY_TYPE_PERSISTENT,
       KeyBuilder.LENGTH_EC_FP_256,
       false
     );
+    LibSECP256r1.initialize(ephemeralPrivateKey);
+
     encryptionKey = (AESKey) KeyBuilder.buildKey(
       KeyBuilder.ALG_TYPE_AES,
       JCSystem.MEMORY_TYPE_TRANSIENT_RESET,
@@ -86,20 +87,15 @@ public class CommunicationCipher {
     digest = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, true);
     cipher = new AESGcmCipher();
 
-    point = JCSystem.makeTransientByteArray(PUBLIC_KEY_LENGTH, JCSystem.CLEAR_ON_RESET);
-    dh = JCSystem.makeTransientByteArray((short) (KEY_LENGTH * 2), JCSystem.CLEAR_ON_RESET);
-    secret = JCSystem.makeTransientByteArray(HASH_LENGTH, JCSystem.CLEAR_ON_RESET);
-    keyScheduleContext = JCSystem.makeTransientByteArray(
-      (short) (1 + HASH_LENGTH * 2),
-      JCSystem.CLEAR_ON_RESET
-    );
-    keyBytes = JCSystem.makeTransientByteArray(KEY_LENGTH, JCSystem.CLEAR_ON_RESET);
-    nonce = JCSystem.makeTransientByteArray(NONCE_LENGTH, JCSystem.CLEAR_ON_RESET);
+    workspace = new byte[PUBLIC_KEY_LENGTH];
+    dh = new byte[KEY_LENGTH * 2];
+    secret = new byte[HASH_LENGTH];
+    keyBytes = new byte[KEY_LENGTH];
     hmacBlock = JCSystem.makeTransientByteArray(HMAC_BLOCK_LENGTH, JCSystem.CLEAR_ON_RESET);
-    hmacSuffix = JCSystem.makeTransientByteArray((short) 2, JCSystem.CLEAR_ON_RESET);
+    hmacSuffix = new byte[2];
   }
 
-  /** Returns enc || ciphertext || tag in an Identity-owned transient buffer. */
+  /** Returns enc || ciphertext || tag in a new global array. */
   public byte[] encrypt(byte[] recipientPublicKey, byte[] context, byte[] key) {
     requirePublicKey(recipientPublicKey, (short) 0, (short) recipientPublicKey.length);
 
@@ -107,25 +103,25 @@ public class CommunicationCipher {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
     }
 
-    byte[] encryptedKey = JCSystem.makeTransientByteArray(
-      ENCRYPTED_KEY_LENGTH,
-      JCSystem.CLEAR_ON_RESET
+    byte[] encryptedKey = (byte[]) JCSystem.makeGlobalArray(
+      JCSystem.ARRAY_TYPE_BYTE,
+      ENCRYPTED_KEY_LENGTH
     );
 
     generateEphemeralKey();
     agree(ephemeralPrivateKey, LibSECP256r1.G, (short) 0);
-    Util.arrayCopyNonAtomic(point, (short) 0, encryptedKey, (short) 0, PUBLIC_KEY_LENGTH);
+    Util.arrayCopyNonAtomic(workspace, (short) 0, encryptedKey, (short) 0, PUBLIC_KEY_LENGTH);
 
     agree(ephemeralPrivateKey, recipientPublicKey, (short) 0);
-    Util.arrayCopyNonAtomic(point, (short) 1, dh, (short) 0, KEY_LENGTH);
+    Util.arrayCopyNonAtomic(workspace, (short) 1, dh, (short) 0, KEY_LENGTH);
     agree((ECPrivateKey) identity.getPrivate(), recipientPublicKey, (short) 0);
-    Util.arrayCopyNonAtomic(point, (short) 1, dh, KEY_LENGTH, KEY_LENGTH);
+    Util.arrayCopyNonAtomic(workspace, (short) 1, dh, KEY_LENGTH, KEY_LENGTH);
 
-    ((ECPublicKey) identity.getPublic()).getW(point, (short) 0);
-    extractAndExpand(encryptedKey, recipientPublicKey, point);
+    ((ECPublicKey) identity.getPublic()).getW(workspace, (short) 0);
+    extractAndExpand(encryptedKey, recipientPublicKey, workspace);
     deriveKey(context);
 
-    cipher.init(encryptionKey, Cipher.MODE_ENCRYPT, nonce, (short) 0);
+    cipher.init(encryptionKey, Cipher.MODE_ENCRYPT, keyBytes, (short) 0);
     cipher.doFinal(key, (short) 0, KEY_LENGTH, encryptedKey, PUBLIC_KEY_LENGTH);
     cipher.retrieveTag(encryptedKey, TAG_OFFSET);
 
@@ -143,21 +139,22 @@ public class CommunicationCipher {
     requirePublicKey(encryptedKey, (short) 0, PUBLIC_KEY_LENGTH);
 
     agree((ECPrivateKey) identity.getPrivate(), encryptedKey, (short) 0);
-    Util.arrayCopyNonAtomic(point, (short) 1, dh, (short) 0, KEY_LENGTH);
+    Util.arrayCopyNonAtomic(workspace, (short) 1, dh, (short) 0, KEY_LENGTH);
     agree((ECPrivateKey) identity.getPrivate(), senderPublicKey, (short) 0);
-    Util.arrayCopyNonAtomic(point, (short) 1, dh, KEY_LENGTH, KEY_LENGTH);
+    Util.arrayCopyNonAtomic(workspace, (short) 1, dh, KEY_LENGTH, KEY_LENGTH);
 
-    ((ECPublicKey) identity.getPublic()).getW(point, (short) 0);
-    extractAndExpand(encryptedKey, point, senderPublicKey);
+    ((ECPublicKey) identity.getPublic()).getW(workspace, (short) 0);
+    extractAndExpand(encryptedKey, workspace, senderPublicKey);
     deriveKey(context);
 
-    byte[] key = JCSystem.makeTransientByteArray(KEY_LENGTH, JCSystem.CLEAR_ON_RESET);
+    // Allocate a fresh result; the caller's envelope never holds unauthenticated plaintext.
+    byte[] key = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, KEY_LENGTH);
 
-    cipher.init(encryptionKey, Cipher.MODE_DECRYPT, nonce, (short) 0);
+    cipher.init(encryptionKey, Cipher.MODE_DECRYPT, keyBytes, (short) 0);
     cipher.doFinal(encryptedKey, PUBLIC_KEY_LENGTH, KEY_LENGTH, key, (short) 0);
 
-    // The point workspace is no longer needed; keep no reference to the caller's envelope.
-    Util.arrayCopyNonAtomic(encryptedKey, TAG_OFFSET, point, (short) 0, TAG_LENGTH);
+    // The key schedule context is no longer needed; retain only the expected tag.
+    Util.arrayCopyNonAtomic(encryptedKey, TAG_OFFSET, workspace, (short) 0, TAG_LENGTH);
 
     if (LibSecurity.check(tagValidation, Constants.SAFE_FALSE) != Constants.SAFE_TRUE) {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
@@ -180,10 +177,6 @@ public class CommunicationCipher {
       nonzero == 0 ||
       compareUnsigned(keyBytes, (short) 0, LibSECP256r1.R, (short) 0, KEY_LENGTH) >= 0
     );
-
-    if (!ephemeralPrivateKey.isInitialized()) {
-      LibSECP256r1.initialize(ephemeralPrivateKey);
-    }
 
     ephemeralPrivateKey.setS(keyBytes, (short) 0, KEY_LENGTH);
   }
@@ -230,9 +223,15 @@ public class CommunicationCipher {
   private void agree(ECPrivateKey privateKey, byte[] publicKey, short offset) {
     // The native ECDH primitive rejects points inconsistent with these P-256 parameters.
     agreement.init(privateKey);
-    short length = agreement.generateSecret(publicKey, offset, PUBLIC_KEY_LENGTH, point, (short) 0);
+    short length = agreement.generateSecret(
+      publicKey,
+      offset,
+      PUBLIC_KEY_LENGTH,
+      workspace,
+      (short) 0
+    );
 
-    if (length != PUBLIC_KEY_LENGTH || point[0] != 0x04) {
+    if (length != PUBLIC_KEY_LENGTH || workspace[0] != 0x04) {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
     }
   }
@@ -247,20 +246,19 @@ public class CommunicationCipher {
   }
 
   private void deriveKey(byte[] context) {
-    keyScheduleContext[0] = 0x02;
-    labeledExtract(EMPTY, SUITE, PSK_ID_HASH, EMPTY, keyScheduleContext, (short) 1);
-    labeledExtract(EMPTY, SUITE, INFO_HASH, context, keyScheduleContext, (short) (1 + HASH_LENGTH));
+    workspace[0] = 0x02;
+    labeledExtract(EMPTY, SUITE, PSK_ID_HASH, EMPTY, workspace, (short) 1);
+    labeledExtract(EMPTY, SUITE, INFO_HASH, context, workspace, (short) (1 + HASH_LENGTH));
     labeledExtract(secret, SUITE, SECRET, EMPTY, secret, (short) 0);
 
     beginExpand(secret, SUITE, KEY, (short) 16);
-    digest.update(keyScheduleContext, (short) 0, (short) keyScheduleContext.length);
+    digest.update(workspace, (short) 0, (short) workspace.length);
     finishExpand(keyBytes);
     encryptionKey.setKey(keyBytes, (short) 0);
 
     beginExpand(secret, SUITE, BASE_NONCE, NONCE_LENGTH);
-    digest.update(keyScheduleContext, (short) 0, (short) keyScheduleContext.length);
+    digest.update(workspace, (short) 0, (short) workspace.length);
     finishExpand(keyBytes);
-    Util.arrayCopyNonAtomic(keyBytes, (short) 0, nonce, (short) 0, NONCE_LENGTH);
   }
 
   private void labeledExtract(

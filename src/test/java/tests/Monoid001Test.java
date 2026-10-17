@@ -350,7 +350,7 @@ public class Monoid001Test extends AppletTest {
       byte[] updated = publicKey(master, context);
       Assertions.assertFalse(Arrays.equals(original, updated));
       assertPublicKey(transmit(0x40, keyRequest(index, type, context, null)), updated);
-      assertError(transmit(0x32, itemRequest(index)), MonoidException.CODE_ACCESS_DENIED);
+      Assertions.assertArrayEquals(source, field(transmit(0x32, itemRequest(index)), "data"));
     }
   }
 

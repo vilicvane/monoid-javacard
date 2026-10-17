@@ -9,7 +9,9 @@ public final class CommandHello extends Command {
   protected void run() {
     reader.map();
 
-    writer.map((short) 5);
+    boolean includeSafe = reader.key(Text.safe) && reader.bool();
+
+    writer.map((short) (includeSafe ? 5 : 4));
     {
       writer.text(Text.version);
       writer.integer(MonoidApplet.version);
@@ -26,21 +28,26 @@ public final class CommandHello extends Command {
         writer.bool(false);
       }
 
-      writer.text(Text.safe);
-      writer.map((short) 3);
-      {
-        writer.text(Text.id);
-        writer.bytes(MonoidApplet.safe.getId());
+      if (includeSafe) {
+        writer.text(Text.safe);
+        writer.map((short) 4);
+        {
+          writer.text(Text.id);
+          writer.bytes(MonoidApplet.safe.getId());
 
-        writer.text(Text.pin);
-        if (MonoidApplet.safe.isPINSet()) {
-          writer.integer(MonoidApplet.safe.getPINTriesRemaining());
-        } else {
-          writer.bool(false);
+          writer.text(Text.publicKey);
+          writer.bytes(MonoidApplet.safe.getPublicKey());
+
+          writer.text(Text.pin);
+          if (MonoidApplet.safe.isPINSet()) {
+            writer.integer(MonoidApplet.safe.getPINTriesRemaining());
+          } else {
+            writer.bool(false);
+          }
+
+          writer.text(Text.unlocked);
+          writer.bool(MonoidApplet.isSafeUnlocked());
         }
-
-        writer.text(Text.unlocked);
-        writer.bool(MonoidApplet.isSafeUnlocked());
       }
     }
   }

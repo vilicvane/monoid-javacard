@@ -44,6 +44,8 @@ public abstract class Command {
   public static Command set;
   public static Command create;
   public static Command remove;
+  public static Command exportItem;
+  public static Command importItem;
   public static Command createRandomKey;
 
   public static Command viewKey;
@@ -97,6 +99,8 @@ public abstract class Command {
     set = new CommandSet();
     create = new CommandCreate();
     remove = new CommandRemove();
+    exportItem = new CommandExport();
+    importItem = new CommandImport();
     createRandomKey = new CommandCreateRandomKey();
 
     viewKey = new CommandViewKey();
@@ -126,6 +130,8 @@ public abstract class Command {
     set = null;
     create = null;
     remove = null;
+    exportItem = null;
+    importItem = null;
     createRandomKey = null;
 
     viewKey = null;
@@ -154,6 +160,10 @@ public abstract class Command {
         return create;
       case 0x35:
         return remove;
+      case 0x36:
+        return exportItem;
+      case 0x37:
+        return importItem;
       case 0x38:
         return createRandomKey;
       case 0x40:

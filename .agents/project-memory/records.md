@@ -203,3 +203,9 @@ b883572 ---
 --- 428ab67 ---
 
 115. [user] 要求可选条目的端到端加密双卡备份，接受多次交替刷卡；批准独立Identity/Safe/Monoid包编号00/01/02，Identity只持有长期密钥及随机4B ID、无PIN，提供通信密钥加解密；比较两种GHASH后选定软件版，要求完整AES-GCM接入及实卡计时，并测试多记录所需的更大数据。[agent] 已实现四个Identity SIO接口及固定P-256 HPKE Auth封装，Safe委托读取ID；原生GCM缺失由软件CTR/GHASH与原生AES解决，协议不变。216项模拟器测试及实卡完整互操作、篡改拒绝、复位恢复通过；修复实卡Util.arrayCompare有符号排序导致的公钥误拒绝及标量采样偏差。32B密钥加密/解密中位597/552ms，含探针GC为658/613ms；原ID生命周期及卸载验证保留。后续独立大负载GCM测试通过581条实卡/755条模拟APDU及8项定向单测：1KB RAM加解密各约5.65s，持久缓冲约8.45/8.54s，4KB持久缓冲33.53/33.84s；探针4KB RAM分配不足，持久缓冲及篡改恢复正确。临时包全清、原注册表及密钥元数据一致，未修改APP或安装正式AID；以上大负载为算法探针，条目备份仍未接入，详见 [备份、稳定身份与AID分配](./115.md)。
+
+--- a0d0a7f ---
+
+116. [user] 接受Identity保持小接口、Safe处理条目GCM、Monoid负责传输的分工，要求先提交再确定API；批准Secret标记、精简后的Get/Set/Export/Import及随机生成项固定secret，随后选择Hello.safe.publicKey并授权实现；之后批准Hello增加可选safe布尔值，省略/false不返回Safe区块、true返回完整信息。[agent] 已提交Identity/GCM阶段结果a0d0a7f，未推送且保留无关暂存SVG。本轮接入上述API：Get普通认证且仅返回非secret数据；Set数据和flag原子更新，单独降级拒绝；Export为Safe PIN、Import普通认证并保留index/元数据/secret，完全重复成功、冲突6985。Safe内完成HPKE通信密钥封装及AES-GCM条目加密，每条144B开销；Identity接口按调用取得，不持久缓存。239项模拟器测试及CAP检查通过，实卡主suite162次操作验证32/256B普通与secret条目往返、篡改/权限/冲突、P-256及传输后Ed25519签名；32B热Export/Import约1.47/1.53s，256B约2.80/3.60s。诊断后去除跨SIO重复复制、短响应借APDU、精简共享上下文，并仅在RAM不足时将Import私有明文工作区回退持久空间；同版本前后测得上下文reset RAM增量由1213降至628B，最终查询余量1412/1408B不是峰值。补充60次操作验证256B tag错误不发布及正常恢复、传输后未缓存BIP32/ECDSA和BIP340/Taproot、保留Identity实际卸装Safe/Monoid后的加密恢复及签名；临时包全清、原注册表/SELECT/Hello基线一致，正式CAP验证但未部署。README保持签名式文档，封装规范独立至doc/item-transfer.md；历史草案已由当前实现覆盖，验证与SIO/任意收件公钥信任边界详见 [条目导出导入](./116.md)。
+
+117. [user] 要求使用两张没有锁 AID 的新卡安装最新应用、在第一张生成测试数据后进行双卡复制；明确允许清空源卡已有旧 Monoid 包。[agent] 已完成56050420（Safe ID9BF4F117）到56038920（958A7EFA）的实卡复制：两卡保留同版正式Identity/Safe/Monoid及系统注册表，Identity公钥不同。64B seed、三种独立私钥、32/256B普通数据共6项经加密导出导入，保留index/key/alias/secret；源列表不变，重复导入后目标仍恰好6项。两卡8公钥及HD chainCode一致，各10次独立签名验真，未读取私钥明文。六项Export/首次Import命令累计10.836/11.053s，排除认证、核对和换卡；读卡器释放，未改生产代码或提交，详见 [双实体卡加密复制](./117.md)。

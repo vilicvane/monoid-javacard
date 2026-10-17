@@ -144,8 +144,8 @@ See [APDU transport](doc/apdu.md).
 
 The authentication is done within a session, using `0x21` command.
 
-- Access PIN: for commands that would not result in keys/data revealed.
-- Safe PIN: for commands that could result in keys/data revealed, or commands that requires access PIN.
+- Access PIN: for commands marked "Requires authentication".
+- Safe PIN: for commands requiring safe PIN, or any command available with access PIN.
 
 ### `0x20` ~ `0x2F` System management
 
@@ -163,7 +163,10 @@ type Features = {
 #### `0x20` Hello
 
 ```ts
-type Request = {};
+type Request = {
+  /** Includes Safe information; defaults to false. */
+  safe?: boolean;
+};
 ```
 
 ```ts
@@ -174,9 +177,11 @@ type Response = {
   features: Features;
   /** Tries remaining for the PIN, or `false` if the PIN is not set. */
   pin: number | false;
-  safe: {
+  safe?: {
     /** Persistent 4-byte random ID owned by Safe Identity. */
     id: byte[];
+    /** Safe Identity P-256 public key, 65-byte uncompressed SEC 1. */
+    publicKey: byte[];
     /** Tries remaining for the PIN, or `false` if the PIN is not set. */
     pin: number | false;
     /** Whether the safe is unlocked (i.e., Monoid Applet stores a validated safe PIN). */
@@ -269,6 +274,7 @@ type Response = {
     type: SafeItemType;
     key?: byte[];
     alias?: string;
+    secret: boolean;
   }[];
 };
 ```
@@ -287,12 +293,13 @@ type Request = {
 type Response = {
   key?: byte[];
   alias?: string;
+  secret: boolean;
 };
 ```
 
 #### `0x32` Get item
 
-> Requires authentication with safe PIN.
+> Requires authentication. Rejects secret items.
 
 ```ts
 type Request = {
@@ -302,8 +309,6 @@ type Request = {
 
 ```ts
 type Response = {
-  key?: byte[];
-  alias?: string;
   data: byte[];
 };
 ```
@@ -313,10 +318,13 @@ type Response = {
 > Requires authentication.
 
 ```ts
+/** Updates an existing item; omitted fields remain unchanged. */
 type Request = {
   index: byte[];
-  alias?: byte[];
+  alias?: string;
   data?: byte[];
+  /** Preserved when omitted; changing true to false requires replacement data. */
+  secret?: boolean;
 };
 ```
 
@@ -329,20 +337,21 @@ type Response = {};
 > Requires authentication.
 
 ```ts
-type Request = {
-  (
-    | {
-        type: SafeItemType;
-      }
-    | {
-        index: byte[];
-      }
-  ) & {
-    /** Set at creation; searchable and readable with access PIN. */
-    key?: byte[];
-    alias?: byte[];
-    data: byte[];
-  };
+type Request = (
+  | {
+      type: SafeItemType;
+    }
+  | {
+      index: byte[];
+    }
+) & {
+  /** Set at creation; searchable and readable with access PIN. */
+  key?: byte[];
+  alias?: string;
+  data: byte[];
+  /** Disables plaintext Get; defaults to false. */
+  secret?: boolean;
+};
 ```
 
 ```ts
@@ -365,11 +374,57 @@ type Request = {
 type Response = {};
 ```
 
+#### `0x36` Export item
+
+[Encrypted payload format](doc/item-transfer.md).
+
+> Requires authentication with safe PIN.
+
+```ts
+type Request = {
+  index: byte[];
+  /** Recipient Safe Identity public key (65-byte uncompressed SEC 1). */
+  recipientPublicKey: byte[];
+};
+```
+
+```ts
+type Response = {
+  key?: byte[];
+  alias?: string;
+  /** Encrypts item data and secret; authenticates index, key and alias. */
+  data: byte[];
+};
+```
+
+#### `0x37` Import item
+
+> Requires authentication.
+
+```ts
+/** Creates an item; identical existing items succeed unchanged, differing items conflict. */
+type Request = {
+  /** Original index used for Export. */
+  index: byte[];
+  /** Expected sender's Safe Identity public key (65-byte uncompressed SEC 1). */
+  senderPublicKey: byte[];
+  key?: byte[];
+  alias?: string;
+  /** Export response data; index, key and alias must match that export. */
+  data: byte[];
+};
+```
+
+```ts
+type Response = {};
+```
+
 #### `0x38` Create random key
 
 > Requires authentication.
 
 ```ts
+/** Always creates a secret item. */
 type Request = {
   type: SafeItemKeyType;
   /** Required for entropy/seed/master, in bytes; master stores twice this length. */

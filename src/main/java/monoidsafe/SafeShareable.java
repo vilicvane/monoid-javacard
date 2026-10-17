@@ -22,6 +22,7 @@ public interface SafeShareable extends Shareable {
   public static final byte INDEX_LENGTH = INDEX_TYPE_LENGTH + INDEX_ID_LENGTH;
 
   public byte[] getId();
+  public byte[] getPublicKey();
 
   public boolean isPINSet();
 
@@ -53,5 +54,19 @@ public interface SafeShareable extends Shareable {
 
   public SafeItemShareable get(byte[] index);
 
-  public SafeItemShareable create(byte[] index, byte[] key, byte[] alias, byte[] data);
+  public SafeItemShareable create(
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] data,
+    boolean secret
+  );
+
+  public void importItem(
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] senderPublicKey,
+    byte[] data
+  );
 }

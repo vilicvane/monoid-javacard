@@ -53,6 +53,12 @@ public class SafeSession implements SafeShareable {
   }
 
   @Override
+  public byte[] getPublicKey() {
+    assertCaller();
+    return applet.getPublicKey();
+  }
+
+  @Override
   public boolean isPINSet() {
     assertCaller();
     return applet.isPINSet();
@@ -95,8 +101,25 @@ public class SafeSession implements SafeShareable {
   }
 
   @Override
-  public SafeItemShareable create(byte[] index, byte[] key, byte[] alias, byte[] data) {
-    return applet.create(this, index, key, alias, data);
+  public SafeItemShareable create(
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] data,
+    boolean secret
+  ) {
+    return applet.create(this, index, key, alias, data, secret);
+  }
+
+  @Override
+  public void importItem(
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] senderPublicKey,
+    byte[] data
+  ) {
+    applet.importItem(this, index, key, alias, senderPublicKey, data);
   }
 
   boolean matches(AID caller) {
@@ -138,5 +161,9 @@ public class SafeSession implements SafeShareable {
 
   void remove(SafeItem item) {
     applet.remove(this, item);
+  }
+
+  byte[] exportItem(SafeItem item, byte[] recipientPublicKey) {
+    return applet.exportItem(this, item, recipientPublicKey);
   }
 }

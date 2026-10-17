@@ -16,6 +16,14 @@ const identityLibSecurity = libSecuritySource.replace(
   'package monoidsafe;',
   'package monoidsafeidentity;',
 );
+const safeAESGcmCipher = readFileSync(
+  new URL('./src/main/java/monoidsafeidentity/AESGcmCipher.java', import.meta.url),
+  'utf8',
+).replace('package monoidsafeidentity;', 'package monoidsafe;');
+const safeGHASH = readFileSync(
+  new URL('./src/main/java/monoidsafeidentity/GHASH.java', import.meta.url),
+  'utf8',
+).replace('package monoidsafeidentity;', 'package monoidsafe;');
 const secp256r1Parameters = readFileSync(
   new URL('./src/main/java/monoid/CurveSECP256r1.java', import.meta.url),
   'utf8',
@@ -71,6 +79,15 @@ export default {
     data: {identityLibSecurity},
   },
   'src/main/java/monoidsafeidentity/LibSECP256r1.java': {data: {secp256r1Parameters}},
+  'src/main/java/monoidsafe/AESGcmCipher.java': {
+    template:
+      '// Generated from monoidsafeidentity/AESGcmCipher.java by Inplate.\n{{{safeAESGcmCipher}}}',
+    data: {safeAESGcmCipher},
+  },
+  'src/main/java/monoidsafe/GHASH.java': {
+    template: '// Generated from monoidsafeidentity/GHASH.java by Inplate.\n{{{safeGHASH}}}',
+    data: {safeGHASH},
+  },
   'src/main/java/main/Run.java': {data},
   'src/test/java/**/*.java': {data},
 };

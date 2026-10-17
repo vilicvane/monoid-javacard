@@ -16,19 +16,18 @@ public class CommandCreate extends Command {
     byte[] data = reader.requireKey(Text.data).bytes();
     byte[] key = reader.key(Text.key) ? reader.bytes() : null;
     byte[] alias = reader.key(Text.alias) ? reader.text() : null;
+    boolean secret = reader.key(Text.secret) && reader.bool();
 
     SafeItemShareable item;
 
     if (reader.key(Text.type)) {
-      short type = reader.key(Text.type)
-        ? reader.is(CBOR.TYPE_TEXT) ? Safe.type(reader) : reader.integer()
-        : 0;
+      short type = reader.is(CBOR.TYPE_TEXT) ? Safe.type(reader) : reader.integer();
 
-      item = MonoidApplet.safe.create(type, key, alias, data);
+      item = MonoidApplet.safe.create(type, key, alias, data, secret);
     } else {
       byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
 
-      item = MonoidApplet.safe.create(index, key, alias, data);
+      item = MonoidApplet.safe.create(index, key, alias, data, secret);
     }
 
     writer.map((short) 1);
