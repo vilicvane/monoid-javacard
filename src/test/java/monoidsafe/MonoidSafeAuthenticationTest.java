@@ -10,18 +10,32 @@ import javacard.framework.ISOException;
 import javacard.framework.OwnerPIN;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
+import main.ShareableSimulatorRuntime;
+import monoidsafeidentity.MonoidSafeIdentityApplet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tests.AppletTest;
 import tests.SafeCallerApplet;
-import tests.ShareableSimulatorRuntime;
 
 public class MonoidSafeAuthenticationTest {
 
-  private static final AID SAFE_AID = AIDUtil.create("f06d6f6e6f696400010000");
-  private static final AID CALLER_AID = AIDUtil.create("f06d6f6e6f696401010001");
-  private static final AID OTHER_CALLER_AID = AIDUtil.create("f06d6f6e6f696401010002");
+  private static final AID IDENTITY_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
+    "f06d6f6e6f696400010000"
+  );
+  private static final AID SAFE_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_SAFE_AID}}"
+    "f06d6f6e6f696401010000"
+  );
+  private static final AID CALLER_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_AID_WITHOUT_VERSION}}0001"
+    "f06d6f6e6f696402010001"
+  );
+  private static final AID OTHER_CALLER_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_AID_WITHOUT_VERSION}}0002"
+    "f06d6f6e6f696402010002"
+  );
   private static final AID UNRELATED_AID = AIDUtil.create("f070726f626500000001");
 
   private static final byte[] PIN = "314159".getBytes(StandardCharsets.US_ASCII);
@@ -40,6 +54,7 @@ public class MonoidSafeAuthenticationTest {
   private void initialize(ShareableSimulatorRuntime runtime) {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
     simulator = new CardSimulator(runtime);
+    simulator.installApplet(IDENTITY_AID, MonoidSafeIdentityApplet.class);
     simulator.installApplet(SAFE_AID, MonoidSafeApplet.class);
     simulator.installApplet(CALLER_AID, SafeCallerApplet.class);
     simulator.installApplet(OTHER_CALLER_AID, SafeCallerApplet.class);

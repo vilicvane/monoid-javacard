@@ -18,6 +18,7 @@ import monoid.Command;
 import monoid.MonoidApplet;
 import monoid.MonoidException;
 import monoidsafe.MonoidSafeApplet;
+import monoidsafeidentity.MonoidSafeIdentityApplet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,8 +26,18 @@ import org.junit.jupiter.api.Test;
 
 public class Monoid001Test extends AppletTest {
 
-  private static final AID MONOID_SAFE_AID = AIDUtil.create("f06d6f6e6f696400010000");
-  private static final AID MONOID_AID = AIDUtil.create("f06d6f6e6f696401010000");
+  private static final AID MONOID_SAFE_IDENTITY_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
+    "f06d6f6e6f696400010000"
+  );
+  private static final AID MONOID_SAFE_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_SAFE_AID}}"
+    "f06d6f6e6f696401010000"
+  );
+  private static final AID MONOID_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_AID}}"
+    "f06d6f6e6f696402010000"
+  );
 
   private static final byte[] PIN = "888888".getBytes(StandardCharsets.US_ASCII);
   private static final byte[] SALT = "Monoid-001".getBytes(StandardCharsets.US_ASCII);
@@ -46,6 +57,7 @@ public class Monoid001Test extends AppletTest {
     System.setProperty("com.licel.jcardsim.bouncycastle.rsa.allow_unsafe_mod", "true");
     resetAppletState();
 
+    simulator.installApplet(MONOID_SAFE_IDENTITY_AID, MonoidSafeIdentityApplet.class);
     simulator.installApplet(MONOID_SAFE_AID, MonoidSafeApplet.class);
     simulator.installApplet(MONOID_AID, MonoidApplet.class);
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
@@ -64,6 +76,7 @@ public class Monoid001Test extends AppletTest {
   public void clear() {
     simulator.deleteApplet(MONOID_AID);
     simulator.deleteApplet(MONOID_SAFE_AID);
+    simulator.deleteApplet(MONOID_SAFE_IDENTITY_AID);
     resetAppletState();
   }
 

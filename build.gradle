@@ -132,10 +132,28 @@ javacard {
 		addImplicitJcardSimJunit false
 
 		cap {
+			packageName 'monoidsafeidentity'
+			version '0.0'
+			// @inplate-line aid '{{hex MONOID_SAFE_IDENTITY_PACKAGE_AID}}'
+			aid 'f06d6f6e6f696400'
+			output 'monoidsafeidentity.cap'
+
+			targetsdk JC305u3
+
+			sources 'src/main/java/monoidsafeidentity'
+
+			applet {
+				className 'monoidsafeidentity.MonoidSafeIdentityApplet'
+				// @inplate-line aid '{{hex MONOID_SAFE_IDENTITY_AID}}'
+				aid 'f06d6f6e6f696400010000'
+			}
+		}
+
+		cap {
 			packageName 'monoidsafe'
 			version '0.0'
 			// @inplate-line aid '{{hex MONOID_SAFE_PACKAGE_AID}}'
-			aid 'f06d6f6e6f696400'
+			aid 'f06d6f6e6f696401'
 			output 'monoidsafe.cap'
 
 			targetsdk JC305u3
@@ -145,7 +163,14 @@ javacard {
 			applet {
 				className 'monoidsafe.MonoidSafeApplet'
 				// @inplate-line aid '{{hex MONOID_SAFE_AID}}'
-				aid 'f06d6f6e6f696400010000'
+				aid 'f06d6f6e6f696401010000'
+			}
+
+			dependencies {
+				local {
+					exps "${buildDir}/javacard/monoidsafeidentity.exp"
+					jar "${buildDir}/javacard/monoidsafeidentity.exp/monoidsafeidentity.jar"
+				}
 			}
 		}
 
@@ -153,7 +178,7 @@ javacard {
 			packageName 'monoid'
 			version '0.0'
 			// @inplate-line aid '{{hex MONOID_PACKAGE_AID}}'
-			aid 'f06d6f6e6f696401'
+			aid 'f06d6f6e6f696402'
 			output 'monoid.cap'
 
 			targetsdk JC305u3
@@ -163,7 +188,7 @@ javacard {
 			applet {
 				className 'monoid.MonoidApplet'
 				// @inplate-line aid '{{hex MONOID_AID}}'
-				aid 'f06d6f6e6f696401010000'
+				aid 'f06d6f6e6f696402010000'
 			}
 
 			dependencies {

@@ -7,15 +7,26 @@ import java.util.List;
 import javacard.framework.AID;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
+import main.ShareableSimulatorRuntime;
+import monoidsafeidentity.MonoidSafeIdentityApplet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import tests.SafeCallerApplet;
-import tests.ShareableSimulatorRuntime;
 
 public class MonoidSafeAppletTest {
 
-  private static final AID SAFE_AID = AIDUtil.create("f06d6f6e6f696400010000");
-  private static final AID CALLER_AID = AIDUtil.create("f06d6f6e6f696401010001");
+  private static final AID IDENTITY_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
+    "f06d6f6e6f696400010000"
+  );
+  private static final AID SAFE_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_SAFE_AID}}"
+    "f06d6f6e6f696401010000"
+  );
+  private static final AID CALLER_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_AID_WITHOUT_VERSION}}0001"
+    "f06d6f6e6f696402010001"
+  );
 
   private static final byte[] PIN = { 1, 2, 3, 4, 5, 6 };
 
@@ -152,6 +163,7 @@ public class MonoidSafeAppletTest {
 
     ShareableSimulatorRuntime runtime = new ShareableSimulatorRuntime();
     CardSimulator simulator = new CardSimulator(runtime);
+    simulator.installApplet(IDENTITY_AID, MonoidSafeIdentityApplet.class);
     simulator.installApplet(SAFE_AID, MonoidSafeApplet.class);
     simulator.installApplet(CALLER_AID, SafeCallerApplet.class);
     Assertions.assertTrue(simulator.selectApplet(CALLER_AID));

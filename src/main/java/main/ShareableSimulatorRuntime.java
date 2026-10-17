@@ -1,4 +1,4 @@
-package tests;
+package main;
 
 import com.licel.jcardsim.base.SimulatorRuntime;
 import java.lang.reflect.InvocationTargetException;

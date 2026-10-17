@@ -34,7 +34,10 @@ public class SafeCallerApplet extends Applet implements SafeCallerShareable {
   public static final byte BORROW_SAFE = 17;
   public static final byte BORROW_ITEM = 18;
 
-  private static final AID SAFE_AID = AIDUtil.create("f06d6f6e6f696400010000");
+  private static final AID SAFE_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_SAFE_AID}}"
+    "f06d6f6e6f696401010000"
+  );
 
   private SafeShareable safe;
   private SafeItemShareable item;

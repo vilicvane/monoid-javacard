@@ -4,30 +4,52 @@ import {Handlebars} from 'inplate';
 import {readFileSync} from 'node:fs';
 
 // Applet packages cannot export ordinary helper classes to another CAP.
-const libSecurity = readFileSync(
+const libSecuritySource = readFileSync(
   new URL('./src/main/java/monoidsafe/LibSecurity.java', import.meta.url),
   'utf8',
-).replace('package monoidsafe;', 'package monoid;\n\nimport monoidsafe.Constants;');
+);
+const libSecurity = libSecuritySource.replace(
+  'package monoidsafe;',
+  'package monoid;\n\nimport monoidsafe.Constants;',
+);
+const identityLibSecurity = libSecuritySource.replace(
+  'package monoidsafe;',
+  'package monoidsafeidentity;',
+);
+const secp256r1Parameters = readFileSync(
+  new URL('./src/main/java/monoid/CurveSECP256r1.java', import.meta.url),
+  'utf8',
+).match(/\/\/ @formatter:off([\s\S]*?)\/\/ @formatter:on/)[1];
 
 const MONOID_VERSION = Buffer.from([0x00, 0x00]);
 const MONOID_SAFE_VERSION = Buffer.from([0x00, 0x00]);
+const MONOID_SAFE_IDENTITY_VERSION = Buffer.from([0x00, 0x00]);
 
 const MONOID_NAMESPACE = Buffer.concat([Buffer.from([0xf0]), Buffer.from('monoid')]);
 
-const MONOID_SAFE_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x00])]);
-const MONOID_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x01])]);
+const MONOID_SAFE_IDENTITY_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x00])]);
+const MONOID_SAFE_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x01])]);
+const MONOID_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x02])]);
 
-const MONOID_SAFE_AID = Buffer.concat([
+const MONOID_SAFE_IDENTITY_AID = Buffer.concat([
+  MONOID_SAFE_IDENTITY_PACKAGE_AID,
+  Buffer.from([0x01]),
+  MONOID_SAFE_IDENTITY_VERSION,
+]);
+const MONOID_SAFE_AID_WITHOUT_VERSION = Buffer.concat([
   MONOID_SAFE_PACKAGE_AID,
   Buffer.from([0x01]),
-  MONOID_SAFE_VERSION,
 ]);
+const MONOID_SAFE_AID = Buffer.concat([MONOID_SAFE_AID_WITHOUT_VERSION, MONOID_SAFE_VERSION]);
 const MONOID_AID_WITHOUT_VERSION = Buffer.concat([MONOID_PACKAGE_AID, Buffer.from([0x01])]);
 const MONOID_AID = Buffer.concat([MONOID_AID_WITHOUT_VERSION, MONOID_VERSION]);
 
 const data = {
   MONOID_NAMESPACE,
+  MONOID_SAFE_IDENTITY_PACKAGE_AID,
+  MONOID_SAFE_IDENTITY_AID,
   MONOID_SAFE_PACKAGE_AID,
+  MONOID_SAFE_AID_WITHOUT_VERSION,
   MONOID_SAFE_AID,
   MONOID_PACKAGE_AID,
   MONOID_AID_WITHOUT_VERSION,
@@ -36,14 +58,21 @@ const data = {
 
 export default {
   'README.md': {data},
+  'doc/architecture.md': {data},
   'build.gradle': {data},
   'src/main/java/*/Constants.java': {data},
   'src/main/java/monoid/LibSecurity.java': {
     template: '// Generated from monoidsafe/LibSecurity.java by Inplate.\n{{{libSecurity}}}',
     data: {libSecurity},
   },
+  'src/main/java/monoidsafeidentity/LibSecurity.java': {
+    template:
+      '// Generated from monoidsafe/LibSecurity.java by Inplate.\n{{{identityLibSecurity}}}',
+    data: {identityLibSecurity},
+  },
+  'src/main/java/monoidsafeidentity/LibSECP256r1.java': {data: {secp256r1Parameters}},
   'src/main/java/main/Run.java': {data},
-  'src/test/java/tests/MonoidAppletTest.java': {data},
+  'src/test/java/**/*.java': {data},
 };
 
 Handlebars.registerHelper('hex', hex);

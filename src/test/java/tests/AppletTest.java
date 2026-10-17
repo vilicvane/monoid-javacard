@@ -11,6 +11,7 @@ import javacard.framework.AID;
 import javax.smartcardio.CardException;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
+import main.ShareableSimulatorRuntime;
 
 public class AppletTest {
 

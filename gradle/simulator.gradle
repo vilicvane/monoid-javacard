@@ -54,9 +54,65 @@ task prepareSimulatorMath {
 }
 
 task compileSimulatorMath(type: JavaCompile, dependsOn: [compileJava, prepareSimulatorMath]) {
+	source 'src/simulator/java'
 	source(simulatorMathNames.collect {
 		file("${buildDir}/generated/simulator/monoid/${it}.java")
 	})
 	classpath = sourceSets.main.output + sourceSets.main.compileClasspath
 	destinationDir = file("${buildDir}/classes/java/simulator")
+}
+
+task prepareSimulatorCommunicationCipher {
+	def original = file('src/main/java/monoidsafeidentity/CommunicationCipher.java')
+	def adapted = file("${buildDir}/generated/simulator/monoidsafeidentity/CommunicationCipher.java")
+	inputs.file original
+	outputs.file adapted
+
+	doLast {
+		def replace = { String source, pattern, int count, replacement ->
+			if ((source =~ pattern).count != count) {
+				throw new GradleException("Unexpected simulator adaptation match count: ${pattern}")
+			}
+
+			source.replaceAll(pattern, replacement)
+		}
+
+		def source = original.text
+		// The four-argument KeyBuilder overload is an unimplemented simulator stub.
+		source = replace(source, /KeyBuilder\.ALG_TYPE_EC_FP_PRIVATE,\s*JCSystem\.MEMORY_TYPE_TRANSIENT_RESET,/, 1,
+			'KeyBuilder.TYPE_EC_FP_PRIVATE,')
+		source = replace(source, /KeyBuilder\.ALG_TYPE_AES,\s*JCSystem\.MEMORY_TYPE_TRANSIENT_RESET,/, 1,
+			'KeyBuilder.TYPE_AES_TRANSIENT_RESET,')
+		// Its digest factory rejects shared access; the simulator has no firewall.
+		source = replace(source, /MessageDigest\.ALG_SHA_256, true/, 1,
+			'MessageDigest.ALG_SHA_256, false')
+
+		adapted.parentFile.mkdirs()
+		adapted.text = source
+	}
+}
+
+task prepareSimulatorAESGcmCipher {
+	def original = file('src/main/java/monoidsafeidentity/AESGcmCipher.java')
+	def adapted = file("${buildDir}/generated/simulator/monoidsafeidentity/AESGcmCipher.java")
+	inputs.file original
+	outputs.file adapted
+
+	doLast {
+		def source = original.text
+		def pattern = /Cipher\.ALG_AES_BLOCK_128_ECB_NOPAD, true/
+		if ((source =~ pattern).count != 1) {
+			throw new GradleException('Unexpected simulator AES shared-access match count')
+		}
+
+		// Keep software GCM unchanged; only the native factory needs a host adaptation.
+		adapted.parentFile.mkdirs()
+		adapted.text = source.replaceAll(pattern, 'Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, false')
+	}
+}
+
+compileSimulatorMath {
+	dependsOn prepareSimulatorCommunicationCipher, prepareSimulatorAESGcmCipher
+	source file("${buildDir}/generated/simulator/monoidsafeidentity/CommunicationCipher.java")
+	source file("${buildDir}/generated/simulator/monoidsafeidentity/AESGcmCipher.java")
 }

@@ -42,9 +42,12 @@ Now we can build the project with Gradle:
 Then install applets to a card with [gp] command:
 
 ```sh
+gp --install build/javacard/monoidsafeidentity.cap
 gp --install build/javacard/monoidsafe.cap
 gp --install build/javacard/monoid.cap
 ```
+
+Keep Safe Identity installed when replacing Safe. See [Safe Identity](doc/safe-identity.md).
 
 > The gradle plugin task `./gradlew installJavaCard` will try to append multiple `--install` options to `gp` command, which is not supported in my case. So we have to do it manually.
 
@@ -69,6 +72,8 @@ Run tests on physical cards:
 # gp --uninstall build/javacard/monoid.cap
 # gp --uninstall build/javacard/monoidsafe.cap
 
+# First installation only; preserve this applet across Safe updates:
+# gp --install build/javacard/monoidsafeidentity.cap
 gp --install build/javacard/monoidsafe.cap
 gp --install build/javacard/monoid.cap
 ```
@@ -170,7 +175,7 @@ type Response = {
   /** Tries remaining for the PIN, or `false` if the PIN is not set. */
   pin: number | false;
   safe: {
-    /** A 4-byte random id generated on _Monoid Safe Applet_ installation. */
+    /** Persistent 4-byte random ID owned by Safe Identity. */
     id: byte[];
     /** Tries remaining for the PIN, or `false` if the PIN is not set. */
     pin: number | false;

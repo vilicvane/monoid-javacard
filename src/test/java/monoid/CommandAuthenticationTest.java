@@ -14,19 +14,30 @@ import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
+import main.ShareableSimulatorRuntime;
 import monoidsafe.MonoidSafeApplet;
 import monoidsafe.SafeShareable;
+import monoidsafeidentity.MonoidSafeIdentityApplet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
-import tests.ShareableSimulatorRuntime;
 
 public class CommandAuthenticationTest {
 
-  private static final AID MONOID_SAFE_AID = AIDUtil.create("f06d6f6e6f696400010000");
-  private static final AID MONOID_AID = AIDUtil.create("f06d6f6e6f696401010000");
+  private static final AID MONOID_SAFE_IDENTITY_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
+    "f06d6f6e6f696400010000"
+  );
+  private static final AID MONOID_SAFE_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_SAFE_AID}}"
+    "f06d6f6e6f696401010000"
+  );
+  private static final AID MONOID_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_AID}}"
+    "f06d6f6e6f696402010000"
+  );
 
   private static final byte[] PIN = "314159".getBytes(StandardCharsets.US_ASCII);
   private static final byte[] NEW_PIN = "271828".getBytes(StandardCharsets.US_ASCII);
@@ -40,6 +51,7 @@ public class CommandAuthenticationTest {
     resetAppletState();
 
     simulator = new CardSimulator(new ShareableSimulatorRuntime());
+    simulator.installApplet(MONOID_SAFE_IDENTITY_AID, MonoidSafeIdentityApplet.class);
     simulator.installApplet(MONOID_SAFE_AID, MonoidSafeApplet.class);
     simulator.installApplet(MONOID_AID, MonoidApplet.class);
     selectMonoid();
@@ -49,6 +61,7 @@ public class CommandAuthenticationTest {
   public void clear() {
     simulator.deleteApplet(MONOID_AID);
     simulator.deleteApplet(MONOID_SAFE_AID);
+    simulator.deleteApplet(MONOID_SAFE_IDENTITY_AID);
     resetAppletState();
   }
 

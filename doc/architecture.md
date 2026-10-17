@@ -1,5 +1,45 @@
 # Monoid Architecture
 
+## AIDs
+
+<!-- @inplate
+AIDs use the namespace `{{hex MONOID_NAMESPACE uppercase=true}}`, followed by a one-byte package number.
+Applet AIDs append a one-byte applet number and a two-byte version.
+-->
+
+AIDs use the namespace `F06D6F6E6F6964`, followed by a one-byte package number.
+Applet AIDs append a one-byte applet number and a two-byte version.
+
+<!-- @end -->
+
+<!-- @inplate
+| Component | Package AID | Applet AID |
+| --- | --- | --- |
+| Safe Identity | `{{hex MONOID_SAFE_IDENTITY_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_SAFE_IDENTITY_AID uppercase=true}}` |
+| Safe | `{{hex MONOID_SAFE_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_SAFE_AID uppercase=true}}` |
+| Monoid | `{{hex MONOID_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_AID uppercase=true}}` |
+-->
+
+| Component     | Package AID        | Applet AID               |
+| ------------- | ------------------ | ------------------------ |
+| Safe Identity | `F06D6F6E6F696400` | `F06D6F6E6F696400010000` |
+| Safe          | `F06D6F6E6F696401` | `F06D6F6E6F696401010000` |
+| Monoid        | `F06D6F6E6F696402` | `F06D6F6E6F696402010000` |
+
+<!-- @end -->
+
+Identity, Safe and Monoid use separate CAP files, with dependencies
+Monoid → Safe → Identity. Install them in the reverse order. Safe Identity keeps
+its own key pair across Safe replacement; it has no PIN or authorization session.
+Safe returns the persistent random ID owned by Identity. See [Safe Identity](safe-identity.md)
+for its card-local interface and communication key format.
+
+Earlier firmware used package `00` for Safe and `01` for Monoid. Migrating these
+installations requires preserving the items before replacing both packages and
+updating clients to select the new Monoid AID.
+The new Safe AID equals the old Monoid AID; the ordinary installation script is
+not a migration tool for that layout.
+
 ```mermaid
 sequenceDiagram
     participant MonoidApp
