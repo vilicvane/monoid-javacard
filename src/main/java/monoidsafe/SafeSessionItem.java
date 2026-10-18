@@ -68,9 +68,9 @@ public class SafeSessionItem implements SafeItemShareable {
   }
 
   @Override
-  public byte[] getData() {
+  public SafeDataShareable getData() {
     session.assertAccess();
-    return Utils.duplicateAsGlobal(item.data);
+    return new SafeSessionData(session, item.data);
   }
 
   @Override
@@ -97,17 +97,24 @@ public class SafeSessionItem implements SafeItemShareable {
   }
 
   @Override
-  public void setData(byte[] data) {
+  public void setData(SafeDataShareable data) {
     session.assertAccess();
-    session.checkStorage((short) data.length);
-    item.data = Utils.duplicateAsPersistent(data);
+    short length = data.getLength();
+    session.assertAccess();
+    session.checkStorage(length);
+    byte[] replacement = Utils.duplicateAsPersistent(data, length);
+    session.assertAccess();
+    item.data = replacement;
   }
 
   @Override
-  public void setData(byte[] data, boolean secret) {
+  public void setData(SafeDataShareable data, boolean secret) {
     session.assertAccess();
-    session.checkStorage((short) data.length);
-    byte[] replacement = Utils.duplicateAsPersistent(data);
+    short length = data.getLength();
+    session.assertAccess();
+    session.checkStorage(length);
+    byte[] replacement = Utils.duplicateAsPersistent(data, length);
+    session.assertAccess();
 
     JCSystem.beginTransaction();
 
@@ -134,7 +141,7 @@ public class SafeSessionItem implements SafeItemShareable {
   }
 
   @Override
-  public byte[] exportData(byte[] recipientPublicKey) {
+  public SafeDataShareable exportData(byte[] recipientPublicKey) {
     return session.exportItem(item, recipientPublicKey);
   }
 

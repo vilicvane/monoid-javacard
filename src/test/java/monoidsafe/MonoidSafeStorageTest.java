@@ -1,5 +1,7 @@
 package monoidsafe;
 
+import static monoidsafe.TestData.read;
+
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
 import javacard.framework.AID;
@@ -61,18 +63,23 @@ public class MonoidSafeStorageTest {
   @Test
   public void includesTheEstimatedWriteLengthInTheThreshold() {
     // The fixture stores a ten-byte index, a one-byte alias and one byte of data.
-    for (int available : new int[] { 0, 4095, 4096, 4107 }) {
+    for (int available : new int[] { 0, 4095, 4096 }) {
       runtime.report(available);
       assertStorageFailure(() -> create(1));
       Assertions.assertEquals(1, runtime.memoryChecks);
       Assertions.assertNull(safe.get(index(1)));
     }
 
+    runtime.report(4107, 4096);
+    assertStorageFailure(() -> create(1));
+    Assertions.assertEquals(2, runtime.memoryChecks);
+    Assertions.assertNull(safe.get(index(1)));
+
     for (int available : new int[] { 4108, 32767, 32768, 65535 }) {
-      runtime.report(available, 0);
+      runtime.report(available, available - 11, 0);
       SafeItemShareable item = create(available);
       Assertions.assertNotNull(item);
-      Assertions.assertEquals(1, runtime.memoryChecks);
+      Assertions.assertEquals(2, runtime.memoryChecks);
       item.remove();
     }
   }
@@ -85,20 +92,45 @@ public class MonoidSafeStorageTest {
 
     for (int attempt = 0; attempt < 3; attempt++) {
       // Growing from eight to sixteen entries needs a new 32-byte reference array.
-      runtime.report(4139);
+      runtime.report(4139, 4128);
       assertStorageFailure(() -> create(9));
-      Assertions.assertEquals(1, runtime.memoryChecks);
+      Assertions.assertEquals(2, runtime.memoryChecks);
       Assertions.assertEquals(8, safe.list((short) 0).getCount());
       Assertions.assertNull(safe.get(index(9)));
 
       for (int id = 1; id <= 8; id++) {
-        Assertions.assertArrayEquals(new byte[] { (byte) id }, safe.get(index(id)).getData());
+        Assertions.assertArrayEquals(new byte[] { (byte) id }, read(safe.get(index(id)).getData()));
       }
     }
 
-    runtime.report(4140, 0);
+    runtime.report(4140, 4129, 4128, 0);
     Assertions.assertNotNull(create(9));
+    Assertions.assertEquals(3, runtime.memoryChecks);
+    Assertions.assertEquals(9, safe.list((short) 0).getCount());
+  }
+
+  @Test
+  public void checksTableGrowthIntroducedByADataCallbackBeforePublishing() {
+    for (int id = 1; id <= 7; id++) {
+      create(id);
+    }
+
+    TestData source = new TestData(new byte[] { 9 }) {
+      @Override
+      public void read(short dataOffset, byte[] buffer, short offset, short length) {
+        super.read(dataOffset, buffer, offset, length);
+        Assertions.assertNotNull(create(8));
+        runtime.report(4127);
+      }
+    };
+    assertStorageFailure(() -> safe.create(index(9), null, null, source, false));
     Assertions.assertEquals(1, runtime.memoryChecks);
+    Assertions.assertEquals(8, safe.list((short) 0).getCount());
+    Assertions.assertArrayEquals(new byte[] { 8 }, read(safe.get(index(8)).getData()));
+    Assertions.assertNull(safe.get(index(9)));
+
+    runtime.report(32767);
+    Assertions.assertNotNull(create(9));
     Assertions.assertEquals(9, safe.list((short) 0).getCount());
   }
 
@@ -108,14 +140,14 @@ public class MonoidSafeStorageTest {
 
     for (int available : new int[] { 4095, 4096, 4097 }) {
       runtime.report(available);
-      assertStorageFailure(() -> item.setData(new byte[] { 2, 3 }));
+      assertStorageFailure(() -> item.setData(new TestData(new byte[] { 2, 3 })));
       Assertions.assertEquals(1, runtime.memoryChecks);
-      Assertions.assertArrayEquals(new byte[] { 1 }, item.getData());
+      Assertions.assertArrayEquals(new byte[] { 1 }, read(item.getData()));
 
       runtime.report(available);
-      assertStorageFailure(() -> item.setData(new byte[] { 2, 3 }, true));
+      assertStorageFailure(() -> item.setData(new TestData(new byte[] { 2, 3 }), true));
       Assertions.assertEquals(1, runtime.memoryChecks);
-      Assertions.assertArrayEquals(new byte[] { 1 }, item.getData());
+      Assertions.assertArrayEquals(new byte[] { 1 }, read(item.getData()));
       Assertions.assertFalse(item.isSecret());
 
       runtime.report(available);
@@ -125,12 +157,12 @@ public class MonoidSafeStorageTest {
     }
 
     runtime.report(4098, 0);
-    item.setData(new byte[] { 2, 3 }, true);
+    item.setData(new TestData(new byte[] { 2, 3 }), true);
     Assertions.assertEquals(1, runtime.memoryChecks);
     runtime.report(4098, 0);
     item.setAlias(new byte[] { 4, 5 });
     Assertions.assertEquals(1, runtime.memoryChecks);
-    Assertions.assertArrayEquals(new byte[] { 2, 3 }, item.getData());
+    Assertions.assertArrayEquals(new byte[] { 2, 3 }, read(item.getData()));
     Assertions.assertTrue(item.isSecret());
     Assertions.assertArrayEquals(new byte[] { 4, 5 }, item.getAlias());
   }
@@ -143,7 +175,7 @@ public class MonoidSafeStorageTest {
     SafeItemIteratorShareable items = safe.list((short) 0);
     Assertions.assertEquals(1, items.getCount());
     Assertions.assertArrayEquals(index(1), items.next().getIndex());
-    Assertions.assertArrayEquals(new byte[] { 1 }, safe.get(index(1)).getData());
+    Assertions.assertArrayEquals(new byte[] { 1 }, read(safe.get(index(1)).getData()));
     item.setSecret(true);
     item.setAlias(null);
     Assertions.assertTrue(item.isSecret());
@@ -158,7 +190,7 @@ public class MonoidSafeStorageTest {
   public void importUsesTheSameGuardAndPreservesDuplicateImport() {
     SafeItemShareable item = create(1);
     byte[] publicKey = safe.getPublicKey();
-    byte[] envelope = item.exportData(publicKey);
+    SafeDataShareable envelope = item.exportData(publicKey);
     item.remove();
 
     for (int available : new int[] { 4095, 4107 }) {
@@ -173,7 +205,7 @@ public class MonoidSafeStorageTest {
     runtime.report(4108, 0);
     safe.importItem(index(1), null, new byte[] { 7 }, publicKey, envelope);
     Assertions.assertEquals(1, runtime.memoryChecks);
-    Assertions.assertArrayEquals(new byte[] { 1 }, safe.get(index(1)).getData());
+    Assertions.assertArrayEquals(new byte[] { 1 }, read(safe.get(index(1)).getData()));
 
     runtime.report(0);
     safe.importItem(index(1), null, new byte[] { 7 }, publicKey, envelope);
@@ -191,7 +223,13 @@ public class MonoidSafeStorageTest {
   }
 
   private SafeItemShareable create(int id) {
-    return safe.create(index(id), null, new byte[] { 7 }, new byte[] { (byte) id }, false);
+    return safe.create(
+      index(id),
+      null,
+      new byte[] { 7 },
+      new TestData(new byte[] { (byte) id }),
+      false
+    );
   }
 
   private byte[] index(int id) {

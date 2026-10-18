@@ -58,7 +58,7 @@ public interface SafeShareable extends Shareable {
     byte[] index,
     byte[] key,
     byte[] alias,
-    byte[] data,
+    SafeDataShareable data,
     boolean secret
   );
 
@@ -67,6 +67,6 @@ public interface SafeShareable extends Shareable {
     byte[] key,
     byte[] alias,
     byte[] senderPublicKey,
-    byte[] data
+    SafeDataShareable data
   );
 }

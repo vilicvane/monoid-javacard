@@ -14,15 +14,15 @@ public interface SafeItemShareable extends Shareable {
   /** Copies the alias and returns its length, or -1 if absent. */
   short getAlias(byte[] dest, short offset);
 
-  byte[] getData();
+  SafeDataShareable getData();
   boolean isSecret();
 
   void setAlias(byte[] alias);
-  void setData(byte[] data);
-  void setData(byte[] data, boolean secret);
+  void setData(SafeDataShareable data);
+  void setData(SafeDataShareable data, boolean secret);
   void setSecret(boolean secret);
 
-  byte[] exportData(byte[] recipientPublicKey);
+  SafeDataShareable exportData(byte[] recipientPublicKey);
 
   void remove();
 }

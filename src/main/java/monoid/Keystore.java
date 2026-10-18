@@ -462,6 +462,6 @@ public final class Keystore {
   }
 
   private byte[] requireKey(byte[] index) {
-    return safe.require(index).getData();
+    return Safe.readData(safe.require(index).getData());
   }
 }

@@ -9,6 +9,7 @@ import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.Shareable;
 import javacard.framework.Util;
+import monoidsafe.SafeDataShareable;
 import monoidsafe.SafeItemShareable;
 import monoidsafe.SafeShareable;
 
@@ -33,6 +34,7 @@ public class SafeCallerApplet extends Applet implements SafeCallerShareable {
   public static final byte SET_ALIAS = 16;
   public static final byte BORROW_SAFE = 17;
   public static final byte BORROW_ITEM = 18;
+  public static final byte VERIFY_DATA_CALLBACK = 19;
 
   private static final AID SAFE_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_SAFE_AID}}"
@@ -94,10 +96,21 @@ public class SafeCallerApplet extends Applet implements SafeCallerShareable {
           index(),
           null,
           null,
-          duplicate(buffer, ISO7816.OFFSET_CDATA, length),
+          new Data(buffer, ISO7816.OFFSET_CDATA, length),
           false
         );
         sendBoolean(apdu, item != null);
+        return;
+      case VERIFY_DATA_CALLBACK:
+        ContextData source = new ContextData(safe, buffer, ISO7816.OFFSET_CDATA, length);
+        item = safe.create(index(), null, null, source, false);
+
+        if (!safe.isPINValidated()) {
+          ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+        }
+
+        buffer[0] = source.calls;
+        apdu.setOutgoingAndSend((short) 0, (short) 1);
         return;
       case LIST:
         Util.setShort(buffer, (short) 0, safe.list((short) 0).getCount());
@@ -108,10 +121,13 @@ public class SafeCallerApplet extends Applet implements SafeCallerShareable {
         sendBoolean(apdu, item != null);
         return;
       case GET_DATA:
-        sendBytes(apdu, item.getData());
+        SafeDataShareable data = item.getData();
+        short dataLength = data.getLength();
+        data.read((short) 0, buffer, (short) 0, dataLength);
+        apdu.setOutgoingAndSend((short) 0, dataLength);
         return;
       case SET_DATA:
-        item.setData(duplicate(buffer, ISO7816.OFFSET_CDATA, length));
+        item.setData(new Data(buffer, ISO7816.OFFSET_CDATA, length));
         return;
       case GET_INDEX:
         sendBytes(apdu, item.getIndex());
@@ -180,6 +196,68 @@ public class SafeCallerApplet extends Applet implements SafeCallerShareable {
     if (value != null) {
       Util.arrayCopyNonAtomic(value, (short) 0, apdu.getBuffer(), (short) 0, (short) value.length);
       apdu.setOutgoingAndSend((short) 0, (short) value.length);
+    }
+  }
+
+  private static class Data implements SafeDataShareable {
+
+    private final byte[] data;
+
+    Data(byte[] buffer, short offset, short length) {
+      data = new byte[length];
+      Util.arrayCopyNonAtomic(buffer, offset, data, (short) 0, length);
+    }
+
+    @Override
+    public short getLength() {
+      return (short) data.length;
+    }
+
+    @Override
+    public void read(short dataOffset, byte[] buffer, short offset, short length) {
+      Util.arrayCopyNonAtomic(data, dataOffset, buffer, offset, length);
+    }
+  }
+
+  private static class ContextData extends Data {
+
+    private final SafeShareable safe;
+    private final AID owner;
+    private byte calls;
+
+    ContextData(SafeShareable safe, byte[] buffer, short offset, short length) {
+      super(buffer, offset, length);
+      this.safe = safe;
+      owner = JCSystem.getAID();
+    }
+
+    @Override
+    public short getLength() {
+      checkContext();
+      return super.getLength();
+    }
+
+    @Override
+    public void read(short dataOffset, byte[] buffer, short offset, short length) {
+      checkContext();
+      super.read(dataOffset, buffer, offset, length);
+    }
+
+    private void checkContext() {
+      assertContext();
+
+      if (!safe.isPINValidated()) {
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+      }
+
+      assertContext();
+      calls++;
+    }
+
+    private void assertContext() {
+      if (!owner.equals(JCSystem.getAID()) || !SAFE_AID.equals(JCSystem.getPreviousContextAID())) {
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+      }
     }
   }
 }

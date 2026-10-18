@@ -38,14 +38,16 @@ public class ItemCipherTest {
     ItemCipher cipher = new ItemCipher();
 
     for (boolean secret : new boolean[] { false, true }) {
-      for (int length : new int[] { 0, 14, 15, 30, 31, 32, 128 }) {
+      for (int length : new int[] { 0, 14, 15, 30, 31, 32, 128, 368, 369, 1024, 4096 }) {
         SafeItem item = item(bytes(length), secret);
         byte[] encrypted = cipher.encrypt(sender, item, recipient.getPublicKey());
 
         Assertions.assertEquals(length + 144, encrypted.length);
         Assertions.assertEquals(1, encrypted[0]);
-        // jCardSim represents global arrays as RESET arrays; it has no firewall check.
-        Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(encrypted));
+        Assertions.assertEquals(
+          encrypted.length <= 512 ? JCSystem.CLEAR_ON_RESET : JCSystem.NOT_A_TRANSIENT_OBJECT,
+          JCSystem.isTransient(encrypted)
+        );
         Assertions.assertNotSame(item.data, encrypted);
         Assertions.assertArrayEquals(context(item), sender.lastContext);
         Assertions.assertArrayEquals(
@@ -70,14 +72,32 @@ public class ItemCipherTest {
     ItemCipher cipher = new ItemCipher();
 
     for (boolean secret : new boolean[] { false, true }) {
-      for (int length : new int[] { 0, 1, 14, 15, 16, 30, 31, 32, 127, 256 }) {
+      for (int length : new int[] {
+        0,
+        1,
+        14,
+        15,
+        16,
+        30,
+        31,
+        32,
+        127,
+        256,
+        510,
+        511,
+        1024,
+        4096,
+      }) {
         SafeItem item = item(bytes(length), secret);
         byte[] encrypted = encryptOnHost(sender, recipient, item);
         byte[] original = encrypted.clone();
         byte[] decrypted = decrypt(cipher, recipient, sender, item, encrypted);
 
         Assertions.assertArrayEquals(plaintext(item), decrypted);
-        Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(decrypted));
+        Assertions.assertEquals(
+          decrypted.length <= 512 ? JCSystem.CLEAR_ON_RESET : JCSystem.NOT_A_TRANSIENT_OBJECT,
+          JCSystem.isTransient(decrypted)
+        );
         Assertions.assertArrayEquals(original, encrypted);
       }
     }
@@ -95,7 +115,14 @@ public class ItemCipherTest {
       byte[] changed = INDEX.clone();
       changed[index] ^= 1;
       Assertions.assertThrows(CryptoException.class, () ->
-        cipher.decrypt(recipient, changed, item.key, item.alias, sender.getPublicKey(), encrypted)
+        cipher.decrypt(
+          recipient,
+          changed,
+          item.key,
+          item.alias,
+          sender.getPublicKey(),
+          new TestData(encrypted)
+        )
       );
     }
 
@@ -106,7 +133,7 @@ public class ItemCipherTest {
         new byte[] { 1, 2 },
         new byte[] { 3 },
         sender.getPublicKey(),
-        encrypted
+        new TestData(encrypted)
       )
     );
 
@@ -118,7 +145,7 @@ public class ItemCipherTest {
           item.key,
           item.alias,
           sender.getPublicKey(),
-          encrypted
+          new TestData(encrypted)
         )
       );
     }
@@ -131,10 +158,24 @@ public class ItemCipherTest {
         byte[] changedAlias = alias == null ? new byte[0] : null;
 
         Assertions.assertThrows(CryptoException.class, () ->
-          cipher.decrypt(recipient, INDEX, changedKey, alias, sender.getPublicKey(), envelope)
+          cipher.decrypt(
+            recipient,
+            INDEX,
+            changedKey,
+            alias,
+            sender.getPublicKey(),
+            new TestData(envelope)
+          )
         );
         Assertions.assertThrows(CryptoException.class, () ->
-          cipher.decrypt(recipient, INDEX, key, changedAlias, sender.getPublicKey(), envelope)
+          cipher.decrypt(
+            recipient,
+            INDEX,
+            key,
+            changedAlias,
+            sender.getPublicKey(),
+            new TestData(envelope)
+          )
         );
         Assertions.assertArrayEquals(
           plaintext(nullable),
@@ -211,6 +252,26 @@ public class ItemCipherTest {
     Assertions.assertThrows(CryptoException.class, () ->
       decrypt(new ItemCipher(), other, sender, item, encrypted)
     );
+    Assertions.assertArrayEquals(
+      plaintext(item),
+      decrypt(cipher, recipient, sender, item, encrypted)
+    );
+  }
+
+  @Test
+  public void authenticatesPersistentPlaintextBeforeReturningIt() throws Exception {
+    TestIdentity sender = new TestIdentity(1);
+    TestIdentity recipient = new TestIdentity(2);
+    ItemCipher cipher = new ItemCipher();
+    SafeItem item = item(bytes(4096), true);
+    byte[] encrypted = encryptOnHost(sender, recipient, item);
+    byte[] changed = encrypted.clone();
+    changed[changed.length - 1] ^= 1;
+
+    CryptoException exception = Assertions.assertThrows(CryptoException.class, () ->
+      decrypt(cipher, recipient, sender, item, changed)
+    );
+    Assertions.assertEquals(CryptoException.ILLEGAL_VALUE, exception.getReason());
     Assertions.assertArrayEquals(
       plaintext(item),
       decrypt(cipher, recipient, sender, item, encrypted)
@@ -310,7 +371,7 @@ public class ItemCipherTest {
       item.key,
       item.alias,
       sender.getPublicKey(),
-      encrypted
+      new TestData(encrypted)
     );
   }
 

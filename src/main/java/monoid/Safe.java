@@ -6,6 +6,7 @@ import static monoidsafe.Constants.SAFE_TRUE;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.MessageDigest;
+import monoidsafe.SafeDataShareable;
 import monoidsafe.SafeItemIteratorShareable;
 import monoidsafe.SafeItemShareable;
 import monoidsafe.SafeShareable;
@@ -42,6 +43,7 @@ public final class Safe {
   // @formatter:on
 
   private SafeShareable safe;
+  private MessageDigest indexDigest;
 
   private final LibSecurity.Condition pinSetValidation = new LibSecurity.Condition() {
     @Override
@@ -149,25 +151,27 @@ public final class Safe {
    * bit pattern is valid; expansion and clamping happen when importing it.
    */
   private SafeItemShareable createRandomRandom(short refinedType, short length) {
-    byte[] data = Utils.makeGlobalByteArray(length);
+    byte[] data = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
 
     OneShot.random(data, (short) 0, length);
 
-    byte[] index = buildGlobalDigestIndex(refinedType, data);
+    SafeData source = new SafeData(data);
+    byte[] index = buildGlobalDigestIndex(refinedType, source);
 
-    return safe.create(index, null, null, data, true);
+    return safe.create(index, null, null, source, true);
   }
 
   private SafeItemShareable createRandomScalar(short refinedType, byte[] order) {
-    byte[] data = Utils.makeGlobalByteArray((short) order.length);
+    byte[] data = JCSystem.makeTransientByteArray((short) order.length, JCSystem.CLEAR_ON_DESELECT);
 
     do {
       OneShot.random(data, (short) 0, (short) data.length);
     } while (!isValidScalar(data, order));
 
-    byte[] index = buildGlobalDigestIndex(refinedType, data);
+    SafeData source = new SafeData(data);
+    byte[] index = buildGlobalDigestIndex(refinedType, source);
 
-    return safe.create(index, null, null, data, true);
+    return safe.create(index, null, null, source, true);
   }
 
   public SafeItemIteratorShareable list(short type) {
@@ -196,8 +200,13 @@ public final class Safe {
     return item;
   }
 
-  public SafeItemShareable create(short type, byte[] key, byte[] alias, byte[] data, boolean secret)
-    throws SafeException {
+  public SafeItemShareable create(
+    short type,
+    byte[] key,
+    byte[] alias,
+    SafeDataShareable data,
+    boolean secret
+  ) throws SafeException {
     if (!isKnownDigestIndexedType(type)) {
       SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     }
@@ -208,7 +217,6 @@ public final class Safe {
 
     key = key != null ? Utils.duplicateAsGlobal(key) : null;
     alias = alias != null ? Utils.duplicateAsGlobal(alias) : null;
-    data = Utils.duplicateAsGlobal(data);
 
     return safe.create(index, key, alias, data, secret);
   }
@@ -217,7 +225,7 @@ public final class Safe {
     byte[] index,
     byte[] key,
     byte[] alias,
-    byte[] data,
+    SafeDataShareable data,
     boolean secret
   ) {
     if (index.length != SafeShareable.INDEX_LENGTH) {
@@ -254,7 +262,6 @@ public final class Safe {
 
     key = key != null ? Utils.duplicateAsGlobal(key) : null;
     alias = alias != null ? Utils.duplicateAsGlobal(alias) : null;
-    data = Utils.duplicateAsGlobal(data);
 
     return safe.create(builtIndex, key, alias, data, secret);
   }
@@ -265,7 +272,7 @@ public final class Safe {
     byte[] key,
     byte[] alias,
     byte[] senderPublicKey,
-    byte[] data
+    SafeDataShareable data
   ) {
     safe.importItem(index, key, alias, senderPublicKey, data);
   }
@@ -358,7 +365,7 @@ public final class Safe {
     }
   }
 
-  private static byte[] buildGlobalDigestIndex(short refinedType, byte[] data) {
+  private byte[] buildGlobalDigestIndex(short refinedType, SafeDataShareable data) {
     byte[] index = Utils.makeGlobalByteArray(SafeShareable.INDEX_LENGTH);
 
     Util.setShort(index, SafeShareable.INDEX_TYPE_OFFSET, refinedType);
@@ -368,14 +375,31 @@ public final class Safe {
       JCSystem.CLEAR_ON_DESELECT
     );
 
-    OneShot.digest(
-      MessageDigest.ALG_SHA_256,
-      data,
-      (short) 0,
-      (short) data.length,
-      digest,
-      (short) 0
-    );
+    short length = data.getLength();
+    byte[] buffer = Utils.makeGlobalByteArray(Utils.min(length, (short) 256));
+
+    if (length <= buffer.length) {
+      data.read((short) 0, buffer, (short) 0, length);
+      OneShot.digest(MessageDigest.ALG_SHA_256, buffer, (short) 0, length, digest, (short) 0);
+    } else {
+      if (indexDigest == null) {
+        indexDigest = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
+      }
+
+      indexDigest.reset();
+
+      for (short offset = 0; offset < length; ) {
+        short chunkLength = Utils.min((short) (length - offset), (short) buffer.length);
+        data.read(offset, buffer, (short) 0, chunkLength);
+        offset += chunkLength;
+
+        if (offset == length) {
+          indexDigest.doFinal(buffer, (short) 0, chunkLength, digest, (short) 0);
+        } else {
+          indexDigest.update(buffer, (short) 0, chunkLength);
+        }
+      }
+    }
 
     Util.arrayCopyNonAtomic(
       digest,
@@ -388,22 +412,26 @@ public final class Safe {
     return index;
   }
 
-  private static short refineType(short type, byte[] data) throws SafeException {
+  private static short refineType(short type, SafeDataShareable data) throws SafeException {
+    short length = data.getLength();
+
     switch (type) {
       case TYPE_WEIERSTRASS_SECP256K1:
-        if (data.length != CurveSECP256k1.KEY_LENGTH || Utils.isZero(data)) {
+        if (length != CurveSECP256k1.KEY_LENGTH || Utils.isZero(readData(data))) {
           SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
         }
 
         return type;
       case TYPE_WEIERSTRASS_SECP256R1:
-        if (!isValidScalar(data, CurveSECP256r1.R)) {
+        if (
+          length != CurveSECP256r1.KEY_LENGTH || !isValidScalar(readData(data), CurveSECP256r1.R)
+        ) {
           SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
         }
 
         return type;
       case TYPE_EDWARDS_ED25519:
-        if (data.length != CurveED25519.KEY_LENGTH) {
+        if (length != CurveED25519.KEY_LENGTH) {
           SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
         }
 
@@ -424,18 +452,18 @@ public final class Safe {
       case TYPE_SEED: {
         short specifiedKeyLength = (short) (type & TYPE_METADATA_MASK);
 
-        if (specifiedKeyLength != 0 && specifiedKeyLength != data.length) {
+        if (specifiedKeyLength != 0 && specifiedKeyLength != length) {
           SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
         }
 
-        return (short) (type | data.length);
+        return (short) (type | length);
       }
       case TYPE_MASTER: {
-        short keyLength = (short) (data.length / 2);
+        short keyLength = (short) (length / 2);
         short specifiedKeyLength = (short) (type & TYPE_METADATA_MASK);
 
         if (
-          (short) (keyLength * 2) != data.length ||
+          (short) (keyLength * 2) != length ||
           (specifiedKeyLength != 0 && specifiedKeyLength != keyLength)
         ) {
           SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
@@ -447,6 +475,12 @@ public final class Safe {
 
     SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     return type;
+  }
+
+  public static byte[] readData(SafeDataShareable data) {
+    byte[] buffer = Utils.makeGlobalByteArray(data.getLength());
+    data.read((short) 0, buffer, (short) 0, (short) buffer.length);
+    return buffer;
   }
 
   private static boolean isValidScalar(byte[] data, byte[] order) {

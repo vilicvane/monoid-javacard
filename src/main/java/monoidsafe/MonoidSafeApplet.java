@@ -260,7 +260,7 @@ public class MonoidSafeApplet extends Applet {
     byte[] index,
     byte[] key,
     byte[] alias,
-    byte[] data,
+    SafeDataShareable data,
     boolean secret
   ) {
     assertAccess(session);
@@ -269,9 +269,51 @@ public class MonoidSafeApplet extends Applet {
       return null;
     }
 
-    SafeItem item = createItem(index, key, alias, data, (short) 0, (short) data.length, secret);
+    checkStorage(getItemStorageLength(index, key, alias, (short) 0));
+    index = Utils.duplicateAsPersistent(index);
+    key = key != null ? Utils.duplicateAsPersistent(key) : null;
+    alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
+
+    short dataLength = data.getLength();
+    assertAccess(session);
+    checkStorage((short) (dataLength + getItemTableExtensionLength()));
+    byte[] storedData = Utils.duplicateAsPersistent(data, dataLength);
+    assertAccess(session);
+
+    if (getItem(index) != null) {
+      return null;
+    }
+
+    short extensionLength = getItemTableExtensionLength();
+
+    if (extensionLength > 0) {
+      checkStorage(extensionLength);
+    }
+
+    SafeItem item = publishItem(index, key, alias, storedData, secret);
 
     return new SafeSessionItem(session, item);
+  }
+
+  private short getItemStorageLength(byte[] index, byte[] key, byte[] alias, short dataLength) {
+    short length = (short) (index.length + dataLength);
+
+    if (key != null) {
+      length += (short) key.length;
+    }
+
+    if (alias != null) {
+      length += (short) alias.length;
+    }
+
+    return (short) (length + getItemTableExtensionLength());
+  }
+
+  private short getItemTableExtensionLength() {
+    // Estimate the new reference array; object headers are covered by the reserve.
+    return itemsLength == items.length
+      ? (short) ((short) (items.length + ITEM_LENGTH_EXTENSION) * 2)
+      : 0;
   }
 
   private SafeItem createItem(
@@ -283,28 +325,23 @@ public class MonoidSafeApplet extends Applet {
     short dataLength,
     boolean secret
   ) {
-    short length = (short) (index.length + dataLength);
-
-    if (key != null) {
-      length += (short) key.length;
-    }
-
-    if (alias != null) {
-      length += (short) alias.length;
-    }
-
-    if (itemsLength == items.length) {
-      // Estimate the new reference array; object headers are covered by the reserve.
-      length += (short) ((short) (items.length + ITEM_LENGTH_EXTENSION) * 2);
-    }
-
-    checkStorage(length);
+    checkStorage(getItemStorageLength(index, key, alias, dataLength));
 
     index = Utils.duplicateAsPersistent(index);
     key = key != null ? Utils.duplicateAsPersistent(key) : null;
     alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
     data = Utils.duplicateAsPersistent(data, dataOffset, dataLength);
 
+    return publishItem(index, key, alias, data, secret);
+  }
+
+  private SafeItem publishItem(
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] data,
+    boolean secret
+  ) {
     SafeItem item = new SafeItem(index, key, alias, data, secret);
     SafeItem[] updatedItems = items;
 
@@ -337,9 +374,15 @@ public class MonoidSafeApplet extends Applet {
     return item;
   }
 
-  public byte[] exportItem(SafeSession session, SafeItem item, byte[] recipientPublicKey) {
+  public SafeDataShareable exportItem(
+    SafeSession session,
+    SafeItem item,
+    byte[] recipientPublicKey
+  ) {
     assertAccess(session);
-    return requireItemCipher().encrypt(requireIdentity(), item, recipientPublicKey);
+    byte[] data = requireItemCipher().encrypt(requireIdentity(), item, recipientPublicKey);
+    assertAccess(session);
+    return new SafeSessionData(session, data);
   }
 
   public void importItem(
@@ -348,9 +391,14 @@ public class MonoidSafeApplet extends Applet {
     byte[] key,
     byte[] alias,
     byte[] senderPublicKey,
-    byte[] data
+    SafeDataShareable data
   ) {
     assertAccess(session);
+
+    index = Utils.duplicateAsPrivate(index);
+    key = key != null ? Utils.duplicateAsPrivate(key) : null;
+    alias = alias != null ? Utils.duplicateAsPrivate(alias) : null;
+    senderPublicKey = Utils.duplicateAsPrivate(senderPublicKey);
 
     byte[] plaintext = requireItemCipher().decrypt(
       requireIdentity(),
@@ -360,6 +408,7 @@ public class MonoidSafeApplet extends Applet {
       senderPublicKey,
       data
     );
+    assertAccess(session);
     short secret = Util.getShort(plaintext, (short) 0);
 
     if (secret != Constants.SAFE_TRUE && secret != Constants.SAFE_FALSE) {

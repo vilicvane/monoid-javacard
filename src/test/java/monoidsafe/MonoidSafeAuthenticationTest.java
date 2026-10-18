@@ -169,7 +169,8 @@ public class MonoidSafeAuthenticationTest {
   public void anyBlockedReadPreventsDataReleaseWithoutConsumingAnAttempt() throws Exception {
     initializeItem();
 
-    for (int blockedRead = 0; blockedRead <= 3; blockedRead++) {
+    // Acquiring the data, reading its length and reading its bytes each check three times.
+    for (int blockedRead = 0; blockedRead <= 9; blockedRead++) {
       final int failure = blockedRead;
       int[] calls = new int[1];
       OwnerPIN observed = new OwnerPIN(
@@ -187,7 +188,7 @@ public class MonoidSafeAuthenticationTest {
       calls[0] = 0;
 
       ResponseAPDU response = transmit(SafeCallerApplet.GET_DATA);
-      Assertions.assertEquals(blockedRead == 0 ? 3 : blockedRead, calls[0]);
+      Assertions.assertEquals(blockedRead == 0 ? 9 : blockedRead, calls[0]);
 
       if (blockedRead == 0) {
         assertData(response, DATA);
@@ -277,7 +278,7 @@ public class MonoidSafeAuthenticationTest {
 
   @Test
   public void callerMustMatchOnEveryReadBeforeReleasingData() {
-    for (int failedRead = 0; failedRead <= 3; failedRead++) {
+    for (int failedRead = 0; failedRead <= 9; failedRead++) {
       final int failure = failedRead;
       int[] calls = new int[1];
       boolean[] observing = new boolean[1];
@@ -301,7 +302,7 @@ public class MonoidSafeAuthenticationTest {
       observing[0] = true;
 
       ResponseAPDU response = transmit(SafeCallerApplet.GET_DATA);
-      Assertions.assertEquals(failedRead == 0 ? 3 : failedRead, calls[0]);
+      Assertions.assertEquals(failedRead == 0 ? 9 : failedRead, calls[0]);
 
       if (failedRead == 0) {
         assertData(response, DATA);
@@ -626,7 +627,7 @@ public class MonoidSafeAuthenticationTest {
     validation.setAccessible(true);
     LibSecurity.Condition original = (LibSecurity.Condition) validation.get(session);
 
-    for (int failedRead = 0; failedRead <= 3; failedRead++) {
+    for (int failedRead = 0; failedRead <= 9; failedRead++) {
       final int failure = failedRead;
       int[] calls = new int[1];
       System.arraycopy(valid, 0, auth, 0, auth.length);
@@ -644,7 +645,7 @@ public class MonoidSafeAuthenticationTest {
       );
 
       ResponseAPDU response = transmit(SafeCallerApplet.GET_DATA);
-      Assertions.assertEquals(failedRead == 0 ? 3 : failedRead, calls[0]);
+      Assertions.assertEquals(failedRead == 0 ? 9 : failedRead, calls[0]);
 
       if (failedRead == 0) {
         assertData(response, DATA);

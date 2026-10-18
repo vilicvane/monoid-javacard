@@ -81,7 +81,7 @@ sequenceDiagram
 
 ## Persistent storage
 
-Safe checks the card's available persistent space once before allocating a new
+Safe checks the card's available persistent space before allocating a new
 item, replacement data or a non-null alias. Less than the estimated allocation
 plus 4096 bytes returns `6A84`. The reserve is defined by
 `MonoidSafeApplet.MIN_AVAILABLE_PERSISTENT_MEMORY`.
@@ -98,6 +98,30 @@ replacement storage and remain available below the threshold.
 This is a write guard, not a reserved memory partition. Temporary objects and
 other applets can consume the remaining space; old values awaiting collection
 also count as occupied when checking a replacement.
+
+## Item data
+
+Each item stores its data in one persistent byte array. `SafeDataShareable`
+provides a length and repeatable range reads into a caller-provided global buffer.
+Safe checks the owning session on each read; the interface never exposes its
+private array. Create and Set copy input through a buffer of at most 256 bytes,
+then publish the completed replacement. Data and secret change atomically;
+alias updates remain separate.
+
+Get and Export use the existing response transport. Responses fitting in one
+256-byte packet borrow the APDU buffer; larger data is read through a fixed
+window as GET RESPONSE advances. Large key or alias metadata can still require
+a larger window. Small signing keys are materialized only when the signing or
+derivation operation needs them.
+
+Export and Import keep their complete cryptographic work buffer private to Safe.
+Buffers up to 512 bytes try transient memory, falling back to persistent storage
+when necessary; larger buffers use temporary persistent storage directly.
+Import verifies the complete artifact before publishing data. These operations
+therefore need temporary persistent space in addition to the stored item.
+
+APDU fields and the 8192-byte complete-request limit are unchanged. The data SIO
+signatures require Safe and Monoid to be updated together.
 
 ## Derivation cache
 

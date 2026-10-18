@@ -90,6 +90,7 @@ public class ShareableSimulatorRuntime extends SimulatorRuntime {
 
     AID caller = currentAID;
     AID previous = previousAID;
+    arguments = (Object[]) wrap(arguments, caller);
 
     enterContext(owner);
 

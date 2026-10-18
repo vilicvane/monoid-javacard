@@ -8,6 +8,8 @@ import monoidsafe.SafeShareable;
 
 public class CommandGet extends Command {
 
+  private final SafeDataResponse response = new SafeDataResponse();
+
   @Override
   protected void run() {
     requireAuth();
@@ -31,10 +33,13 @@ public class CommandGet extends Command {
       MonoidException.throwIt(MonoidException.CODE_ACCESS_DENIED);
     }
 
+    short length = response.start(writer, item.getData(), (short) (2 + Text.data.length));
+
     writer.map((short) 1);
     {
       writer.text(Text.data);
-      writer.bytes(item.getData());
+      writer.bytesLength(length);
+      response.writeData(writer);
     }
   }
 }

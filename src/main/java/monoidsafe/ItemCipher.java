@@ -1,7 +1,6 @@
 package monoidsafe;
 
 import javacard.framework.JCSystem;
-import javacard.framework.SystemException;
 import javacard.framework.Util;
 import javacard.security.AESKey;
 import javacard.security.CryptoException;
@@ -64,7 +63,7 @@ public class ItemCipher {
     suffix = new byte[2];
   }
 
-  /** Returns version || encrypted key || nonce || ciphertext || tag in a new global array. */
+  /** Returns version || encrypted key || nonce || ciphertext || tag in a private array. */
   public byte[] encrypt(SafeIdentityShareable identity, SafeItem item, byte[] recipientPublicKey) {
     if (item.data.length > (short) (0x7FFF - ENVELOPE_OVERHEAD)) {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
@@ -86,7 +85,7 @@ public class ItemCipher {
 
     short length = (short) (item.data.length + ENVELOPE_OVERHEAD);
     short plaintextLength = (short) (SECRET_LENGTH + item.data.length);
-    byte[] encryptedData = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, length);
+    byte[] encryptedData = Utils.makePrivateByteArray(length);
     encryptedData[0] = VERSION;
     Util.arrayCopyNonAtomic(
       encryptedKey,
@@ -119,45 +118,44 @@ public class ItemCipher {
     byte[] key,
     byte[] alias,
     byte[] senderPublicKey,
-    byte[] encryptedData
+    SafeDataShareable encryptedData
   ) {
-    if (encryptedData.length < ENVELOPE_OVERHEAD || encryptedData[0] != VERSION) {
+    short encryptedLength = encryptedData.getLength();
+
+    if (encryptedLength < ENVELOPE_OVERHEAD) {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
     }
 
     byte[] context = createContext(index, key, alias);
-    byte[] communicationKey = identity.decryptCommunicationKey(
-      senderPublicKey,
-      context,
-      Utils.duplicateAsGlobal(encryptedData, ENCRYPTED_KEY_OFFSET, ENCRYPTED_KEY_LENGTH)
+    byte[] buffer = (byte[]) JCSystem.makeGlobalArray(
+      JCSystem.ARRAY_TYPE_BYTE,
+      ENCRYPTED_KEY_LENGTH
     );
-    deriveKey(communicationKey, context);
+    encryptedData.read((short) 0, buffer, (short) 0, (short) 1);
 
-    short length = (short) (encryptedData.length - DATA_OFFSET - TAG_LENGTH);
-    byte[] plaintext;
-
-    try {
-      plaintext = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_RESET);
-    } catch (SystemException e) {
-      if (e.getReason() != SystemException.NO_TRANSIENT_SPACE) {
-        throw e;
-      }
-
-      // Keep the unverified plaintext private to Safe, using persistent space only if needed.
-      plaintext = new byte[length];
+    if (buffer[0] != VERSION) {
+      CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
     }
 
-    cipher.init(encryptionKey, Cipher.MODE_DECRYPT, encryptedData, NONCE_OFFSET);
-    cipher.doFinal(encryptedData, DATA_OFFSET, length, plaintext, (short) 0);
+    encryptedData.read(ENCRYPTED_KEY_OFFSET, buffer, (short) 0, ENCRYPTED_KEY_LENGTH);
+    byte[] communicationKey = identity.decryptCommunicationKey(
+      Utils.duplicateAsGlobal(senderPublicKey),
+      context,
+      buffer
+    );
+
+    short length = (short) (encryptedLength - DATA_OFFSET - TAG_LENGTH);
+    byte[] plaintext = Utils.makePrivateByteArray(length);
+    Utils.copy(encryptedData, DATA_OFFSET, plaintext, (short) 0, length, buffer);
+    encryptedData.read(NONCE_OFFSET, buffer, (short) 0, NONCE_LENGTH);
+    encryptedData.read((short) (encryptedLength - TAG_LENGTH), buffer, NONCE_LENGTH, TAG_LENGTH);
+
+    deriveKey(communicationKey, context);
+    cipher.init(encryptionKey, Cipher.MODE_DECRYPT, buffer, (short) 0);
+    cipher.doFinal(plaintext, (short) 0, length, plaintext, (short) 0);
 
     // Key derivation is complete; reuse its workspace without retaining caller arrays.
-    Util.arrayCopyNonAtomic(
-      encryptedData,
-      (short) (encryptedData.length - TAG_LENGTH),
-      keyBytes,
-      (short) 0,
-      TAG_LENGTH
-    );
+    Util.arrayCopyNonAtomic(buffer, NONCE_LENGTH, keyBytes, (short) 0, TAG_LENGTH);
 
     if (LibSecurity.check(tagValidation, Constants.SAFE_FALSE) != Constants.SAFE_TRUE) {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);

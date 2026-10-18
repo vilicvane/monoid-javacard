@@ -105,7 +105,7 @@ public class SafeSession implements SafeShareable {
     byte[] index,
     byte[] key,
     byte[] alias,
-    byte[] data,
+    SafeDataShareable data,
     boolean secret
   ) {
     return applet.create(this, index, key, alias, data, secret);
@@ -117,7 +117,7 @@ public class SafeSession implements SafeShareable {
     byte[] key,
     byte[] alias,
     byte[] senderPublicKey,
-    byte[] data
+    SafeDataShareable data
   ) {
     applet.importItem(this, index, key, alias, senderPublicKey, data);
   }
@@ -167,7 +167,7 @@ public class SafeSession implements SafeShareable {
     applet.remove(this, item);
   }
 
-  byte[] exportItem(SafeItem item, byte[] recipientPublicKey) {
+  SafeDataShareable exportItem(SafeItem item, byte[] recipientPublicKey) {
     return applet.exportItem(this, item, recipientPublicKey);
   }
 }

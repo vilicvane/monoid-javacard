@@ -13,7 +13,7 @@ public class CommandCreate extends Command {
 
     reader.map();
 
-    byte[] data = reader.requireKey(Text.data).bytes();
+    SafeData data = SafeData.fromReader(reader.requireKey(Text.data));
     byte[] key = reader.key(Text.key) ? reader.bytes() : null;
     byte[] alias = reader.key(Text.alias) ? reader.text() : null;
     boolean secret = reader.key(Text.secret) && reader.bool();

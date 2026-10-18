@@ -28,6 +28,8 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   public static short version = 0;
 
+  private static boolean versionInitialized;
+
   public static byte[] id = new byte[ID_LENGTH];
 
   public static OwnerPIN pin;
@@ -46,6 +48,8 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
   private static LibSecurity.Condition safeUnlocked;
 
   public static void install(byte[] bArray, short bOffset, byte bLength) {
+    versionInitialized = false;
+
     MonoidException.init();
     PINException.init();
     SafeException.init();
@@ -150,12 +154,13 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
   }
 
   private static void ensureInitialization() {
-    if (version == 0) {
+    if (!versionInitialized) {
       byte[] buffer = JCSystem.makeTransientByteArray((short) 16, JCSystem.CLEAR_ON_DESELECT);
 
       short length = JCSystem.getAID().getBytes(buffer, (short) 0);
 
       version = Util.getShort(buffer, (short) (length - 2));
+      versionInitialized = true;
     }
 
     if (safe == null) {

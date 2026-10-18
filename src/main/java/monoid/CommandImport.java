@@ -22,7 +22,7 @@ public class CommandImport extends Command {
     byte[] alias = reader.key(Text.alias) ? Utils.duplicateAsGlobal(reader.text()) : null;
 
     reader.requireKey(Text.data);
-    byte[] data = readGlobalBytes((short) -1);
+    SafeData data = SafeData.fromReader(reader);
 
     MonoidApplet.safe.importItem(index, key, alias, senderPublicKey, data);
 

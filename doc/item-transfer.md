@@ -85,7 +85,10 @@ key derivation; the payload tag authenticates the secret flag and item data.
 
 Import authenticates the communication key, decrypts into a Safe-owned buffer,
 and verifies the complete payload tag before returning plaintext to Safe.
-The buffer uses transient memory when available, otherwise temporary persistent storage.
+Private work buffers up to 512 bytes try transient memory, falling back to
+temporary persistent storage when needed. Larger buffers use persistent storage
+directly. Cross-applet data is copied in bounded ranges; Export and Import do not
+require a complete global array for the artifact.
 Successful tag verification is repeated three times. Safe accepts only the two
 defined secret encodings before committing an item. Invalid artifacts cannot
 publish a plaintext result or modify an existing item.

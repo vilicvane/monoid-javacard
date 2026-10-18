@@ -34,6 +34,17 @@ public abstract class CBORWriter {
     bytesLike(CBOR.TYPE_BYTES, value, (short) 0, (short) value.length);
   }
 
+  /** Starts one byte string whose content is subsequently written with rawBytes. */
+  public void bytesLength(short length) {
+    metadataUnsignedInteger(CBOR.TYPE_BYTES, length);
+  }
+
+  public void rawBytes(byte[] in, short valueOffset, short valueLength) {
+    write(offset, in, valueOffset, valueLength);
+
+    offset += valueLength;
+  }
+
   public void text(byte[] in, short valueOffset, short valueLength) {
     bytesLike(CBOR.TYPE_TEXT, in, valueOffset, valueLength);
   }
@@ -44,10 +55,7 @@ public abstract class CBORWriter {
 
   private void bytesLike(byte type, byte[] in, short valueOffset, short valueLength) {
     metadataUnsignedInteger(type, valueLength);
-
-    write(offset, in, valueOffset, valueLength);
-
-    offset += valueLength;
+    rawBytes(in, valueOffset, valueLength);
   }
 
   public void array(short length) {
@@ -72,6 +80,10 @@ public abstract class CBORWriter {
 
   public void br() {
     write(offset++, CBOR.BREAK);
+  }
+
+  static short metadataLength(short value) {
+    return value <= CBOR.MAX_SIMPLE_UNSIGNED_INT ? (short) 1 : value <= 0xFF ? (short) 2 : 3;
   }
 
   private void metadataUnsignedInteger(byte type, short value) {

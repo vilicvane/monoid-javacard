@@ -8,6 +8,7 @@ import com.licel.jcardsim.utils.AIDUtil;
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -381,6 +382,156 @@ public class MonoidItemTransferTest {
       }
 
       Assertions.assertEquals(2, itemCount(card));
+    }
+  }
+
+  @Test
+  public void largeItemsUseFragmentedRequestsAndResponses() {
+    try (Card card = new Card(true)) {
+      byte[] index = customIndex(60);
+      byte[] key = sequence(16);
+      byte[] data = sequence(4097);
+      data[2048] = 42;
+      Result created = card.transmit(
+        0x34,
+        fields("data", data, "alias", "large", "index", index, "key", key),
+        127
+      );
+      created.assertSuccess();
+      Assertions.assertTrue(created.requestFrames > 1);
+      Assertions.assertArrayEquals(index, created.bytes("index"));
+      Result fetched = card.success(0x32, fields("index", index));
+      Assertions.assertTrue(fetched.responseFrames > 1);
+      Assertions.assertArrayEquals(data, fetched.bytes("data"));
+
+      byte[] replacement = sequence(6145);
+      replacement[4096] = 99;
+      Result updated = card.transmit(
+        0x33,
+        fields("index", index, "data", replacement, "secret", false),
+        193
+      );
+      updated.assertSuccess();
+      Assertions.assertTrue(updated.requestFrames > 1);
+      assertData(card, index, replacement);
+      assertMetadata(card, index, key, "large", false);
+
+      for (boolean reset : new boolean[] { false, true }) {
+        byte[] request = encode(fields("index", index, "data", data, "secret", true));
+
+        for (int offset = 0; offset < 510; offset += 255) {
+          ResponseAPDU response = card.simulator.transmitCommand(
+            new CommandAPDU(
+              offset == 0 ? 0x90 : 0xB0,
+              0x33,
+              0,
+              0,
+              Arrays.copyOfRange(request, offset, offset + 255)
+            )
+          );
+          Assertions.assertEquals(0x9000, response.getSW());
+          Assertions.assertEquals(0, response.getData().length);
+        }
+
+        if (reset) {
+          card.reset();
+          card.authenticate(false);
+        } else {
+          card.success(0x20, fields());
+        }
+
+        assertData(card, index, replacement);
+        assertMetadata(card, index, key, "large", false);
+
+        ResponseAPDU first = card.simulator.transmitCommand(
+          new CommandAPDU(0, 0x32, 0, 0, encode(fields("index", index)))
+        );
+        Assertions.assertEquals(0x6100, first.getSW());
+
+        if (reset) {
+          card.reset();
+          card.authenticate(false);
+        } else {
+          card.success(0x20, fields());
+        }
+
+        Assertions.assertEquals(
+          0x6985,
+          card.simulator.transmitCommand(new CommandAPDU(0, 0xC0, 0, 0, 256)).getSW()
+        );
+        assertData(card, index, replacement);
+      }
+
+      card.success(0x33, fields("index", index, "data", data, "secret", true));
+      assertMetadata(card, index, key, "large", true);
+      assertError(card.transmit(0x32, fields("index", index)), "ACCESS_DENIED");
+    }
+  }
+
+  @Test
+  public void largeImportsVerifyEveryChunkBeforePublishingOrMatchingExistingData() {
+    try (Card card = new Card(true)) {
+      byte[] index = customIndex(61);
+      byte[] key = sequence(16);
+      byte[] data = sequence(4097);
+      data[2048] = 42;
+      card.create(index, key, "large transfer", data, false);
+      byte[] sender = card.publicKey();
+      card.authenticate(true);
+      Transfer transfer = card.export(index, sender);
+      Assertions.assertTrue(transfer.responseFrames > 1);
+      card.success(0x35, fields("index", index));
+      card.authenticate(false);
+
+      byte[] changed = transfer.data.clone();
+      changed[2048] ^= 1;
+      Map<String, Object> tampered = transfer.request(sender);
+      tampered.put("data", changed);
+      assertCryptoRejected(card.transmit(0x37, tampered));
+      assertAbsent(card, index);
+
+      Result imported = card.transmit(0x37, transfer.request(sender), 193);
+      imported.assertSuccess();
+      Assertions.assertTrue(imported.requestFrames > 1);
+      assertData(card, index, data);
+      assertMetadata(card, index, key, "large transfer", false);
+      card.success(0x37, transfer.request(sender));
+      Assertions.assertEquals(1, itemCount(card));
+
+      byte[] replacement = data.clone();
+      replacement[replacement.length - 1] ^= 1;
+      card.success(0x33, fields("index", index, "data", replacement));
+      Assertions.assertEquals(0x6985, card.transmit(0x37, transfer.request(sender)).status);
+      assertData(card, index, replacement);
+      assertMetadata(card, index, key, "large transfer", false);
+    }
+  }
+
+  @Test
+  public void digestIndexedItemsHashTheEntireDataSource() throws Exception {
+    try (Card card = new Card(true)) {
+      for (int length : new int[] { 510, 32, 64, 508 }) {
+        boolean master = length > 64;
+        byte[] data = sequence(length);
+        byte[] expectedIndex = new byte[SafeShareable.INDEX_LENGTH];
+        expectedIndex[0] = master ? (byte) 3 : (byte) 2;
+        expectedIndex[1] = (byte) (master ? length / 2 : length);
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(data);
+        System.arraycopy(
+          digest,
+          0,
+          expectedIndex,
+          SafeShareable.INDEX_ID_OFFSET,
+          SafeShareable.INDEX_ID_LENGTH
+        );
+
+        byte[] index = card.create(master ? "master" : "seed", null, null, data, false);
+        Assertions.assertArrayEquals(expectedIndex, index);
+        assertData(card, index, data);
+        card.success(0x35, fields("index", index));
+        card.create(index, null, null, data, false);
+        assertData(card, index, data);
+      }
     }
   }
 
