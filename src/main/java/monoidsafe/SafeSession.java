@@ -159,6 +159,10 @@ public class SafeSession implements SafeShareable {
     applet.assertAccess(this);
   }
 
+  void checkStorage(short length) {
+    applet.checkStorage(length);
+  }
+
   void remove(SafeItem item) {
     applet.remove(this, item);
   }

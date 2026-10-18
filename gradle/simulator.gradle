@@ -140,10 +140,33 @@ task prepareSimulatorItemCipher {
 	}
 }
 
+task prepareSimulatorStorage {
+	def original = file('src/main/java/monoidsafe/MonoidSafeApplet.java')
+	def adapted = file("${buildDir}/generated/simulator/monoidsafe/MonoidSafeApplet.java")
+	inputs.file original
+	outputs.file adapted
+
+	doLast {
+		def source = original.text
+		def pattern = /JCSystem\.getAvailableMemory\(availableMemory,\s*\(short\) 0,\s*JCSystem\.MEMORY_TYPE_PERSISTENT\);/
+		if ((source =~ pattern).count != 1) {
+			throw new GradleException('Unexpected simulator available-memory match count')
+		}
+
+		// The 32-bit overload is a no-op in jCardSim. Its short overload delegates to
+		// SimulatorRuntime, allowing tests to supply memory reports without changing CAP code.
+		source = source.replaceAll(pattern, '''availableMemory[0] = 0;
+    availableMemory[1] = JCSystem.getAvailableMemory(JCSystem.MEMORY_TYPE_PERSISTENT);''')
+		adapted.parentFile.mkdirs()
+		adapted.text = source
+	}
+}
+
 compileSimulatorMath {
-	dependsOn prepareSimulatorCommunicationCipher, prepareSimulatorAESGcmCipher, prepareSimulatorItemCipher
+	dependsOn prepareSimulatorCommunicationCipher, prepareSimulatorAESGcmCipher, prepareSimulatorItemCipher, prepareSimulatorStorage
 	source file("${buildDir}/generated/simulator/monoidsafeidentity/CommunicationCipher.java")
 	source file("${buildDir}/generated/simulator/monoidsafeidentity/AESGcmCipher.java")
 	source file("${buildDir}/generated/simulator/monoidsafe/AESGcmCipher.java")
 	source file("${buildDir}/generated/simulator/monoidsafe/ItemCipher.java")
+	source file("${buildDir}/generated/simulator/monoidsafe/MonoidSafeApplet.java")
 }

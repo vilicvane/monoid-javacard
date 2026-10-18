@@ -87,18 +87,26 @@ public class SafeSessionItem implements SafeItemShareable {
   @Override
   public void setAlias(byte[] alias) {
     session.assertAccess();
-    item.alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
+
+    if (alias != null) {
+      session.checkStorage((short) alias.length);
+      alias = Utils.duplicateAsPersistent(alias);
+    }
+
+    item.alias = alias;
   }
 
   @Override
   public void setData(byte[] data) {
     session.assertAccess();
+    session.checkStorage((short) data.length);
     item.data = Utils.duplicateAsPersistent(data);
   }
 
   @Override
   public void setData(byte[] data, boolean secret) {
     session.assertAccess();
+    session.checkStorage((short) data.length);
     byte[] replacement = Utils.duplicateAsPersistent(data);
 
     JCSystem.beginTransaction();

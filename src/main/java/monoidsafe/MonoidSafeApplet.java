@@ -20,6 +20,7 @@ public class MonoidSafeApplet extends Applet {
   private static final short PIN_SET = (short) 0x5AFE;
 
   private static final short ITEM_LENGTH_EXTENSION = 8;
+  private static final short MIN_AVAILABLE_PERSISTENT_MEMORY = 4096;
 
   public static void install(byte[] bArray, short bOffset, byte bLength) {
     new MonoidSafeApplet().register();
@@ -94,6 +95,11 @@ public class MonoidSafeApplet extends Applet {
   private SafeItem[] items = new SafeItem[ITEM_LENGTH_EXTENSION];
 
   private short itemsLength = 0;
+
+  private final short[] availableMemory = JCSystem.makeTransientShortArray(
+    (short) 2,
+    JCSystem.CLEAR_ON_RESET
+  );
 
   private ItemCipher itemCipher;
 
@@ -277,6 +283,23 @@ public class MonoidSafeApplet extends Applet {
     short dataLength,
     boolean secret
   ) {
+    short length = (short) (index.length + dataLength);
+
+    if (key != null) {
+      length += (short) key.length;
+    }
+
+    if (alias != null) {
+      length += (short) alias.length;
+    }
+
+    if (itemsLength == items.length) {
+      // Estimate the new reference array; object headers are covered by the reserve.
+      length += (short) ((short) (items.length + ITEM_LENGTH_EXTENSION) * 2);
+    }
+
+    checkStorage(length);
+
     index = Utils.duplicateAsPersistent(index);
     key = key != null ? Utils.duplicateAsPersistent(key) : null;
     alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
@@ -424,6 +447,20 @@ public class MonoidSafeApplet extends Applet {
 
     if (LibSecurity.check(pinBlockedValidation, Constants.SAFE_TRUE) != Constants.SAFE_FALSE) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+  }
+
+  void checkStorage(short length) {
+    JCSystem.getAvailableMemory(availableMemory, (short) 0, JCSystem.MEMORY_TYPE_PERSISTENT);
+    short required = (short) (MIN_AVAILABLE_PERSISTENT_MEMORY + length);
+
+    // The two shorts contain an unsigned 32-bit count, most significant half first.
+    if (
+      availableMemory[0] == 0 &&
+      (short) (availableMemory[1] ^ (short) 0x8000) < (short) (required ^ (short) 0x8000)
+    ) {
+      JCSystem.requestObjectDeletion();
+      ISOException.throwIt(ISO7816.SW_FILE_FULL);
     }
   }
 

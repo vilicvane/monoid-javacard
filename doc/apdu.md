@@ -85,6 +85,7 @@ transfers.
 | `6700` | Empty or oversized input, including a request exceeding 8192 bytes.                                |
 | `6883` | Middle/last frame without a matching active request, or GET RESPONSE during an unfinished request. |
 | `6985` | GET RESPONSE with no pending response.                                                             |
+| `6A84` | Safe rejected a write to preserve its 4KiB persistent-space reserve.                               |
 | `6A86` | GET RESPONSE with nonzero P1 or P2.                                                                |
 | `6D00` | Unsupported INS.                                                                                   |
 | `6E00` | Unsupported CLA; GET RESPONSE requires `00`.                                                       |

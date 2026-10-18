@@ -79,6 +79,26 @@ sequenceDiagram
     MonoidApplet -->> ThirdPartyApplet: signature
 ```
 
+## Persistent storage
+
+Safe checks the card's available persistent space once before allocating a new
+item, replacement data or a non-null alias. Less than the estimated allocation
+plus 4096 bytes returns `6A84`. The reserve is defined by
+`MonoidSafeApplet.MIN_AVAILABLE_PERSISTENT_MEMORY`.
+
+The estimate includes the new byte arrays and, when required, the full replacement
+item directory at two bytes per reference. Object headers and alignment are
+absorbed by the reserve; there is no check after allocation.
+
+The rejected Safe write leaves its existing value intact. Set applies data/secret
+and alias separately; an alias failure does not undo an earlier data update.
+Deletion, clearing an alias and changing only the secret flag do not allocate
+replacement storage and remain available below the threshold.
+
+This is a write guard, not a reserved memory partition. Temporary objects and
+other applets can consume the remaining space; old values awaiting collection
+also count as occupied when checking a replacement.
+
 ## Some thoughts
 
 ### Third-party applet to _Monoid Applet_ authentication nodes
