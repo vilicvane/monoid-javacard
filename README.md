@@ -6,7 +6,7 @@
   </sup>
 </h1>
 
-<img src="./res/monoid.png" alt="Monoid" width="80" align="right" />
+<img src="./res/monoid.svg" alt="Monoid" width="80" align="right" />
 
 A JavaCard with Monoid applets installed is:
 
