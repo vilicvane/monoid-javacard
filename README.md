@@ -49,6 +49,14 @@ gp --install build/javacard/monoid.cap
 
 Keep Safe Identity installed when replacing Safe. See [Safe Identity](doc/safe-identity.md).
 
+Build and install with PowerShell:
+
+```powershell
+.\scripts\build-install.ps1 -Mode Install         # First installation
+.\scripts\build-install.ps1                      # ReinstallMonoid (default)
+.\scripts\build-install.ps1 -Mode ReinstallSafe   # Reinstall Safe and Monoid; clears Safe data
+```
+
 > The gradle plugin task `./gradlew installJavaCard` will try to append multiple `--install` options to `gp` command, which is not supported in my case. So we have to do it manually.
 
 ## Development

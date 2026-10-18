@@ -229,7 +229,28 @@ public abstract class Command {
         ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
       }
 
-      writer.send();
+      try {
+        writer.send();
+      } catch (ISOException e) {
+        short status = e.getReason();
+
+        if (
+          status != ISO7816.SW_NO_ERROR &&
+          (short) (status & (short) 0xFF00) != ISO7816.SW_BYTES_REMAINING_00
+        ) {
+          clearTransport();
+        }
+
+        throw e;
+      } catch (Exception e) {
+        // A response prefix has already been sent. Appending a CBOR error would
+        // leave a malformed success response, so terminate the transport instead.
+        clearTransport();
+        ISOException.throwIt(ISO7816.SW_UNKNOWN);
+      } finally {
+        JCSystem.requestObjectDeletion();
+      }
+
       return;
     }
 
@@ -274,6 +295,7 @@ public abstract class Command {
 
     try {
       run();
+      writer.send();
     } catch (ISOException e) {
       throw e;
     } catch (MonoidException e) {
@@ -305,10 +327,6 @@ public abstract class Command {
     } catch (Exception e) {
       sendError(CODE_INTERNAL);
     }
-
-    // It the code ever reaches here, it means send() hasn't been called (as it
-    // throws inside).
-    writer.send();
   }
 
   protected abstract void run() throws MonoidException;

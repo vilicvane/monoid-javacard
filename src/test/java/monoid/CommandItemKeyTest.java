@@ -2,7 +2,9 @@ package monoid;
 
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import javacard.framework.AID;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
@@ -131,6 +133,135 @@ public class CommandItemKeyTest {
     assertError(transmit(0x30, listRequest((short) 0, data)), MonoidException.CODE_UNAUTHORIZED);
   }
 
+  @Test
+  public void listsManySmallItemsThroughPackedResponsesAndRecoversFromCancellation() {
+    byte[][] indexes = new byte[40][];
+    byte[][] keys = new byte[indexes.length][];
+    byte[][] aliases = new byte[indexes.length][];
+    byte[][] filteredIndexes = new byte[indexes.length / 2][];
+
+    for (int position = 0; position < indexes.length; position++) {
+      keys[position] = new byte[16];
+      keys[position][0] = (byte) (position % 2);
+      keys[position][15] = (byte) position;
+      aliases[position] = ("record-" + (position < 10 ? "0" : "") + position).getBytes(
+        StandardCharsets.US_ASCII
+      );
+      indexes[position] = create(
+        null,
+        customIndex(position + 1),
+        keys[position],
+        aliases[position],
+        new byte[] { (byte) position }
+      );
+
+      if (position % 2 == 0) {
+        filteredIndexes[position / 2] = indexes[position];
+      }
+    }
+
+    ResponseAPDU response = transmit(0x30, listRequest((short) 0, null));
+    Assertions.assertEquals(0x6100, response.getSW());
+    Assertions.assertTrue(response.getData().length > 0 && response.getData().length <= 256);
+
+    for (Object chunk : Command.writer.chunks) {
+      Assertions.assertNull(chunk);
+    }
+
+    CBORBufferReader reader = assertSuccess(response);
+    Assertions.assertEquals(indexes.length, reader.requireKey(Text.items).array());
+
+    for (short position = 0; position < indexes.length; position++) {
+      Assertions.assertTrue(reader.index(position));
+      reader.map();
+      Assertions.assertArrayEquals(keys[position], reader.requireKey(Text.key).bytes());
+      Assertions.assertArrayEquals(aliases[position], reader.requireKey(Text.alias).text());
+      Assertions.assertArrayEquals(indexes[position], reader.requireKey(Text.index).bytes());
+      Assertions.assertFalse(reader.requireKey(Text.secret).bool());
+      Assertions.assertFalse(reader.key(Text.data));
+    }
+
+    Assertions.assertFalse(Command.writer.hasPending());
+    assertListedItems((short) 0, new byte[] { 0 }, filteredIndexes);
+    Assertions.assertEquals(0x6100, transmit(0x30, listRequest((short) 0, null)).getSW());
+    assertMetadata(indexes[0], keys[0]);
+    Assertions.assertFalse(Command.writer.hasPending());
+    Assertions.assertEquals(
+      0x6985,
+      simulator.transmitCommand(new CommandAPDU(0, 0xC0, 0, 0, 256)).getSW()
+    );
+    assertListedItems((short) 0, null, indexes);
+  }
+
+  @Test
+  public void listsMissingAndEmptyMetadataWithoutReusingPreviousValues() {
+    byte[] withValues = create(
+      null,
+      customIndex(1),
+      new byte[] { 1, 2 },
+      new byte[] { 3, 4 },
+      new byte[] { 1 }
+    );
+    byte[] absent = create(null, customIndex(2), null, new byte[] { 2 });
+    byte[] empty = create(null, customIndex(3), new byte[0], new byte[0], new byte[] { 3 });
+    CBORBufferReader reader = assertSuccess(transmit(0x30, listRequest((short) 0, null)));
+    Assertions.assertEquals(3, reader.requireKey(Text.items).array());
+    Assertions.assertTrue(reader.index((short) 0));
+    reader.map();
+    Assertions.assertArrayEquals(withValues, reader.requireKey(Text.index).bytes());
+    Assertions.assertArrayEquals(new byte[] { 1, 2 }, reader.requireKey(Text.key).bytes());
+    Assertions.assertArrayEquals(new byte[] { 3, 4 }, reader.requireKey(Text.alias).text());
+    Assertions.assertTrue(reader.index((short) 1));
+    reader.map();
+    Assertions.assertArrayEquals(absent, reader.requireKey(Text.index).bytes());
+    Assertions.assertFalse(reader.key(Text.key));
+    Assertions.assertFalse(reader.key(Text.alias));
+    Assertions.assertTrue(reader.index((short) 2));
+    reader.map();
+    Assertions.assertArrayEquals(empty, reader.requireKey(Text.index).bytes());
+    Assertions.assertArrayEquals(new byte[0], reader.requireKey(Text.key).bytes());
+    Assertions.assertArrayEquals(new byte[0], reader.requireKey(Text.alias).text());
+  }
+
+  @Test
+  public void listsMetadataLargerThanTheAPDUBuffer() {
+    byte[] key = new byte[80];
+    byte[] alias = new byte[200];
+
+    for (int position = 0; position < key.length; position++) {
+      key[position] = (byte) position;
+    }
+
+    Arrays.fill(alias, (byte) 'a');
+    byte[] index = create(null, customIndex(1), key, alias, new byte[] { 1 });
+    CBORBufferReader reader = assertSuccess(transmit(0x30, listRequest((short) 0, null)));
+    Assertions.assertEquals(1, reader.requireKey(Text.items).array());
+    Assertions.assertTrue(reader.index((short) 0));
+    reader.map();
+    Assertions.assertArrayEquals(key, reader.requireKey(Text.key).bytes());
+    Assertions.assertArrayEquals(alias, reader.requireKey(Text.alias).text());
+    Assertions.assertArrayEquals(index, reader.requireKey(Text.index).bytes());
+  }
+
+  @Test
+  public void listsMoreThanTheBufferedResponseLimit() {
+    byte[][] indexes = new byte[160][];
+    byte[] key = new byte[16];
+    byte[] alias = "record-00".getBytes(StandardCharsets.US_ASCII);
+
+    for (int position = 0; position < indexes.length; position++) {
+      indexes[position] = create(
+        null,
+        customIndex(position + 1),
+        key,
+        alias,
+        new byte[] { (byte) position }
+      );
+    }
+
+    assertListedItems((short) 0, null, indexes);
+  }
+
   private void resetAppletState() {
     // Separate simulator instances share Java static fields within the test JVM.
     MonoidApplet.version = 0;
@@ -161,8 +292,12 @@ public class CommandItemKeyTest {
   }
 
   private byte[] create(byte[] type, byte[] index, byte[] key, byte[] data) {
+    return create(type, index, key, null, data);
+  }
+
+  private byte[] create(byte[] type, byte[] index, byte[] key, byte[] alias, byte[] data) {
     CBORBufferWriter writer = new CBORBufferWriter();
-    writer.map((short) (key == null ? 2 : 3));
+    writer.map((short) (2 + (key == null ? 0 : 1) + (alias == null ? 0 : 1)));
 
     if (type != null) {
       writer.text(Text.type);
@@ -175,6 +310,11 @@ public class CommandItemKeyTest {
     if (key != null) {
       writer.text(Text.key);
       writer.bytes(key);
+    }
+
+    if (alias != null) {
+      writer.text(Text.alias);
+      writer.text(alias);
     }
 
     writer.text(Text.data);
@@ -255,12 +395,48 @@ public class CommandItemKeyTest {
   }
 
   private ResponseAPDU transmit(int instruction, byte[] request) {
-    return simulator.transmitCommand(new CommandAPDU(0, instruction, 0, 0, request));
+    if (request.length <= 255) {
+      return simulator.transmitCommand(new CommandAPDU(0, instruction, 0, 0, request));
+    }
+
+    int offset = 0;
+
+    while (request.length - offset > 255) {
+      ResponseAPDU response = simulator.transmitCommand(
+        new CommandAPDU(
+          offset == 0 ? 0x90 : 0xB0,
+          instruction,
+          0,
+          0,
+          Arrays.copyOfRange(request, offset, offset + 255)
+        )
+      );
+      Assertions.assertEquals(0x9000, response.getSW());
+      offset += 255;
+    }
+
+    return simulator.transmitCommand(
+      new CommandAPDU(0xA0, instruction, 0, 0, Arrays.copyOfRange(request, offset, request.length))
+    );
   }
 
   private CBORBufferReader assertSuccess(ResponseAPDU response) {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+    while (true) {
+      byte[] data = response.getData();
+      output.write(data, 0, data.length);
+
+      if (response.getSW1() != 0x61) {
+        break;
+      }
+
+      Assertions.assertTrue(data.length > 0 && data.length <= 256);
+      response = simulator.transmitCommand(new CommandAPDU(0, 0xC0, 0, 0, 256));
+    }
+
     Assertions.assertEquals(0x9000, response.getSW());
-    CBORBufferReader reader = new CBORBufferReader(response.getData());
+    CBORBufferReader reader = new CBORBufferReader(output.toByteArray());
     reader.map();
 
     if (reader.key(Text.error)) {

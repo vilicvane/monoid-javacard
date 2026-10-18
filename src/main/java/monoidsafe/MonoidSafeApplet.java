@@ -221,39 +221,13 @@ public class MonoidSafeApplet extends Applet {
     return LibSecurity.check(pinBlockedValidation, Constants.SAFE_TRUE) == Constants.SAFE_FALSE;
   }
 
-  public Object[] list(SafeSession session, short type) {
+  public SafeItemIteratorShareable list(SafeSession session, short type) {
     return list(session, type, null);
   }
 
-  public Object[] list(SafeSession session, short type, byte[] keyPrefix) {
+  public SafeItemIteratorShareable list(SafeSession session, short type, byte[] keyPrefix) {
     assertAccess(session);
-
-    short count = 0;
-
-    for (short index = 0; index < itemsLength; index++) {
-      if (items[index].matches(type, keyPrefix)) {
-        count++;
-      }
-    }
-
-    Object[] itemShareables = (Object[]) JCSystem.makeGlobalArray(
-      JCSystem.ARRAY_TYPE_OBJECT,
-      count
-    );
-
-    short offset = 0;
-
-    for (short index = 0; index < itemsLength; index++) {
-      SafeItem item = items[index];
-
-      if (item.matches(type, keyPrefix)) {
-        itemShareables[offset] = new SafeSessionItem(session, item);
-
-        offset++;
-      }
-    }
-
-    return itemShareables;
+    return new SafeSessionItemIterator(session, items, itemsLength, type, keyPrefix);
   }
 
   public SafeItemShareable get(SafeSession session, byte[] index) {

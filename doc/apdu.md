@@ -63,6 +63,11 @@ data, excluding its two status bytes, to the complete response buffer:
 - `61xx`: more data remains; send `00 C0 00 00 Le` to fetch the next chunk.
   Set `Le` to `xx`; `00` represents 256 bytes. Repeat until `9000`.
 
+List generates its response incrementally. A chunk can contain fewer than 256
+bytes while more data remains; use the status word to determine completion.
+`6100` also requests a read of up to 256 bytes when the next chunk has not yet
+been generated. Concatenate chunks before decoding; a record can span chunks.
+
 Always use CLA `00` for GET RESPONSE, including after a last request frame with
 CLA `A0`. Disable or adapt middleware that automatically reuses the preceding
 request's CLA. For Java SmartcardIO, set
@@ -87,8 +92,9 @@ transfers.
 Request reception errors discard the unfinished request; retry with a single or
 first frame. GET RESPONSE header and state validation errors preserve pending
 transfers, so an unfinished request can still receive its next frame and an unread
-response can still be retrieved with a valid GET RESPONSE. A failure while sending
-response data cancels the remaining response.
+response can still be retrieved with a valid GET RESPONSE. A failure while generating
+or sending response data cancels the remaining response. If continuation returns
+an error status, discard the assembled partial response; retry the original command.
 
 Transport completion does not imply command success. Commands can return a CBOR
 `{error: {code: ...}}` response with `9000`; inspect the assembled response too.

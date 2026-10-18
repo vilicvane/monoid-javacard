@@ -606,37 +606,24 @@ public class MonoidAppletTest extends AppletTest {
 
       assertNoError(response);
     } else {
-      buffer = new byte[1024];
+      ByteArrayOutputStream output = new ByteArrayOutputStream();
+      ResponseAPDU response = manager.transmit(apdu(0x00, 0x30, 0, 0, writer.getDataBuffer()));
 
-      int offset = 0;
+      while (true) {
+        output.write(response.getData());
 
-      {
-        CommandAPDU request = apdu(0x00, 0x30, 0, 0, writer.getDataBuffer());
+        if (response.getSW1() != 0x61) {
+          break;
+        }
 
-        ResponseAPDU response = manager.transmit(request);
-
-        int length = response.getBytes().length - 2;
-
-        System.arraycopy(response.getBytes(), 0, buffer, offset, length);
-
-        offset += length;
-
-        Assertions.assertEquals(0x6100, response.getSW() & 0xFF00);
+        response = manager.transmit(
+          new CommandAPDU(0x00, 0xC0, 0, 0, response.getSW2() == 0 ? 256 : response.getSW2())
+        );
       }
 
-      {
-        CommandAPDU request = apdu(0x00, 0xC0, 0, 0);
-
-        ResponseAPDU response = manager.transmit(request);
-
-        int length = response.getBytes().length;
-
-        System.arraycopy(response.getBytes(), 0, buffer, offset, length);
-
-        offset += length;
-
-        assertNoError(buffer);
-      }
+      Assertions.assertEquals(0x9000, response.getSW());
+      buffer = output.toByteArray();
+      assertNoError(buffer);
     }
 
     CBORBufferReader reader = new CBORBufferReader(buffer);
@@ -1217,17 +1204,24 @@ public class MonoidAppletTest extends AppletTest {
 
     ResponseAPDU first = transmitFragments(manager, 0x30, paddedHello(300), 255);
     Assertions.assertEquals(0x6100, first.getSW() & 0xFF00);
-    Assertions.assertEquals(256, first.getData().length);
     assertInvalidResponseHeaders(manager);
 
-    ResponseAPDU last = transmitFrame(manager, 0, 0xC0, 0, 0, new byte[0]);
-    Assertions.assertEquals(0x9000, last.getSW());
+    ByteArrayOutputStream responseData = new ByteArrayOutputStream();
+    ResponseAPDU part = first;
 
-    byte[] response = Arrays.copyOf(
-      first.getData(),
-      first.getData().length + last.getData().length
-    );
-    System.arraycopy(last.getData(), 0, response, first.getData().length, last.getData().length);
+    while (true) {
+      Assertions.assertTrue(part.getData().length > 0 && part.getData().length <= 256);
+      responseData.write(part.getData());
+
+      if (part.getSW() == 0x9000) {
+        break;
+      }
+
+      Assertions.assertEquals(0x6100, part.getSW() & 0xFF00);
+      part = transmitFrame(manager, 0, 0xC0, 0, 0, new byte[0]);
+    }
+
+    byte[] response = responseData.toByteArray();
     assertNoError(response);
 
     CBORBufferReader reader = new CBORBufferReader(response);

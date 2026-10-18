@@ -3,6 +3,7 @@ package monoidsafe;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
+import javacard.framework.Util;
 
 public class SafeSessionItem implements SafeItemShareable {
 
@@ -21,15 +22,49 @@ public class SafeSessionItem implements SafeItemShareable {
   }
 
   @Override
+  public short getIndex(byte[] dest, short offset) {
+    session.assertAccess();
+    short length = (short) item.index.length;
+    Util.arrayCopyNonAtomic(item.index, (short) 0, dest, offset, length);
+    return length;
+  }
+
+  @Override
   public byte[] getKey() {
     session.assertAccess();
     return item.key != null ? Utils.duplicateAsGlobal(item.key) : null;
   }
 
   @Override
+  public short getKey(byte[] dest, short offset) {
+    session.assertAccess();
+
+    if (item.key == null) {
+      return -1;
+    }
+
+    short length = (short) item.key.length;
+    Util.arrayCopyNonAtomic(item.key, (short) 0, dest, offset, length);
+    return length;
+  }
+
+  @Override
   public byte[] getAlias() {
     session.assertAccess();
     return item.alias != null ? Utils.duplicateAsGlobal(item.alias) : null;
+  }
+
+  @Override
+  public short getAlias(byte[] dest, short offset) {
+    session.assertAccess();
+
+    if (item.alias == null) {
+      return -1;
+    }
+
+    short length = (short) item.alias.length;
+    Util.arrayCopyNonAtomic(item.alias, (short) 0, dest, offset, length);
+    return length;
   }
 
   @Override

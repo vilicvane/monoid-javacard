@@ -41,16 +41,16 @@ public interface SafeShareable extends Shareable {
    * @param type The type of items to list, if the lower byte (metadata) is 0,
    * it will filter by the higher byte (category), otherwise it will filter by
    * both.
-   * @return An array of SafeItemShareable objects that match the type.
+   * @return An iterator over the matching items, for use during the current operation.
    */
-  public Object[] list(short type);
+  public SafeItemIteratorShareable list(short type);
 
   /**
    * List items matching the type filter and a prefix of their key.
    * @param keyPrefix A byte prefix; null or empty also matches items without a key.
    * @see #list(short)
    */
-  public Object[] list(short type, byte[] keyPrefix);
+  public SafeItemIteratorShareable list(short type, byte[] keyPrefix);
 
   public SafeItemShareable get(byte[] index);
 

@@ -4,9 +4,16 @@ import javacard.framework.Shareable;
 
 public interface SafeItemShareable extends Shareable {
   byte[] getIndex();
+  short getIndex(byte[] dest, short offset);
 
   byte[] getKey();
+  /** Copies the key and returns its length, or -1 if absent. */
+  short getKey(byte[] dest, short offset);
+
   byte[] getAlias();
+  /** Copies the alias and returns its length, or -1 if absent. */
+  short getAlias(byte[] dest, short offset);
+
   byte[] getData();
   boolean isSecret();
 

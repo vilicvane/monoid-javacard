@@ -5,9 +5,10 @@ import javacard.framework.Util;
 
 public class CBORBufferWriter extends CBORWriter {
 
-  private static final short BUFFER_LENGTH_EXTENSION = 256;
+  protected static final short CHUNK_LENGTH = 256;
 
-  protected byte[] buffer;
+  // Cover the nonnegative short offset range without reserving response RAM.
+  protected final Object[] chunks = new Object[128];
 
   public CBORBufferWriter() {
     reset();
@@ -19,39 +20,38 @@ public class CBORBufferWriter extends CBORWriter {
 
   @Override
   protected void write(short offset, byte value) {
-    ensureBufferLength((short) (offset + 1));
-
-    buffer[offset] = value;
+    requireChunk(offset)[(short) (offset % CHUNK_LENGTH)] = value;
   }
 
   @Override
   protected void write(short offset, byte[] data, short dataOffset, short length) {
-    ensureBufferLength((short) (offset + length));
+    while (length > 0) {
+      byte[] chunk = requireChunk(offset);
+      short chunkOffset = (short) (offset % CHUNK_LENGTH);
+      short chunkLength = Utils.min(length, (short) (CHUNK_LENGTH - chunkOffset));
 
-    Util.arrayCopyNonAtomic(data, dataOffset, buffer, offset, length);
+      Util.arrayCopyNonAtomic(data, dataOffset, chunk, chunkOffset, chunkLength);
+
+      offset += chunkLength;
+      dataOffset += chunkLength;
+      length -= chunkLength;
+    }
   }
 
-  protected void ensureBufferLength(short length) {
-    short bufferLength = buffer == null ? 0 : (short) buffer.length;
+  protected byte[] requireChunk(short offset) {
+    short index = (short) (offset / CHUNK_LENGTH);
+    byte[] chunk = (byte[]) chunks[index];
 
-    if (length <= bufferLength) {
-      return;
+    if (chunk == null) {
+      chunk = createChunk(index);
+      chunks[index] = chunk;
     }
 
-    short extendedLength = (short) (bufferLength + BUFFER_LENGTH_EXTENSION);
+    return chunk;
+  }
 
-    byte[] extendedBuffer = JCSystem.makeTransientByteArray(
-      length > extendedLength ? length : extendedLength,
-      JCSystem.CLEAR_ON_DESELECT
-    );
-
-    if (buffer != null) {
-      Util.arrayCopyNonAtomic(buffer, (short) 0, extendedBuffer, (short) 0, bufferLength);
-
-      JCSystem.requestObjectDeletion();
-    }
-
-    buffer = extendedBuffer;
+  protected byte[] createChunk(short index) {
+    return JCSystem.makeTransientByteArray(CHUNK_LENGTH, JCSystem.CLEAR_ON_DESELECT);
   }
 
   public byte[] getDataBuffer() {
@@ -63,8 +63,14 @@ public class CBORBufferWriter extends CBORWriter {
   public short copyDataTo(byte[] dest, short destOffset) {
     short length = getLength();
 
-    if (length > 0) {
-      Util.arrayCopyNonAtomic(buffer, (short) 0, dest, destOffset, length);
+    for (short offset = 0; offset < length; ) {
+      byte[] chunk = (byte[]) chunks[(short) (offset / CHUNK_LENGTH)];
+      short chunkLength = Utils.min((short) (length - offset), CHUNK_LENGTH);
+
+      Util.arrayCopyNonAtomic(chunk, (short) 0, dest, destOffset, chunkLength);
+
+      offset += chunkLength;
+      destOffset += chunkLength;
     }
 
     return length;

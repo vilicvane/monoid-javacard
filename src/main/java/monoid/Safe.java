@@ -6,6 +6,7 @@ import static monoidsafe.Constants.SAFE_TRUE;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.MessageDigest;
+import monoidsafe.SafeItemIteratorShareable;
 import monoidsafe.SafeItemShareable;
 import monoidsafe.SafeShareable;
 
@@ -169,11 +170,11 @@ public final class Safe {
     return safe.create(index, null, null, data, true);
   }
 
-  public Object[] list(short type) {
+  public SafeItemIteratorShareable list(short type) {
     return safe.list(type);
   }
 
-  public Object[] list(short type, byte[] keyPrefix) {
+  public SafeItemIteratorShareable list(short type, byte[] keyPrefix) {
     keyPrefix = keyPrefix != null ? Utils.duplicateAsGlobal(keyPrefix) : null;
 
     return safe.list(type, keyPrefix);

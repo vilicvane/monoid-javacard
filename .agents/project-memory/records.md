@@ -209,3 +209,21 @@ b883572 ---
 116. [user] 接受Identity保持小接口、Safe处理条目GCM、Monoid负责传输的分工，要求先提交再确定API；批准Secret标记、精简后的Get/Set/Export/Import及随机生成项固定secret，随后选择Hello.safe.publicKey并授权实现；之后批准Hello增加可选safe布尔值，省略/false不返回Safe区块、true返回完整信息。[agent] 已提交Identity/GCM阶段结果a0d0a7f，未推送且保留无关暂存SVG。本轮接入上述API：Get普通认证且仅返回非secret数据；Set数据和flag原子更新，单独降级拒绝；Export为Safe PIN、Import普通认证并保留index/元数据/secret，完全重复成功、冲突6985。Safe内完成HPKE通信密钥封装及AES-GCM条目加密，每条144B开销；Identity接口按调用取得，不持久缓存。239项模拟器测试及CAP检查通过，实卡主suite162次操作验证32/256B普通与secret条目往返、篡改/权限/冲突、P-256及传输后Ed25519签名；32B热Export/Import约1.47/1.53s，256B约2.80/3.60s。诊断后去除跨SIO重复复制、短响应借APDU、精简共享上下文，并仅在RAM不足时将Import私有明文工作区回退持久空间；同版本前后测得上下文reset RAM增量由1213降至628B，最终查询余量1412/1408B不是峰值。补充60次操作验证256B tag错误不发布及正常恢复、传输后未缓存BIP32/ECDSA和BIP340/Taproot、保留Identity实际卸装Safe/Monoid后的加密恢复及签名；临时包全清、原注册表/SELECT/Hello基线一致，正式CAP验证但未部署。README保持签名式文档，封装规范独立至doc/item-transfer.md；历史草案已由当前实现覆盖，验证与SIO/任意收件公钥信任边界详见 [条目导出导入](./116.md)。
 
 117. [user] 要求使用两张没有锁 AID 的新卡安装最新应用、在第一张生成测试数据后进行双卡复制；明确允许清空源卡已有旧 Monoid 包。[agent] 已完成56050420（Safe ID9BF4F117）到56038920（958A7EFA）的实卡复制：两卡保留同版正式Identity/Safe/Monoid及系统注册表，Identity公钥不同。64B seed、三种独立私钥、32/256B普通数据共6项经加密导出导入，保留index/key/alias/secret；源列表不变，重复导入后目标仍恰好6项。两卡8公钥及HD chainCode一致，各10次独立签名验真，未读取私钥明文。六项Export/首次Import命令累计10.836/11.053s，排除认证、核对和换卡；读卡器释放，未改生产代码或提交，详见 [双实体卡加密复制](./117.md)。
+
+--- d64d0fb ---
+
+118. [user] 将当前卡命名为 Test 1、上一张卡命名为 Test 2，要求记录以便经常复用。[agent] 按刚完成的实卡身份核对：Test 1 = CPLC序列号56050420、Safe ID9BF4F117；Test 2 = 56038920、Safe ID958A7EFA。二者分别是记录117双卡测试的源卡和目标卡，但名称不绑定后续复制方向。操作前仍核对实际卡身份，PIN不写入项目记忆。
+
+119. [user] 要求升级APP测试卡并保留原有密钥，明确这些导入密钥即使是公开测试材料也应为secret:true。[agent] 实卡51433520的4项数据逐字节匹配旧fixture，保留当前defi/test/空别名及原索引、PIN后，从旧Safe00/Monoid01迁移为d64d0fb的Identity00/Safe01/Monoid02；最终四项均secret，Safe ID839FA0FD、Monoid IDAA0FCB9E。冷复位、4项加密导出解密核对、Safe PIN明文Get拒绝、7次独立验签及系统注册表一致性检查通过，读卡器释放，详见 [APP测试卡三Applet迁移](./119.md)。
+
+120. [user] 批准将build-install的两个开关替换为Install、ReinstallMonoid、ReinstallSafe三个互斥Mode，默认ReinstallMonoid。[agent] 脚本改为ValidateSet及三个显式分支：Install按Identity→Safe→Monoid首次安装；ReinstallMonoid只卸装Monoid；ReinstallSafe先卸Monoid/Safe再按Safe→Monoid安装，保留Identity但不备份恢复Safe数据。保留构建/GP失败即停止及成功后RunCommands的行为，README补充调用示例。20项隔离替身检查覆盖默认值、三种顺序、参数传递、无效Mode、构建失败及每一步GP失败；格式检查通过，未执行真实构建或访问实体卡。
+
+121. [user] 批准将响应writer改为按需追加chunk，保留小响应借用APDU及首次搬出前缀的一次复制。[agent] CBORBufferWriter/CBORApduWriter改用256B transient块与持久引用表，增长不替换旧块，直接分块发送；逆序释放保持中断后的连续引用，List/GET RESPONSE协议不变。12项writer及完整242项模拟器测试、三份CAP转换验证、格式与模板检查通过；未访问实体卡，尚未测量List实卡上限或峰值，详见 [响应writer按需追加chunk](./121.md)。
+
+122. [user] 希望List返回数量不受RAM容量限制，明确单条元数据不大且仍打包分包发送；批准writer按需持久化、Safe逐项枚举及复用条目读取缓冲。[agent] 保留一次执行生成完整响应，writer前512B为RAM、后续256B块按需持久化；Safe.list返回带count/maxMetadataLength/next的枚举SIO，游标与私有prefix为RESET transient，List使用单个global缓冲读取index/key/alias，保持原API与null/empty语义。249项模拟器测试、三份CAP、格式及模板检查通过，包括40项List、512/513B边界、授权撤销与清理恢复。未访问实体卡，实际耗时/峰值未测；Safe/Monoid须成对更新，既有short响应长度限制仍在，详见 [List逐项枚举与响应持久化](./122.md)。
+
+123. [user] 要求先实测不复用条目读取缓冲时的GC行为，如能回收则偏向原有可读getter。[agent] 卡55690320隔离测试五种模式：复用、无参getter、逐条请求GC、退出helper再请求GC、helper不请求GC。10/40/80/120条共28次List含失败恢复；复用最低可用RESET为1557B且120条成功，不复用40条只剩192B、80/120条均在第46条getKey耗尽RAM，两种显式GC也无效；完整响应清理后恢复2112B。因此保留复用，没有修改正式源码或暂存区；25项隔离模拟器测试和三份CAP检查通过，临时包已清理、原注册表与SELECT/Hello基线一致、读卡器释放，详见 [List getter的实卡GC对照](./123.md)。
+
+124. [user] 希望处理接近满卡时List失败而无法发现index的问题，并要求先做持久空间不足的实卡GC对照再决定枚举接口。[agent] 卡55690320的六档36次主体对照确认：120条仅枚举消耗2480B、完整响应消耗10128B，2080B余量时仅枚举完成97条后next失败，逐条GC无改善；后续APDU均回收。补充同一iterator分批实测：每批4/8条在APDU边界回收80/160B，创建iterator后仅余512B时每批4条仍完成120条，8条则失败。因此支持保留现有next接口，后续用GET RESPONSE驱动有限量枚举/编码；尚未实现正式流式List。五个隔离包全清、原注册表/行为基线一致，生产源码与暂存树未动，详见 [满卡List可读性](./124.md)。
+
+125. [user] 批准CBORResponse逐单元生成、writer固定RAM窗口打包续传及每APDU最多4条的方案，明确保留现有枚举接口。[agent] List接入固定RAM窗口与GET RESPONSE逐包枚举/GC，保留旧缓冲响应及Safe SIO；267项模拟器测试、三份正式CAP、格式与模板检查通过。实卡55690320的120条/7569B响应分30包，基线16.780s；剩余2080B/1056B仍完整返回，544B时List和已知index的Get均返回INTERNAL，释放占位后恢复。取消/重选/错误GET续传检查通过，所有完成边界内存读数恢复；四个临时包全清，原注册表/响应基线和暂存区不变，详见 [List流式响应与分批枚举](./125.md)。

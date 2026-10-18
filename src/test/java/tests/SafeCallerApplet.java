@@ -100,7 +100,7 @@ public class SafeCallerApplet extends Applet implements SafeCallerShareable {
         sendBoolean(apdu, item != null);
         return;
       case LIST:
-        Util.setShort(buffer, (short) 0, (short) safe.list((short) 0).length);
+        Util.setShort(buffer, (short) 0, safe.list((short) 0).getCount());
         apdu.setOutgoingAndSend((short) 0, (short) 2);
         return;
       case GET:
