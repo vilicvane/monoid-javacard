@@ -5,7 +5,9 @@ description: Monoid Java Card API approval rules, project scope, and transparent
 
 # Monoid Java Card API decisions
 
-Source: `../records.md`, records 1–3, 6–10, 17–40, 42, 45–61, 63–65, 67–110 and 114–129. Treat `records.md` and its numbered references as authoritative; keep them up to date when maintaining this snapshot.
+Source: `../records.md`, records 1–3, 6–10, 17–40, 42, 45–61, 63–65, 67–110 and 114–130. Treat `records.md` and its numbered references as authoritative; keep them up to date when maintaining this snapshot.
+
+- Record130 adds scripts/uninstall.ps1 with optional Reader: list installed instances by their registry From package, then remove instances and packages in02→01→00 order. It handles legacy instance AIDs and partial installations without local CAPs or a build. Only the three formal packages are targeted; missing entries are skipped, any GP failure stops, and force is not used. Running it clears Safe data and Identity. AIDs follow Inplate; validation uses mocks only, with no physical uninstall.
 
 - Record129's PIN atomicity implementation was reverted at the user's request: the parallel wrappers should keep consistent buffer ownership, and PIN/cache mismatch is recoverable. Safe.checkPIN and Safe.updatePIN again copy global input internally. Safe PIN, Monoid's cached PIN and initial Access PIN update separately; authenticating with the current Safe PIN and setting it again restores the cache, while authentication alone does not. The proposed combined Set SIO methods remain unapproved. Preserve the preceding large-data work; the frozen PIN probe and its validation in129 describe a withdrawn implementation, not current firmware.
 

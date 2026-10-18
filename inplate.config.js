@@ -68,6 +68,7 @@ export default {
   'README.md': {data},
   'doc/architecture.md': {data},
   'build.gradle': {data},
+  'scripts/uninstall.ps1': {data, commentStyles: ['#']},
   'src/main/java/*/Constants.java': {data},
   'src/main/java/monoid/LibSecurity.java': {
     template: '// Generated from monoidsafe/LibSecurity.java by Inplate.\n{{{libSecurity}}}',

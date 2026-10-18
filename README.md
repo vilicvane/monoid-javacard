@@ -55,6 +55,7 @@ Build and install with PowerShell:
 .\scripts\build-install.ps1 -Mode Install         # First installation
 .\scripts\build-install.ps1                      # ReinstallMonoid (default)
 .\scripts\build-install.ps1 -Mode ReinstallSafe   # Reinstall Safe and Monoid; clears Safe data
+.\scripts\uninstall.ps1                         # Remove all three applets and packages; clears Safe data and Identity
 ```
 
 > The gradle plugin task `./gradlew installJavaCard` will try to append multiple `--install` options to `gp` command, which is not supported in my case. So we have to do it manually.
