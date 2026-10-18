@@ -71,7 +71,10 @@ public class Monoid001DerivationTest {
       new byte[][] { new byte[32], CurveSECP256r1.R.clone(), largest, lastScalar }
     );
 
-    Assertions.assertArrayEquals(lastScalar, derivation.derive(MASTER.clone(), CONTEXT.clone()));
+    Assertions.assertArrayEquals(
+      lastScalar,
+      derivation.derive(MASTER.clone(), CONTEXT.clone()).getKey()
+    );
     Assertions.assertEquals(4, signature.calls);
   }
 
@@ -81,7 +84,7 @@ public class Monoid001DerivationTest {
     one[31] = 1;
     CandidateSignature signature = useCandidates(new byte[][] { one });
 
-    Assertions.assertArrayEquals(one, derivation.derive(MASTER.clone(), CONTEXT.clone()));
+    Assertions.assertArrayEquals(one, derivation.derive(MASTER.clone(), CONTEXT.clone()).getKey());
     Assertions.assertEquals(1, signature.calls);
   }
 
@@ -93,7 +96,7 @@ public class Monoid001DerivationTest {
 
     Assertions.assertArrayEquals(
       candidates[255],
-      derivation.derive(MASTER.clone(), CONTEXT.clone())
+      derivation.derive(MASTER.clone(), CONTEXT.clone()).getKey()
     );
     Assertions.assertEquals(256, signature.calls);
   }
@@ -104,7 +107,7 @@ public class Monoid001DerivationTest {
     byte[] master = MASTER.clone();
     byte[] context = CONTEXT.clone();
     CryptoException exception = Assertions.assertThrows(CryptoException.class, () ->
-      derivation.derive(master, context)
+      derivation.derive(master, context).getKey()
     );
 
     Assertions.assertEquals(CryptoException.ILLEGAL_USE, exception.getReason());
@@ -148,8 +151,8 @@ public class Monoid001DerivationTest {
       byte[] expected = Hex.decode(vector[1]);
 
       Assertions.assertArrayEquals(expected, deriveReference(master, context));
-      Assertions.assertArrayEquals(expected, derivation.derive(master, context));
-      Assertions.assertArrayEquals(expected, derivation.derive(master, context));
+      Assertions.assertArrayEquals(expected, derivation.derive(master, context).getKey());
+      Assertions.assertArrayEquals(expected, derivation.derive(master, context).getKey());
       Assertions.assertArrayEquals(MASTER, master);
       Assertions.assertArrayEquals(originalContext, context);
     }
@@ -159,7 +162,10 @@ public class Monoid001DerivationTest {
     byte[] expected = deriveReference(changedMaster, CONTEXT);
 
     Assertions.assertFalse(Arrays.equals(deriveReference(MASTER, CONTEXT), expected));
-    Assertions.assertArrayEquals(expected, derivation.derive(changedMaster, CONTEXT.clone()));
+    Assertions.assertArrayEquals(
+      expected,
+      derivation.derive(changedMaster, CONTEXT.clone()).getKey()
+    );
   }
 
   private static byte[] deriveReference(byte[] master, byte[] context) throws Exception {

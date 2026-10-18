@@ -51,7 +51,7 @@ public class SLIP10Ed25519DerivationTest {
         String[] fields = line.split("\t", -1);
         byte[] master = deriveMaster(Hex.decode(fields[0]));
         byte[] path = Hex.decode(fields[1]);
-        byte[] output = derivation.derive(master, path);
+        byte[] output = derivation.derive(master, path).getKey();
 
         Assertions.assertEquals(64, output.length);
         Assertions.assertArrayEquals(Hex.decode(fields[2] + fields[3]), output);
@@ -68,7 +68,7 @@ public class SLIP10Ed25519DerivationTest {
     byte[] path = Hex.decode("8000000080000001");
     byte[] originalMaster = master.clone();
     byte[] originalPath = path.clone();
-    byte[] output = derivation.derive(master, path);
+    byte[] output = derivation.derive(master, path).getKey();
 
     Assertions.assertArrayEquals(
       Hex.decode(
@@ -82,7 +82,7 @@ public class SLIP10Ed25519DerivationTest {
     Assertions.assertNotSame(master, output);
     Assertions.assertNotSame(path, output);
 
-    byte[] repeated = derivation.derive(master, path);
+    byte[] repeated = derivation.derive(master, path).getKey();
     Assertions.assertArrayEquals(output, repeated);
     Assertions.assertNotSame(output, repeated);
   }
@@ -99,7 +99,7 @@ public class SLIP10Ed25519DerivationTest {
     }) {
       byte[] originalPath = path.clone();
       ISOException exception = Assertions.assertThrows(ISOException.class, () ->
-        derivation.derive(master, path)
+        derivation.derive(master, path).getKey()
       );
 
       Assertions.assertEquals(
@@ -114,14 +114,14 @@ public class SLIP10Ed25519DerivationTest {
       byte[] invalidMaster = new byte[length];
       byte[] original = invalidMaster.clone();
       ISOException exception = Assertions.assertThrows(ISOException.class, () ->
-        derivation.derive(invalidMaster, new byte[0])
+        derivation.derive(invalidMaster, new byte[0]).getKey()
       );
 
       Assertions.assertEquals(ISO7816.SW_WRONG_LENGTH, exception.getReason());
       Assertions.assertArrayEquals(original, invalidMaster);
     }
 
-    byte[] output = derivation.derive(master, new byte[0]);
+    byte[] output = derivation.derive(master, new byte[0]).getKey();
     Assertions.assertArrayEquals(
       Hex.decode(
         "2b4be7f19ee27bbf30c667b642d5f4aa69fd169872f8fc3059c08ebae2eb19e7" +

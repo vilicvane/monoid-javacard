@@ -41,14 +41,18 @@ public class BIP32DerivationTest {
       Hex.decode("80000000"),
     }) {
       CurveException exception = Assertions.assertThrows(CurveException.class, () ->
-        derivation.derive(WeierstrassCurve.secp256r1, master, path)
+        derivation.derive(WeierstrassCurve.secp256r1, master, path).getKey()
       );
 
+      Assertions.assertEquals(CurveException.REASON_UNSUPPORTED_CURVE, exception.getReason());
+      exception = Assertions.assertThrows(CurveException.class, () ->
+        derivation.deriveFromSeed(WeierstrassCurve.secp256r1, master, path)
+      );
       Assertions.assertEquals(CurveException.REASON_UNSUPPORTED_CURVE, exception.getReason());
       Assertions.assertArrayEquals(original, master);
     }
 
-    byte[] derived = derivation.derive(WeierstrassCurve.secp256k1, master, new byte[0]);
+    byte[] derived = derivation.derive(WeierstrassCurve.secp256k1, master, new byte[0]).getKey();
 
     Assertions.assertArrayEquals(original, derived);
     Assertions.assertNotSame(master, derived);

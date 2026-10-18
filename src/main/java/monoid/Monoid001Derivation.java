@@ -15,6 +15,11 @@ public final class Monoid001Derivation extends KeyDerivation {
   public static final short MASTER_LENGTH = 64;
   private static final short KEY_LENGTH = CurveSECP256r1.KEY_LENGTH;
 
+  @Override
+  protected byte[] getMasterKeyLabel() {
+    return MASTER_KEY_LABEL;
+  }
+
   /** Derives a P-256 scalar from a 64-byte HKDF PRK and opaque context. */
   @Override
   protected byte[] deriveKey(byte[] master, byte[] context) {

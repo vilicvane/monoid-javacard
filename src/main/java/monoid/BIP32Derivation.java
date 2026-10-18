@@ -14,13 +14,27 @@ public final class BIP32Derivation extends KeyDerivation {
   public static final byte COMPONENT_LENGTH = 32;
   public static final byte PATH_SEGMENT_LENGTH = 4;
 
-  public byte[] derive(WeierstrassCurve curve, byte[] privateKeyAndChainCode, byte[] path) {
+  public DerivedKey derive(WeierstrassCurve curve, byte[] privateKeyAndChainCode, byte[] path) {
     if (!(curve instanceof CurveSECP256k1)) {
       CurveException.throwIt(CurveException.REASON_UNSUPPORTED_CURVE);
       return null;
     }
 
     return derive(privateKeyAndChainCode, path);
+  }
+
+  public DerivedKey deriveFromSeed(WeierstrassCurve curve, byte[] seed, byte[] path) {
+    if (!(curve instanceof CurveSECP256k1)) {
+      CurveException.throwIt(CurveException.REASON_UNSUPPORTED_CURVE);
+      return null;
+    }
+
+    return deriveFromSeed(seed, path);
+  }
+
+  @Override
+  protected byte[] getMasterKeyLabel() {
+    return MASTER_KEY_LABEL;
   }
 
   @Override

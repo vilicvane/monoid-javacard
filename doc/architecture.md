@@ -99,6 +99,25 @@ This is a write guard, not a reserved memory partition. Temporary objects and
 other applets can consume the remaining space; old values awaiting collection
 also count as occupied when checking a replacement.
 
+## Derivation cache
+
+BIP32, SLIP-0010 Ed25519 and Monoid-001 share 32 persistent FIFO entries.
+Each entry matches the algorithm, source seed or master bytes, source kind and
+complete path or context. A hit skips both seed-to-master and path derivation.
+Different paths have separate entries; intermediate path prefixes are not cached.
+
+Each entry holds the final derived key and lazily caches its public key.
+Ed25519 also retains the expanded scalar and signing prefix. Reset or deselection
+invalidates transient working keys; subsequent operations restore them from the
+persistent result. Signature nonces are computed for every message.
+
+Commands still authorize access and read the current Safe item before lookup.
+Changed source bytes miss the cache, and removed items cannot use it. Taproot
+adjustments apply only to a working copy. Cached material remains until FIFO
+eviction or Monoid removal; hits do not refresh the eviction order.
+Weierstrass public-key reuse currently serves ordinary ViewKey; BIP340 and
+Taproot operations still compute the public keys needed for their adjustments.
+
 ## Some thoughts
 
 ### Third-party applet to _Monoid Applet_ authentication nodes

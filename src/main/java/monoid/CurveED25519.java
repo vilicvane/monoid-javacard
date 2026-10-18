@@ -93,6 +93,42 @@ public class CurveED25519 extends EdwardsCurve {
   }
 
   @Override
+  public ED25519Key getSharedPrivateKey(DerivedKey key) {
+    if (key.expandedKey == null) {
+      ED25519Key privateKey = getSharedPrivateKey(key.key, (short) 0);
+      byte[] expanded = new byte[KEY_LENGTH * 3];
+      Util.arrayCopyNonAtomic(privateKey.scalar, (short) 0, expanded, (short) 0, KEY_LENGTH);
+      Util.arrayCopyNonAtomic(privateKey.prefix, (short) 0, expanded, KEY_LENGTH, KEY_LENGTH);
+      Util.arrayCopyNonAtomic(
+        privateKey.publicKey,
+        (short) 0,
+        expanded,
+        (short) (KEY_LENGTH * 2),
+        PUBLIC_KEY_LENGTH
+      );
+      key.expandedKey = expanded;
+
+      return privateKey;
+    }
+
+    clear();
+    ED25519Key privateKey = new ED25519Key();
+    Util.arrayCopyNonAtomic(key.expandedKey, (short) 0, privateKey.scalar, (short) 0, KEY_LENGTH);
+    Util.arrayCopyNonAtomic(key.expandedKey, KEY_LENGTH, privateKey.prefix, (short) 0, KEY_LENGTH);
+    Util.arrayCopyNonAtomic(
+      key.expandedKey,
+      (short) (KEY_LENGTH * 2),
+      privateKey.publicKey,
+      (short) 0,
+      PUBLIC_KEY_LENGTH
+    );
+    privateKey.activate();
+    sharedPrivateKey = privateKey;
+
+    return privateKey;
+  }
+
+  @Override
   public short derivePublicKey(ED25519Key privateKey, byte[] out, short outOffset) {
     requirePrivateKey(privateKey);
     Util.arrayCopyNonAtomic(privateKey.publicKey, (short) 0, out, outOffset, PUBLIC_KEY_LENGTH);

@@ -113,7 +113,7 @@ public class LibED25519Test {
         Hex.decode(vector[1])
       );
 
-      extendedKey = new SLIP10Ed25519Derivation().derive(master, path);
+      extendedKey = new SLIP10Ed25519Derivation().derive(master, path).getKey();
     } finally {
       LibHMACSha512.dispose();
     }

@@ -52,9 +52,14 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    byte[] master = deriveMasterFromSeed(key, BIP32Derivation.MASTER_KEY_LABEL);
+    if (taprootMerkleRoot != null && path.length % BIP32Derivation.PATH_SEGMENT_LENGTH != 0) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
 
-    return deriveBIP32PublicKeyAndChainCodeFromMaster(curve, master, path, taprootMerkleRoot);
+    DerivedKey derived = bip32.deriveFromSeed(curve, key, path);
+
+    return getBIP32PublicKeyAndChainCode(curve, derived, taprootMerkleRoot);
   }
 
   public byte[] getBIP32PublicKeyAndChainCodeFromMaster(
@@ -80,7 +85,17 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    return deriveBIP32PublicKeyAndChainCodeFromMaster(curve, key, path, taprootMerkleRoot);
+    if (
+      taprootMerkleRoot != null &&
+      (key.length != MASTER_LENGTH || path.length % BIP32Derivation.PATH_SEGMENT_LENGTH != 0)
+    ) {
+      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
+      return null;
+    }
+
+    DerivedKey derived = bip32.derive(curve, key, path);
+
+    return getBIP32PublicKeyAndChainCode(curve, derived, taprootMerkleRoot);
   }
 
   public byte[] getSLIP10Ed25519PublicKeyAndChainCodeFromSeed(
@@ -97,9 +112,9 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    byte[] master = deriveMasterFromSeed(key, SLIP10Ed25519Derivation.MASTER_KEY_LABEL);
+    DerivedKey derived = slip10Ed25519.deriveFromSeed(key, path);
 
-    return deriveSLIP10Ed25519PublicKeyAndChainCodeFromMaster(curve, master, path);
+    return getSLIP10Ed25519PublicKeyAndChainCode(curve, derived);
   }
 
   public byte[] getSLIP10Ed25519PublicKeyAndChainCodeFromMaster(
@@ -116,7 +131,9 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    return deriveSLIP10Ed25519PublicKeyAndChainCodeFromMaster(curve, key, path);
+    DerivedKey derived = slip10Ed25519.derive(key, path);
+
+    return getSLIP10Ed25519PublicKeyAndChainCode(curve, derived);
   }
 
   public byte[] getMonoid001PublicKeyFromSeed(byte[] index, byte[] context) {
@@ -128,9 +145,9 @@ public final class Keystore {
     }
 
     byte[] seed = requireKey(index);
-    byte[] master = deriveMasterFromSeed(seed, Monoid001Derivation.MASTER_KEY_LABEL);
+    DerivedKey derived = monoid001.deriveFromSeed(seed, context);
 
-    return deriveMonoid001PublicKeyFromMaster(master, context);
+    return derived.getPublicKey(WeierstrassCurve.secp256r1);
   }
 
   public byte[] getMonoid001PublicKeyFromMaster(byte[] index, byte[] context) {
@@ -148,7 +165,9 @@ public final class Keystore {
       return null;
     }
 
-    return deriveMonoid001PublicKeyFromMaster(master, context);
+    DerivedKey derived = monoid001.derive(master, context);
+
+    return derived.getPublicKey(WeierstrassCurve.secp256r1);
   }
 
   public byte[] getWeierstrassKeyPublicKey(byte[] index) {
@@ -218,26 +237,28 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    if (Safe.isTypeSeed(type)) {
-      byte[] master = deriveMasterFromSeed(
-        key,
-        context == null ? BIP32Derivation.MASTER_KEY_LABEL : Monoid001Derivation.MASTER_KEY_LABEL
-      );
-
-      type = Safe.TYPE_MASTER;
-      key = master;
-    }
-
     WeierstrassCurve curve = null;
 
-    if (Safe.isTypeMaster(type)) {
-      if (key.length != MASTER_LENGTH) {
+    if (Safe.isTypeSeed(type) || Safe.isTypeMaster(type)) {
+      if (Safe.isTypeMaster(type) && key.length != MASTER_LENGTH) {
         KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
         return null;
       }
 
       curve = WeierstrassCurve.requireSharedCurve(curveName);
-      key = context == null ? bip32.derive(curve, key, path) : monoid001.derive(key, context);
+      DerivedKey derived;
+
+      if (context == null) {
+        derived = Safe.isTypeSeed(type)
+          ? bip32.deriveFromSeed(curve, key, path)
+          : bip32.derive(curve, key, path);
+      } else {
+        derived = Safe.isTypeSeed(type)
+          ? monoid001.deriveFromSeed(key, context)
+          : monoid001.derive(key, context);
+      }
+
+      key = derived.getKey();
       type = Safe.TYPE_WEIERSTRASS;
     }
 
@@ -281,30 +302,28 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    if (Safe.isTypeSeed(type)) {
-      key = deriveMasterFromSeed(key, SLIP10Ed25519Derivation.MASTER_KEY_LABEL);
-      type = Safe.TYPE_MASTER;
-    }
-
     EdwardsCurve curve;
+    ED25519Key privateKey;
 
-    if (Safe.isTypeMaster(type)) {
-      if (key.length != MASTER_LENGTH) {
+    if (Safe.isTypeSeed(type) || Safe.isTypeMaster(type)) {
+      if (Safe.isTypeMaster(type) && key.length != MASTER_LENGTH) {
         KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
         return null;
       }
 
       curve = EdwardsCurve.requireSharedCurve(curveName);
 
-      key = slip10Ed25519.derive(key, path);
+      DerivedKey derived = Safe.isTypeSeed(type)
+        ? slip10Ed25519.deriveFromSeed(key, path)
+        : slip10Ed25519.derive(key, path);
+      privateKey = curve.getSharedPrivateKey(derived);
     } else if (type == Safe.TYPE_EDWARDS_ED25519 && key.length == CurveED25519.KEY_LENGTH) {
       curve = EdwardsCurve.ed25519;
+      privateKey = curve.getSharedPrivateKey(key, (short) 0);
     } else {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
       return null;
     }
-
-    ED25519Key privateKey = curve.getSharedPrivateKey(key, (short) 0);
 
     try {
       return Signer.signED25519Message(curve, privateKey, message, messageOffset, messageLength);
@@ -324,21 +343,22 @@ public final class Keystore {
 
     byte[] key = requireKey(index);
 
-    if (Safe.isTypeSeed(type)) {
-      key = deriveMasterFromSeed(key, BIP32Derivation.MASTER_KEY_LABEL);
-      type = Safe.TYPE_MASTER;
-    }
-
     WeierstrassCurve curve;
 
-    if (Safe.isTypeMaster(type)) {
-      if (key.length != MASTER_LENGTH || path.length % BIP32Derivation.PATH_SEGMENT_LENGTH != 0) {
+    if (Safe.isTypeSeed(type) || Safe.isTypeMaster(type)) {
+      if (
+        (Safe.isTypeMaster(type) && key.length != MASTER_LENGTH) ||
+        path.length % BIP32Derivation.PATH_SEGMENT_LENGTH != 0
+      ) {
         KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
         return null;
       }
 
       curve = WeierstrassCurve.requireSharedCurve(curveName);
-      key = bip32.derive(curve, key, path);
+      DerivedKey derived = Safe.isTypeSeed(type)
+        ? bip32.deriveFromSeed(curve, key, path)
+        : bip32.derive(curve, key, path);
+      key = derived.getKey();
     } else if (type == Safe.TYPE_WEIERSTRASS_SECP256K1 && key.length == CurveSECP256k1.KEY_LENGTH) {
       curve = WeierstrassCurve.secp256k1;
     } else {
@@ -353,33 +373,14 @@ public final class Keystore {
     return Signer.signBIP340Digest(curve, key, digest);
   }
 
-  private byte[] deriveMasterFromSeed(byte[] seed, byte[] label) {
-    switch (seed.length) {
-      case SEED_512_LENGTH:
-        return LibHMACSha512.digest(label, seed);
-      default:
-        KeystoreException.throwIt(KeystoreException.REASON_UNSUPPORTED_SEED_LENGTH);
-        return null;
-    }
-  }
-
-  private byte[] deriveBIP32PublicKeyAndChainCodeFromMaster(
+  private byte[] getBIP32PublicKeyAndChainCode(
     WeierstrassCurve curve,
-    byte[] master,
-    byte[] path,
+    DerivedKey key,
     byte[] taprootMerkleRoot
   ) {
-    if (
-      taprootMerkleRoot != null &&
-      (master.length != MASTER_LENGTH || path.length % BIP32Derivation.PATH_SEGMENT_LENGTH != 0)
-    ) {
-      KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
-      return null;
-    }
-
-    master = bip32.derive(curve, master, path);
-
-    byte[] publicKey = derivePublicKey(curve, master, taprootMerkleRoot);
+    byte[] publicKey = taprootMerkleRoot == null
+      ? key.getPublicKey(curve)
+      : derivePublicKey(curve, key.getKey(), taprootMerkleRoot);
 
     short keyLength = curve.getKeyLength();
 
@@ -391,15 +392,9 @@ public final class Keystore {
     // public key
     Util.arrayCopyNonAtomic(publicKey, (short) 0, data, (short) 0, (short) publicKey.length);
     // chain code
-    Util.arrayCopyNonAtomic(master, keyLength, data, (short) publicKey.length, keyLength);
+    Util.arrayCopyNonAtomic(key.key, keyLength, data, (short) publicKey.length, keyLength);
 
     return data;
-  }
-
-  private byte[] deriveMonoid001PublicKeyFromMaster(byte[] master, byte[] context) {
-    byte[] key = monoid001.derive(master, context);
-
-    return derivePublicKey(WeierstrassCurve.secp256r1, key, null);
   }
 
   private byte[] derivePublicKey(WeierstrassCurve curve, byte[] key, byte[] taprootMerkleRoot) {
@@ -445,13 +440,8 @@ public final class Keystore {
     );
   }
 
-  private byte[] deriveSLIP10Ed25519PublicKeyAndChainCodeFromMaster(
-    EdwardsCurve curve,
-    byte[] master,
-    byte[] path
-  ) {
-    master = slip10Ed25519.derive(master, path);
-    ED25519Key privateKey = curve.getSharedPrivateKey(master, (short) 0);
+  private byte[] getSLIP10Ed25519PublicKeyAndChainCode(EdwardsCurve curve, DerivedKey key) {
+    ED25519Key privateKey = curve.getSharedPrivateKey(key);
 
     try {
       short publicKeyLength = curve.getPublicKeyLength();
@@ -463,7 +453,7 @@ public final class Keystore {
       );
 
       curve.derivePublicKey(privateKey, data, (short) 0);
-      Util.arrayCopyNonAtomic(master, keyLength, data, publicKeyLength, keyLength);
+      Util.arrayCopyNonAtomic(key.key, keyLength, data, publicKeyLength, keyLength);
 
       return data;
     } finally {

@@ -44,6 +44,8 @@ public abstract class EdwardsCurve {
 
   public abstract ED25519Key getSharedPrivateKey(byte[] in, short keyOffset);
 
+  public abstract ED25519Key getSharedPrivateKey(DerivedKey key);
+
   public abstract short derivePublicKey(ED25519Key privateKey, byte[] out, short outOffset);
 
   public byte[] derivePublicKey(ED25519Key privateKey) {

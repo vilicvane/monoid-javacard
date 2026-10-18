@@ -17,6 +17,11 @@ public final class SLIP10Ed25519Derivation extends KeyDerivation {
   private static final short KEY_LENGTH = 32;
   private static final short PATH_SEGMENT_LENGTH = 4;
 
+  @Override
+  protected byte[] getMasterKeyLabel() {
+    return MASTER_KEY_LABEL;
+  }
+
   /**
    * Derives from a 64-byte master containing an Ed25519 seed and its chain code.
    * Returns the derived 32-byte Ed25519 seed followed by its 32-byte chain code.
