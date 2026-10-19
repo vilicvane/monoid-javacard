@@ -6,7 +6,7 @@ public class CommandCreateRandomKey extends Command {
   protected void run() {
     requireAuth();
 
-    MonoidApplet.checkSafeUnlocked();
+    MonoidApplet.safe.checkAccess();
 
     Safe safe = MonoidApplet.safe;
 

@@ -23,7 +23,7 @@ import monoid.CBORBufferReader;
 import monoid.CBORBufferWriter;
 import monoid.MonoidApplet;
 import monoid.Safe;
-import monoidsafeidentity.MonoidSafeIdentityApplet;
+import monoididentity.MonoidIdentityApplet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 public class MonoidItemTransferTest {
 
   private static final AID IDENTITY_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
+    // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
     "f06d6f6e6f696400010000"
   );
   private static final AID MONOID_AID = AIDUtil.create(
@@ -680,19 +680,13 @@ public class MonoidItemTransferTest {
     Assertions.assertEquals(0, process.waitFor());
   }
 
-  private static void assertData(Card card, byte[] index, byte[] data) {
+  static void assertData(Card card, byte[] index, byte[] data) {
     Result result = card.success(0x32, fields("index", index));
     Assertions.assertEquals(1, result.size());
     Assertions.assertArrayEquals(data, result.bytes("data"));
   }
 
-  private static void assertMetadata(
-    Card card,
-    byte[] index,
-    byte[] key,
-    String alias,
-    boolean secret
-  ) {
+  static void assertMetadata(Card card, byte[] index, byte[] key, String alias, boolean secret) {
     Result result = card.success(0x31, fields("index", index));
     Assertions.assertEquals(1 + (key == null ? 0 : 1) + (alias == null ? 0 : 1), result.size());
     CBORBufferReader reader = result.reader();
@@ -731,14 +725,14 @@ public class MonoidItemTransferTest {
     assertError(card.transmit(0x31, fields("index", index)), "NOT_FOUND");
   }
 
-  private static void assertError(Result result, String code) {
+  static void assertError(Result result, String code) {
     Assertions.assertEquals(0x9000, result.status);
     CBORBufferReader reader = result.reader();
     reader.requireKey(bytes("error")).map();
     Assertions.assertArrayEquals(bytes(code), reader.requireKey(bytes("code")).text());
   }
 
-  private static void assertCryptoRejected(Result result) {
+  static void assertCryptoRejected(Result result) {
     assertCryptoError(result, CryptoException.ILLEGAL_VALUE);
   }
 
@@ -753,7 +747,7 @@ public class MonoidItemTransferTest {
     Assertions.assertEquals(reason, reader.requireKey(bytes("reason")).integer());
   }
 
-  private static byte[] customIndex(int identifier) {
+  static byte[] customIndex(int identifier) {
     byte[] index = new byte[Safe.INDEX_LENGTH];
     index[0] = 0x10;
     index[index.length - 2] = (byte) (identifier >> 8);
@@ -761,7 +755,7 @@ public class MonoidItemTransferTest {
     return index;
   }
 
-  private static byte[] sequence(int length) {
+  static byte[] sequence(int length) {
     byte[] data = new byte[length];
     for (int index = 0; index < length; index++) {
       data[index] = (byte) index;
@@ -773,7 +767,7 @@ public class MonoidItemTransferTest {
     return value.getBytes(StandardCharsets.UTF_8);
   }
 
-  private static Map<String, Object> fields(Object... entries) {
+  static Map<String, Object> fields(Object... entries) {
     Map<String, Object> result = new LinkedHashMap<>();
     for (int index = 0; index < entries.length; index += 2) {
       result.put((String) entries[index], entries[index + 1]);
@@ -789,6 +783,12 @@ public class MonoidItemTransferTest {
       Object value = field.getValue();
       if (value instanceof byte[]) {
         writer.bytes((byte[]) value);
+      } else if (value instanceof byte[][]) {
+        byte[][] values = (byte[][]) value;
+        writer.array((short) values.length);
+        for (byte[] entry : values) {
+          writer.bytes(entry);
+        }
       } else if (value instanceof String) {
         writer.text(bytes((String) value));
       } else if (value instanceof Boolean) {
@@ -801,7 +801,7 @@ public class MonoidItemTransferTest {
     return writer.getDataBuffer().clone();
   }
 
-  private static class Result {
+  static class Result {
 
     final byte[] data;
     final int status;
@@ -880,9 +880,10 @@ public class MonoidItemTransferTest {
     }
   }
 
-  private static class Card implements AutoCloseable {
+  static class Card implements AutoCloseable {
 
     final CardSimulator simulator;
+    private boolean monoidLoaded;
     private boolean monoidInstalled;
 
     Card(boolean installMonoid) {
@@ -890,7 +891,7 @@ public class MonoidItemTransferTest {
       System.setProperty("com.licel.jcardsim.sign.dsasigner.computedhash", "1");
       System.setProperty("com.licel.jcardsim.bouncycastle.rsa.allow_unsafe_mod", "true");
       simulator = new CardSimulator(new ShareableSimulatorRuntime());
-      simulator.installApplet(IDENTITY_AID, MonoidSafeIdentityApplet.class);
+      simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
 
       if (installMonoid) {
         installMonoid();
@@ -899,7 +900,12 @@ public class MonoidItemTransferTest {
 
     void installMonoid() {
       resetAppletState();
-      simulator.installApplet(MONOID_AID, MonoidApplet.class);
+      if (monoidLoaded) {
+        simulator.createApplet(MONOID_AID, new byte[0], (short) 0, (byte) 0);
+      } else {
+        simulator.installApplet(MONOID_AID, MonoidApplet.class);
+        monoidLoaded = true;
+      }
       monoidInstalled = true;
       initializePINs();
     }
@@ -936,14 +942,12 @@ public class MonoidItemTransferTest {
     }
 
     byte[] publicKey() {
-      CBORBufferReader reader = success(0x20, fields("safe", true)).reader();
-      reader.requireKey(bytes("safe")).map();
+      CBORBufferReader reader = success(0x20, fields()).reader();
       return reader.requireKey(bytes("publicKey")).bytes().clone();
     }
 
     byte[] safeId() {
-      CBORBufferReader reader = success(0x20, fields("safe", true)).reader();
-      reader.requireKey(bytes("safe")).map();
+      CBORBufferReader reader = success(0x20, fields()).reader();
       return reader.requireKey(bytes("id")).bytes().clone();
     }
 
@@ -964,6 +968,14 @@ public class MonoidItemTransferTest {
       // jCardSim retains the loaded classes when deleting instances.
       simulator.createApplet(MONOID_AID, new byte[0], (short) 0, (byte) 0);
       initializePINs();
+    }
+
+    void uninstallMonoid() {
+      if (monoidInstalled) {
+        simulator.deleteApplet(MONOID_AID);
+        monoidInstalled = false;
+        resetAppletState();
+      }
     }
 
     byte[] create(Object selector, byte[] key, String alias, byte[] data, Boolean secret) {
@@ -1037,17 +1049,12 @@ public class MonoidItemTransferTest {
     private static void resetAppletState() {
       MonoidApplet.version = 0;
       MonoidApplet.safe = null;
-      MonoidApplet.safePIN = null;
       MonoidApplet.keystore = null;
     }
 
     @Override
     public void close() {
-      if (monoidInstalled) {
-        simulator.deleteApplet(MONOID_AID);
-        resetAppletState();
-      }
-
+      uninstallMonoid();
       simulator.deleteApplet(IDENTITY_AID);
     }
   }

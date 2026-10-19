@@ -36,6 +36,9 @@ public abstract class Command {
   public static Command hello;
   public static Command authenticate;
   public static Command setPIN;
+  public static Command createBundle;
+  public static Command importBundle;
+  public static Command resetBundle;
   public static Command systemInformation;
 
   public static Command list;
@@ -91,6 +94,9 @@ public abstract class Command {
     hello = new CommandHello();
     authenticate = new CommandAuthenticate();
     setPIN = new CommandSetPIN();
+    createBundle = new CommandCreateBundle();
+    importBundle = new CommandImportBundle();
+    resetBundle = new CommandResetBundle();
     systemInformation = new CommandSystemInformation();
 
     list = new CommandList();
@@ -122,6 +128,9 @@ public abstract class Command {
     hello = null;
     authenticate = null;
     setPIN = null;
+    createBundle = null;
+    importBundle = null;
+    resetBundle = null;
     systemInformation = null;
 
     list = null;
@@ -146,6 +155,12 @@ public abstract class Command {
         return authenticate;
       case 0x22:
         return setPIN;
+      case 0x23:
+        return createBundle;
+      case 0x24:
+        return importBundle;
+      case 0x25:
+        return resetBundle;
       case 0x2F:
         return systemInformation;
       case 0x30:

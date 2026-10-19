@@ -9,44 +9,40 @@ public final class CommandHello extends Command {
   protected void run() {
     reader.map();
 
-    boolean includeSafe = reader.key(Text.safe) && reader.bool();
-
-    writer.map((short) (includeSafe ? 5 : 4));
+    writer.map((short) 5);
     {
       writer.text(Text.version);
       writer.integer(MonoidApplet.version);
 
       writer.text(Text.id);
-      writer.bytes(MonoidApplet.id);
+      writer.bytes(MonoidApplet.safe.getId());
 
-      CommandSystemInformation.writeFeaturesKeyValue(writer);
+      writer.text(Text.publicKey);
+      writer.bytes(MonoidApplet.safe.getPublicKey());
 
-      writer.text(Text.pin);
-      if (MonoidApplet.getPINSetResult(SAFE_FALSE) == SAFE_TRUE) {
-        writer.integer(MonoidApplet.pin.getTriesRemaining());
+      writer.text(Text.bundle);
+      byte[] bundle = MonoidApplet.safe.getBundle();
+      if (bundle != null) {
+        writer.bytes(bundle);
       } else {
         writer.bool(false);
       }
 
-      if (includeSafe) {
+      writer.text(Text.pins);
+      writer.map((short) 2);
+      {
+        writer.text(Text.access);
+        if (MonoidApplet.getPINSetResult(SAFE_FALSE) == SAFE_TRUE) {
+          writer.integer(MonoidApplet.pin.getTriesRemaining());
+        } else {
+          writer.bool(false);
+        }
+
         writer.text(Text.safe);
-        writer.map((short) 4);
-        {
-          writer.text(Text.id);
-          writer.bytes(MonoidApplet.safe.getId());
-
-          writer.text(Text.publicKey);
-          writer.bytes(MonoidApplet.safe.getPublicKey());
-
-          writer.text(Text.pin);
-          if (MonoidApplet.safe.isPINSet()) {
-            writer.integer(MonoidApplet.safe.getPINTriesRemaining());
-          } else {
-            writer.bool(false);
-          }
-
-          writer.text(Text.unlocked);
-          writer.bool(MonoidApplet.isSafeUnlocked());
+        if (MonoidApplet.safe.getPINSetResult(SAFE_FALSE) == SAFE_TRUE) {
+          writer.integer(MonoidApplet.safe.getPINTriesRemaining());
+        } else {
+          writer.bool(false);
         }
       }
     }

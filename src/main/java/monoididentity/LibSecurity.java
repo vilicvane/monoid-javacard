@@ -1,5 +1,5 @@
 // Generated from monoid/LibSecurity.java by Inplate.
-package monoidsafeidentity;
+package monoididentity;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;

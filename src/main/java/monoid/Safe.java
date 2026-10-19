@@ -10,7 +10,8 @@ import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javacard.framework.Util;
 import javacard.security.MessageDigest;
-import monoidsafeidentity.SafeIdentityShareable;
+import monoididentity.CommunicationDataShareable;
+import monoididentity.IdentityShareable;
 
 public final class Safe {
 
@@ -127,15 +128,44 @@ public final class Safe {
     return requireIdentity().getPublicKey();
   }
 
-  private SafeIdentityShareable requireIdentity() {
-    AID identityAID = JCSystem.lookupAID(
-      Constants.MONOID_SAFE_IDENTITY_AID,
-      (short) 0,
-      (byte) Constants.MONOID_SAFE_IDENTITY_AID.length
+  public byte[] getBundle() {
+    return requireIdentity().getBundle();
+  }
+
+  public SafeDataSource createBundle(byte[] publicKeys) {
+    Command.requireAuth(Command.AUTH_SAFE);
+    checkAccess();
+
+    return new ItemCipher.Result(
+      this,
+      requireIdentity().createBundle(Utils.duplicateAsGlobal(publicKeys))
     );
-    SafeIdentityShareable identity = identityAID == null
+  }
+
+  /** Both inputs must be global arrays for the Identity call. */
+  public byte[] importBundle(byte[] senderPublicKey, byte[] data) {
+    Command.requireAuth(Command.AUTH_SAFE);
+    checkAccess();
+
+    return requireIdentity().importBundle(senderPublicKey, data);
+  }
+
+  public void resetBundle() {
+    Command.requireAuth(Command.AUTH_SAFE);
+    checkAccess();
+
+    requireIdentity().resetBundle();
+  }
+
+  private IdentityShareable requireIdentity() {
+    AID identityAID = JCSystem.lookupAID(
+      Constants.MONOID_IDENTITY_AID,
+      (short) 0,
+      (byte) Constants.MONOID_IDENTITY_AID.length
+    );
+    IdentityShareable identity = identityAID == null
       ? null
-      : (SafeIdentityShareable) JCSystem.getAppletShareableInterfaceObject(identityAID, (byte) 0);
+      : (IdentityShareable) JCSystem.getAppletShareableInterfaceObject(identityAID, (byte) 0);
 
     if (identity == null) {
       ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
@@ -146,7 +176,7 @@ public final class Safe {
 
   private ItemCipher requireItemCipher() {
     if (itemCipher == null) {
-      itemCipher = new ItemCipher();
+      itemCipher = new ItemCipher(this);
     }
 
     return itemCipher;
@@ -455,25 +485,6 @@ public final class Safe {
       : 0;
   }
 
-  private SafeItem createItem(
-    byte[] index,
-    byte[] key,
-    byte[] alias,
-    byte[] data,
-    short dataOffset,
-    short dataLength,
-    boolean secret
-  ) {
-    checkStorage(getItemStorageLength(index, key, alias, dataLength));
-
-    index = Utils.duplicateAsPersistent(index);
-    key = key != null ? Utils.duplicateAsPersistent(key) : null;
-    alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
-    data = Utils.duplicateAsPersistent(data, dataOffset, dataLength);
-
-    return publishItem(index, key, alias, data, secret);
-  }
-
   private SafeItem publishItem(
     byte[] index,
     byte[] key,
@@ -515,9 +526,9 @@ public final class Safe {
 
   public SafeDataSource exportItem(SafeItem item, byte[] recipientPublicKey) {
     assertAccess();
-    byte[] data = requireItemCipher().encrypt(requireIdentity(), item, recipientPublicKey);
+    SafeDataSource data = requireItemCipher().encrypt(requireIdentity(), item, recipientPublicKey);
     assertAccess();
-    return new SafeStoredData(this, data);
+    return data;
   }
 
   public void importItem(
@@ -529,12 +540,15 @@ public final class Safe {
   ) {
     assertAccess();
 
+    // Reserve the cross-applet read buffer.
+    byte[] buffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) 64);
+
     index = Utils.duplicateAsPrivate(index);
     key = key != null ? Utils.duplicateAsPrivate(key) : null;
     alias = alias != null ? Utils.duplicateAsPrivate(alias) : null;
-    senderPublicKey = Utils.duplicateAsPrivate(senderPublicKey);
+    senderPublicKey = senderPublicKey != null ? Utils.duplicateAsPrivate(senderPublicKey) : null;
 
-    byte[] plaintext = requireItemCipher().decrypt(
+    CommunicationDataShareable plaintext = requireItemCipher().decrypt(
       requireIdentity(),
       index,
       key,
@@ -543,13 +557,14 @@ public final class Safe {
       data
     );
     assertAccess();
-    short secret = Util.getShort(plaintext, (short) 0);
+    plaintext.read((short) 0, buffer, (short) 0, ItemCipher.SECRET_LENGTH);
+    short secret = Util.getShort(buffer, (short) 0);
 
     if (secret != SAFE_TRUE && secret != SAFE_FALSE) {
       ISOException.throwIt(ISO7816.SW_DATA_INVALID);
     }
 
-    short dataLength = (short) (plaintext.length - ItemCipher.SECRET_LENGTH);
+    short dataLength = (short) (plaintext.getLength() - ItemCipher.SECRET_LENGTH);
     SafeItem item = getItem(index);
 
     if (item != null) {
@@ -557,25 +572,41 @@ public final class Safe {
         item.secret != secret ||
         !equal(item.key, key) ||
         !equal(item.alias, alias) ||
-        item.data.length != dataLength ||
-        Util.arrayCompare(item.data, (short) 0, plaintext, ItemCipher.SECRET_LENGTH, dataLength) !=
-        0
+        item.data.length != dataLength
       ) {
         ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+      }
+
+      for (short offset = 0; offset < dataLength; ) {
+        short length = Utils.min((short) (dataLength - offset), (short) buffer.length);
+        plaintext.read((short) (ItemCipher.SECRET_LENGTH + offset), buffer, (short) 0, length);
+        assertAccess();
+
+        if (Util.arrayCompare(item.data, offset, buffer, (short) 0, length) != 0) {
+          ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+
+        offset += length;
       }
 
       return;
     }
 
-    createItem(
-      index,
-      key,
-      alias,
-      plaintext,
-      ItemCipher.SECRET_LENGTH,
-      dataLength,
-      secret == SAFE_TRUE
-    );
+    checkStorage(getItemStorageLength(index, key, alias, dataLength));
+    index = Utils.duplicateAsPersistent(index);
+    key = key != null ? Utils.duplicateAsPersistent(key) : null;
+    alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
+    byte[] storedData = new byte[dataLength];
+
+    for (short offset = 0; offset < dataLength; ) {
+      short length = Utils.min((short) (dataLength - offset), (short) buffer.length);
+      plaintext.read((short) (ItemCipher.SECRET_LENGTH + offset), buffer, (short) 0, length);
+      Util.arrayCopyNonAtomic(buffer, (short) 0, storedData, offset, length);
+      offset += length;
+    }
+
+    assertAccess();
+    publishItem(index, key, alias, storedData, secret == SAFE_TRUE);
   }
 
   private static boolean equal(byte[] left, byte[] right) {
@@ -615,6 +646,24 @@ public final class Safe {
     JCSystem.requestObjectDeletion();
 
     JCSystem.commitTransaction();
+  }
+
+  public void checkAccess() {
+    Command.requireAuth();
+
+    if (getPINSetResult(SAFE_FALSE) != SAFE_TRUE) {
+      MonoidException.throwIt(MonoidException.CODE_SAFE_PIN_NOT_SET);
+    }
+
+    if (getPINBlockedResult() != SAFE_FALSE) {
+      MonoidException.throwIt(MonoidException.CODE_SAFE_BLOCKED);
+    }
+
+    auth[0] = 0;
+    auth[1] = (short) ~AUTH_SAFE;
+    auth[0] = AUTH_SAFE;
+
+    assertAccess();
   }
 
   public void assertAccess() {

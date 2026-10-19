@@ -1,4 +1,4 @@
-package monoidsafeidentity;
+package monoididentity;
 
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
@@ -63,8 +63,9 @@ public class CommunicationCipher {
     }
   };
 
-  public CommunicationCipher(KeyPair identity) {
+  public CommunicationCipher(KeyPair identity, AESGcmCipher cipher) {
     this.identity = identity;
+    this.cipher = cipher;
 
     ephemeralPrivateKey = (ECPrivateKey) KeyBuilder.buildKey(
       KeyBuilder.ALG_TYPE_EC_FP_PRIVATE,
@@ -81,12 +82,10 @@ public class CommunicationCipher {
       false
     );
 
-    // Identity is called through a Shareable while Safe or Monoid is selected.
+    // Identity is called through a Shareable while Monoid is selected.
     agreement = KeyAgreement.getInstance(KeyAgreement.ALG_EC_SVDP_DH_PLAIN_XY, true);
     random = RandomData.getInstance(RandomData.ALG_KEYGENERATION);
     digest = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, true);
-    cipher = new AESGcmCipher();
-
     workspace = new byte[PUBLIC_KEY_LENGTH];
     dh = new byte[KEY_LENGTH * 2];
     secret = new byte[HASH_LENGTH];
@@ -95,22 +94,34 @@ public class CommunicationCipher {
     hmacSuffix = new byte[2];
   }
 
-  /** Returns enc || ciphertext || tag in a new global array. */
+  /** Returns enc || ciphertext || tag in a private array. */
   public byte[] encrypt(byte[] recipientPublicKey, byte[] context, byte[] key) {
-    requirePublicKey(recipientPublicKey, (short) 0, (short) recipientPublicKey.length);
+    byte[] encryptedKey = CommunicationData.makePrivateByteArray(ENCRYPTED_KEY_LENGTH);
+    encrypt(recipientPublicKey, context, key, encryptedKey, (short) 0);
+
+    return encryptedKey;
+  }
+
+  void encrypt(
+    byte[] recipientPublicKey,
+    byte[] context,
+    byte[] key,
+    byte[] encryptedKey,
+    short offset
+  ) {
+    requirePublicKey(
+      recipientPublicKey,
+      (short) 0,
+      recipientPublicKey == null ? (short) 0 : (short) recipientPublicKey.length
+    );
 
     if (key.length != KEY_LENGTH) {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
     }
 
-    byte[] encryptedKey = (byte[]) JCSystem.makeGlobalArray(
-      JCSystem.ARRAY_TYPE_BYTE,
-      ENCRYPTED_KEY_LENGTH
-    );
-
     generateEphemeralKey();
     agree(ephemeralPrivateKey, LibSECP256r1.G, (short) 0);
-    Util.arrayCopyNonAtomic(workspace, (short) 0, encryptedKey, (short) 0, PUBLIC_KEY_LENGTH);
+    Util.arrayCopyNonAtomic(workspace, (short) 0, encryptedKey, offset, PUBLIC_KEY_LENGTH);
 
     agree(ephemeralPrivateKey, recipientPublicKey, (short) 0);
     Util.arrayCopyNonAtomic(workspace, (short) 1, dh, (short) 0, KEY_LENGTH);
@@ -118,19 +129,21 @@ public class CommunicationCipher {
     Util.arrayCopyNonAtomic(workspace, (short) 1, dh, KEY_LENGTH, KEY_LENGTH);
 
     ((ECPublicKey) identity.getPublic()).getW(workspace, (short) 0);
-    extractAndExpand(encryptedKey, recipientPublicKey, workspace);
+    extractAndExpand(encryptedKey, offset, recipientPublicKey, workspace);
     deriveKey(context);
 
     cipher.init(encryptionKey, Cipher.MODE_ENCRYPT, keyBytes, (short) 0);
-    cipher.doFinal(key, (short) 0, KEY_LENGTH, encryptedKey, PUBLIC_KEY_LENGTH);
-    cipher.retrieveTag(encryptedKey, TAG_OFFSET);
-
-    return encryptedKey;
+    cipher.doFinal(key, (short) 0, KEY_LENGTH, encryptedKey, (short) (offset + PUBLIC_KEY_LENGTH));
+    cipher.retrieveTag(encryptedKey, (short) (offset + TAG_OFFSET));
   }
 
   /** Releases the recovered key only after authenticating the complete envelope. */
   public byte[] decrypt(byte[] senderPublicKey, byte[] context, byte[] encryptedKey) {
-    requirePublicKey(senderPublicKey, (short) 0, (short) senderPublicKey.length);
+    requirePublicKey(
+      senderPublicKey,
+      (short) 0,
+      senderPublicKey == null ? (short) 0 : (short) senderPublicKey.length
+    );
 
     if (encryptedKey.length != ENCRYPTED_KEY_LENGTH) {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
@@ -144,11 +157,11 @@ public class CommunicationCipher {
     Util.arrayCopyNonAtomic(workspace, (short) 1, dh, KEY_LENGTH, KEY_LENGTH);
 
     ((ECPublicKey) identity.getPublic()).getW(workspace, (short) 0);
-    extractAndExpand(encryptedKey, workspace, senderPublicKey);
+    extractAndExpand(encryptedKey, (short) 0, workspace, senderPublicKey);
     deriveKey(context);
 
     // Allocate a fresh result; the caller's envelope never holds unauthenticated plaintext.
-    byte[] key = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, KEY_LENGTH);
+    byte[] key = CommunicationData.makePrivateByteArray(KEY_LENGTH);
 
     cipher.init(encryptionKey, Cipher.MODE_DECRYPT, keyBytes, (short) 0);
     cipher.doFinal(encryptedKey, PUBLIC_KEY_LENGTH, KEY_LENGTH, key, (short) 0);
@@ -181,8 +194,9 @@ public class CommunicationCipher {
     ephemeralPrivateKey.setS(keyBytes, (short) 0, KEY_LENGTH);
   }
 
-  private void requirePublicKey(byte[] publicKey, short offset, short length) {
+  static void requirePublicKey(byte[] publicKey, short offset, short length) {
     if (
+      publicKey == null ||
       length != PUBLIC_KEY_LENGTH ||
       publicKey[offset] != 0x04 ||
       compareUnsigned(publicKey, (short) (offset + 1), LibSECP256r1.FP, (short) 0, KEY_LENGTH) >=
@@ -200,13 +214,7 @@ public class CommunicationCipher {
     }
   }
 
-  private static byte compareUnsigned(
-    byte[] a,
-    short aOffset,
-    byte[] b,
-    short bOffset,
-    short length
-  ) {
+  static byte compareUnsigned(byte[] a, short aOffset, byte[] b, short bOffset, short length) {
     // Util.arrayCompare does not provide unsigned integer ordering on every card.
     for (short index = 0; index < length; index++) {
       short left = (short) (a[(short) (aOffset + index)] & 0xFF);
@@ -236,10 +244,18 @@ public class CommunicationCipher {
     }
   }
 
-  private void extractAndExpand(byte[] enc, byte[] recipient, byte[] sender) {
+  byte[] hash(byte[] data) {
+    byte[] hash = new byte[HASH_LENGTH];
+    digest.reset();
+    digest.doFinal(data, (short) 0, (short) data.length, hash, (short) 0);
+
+    return hash;
+  }
+
+  private void extractAndExpand(byte[] enc, short offset, byte[] recipient, byte[] sender) {
     labeledExtract(EMPTY, KEM_SUITE, EAE_PRK, dh, secret, (short) 0);
     beginExpand(secret, KEM_SUITE, SHARED_SECRET, HASH_LENGTH);
-    digest.update(enc, (short) 0, PUBLIC_KEY_LENGTH);
+    digest.update(enc, offset, PUBLIC_KEY_LENGTH);
     digest.update(recipient, (short) 0, PUBLIC_KEY_LENGTH);
     digest.update(sender, (short) 0, PUBLIC_KEY_LENGTH);
     finishExpand(secret);

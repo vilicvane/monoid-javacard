@@ -265,3 +265,24 @@
 ## 5cabdcb
 
 137. [user] 批准按原结构合并Monoid/Safe，Identity暂不更名；默认Install，仅明确ReinstallMonoid清数据；原型尚无用户，不加旧布局拦截或迁移，要求实卡通过后提交。未来逐卡锁定仅作为兼容方向，不实现、不展开。[agent] Safe合并存储类与包装层，条目/枚举/数据收归Monoid02，去掉独立Safe CAP和SIO/session；Identity00改为接受Monoid，保留外部协议及PIN语义。294项测试、两CAP和格式/模板检查通过；卡55690320临时E0/E2验证29次独立验签、分段读写/List、加密导入导出、PIN及保留Identity重装恢复。修正测试对signed-short类型编码及类别筛选的假设，生产CBOR未改；临时包全清、原卡基线一致，未正式部署。后续Type授权和Safe PIN不能预设覆盖secret，详见 [合并存储与未来导出锁](./137.md)。
+
+## b8898d7
+
+138. [user] 确定固定成员多卡Bundle、Identity内密钥不可读、入组后仅Bundle导出、保留非对称接收；最终为0x23 Create Bundle、0x24 Import Bundle、0x25 Reset Bundle。创建生成新K并替换本卡Bundle，一次返回hash及按请求顺序排除自身的全部成员包；目标卡任意顺序导入并直接比较响应hash，无额外回刷。[agent] 完成独立HPKE入组域、95B开销Bundle条目、固定名单原子发布/幂等/冲突检查，完整通信加解密留Identity，APDU/PIN/存储/签名留Monoid；Reset保留身份/条目/PIN，不属永久锁卡。统一monoididentity/MonoidIdentityApplet/IdentityShareable、`MONOID_IDENTITY_*`及CAP名，AID不变。提前申请global64及响应window、Import直接返回预留global32的实际hash，解决两次实卡RAM失败。最终310项JUnit零失败错误跳过、5项JS、两CAP零警告错误且verify、全仓格式/模板/diff通过；249源/生成input哈希一致。卡55690320与两个独立host密码学peer完成91/91操作，覆盖V1/V2至1024B、Secret/分片/篡改、双包顺序与hash、替换/重置/幂等/冲突及响应取消/复位恢复；三卡验证为模拟器。全部临时E0/E2清理，registry及原应用基线一致，未正式部署或提交推送。详细单次耗时与证据见 [Bundle导出策略](./138.md)。
+139. [user] 确定Hello直接返回全部信息、Identity稳定ID、publicKey/bundle外层、pins:{access,safe}、bundle为byte[]|false，删除safe开关/嵌套结构/unlocked/features；APP未来重装预期同步两PIN。[agent] 已实现请求{}与version/id/publicKey/bundle/pins响应，能力仍由System Information提供；删除Monoid随机ID及持久SafePIN副本/自动复验，内部Safe访问按当前Command授权和PIN已设未锁检查，Access操作不再重置Safe错误次数。APP自动同步未实现，重装仍清条目和两PIN、保留Identity/Bundle。最终310项JUnit、5项JS、两CAP及全仓格式/模板/diff通过；实卡91/91通过，复位清授权但保留身份/Bundle/PIN/条目；Hello零散单次约215ms（无Bundle）/235ms（有Bundle），非专门benchmark。临时包全清、原基线一致，未正式部署或提交推送，详见 [Hello合并后语义](./139.md)。
+
+140. [user] 要求依次卸载三张测试卡上的旧版Monoid包。[agent] 2026-10-19分别核对Test 1（CPLC56050420）、Test 2（CPLC56038920）及APP测试卡（CPLC51433520），执行当时的scripts/uninstall.ps1，按02→01→00删除各卡三个正式Applet及所属包，旧Safe数据/PIN和Identity密钥随卸载清除；旧显示ID仅保留为历史标识。三卡卸载后均复查Monoid注册表项全部消失，其余系统包和ISD条目不变，未安装新版本。证据分别保存在忽略目录.research/uninstall-56050420-20261019-211855/、.research/uninstall-56038920-20261019-212041/及.research/uninstall-51433520-20261019-212236/的before、uninstall、after日志。
+
+141. [user] 要求卸载脚本去掉向后兼容。[agent] 完成三张旧卡卸载后，scripts/uninstall.ps1仅处理当前Monoid02和Identity00，删除独立Safe01条目及Inplate中的LEGACY_MONOID_SAFE_PACKAGE_AID；保留按注册表From发现实例、跳过缺失包和出错停止。README已符合两包布局。PowerShell语法、Inplate及定向格式/diff检查通过；未提交推送。
+
+142. [user] 要求测Bundle内存峰值，并考虑少写多读数据直接持久化的性能；得知AES固定16B分组后撤回扩大到32B缓冲的提议。[agent] 卡51433520控制92/92、插桩152/152通过，最低可查询RESET为ImportBundle39B、非对称256B导出/导入68/69B；1024B大数组本就持久化，余量反而更多。同卡三种未插桩分配策略各63/63通过，输入副本持久化令32/256B导入增加22–26ms，全私有数组持久化令256B传输增加750–890ms；逐字节持久输出是源码支持的解释，复用16B工作区批量写出仍未实现或验证。替代策略仅测空闲RAM，未量化其峰值；全部E0/E2已清、原注册表/正式源/暂存区保持，详见 [Bundle峰值与持久存储性能](./142.md)。
+
+143. [user] 批准复用16B缓冲批量写出AES-GCM，再测持久临时数组代价。[agent] 正式源码仅修改AES输出，分配策略不变；310项测试、两CAP及126次性能/152次峰值实卡操作通过。原策略1024B传输四个单样本快25.7–28.9%；持久私有数组实验的256B额外耗时由30.6–35.3%降至3.9–4.7%。组合实验最低RESET非对称256B导入/导出69/68→702/710B，重新导入Bundle39→249B，仍非充裕或全操作顺序保证；不能归因为单独AES改动。E0/E2全部清理，registry恢复、原暂存及无关改动保持，未正式部署或提交，详见 [AES-GCM分组写出与持久化复测](./143.md)。
+
+144. [user] 要求对比16B/64B缓冲，并追问两套AES-GCM上下文含义。[agent] 同卡51433520四隔离版本对照，16项离线测试及CAP验证通过；三组各71/71，当前策略64B第19次256B非对称导出失败，诊断6F22确认Result.read的64B global分配NO_TRANSIENT_SPACE。持久策略64B相对16B，256B快1.1–1.4%、1024B快1.6–2.0%，均三次样本；warm RAM少96B，对应通信密钥/条目数据两套AES各多48B。正式保留16B，研究版本未采用；两套调用顺序允许考虑共享底层实例，但未实现测量。临时包全部清理、原registry/源码/暂存保持，详见 [AES-GCM缓冲大小对照](./144.md)。
+
+145. [user] 批准共享一个AES-GCM实例、保留16B缓冲，要求实卡比较内存与性能。[agent] Identity按需持有并注入两条路径，各自AESKey/协议状态保留，APDU/SIO与分配策略不变。310项测试、两CAP及同卡51433520两组各71次性能/152次插桩检查通过；预热空闲RESET1537→1640B，256B非对称导入/导出最低69/68→172/171B，Bundle重新入组39→142B；初始化后137条匹配操作均+103B。14场景三样本中位变化−0.10%至+0.65%，最大+44ms，不能视为完全零成本；少写多读私有数组直接持久化仍仅为实验。临时包全清、registry及原暂存/无关改动保持，未正式部署或提交推送，详见 [Identity共享AES-GCM实例](./145.md)。
+
+146. [user] 批准将临时私有数组直接持久化，保留共享AES-GCM和16B缓冲，并要求实卡核对组合收益；确认小数据传输的额外耗时可以接受。[agent] 两个分配helper改为new byte[]，删除RAM阈值/异常回退，310项测试和两CAP通过。本轮卡51433520新增142次性能及152次内存操作全通过，内存基线明确复用145；256B非对称导入/导出最低RESET172/171→805/813B，重新入组142→352B，99项改善、53项不变；签名后256B Bundle导出/导入459/474→842/836B，重复三次稳定。32/256B传输多31–127ms、3.46–4.57%，1024B基本不变，空闲RAM不变。检查点不代表完整原生峰值或所有操作顺序；新增临时持久写入/占用，未测满卡或耐久。解释入组tag校验与同密钥/名单幂等、不同配置拒绝。临时包全清、registry恢复，未正式部署或提交，详见 [通信临时私有数组持久化](./146.md)。
+
+147. [user] 批准Reader增加显式bytesGlobal两重载，Bundle导入直接读取global并删除再次复制，默认分配不变。[agent] 三份生产源码调整，312项测试、两正式CAP和四组各40次实卡命令通过；同卡51433520两版性能/峰值均本轮重新构建测量。三成员正常/幂等导入最低采样RESET352→720B，净增368B；接收点和最终空闲RAM不变，移除376B载荷不等于精确净收益。三样本中位1040.084→1007.846ms、1020.511→980.351ms，快3.10%/3.94%；独立解密确认真实密钥，冲突/tag拒绝/恢复/SELECT/ResetBundle均通过。保持共享AES、16B和持久私有数组，不默认global；引用只在调用链内传递。临时包全清、registry恢复，外部暂存的上轮内容保留，无无关源码改动；未正式部署或提交推送，详见 [Bundle导入直接读取global数组](./147.md)。

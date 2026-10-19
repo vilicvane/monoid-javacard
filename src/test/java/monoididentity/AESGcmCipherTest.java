@@ -1,4 +1,4 @@
-package monoidsafeidentity;
+package monoididentity;
 
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import java.util.Arrays;

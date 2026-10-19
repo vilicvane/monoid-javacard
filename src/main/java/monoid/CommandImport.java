@@ -10,14 +10,13 @@ public class CommandImport extends Command {
   protected void run() {
     requireAuth();
 
-    MonoidApplet.checkSafeUnlocked();
+    MonoidApplet.safe.checkAccess();
 
     reader.map();
 
     reader.requireKey(Text.index);
     byte[] index = readBytes(Safe.INDEX_LENGTH);
-    reader.requireKey(Text.senderPublicKey);
-    byte[] senderPublicKey = readBytes((short) 65);
+    byte[] senderPublicKey = reader.key(Text.senderPublicKey) ? readBytes((short) 65) : null;
     byte[] key = reader.key(Text.key) ? readBytes((short) -1) : null;
     byte[] alias = reader.key(Text.alias) ? reader.text() : null;
 

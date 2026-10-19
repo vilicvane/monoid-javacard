@@ -1,25 +1,13 @@
 package monoid;
 
 import javacard.framework.JCSystem;
-import javacard.framework.SystemException;
 import javacard.framework.Util;
 
 public final class Utils {
 
   private static final short COPY_BUFFER_LENGTH = 256;
-  private static final short TRANSIENT_BUFFER_LENGTH = 512;
 
   public static byte[] makePrivateByteArray(short length) {
-    if (length <= TRANSIENT_BUFFER_LENGTH) {
-      try {
-        return JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_RESET);
-      } catch (SystemException e) {
-        if (e.getReason() != SystemException.NO_TRANSIENT_SPACE) {
-          throw e;
-        }
-      }
-    }
-
     return new byte[length];
   }
 

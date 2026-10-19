@@ -1,4 +1,4 @@
-package monoidsafeidentity;
+package monoididentity;
 
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
@@ -62,11 +62,14 @@ public final class AESGcmCipher {
       }
 
       for (short index = 0; index < blockLength; index++) {
-        out[(short) (outOffset + index)] = (byte) (input[(short) (offset + index)] ^ block[index]);
+        block[index] ^= input[(short) (offset + index)];
       }
 
+      // Write persistent output once per block instead of once per byte.
+      Util.arrayCopyNonAtomic(block, (short) 0, out, outOffset, blockLength);
+
       if (operation[0] == Cipher.MODE_ENCRYPT) {
-        hash.update(out, outOffset, blockLength);
+        hash.update(block, (short) 0, blockLength);
       }
 
       offset += blockLength;

@@ -1,0 +1,253 @@
+package monoididentity;
+
+import javacard.framework.ISO7816;
+import javacard.framework.ISOException;
+import javacard.framework.Util;
+import javacard.security.CryptoException;
+import javacard.security.RandomData;
+
+/** One immutable Bundle installation, published by its Identity in a single transaction. */
+final class Bundle {
+
+  private static final byte VERSION = 1;
+  private static final short PUBLIC_KEYS_OFFSET = 3;
+  private static final short PUBLIC_KEY_LENGTH = CommunicationCipher.PUBLIC_KEY_LENGTH;
+  private static final short KEY_LENGTH = CommunicationCipher.KEY_LENGTH;
+
+  // @formatter:off
+  private static final byte[] CONTEXT = {'M','o','n','o','i','d',' ','B','u','n','d','l','e',' ','E','n','r','o','l','l','m','e','n','t'};
+  // @formatter:on
+
+  final byte[] key;
+  final byte[] hash;
+  private final byte[] publicKeys;
+
+  private Bundle(byte[] key, byte[] publicKeys, CommunicationCipher cipher) {
+    this.key = new byte[KEY_LENGTH];
+    Util.arrayCopyNonAtomic(key, (short) 0, this.key, (short) 0, KEY_LENGTH);
+    this.publicKeys = publicKeys;
+    hash = cipher.hash(key);
+  }
+
+  static Bundle create(byte[] publicKeys, byte[] ownPublicKey, CommunicationCipher cipher) {
+    requirePublicKeysLength((short) publicKeys.length);
+    byte[] members = new byte[publicKeys.length];
+    byte[] member = new byte[PUBLIC_KEY_LENGTH];
+    Util.arrayCopyNonAtomic(publicKeys, (short) 0, members, (short) 0, (short) members.length);
+
+    for (short offset = 0; offset < members.length; offset += PUBLIC_KEY_LENGTH) {
+      CommunicationCipher.requirePublicKey(members, offset, PUBLIC_KEY_LENGTH);
+      Util.arrayCopyNonAtomic(members, offset, member, (short) 0, PUBLIC_KEY_LENGTH);
+      short position = offset;
+
+      while (
+        position > 0 &&
+        CommunicationCipher.compareUnsigned(
+          members,
+          (short) (position - PUBLIC_KEY_LENGTH),
+          member,
+          (short) 0,
+          PUBLIC_KEY_LENGTH
+        ) >
+        0
+      ) {
+        Util.arrayCopyNonAtomic(
+          members,
+          (short) (position - PUBLIC_KEY_LENGTH),
+          members,
+          position,
+          PUBLIC_KEY_LENGTH
+        );
+        position -= PUBLIC_KEY_LENGTH;
+      }
+
+      Util.arrayCopyNonAtomic(member, (short) 0, members, position, PUBLIC_KEY_LENGTH);
+    }
+
+    requireCanonicalMembers(members);
+    requireMember(members, ownPublicKey);
+    byte[] key = new byte[KEY_LENGTH];
+    RandomData.getInstance(RandomData.ALG_KEYGENERATION).nextBytes(key, (short) 0, KEY_LENGTH);
+
+    return new Bundle(key, members, cipher);
+  }
+
+  static Bundle decrypt(
+    byte[] senderPublicKey,
+    byte[] ownPublicKey,
+    byte[] data,
+    CommunicationCipher cipher
+  ) {
+    if (
+      data.length <
+        PUBLIC_KEYS_OFFSET + PUBLIC_KEY_LENGTH * 2 + CommunicationCipher.ENCRYPTED_KEY_LENGTH ||
+      data[0] != VERSION
+    ) {
+      CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
+    }
+
+    short length = (short) (data.length -
+      PUBLIC_KEYS_OFFSET -
+      CommunicationCipher.ENCRYPTED_KEY_LENGTH);
+    requirePublicKeysLength(length);
+
+    if (Util.getShort(data, (short) 1) != (short) (length / PUBLIC_KEY_LENGTH)) {
+      CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
+    }
+
+    byte[] members = new byte[length];
+    Util.arrayCopyNonAtomic(data, PUBLIC_KEYS_OFFSET, members, (short) 0, length);
+    requireCanonicalMembers(members);
+    requireMember(members, ownPublicKey);
+    requireMember(members, senderPublicKey);
+
+    byte[] encryptedKey = CommunicationData.makePrivateByteArray(
+      CommunicationCipher.ENCRYPTED_KEY_LENGTH
+    );
+    Util.arrayCopyNonAtomic(
+      data,
+      (short) (PUBLIC_KEYS_OFFSET + length),
+      encryptedKey,
+      (short) 0,
+      CommunicationCipher.ENCRYPTED_KEY_LENGTH
+    );
+    byte[] key = cipher.decrypt(senderPublicKey, context(members, cipher), encryptedKey);
+
+    return new Bundle(key, members, cipher);
+  }
+
+  byte[] encryptPackets(byte[] recipients, byte[] ownPublicKey, CommunicationCipher cipher) {
+    short count = (short) (publicKeys.length / PUBLIC_KEY_LENGTH - 1);
+    short packetLength = packetLength();
+
+    if (packetLength > (short) (0x7FFF / count)) {
+      CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
+    }
+
+    byte[] data = new byte[(short) (packetLength * count)];
+    byte[] recipient = new byte[PUBLIC_KEY_LENGTH];
+    byte[] context = context(publicKeys, cipher);
+    short offset = 0;
+
+    for (
+      short memberOffset = 0;
+      memberOffset < recipients.length;
+      memberOffset += PUBLIC_KEY_LENGTH
+    ) {
+      if (
+        Util.arrayCompare(recipients, memberOffset, ownPublicKey, (short) 0, PUBLIC_KEY_LENGTH) == 0
+      ) {
+        continue;
+      }
+
+      Util.arrayCopyNonAtomic(recipients, memberOffset, recipient, (short) 0, PUBLIC_KEY_LENGTH);
+      encrypt(recipient, cipher, context, data, offset);
+      offset += packetLength;
+    }
+
+    return data;
+  }
+
+  private short packetLength() {
+    return (short) (PUBLIC_KEYS_OFFSET +
+      publicKeys.length +
+      CommunicationCipher.ENCRYPTED_KEY_LENGTH);
+  }
+
+  private void encrypt(
+    byte[] recipientPublicKey,
+    CommunicationCipher cipher,
+    byte[] context,
+    byte[] data,
+    short offset
+  ) {
+    data[offset] = VERSION;
+    Util.setShort(data, (short) (offset + 1), (short) (publicKeys.length / PUBLIC_KEY_LENGTH));
+    Util.arrayCopyNonAtomic(
+      publicKeys,
+      (short) 0,
+      data,
+      (short) (offset + PUBLIC_KEYS_OFFSET),
+      (short) publicKeys.length
+    );
+    cipher.encrypt(
+      recipientPublicKey,
+      context,
+      key,
+      data,
+      (short) (offset + PUBLIC_KEYS_OFFSET + publicKeys.length)
+    );
+  }
+
+  boolean matches(Bundle other) {
+    return (
+      publicKeys.length == other.publicKeys.length &&
+      Util.arrayCompare(
+        publicKeys,
+        (short) 0,
+        other.publicKeys,
+        (short) 0,
+        (short) publicKeys.length
+      ) ==
+      0 &&
+      Util.arrayCompare(key, (short) 0, other.key, (short) 0, KEY_LENGTH) == 0
+    );
+  }
+
+  private static byte[] context(byte[] publicKeys, CommunicationCipher cipher) {
+    byte[] context = new byte[(short) (CONTEXT.length + 1 + publicKeys.length)];
+    Util.arrayCopyNonAtomic(CONTEXT, (short) 0, context, (short) 0, (short) CONTEXT.length);
+    context[CONTEXT.length] = VERSION;
+    Util.arrayCopyNonAtomic(
+      publicKeys,
+      (short) 0,
+      context,
+      (short) (CONTEXT.length + 1),
+      (short) publicKeys.length
+    );
+
+    return cipher.hash(context);
+  }
+
+  private static void requirePublicKeysLength(short length) {
+    if (
+      length < PUBLIC_KEY_LENGTH * 2 ||
+      length % PUBLIC_KEY_LENGTH != 0 ||
+      length > 0x7FFF - PUBLIC_KEYS_OFFSET - CommunicationCipher.ENCRYPTED_KEY_LENGTH
+    ) {
+      CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
+    }
+  }
+
+  private static void requireCanonicalMembers(byte[] publicKeys) {
+    for (short offset = 0; offset < publicKeys.length; offset += PUBLIC_KEY_LENGTH) {
+      CommunicationCipher.requirePublicKey(publicKeys, offset, PUBLIC_KEY_LENGTH);
+
+      if (
+        offset > 0 &&
+        CommunicationCipher.compareUnsigned(
+          publicKeys,
+          (short) (offset - PUBLIC_KEY_LENGTH),
+          publicKeys,
+          offset,
+          PUBLIC_KEY_LENGTH
+        ) >=
+        0
+      ) {
+        CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
+      }
+    }
+  }
+
+  private static void requireMember(byte[] publicKeys, byte[] publicKey) {
+    if (publicKey != null && publicKey.length == PUBLIC_KEY_LENGTH) {
+      for (short offset = 0; offset < publicKeys.length; offset += PUBLIC_KEY_LENGTH) {
+        if (Util.arrayCompare(publicKeys, offset, publicKey, (short) 0, PUBLIC_KEY_LENGTH) == 0) {
+          return;
+        }
+      }
+    }
+
+    ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+  }
+}

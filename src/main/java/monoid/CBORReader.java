@@ -158,7 +158,7 @@ public abstract class CBORReader implements ByteSource {
   }
 
   public byte[] bytes() {
-    return bytesLike(CBOR.TYPE_BYTES);
+    return bytesLike(CBOR.TYPE_BYTES, false);
   }
 
   /** Read the byte-string header, leaving getOffset() at its logical content offset. */
@@ -167,7 +167,22 @@ public abstract class CBORReader implements ByteSource {
   }
 
   public byte[] bytes(short expectedLength) {
-    byte[] bytes = bytesLike(CBOR.TYPE_BYTES);
+    byte[] bytes = bytesLike(CBOR.TYPE_BYTES, false);
+
+    if (bytes.length != expectedLength) {
+      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+    }
+
+    return bytes;
+  }
+
+  /** Returns a global array whose reference must remain within the current call chain. */
+  public byte[] bytesGlobal() {
+    return bytesLike(CBOR.TYPE_BYTES, true);
+  }
+
+  public byte[] bytesGlobal(short expectedLength) {
+    byte[] bytes = bytesLike(CBOR.TYPE_BYTES, true);
 
     if (bytes.length != expectedLength) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
@@ -185,7 +200,7 @@ public abstract class CBORReader implements ByteSource {
   }
 
   public byte[] text() {
-    return bytesLike(CBOR.TYPE_TEXT);
+    return bytesLike(CBOR.TYPE_TEXT, false);
   }
 
   private short bytesLikeLength(byte type) {
@@ -210,10 +225,12 @@ public abstract class CBORReader implements ByteSource {
     return length;
   }
 
-  private byte[] bytesLike(byte type) {
+  private byte[] bytesLike(byte type, boolean global) {
     short length = bytesLikeLength(type);
 
-    byte[] out = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
+    byte[] out = global
+      ? (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, length)
+      : JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
 
     read(state[OFFSET], out, (short) 0, length);
 

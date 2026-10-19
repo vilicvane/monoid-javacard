@@ -52,6 +52,41 @@ public class CBORTest {
   }
 
   @Test
+  public void readGlobalByteStrings() {
+    byte[] request = Hex.decode("a36161430102036162406174f5");
+    CBORBufferReader reader = new CBORBufferReader(request);
+    reader.map();
+
+    Assertions.assertArrayEquals(
+      new byte[] { 1, 2, 3 },
+      reader.requireKey("a".getBytes()).bytesGlobal()
+    );
+    Assertions.assertArrayEquals(
+      new byte[] { 1, 2, 3 },
+      reader.requireKey("a".getBytes()).bytesGlobal((short) 3)
+    );
+    Assertions.assertArrayEquals(new byte[0], reader.requireKey("b".getBytes()).bytesGlobal());
+    Assertions.assertTrue(reader.requireKey("t".getBytes()).bool());
+    Assertions.assertArrayEquals(Hex.decode("a36161430102036162406174f5"), request);
+  }
+
+  @Test
+  public void rejectInvalidGlobalByteStrings() {
+    CBORBufferReader reader = new CBORBufferReader(Hex.decode("43010203"));
+    ISOException exception = Assertions.assertThrows(ISOException.class, () ->
+      reader.bytesGlobal((short) 2)
+    );
+
+    Assertions.assertEquals(ISO7816.SW_WRONG_DATA, exception.getReason());
+
+    for (String request : new String[] { "597fff00", "63010203" }) {
+      CBORBufferReader invalid = new CBORBufferReader(Hex.decode(request));
+      exception = Assertions.assertThrows(ISOException.class, () -> invalid.bytesGlobal());
+      Assertions.assertEquals(ISO7816.SW_WRONG_DATA, exception.getReason());
+    }
+  }
+
+  @Test
   public void rejectTruncatedSkippedValue() {
     CBORBufferReader reader = new CBORBufferReader(Hex.decode("a2616159040000616200"));
     reader.map();

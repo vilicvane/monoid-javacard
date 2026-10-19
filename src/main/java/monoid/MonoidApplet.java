@@ -11,11 +11,8 @@ import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javacard.framework.Shareable;
 import javacard.framework.Util;
-import javacard.security.RandomData;
 
 public class MonoidApplet extends Applet implements Monoid, AppletEvent {
-
-  public static final byte ID_LENGTH = 4;
 
   public static final byte PIN_TRY_LIMIT = 5;
   public static final byte MAX_PIN_LENGTH = 16;
@@ -27,8 +24,6 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   private static boolean versionInitialized;
 
-  public static byte[] id = new byte[ID_LENGTH];
-
   public static OwnerPIN pin;
 
   private static short pinState = PIN_UNSET;
@@ -36,13 +31,10 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   public static Safe safe;
 
-  public static byte[] safePIN;
-
   public static Keystore keystore;
 
   private static LibSecurity.Condition pinSetValidation;
   private static LibSecurity.Condition pinUpdateAuthorizationRequired;
-  private static LibSecurity.Condition safeUnlocked;
 
   public static void install(byte[] bArray, short bOffset, byte bLength) {
     versionInitialized = false;
@@ -86,12 +78,6 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
         return safe.isPINSet() || pinSet;
       }
     };
-    safeUnlocked = new LibSecurity.Condition() {
-      @Override
-      public boolean check() {
-        return safePIN != null;
-      }
-    };
 
     new MonoidApplet().register();
   }
@@ -116,22 +102,14 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
     pinSetValidation = null;
     pinUpdateAuthorizationRequired = null;
-    safeUnlocked = null;
 
     safe = null;
-    safePIN = null;
 
     keystore = null;
   }
 
   MonoidApplet() {
     safe = new Safe();
-
-    RandomData.OneShot random = RandomData.OneShot.open(RandomData.ALG_TRNG);
-
-    if (random != null) {
-      random.nextBytes(id, (short) 0, (short) id.length);
-    }
   }
 
   public void process(APDU apdu) {
@@ -194,8 +172,6 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
     safe.updatePIN(pin);
 
-    safePIN = Utils.duplicateAsPersistent(pin);
-
     if (getPINSetResult(SAFE_TRUE) == SAFE_FALSE) {
       setPIN(pin);
     }
@@ -214,28 +190,6 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
       if (JCSystem.getTransactionDepth() != 0) {
         JCSystem.abortTransaction();
       }
-    }
-  }
-
-  public static boolean isSafeUnlocked() {
-    return safePIN != null;
-  }
-
-  public static void checkSafeUnlocked() throws MonoidException {
-    if (LibSecurity.check(safeUnlocked, SAFE_FALSE) != SAFE_TRUE) {
-      MonoidException.throwIt(MonoidException.CODE_SAFE_LOCKED);
-      return;
-    }
-
-    if (safe.getPINBlockedResult() != SAFE_FALSE) {
-      MonoidException.throwIt(MonoidException.CODE_SAFE_BLOCKED);
-      return;
-    }
-
-    if (!safe.checkPIN(safePIN) || safe.getPINValidationResult() != SAFE_TRUE) {
-      safePIN = null;
-      MonoidException.throwIt(MonoidException.CODE_SAFE_LOCKED);
-      return;
     }
   }
 

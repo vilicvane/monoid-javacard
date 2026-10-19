@@ -12,15 +12,15 @@ import monoid.Safe;
 import monoid.SafeDataSource;
 import monoid.SafeItem;
 import monoid.SafeItemIterator;
-import monoidsafeidentity.MonoidSafeIdentityApplet;
-import monoidsafeidentity.SafeIdentityShareable;
+import monoididentity.IdentityShareable;
+import monoididentity.MonoidIdentityApplet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class ShareableSimulatorRuntimeTest {
 
   private static final AID IDENTITY_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
+    // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
     "f06d6f6e6f696400010000"
   );
   private static final AID MONOID_AID = AIDUtil.create(
@@ -37,14 +37,14 @@ public class ShareableSimulatorRuntimeTest {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
     ShareableSimulatorRuntime runtime = new ShareableSimulatorRuntime();
     CardSimulator simulator = new CardSimulator(runtime);
-    simulator.installApplet(IDENTITY_AID, MonoidSafeIdentityApplet.class);
+    simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
     simulator.installApplet(CALLER_AID, IdentityCallerApplet.class);
 
     try {
       Assertions.assertTrue(simulator.selectApplet(CALLER_AID));
       AID caller = JCSystem.getAID();
       AID previous = JCSystem.getPreviousContextAID();
-      SafeIdentityShareable identity = (SafeIdentityShareable) runtime.getSharedObject(
+      IdentityShareable identity = (IdentityShareable) runtime.getSharedObject(
         IDENTITY_AID,
         (byte) 0
       );
@@ -65,7 +65,7 @@ public class ShareableSimulatorRuntimeTest {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
     ShareableSimulatorRuntime runtime = new ShareableSimulatorRuntime();
     CardSimulator simulator = new CardSimulator(runtime);
-    simulator.installApplet(IDENTITY_AID, MonoidSafeIdentityApplet.class);
+    simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
     simulator.installApplet(MONOID_AID, MonoidApplet.class);
     simulator.installApplet(CALLER_AID, IdentityCallerApplet.class);
 

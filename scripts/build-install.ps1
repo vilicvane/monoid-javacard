@@ -22,11 +22,11 @@ if ($LASTEXITCODE -ne 0) {
 
 switch ($Mode) {
 	'Install' {
-		Invoke-GlobalPlatform --install build\javacard\monoidsafeidentity.cap;
+		Invoke-GlobalPlatform --install build\javacard\monoididentity.cap;
 		Invoke-GlobalPlatform --install build\javacard\monoid.cap;
 	}
 	'ReinstallMonoid' {
-		Write-Host 'Reinstalling Monoid clears all stored Safe items and PINs. Safe Identity is preserved.';
+		Write-Host 'Reinstalling Monoid clears all stored Safe items and PINs. Monoid Identity is preserved.';
 		Invoke-GlobalPlatform --uninstall build\javacard\monoid.cap;
 		Invoke-GlobalPlatform --install build\javacard\monoid.cap;
 	}

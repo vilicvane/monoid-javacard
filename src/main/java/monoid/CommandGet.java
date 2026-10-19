@@ -11,7 +11,7 @@ public class CommandGet extends Command {
   protected void run() {
     requireAuth();
 
-    MonoidApplet.checkSafeUnlocked();
+    MonoidApplet.safe.checkAccess();
 
     reader.map();
 

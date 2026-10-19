@@ -1,6 +1,5 @@
 package monoid;
 
-import com.licel.jcardsim.base.SimulatorRuntime;
 import com.licel.jcardsim.base.TransientMemory;
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
@@ -9,7 +8,8 @@ import java.util.Arrays;
 import javacard.framework.AID;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
-import monoidsafeidentity.MonoidSafeIdentityApplet;
+import main.ShareableSimulatorRuntime;
+import monoididentity.MonoidIdentityApplet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 public class MonoidInitializationTest {
 
   private static final AID IDENTITY_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
+    // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
     "f06d6f6e6f696400010000"
   );
   private static final String MONOID_AID =
@@ -33,11 +33,10 @@ public class MonoidInitializationTest {
   public void initialize() {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
     MonoidApplet.safe = null;
-    MonoidApplet.safePIN = null;
     MonoidApplet.keystore = null;
     memory = new CountingTransientMemory();
-    simulator = new CardSimulator(new SimulatorRuntime(memory));
-    simulator.installApplet(IDENTITY_AID, MonoidSafeIdentityApplet.class);
+    simulator = new CardSimulator(new ShareableSimulatorRuntime(memory));
+    simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
   }
 
   @AfterEach

@@ -8,12 +8,14 @@ public class CommandExport extends Command {
   protected void run() {
     requireAuth(AUTH_SAFE);
 
-    MonoidApplet.checkSafeUnlocked();
+    MonoidApplet.safe.checkAccess();
 
     reader.map();
 
     byte[] index = reader.requireKey(Text.index).bytes(Safe.INDEX_LENGTH);
-    byte[] recipientPublicKey = reader.requireKey(Text.recipientPublicKey).bytes((short) 65);
+    byte[] recipientPublicKey = reader.key(Text.recipientPublicKey)
+      ? reader.bytes((short) 65)
+      : null;
 
     SafeItem item = MonoidApplet.safe.require(index);
 

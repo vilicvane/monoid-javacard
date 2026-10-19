@@ -1,6 +1,7 @@
 package main;
 
 import com.licel.jcardsim.base.SimulatorRuntime;
+import com.licel.jcardsim.base.TransientMemory;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -15,6 +16,12 @@ import javacard.framework.Shareable;
 public class ShareableSimulatorRuntime extends SimulatorRuntime {
 
   private final Map<Object, Shareable> proxies = new IdentityHashMap<>();
+
+  public ShareableSimulatorRuntime() {}
+
+  public ShareableSimulatorRuntime(TransientMemory memory) {
+    super(memory);
+  }
 
   @Override
   public Shareable getSharedObject(AID serverAID, byte parameter) {

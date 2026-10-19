@@ -37,6 +37,7 @@
     "licel",
     "monoid",
     "monoiddemo",
+    "monoididentity",
     "monoidsafe",
     "OPAD",
     "SECP",

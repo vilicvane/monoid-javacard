@@ -1,4 +1,4 @@
-package monoid;
+package monoididentity;
 
 import com.licel.jcardsim.bouncycastle.asn1.sec.SECNamedCurves;
 import com.licel.jcardsim.bouncycastle.asn1.x9.X9ECParameters;
@@ -19,9 +19,7 @@ import javax.crypto.Cipher;
 import javax.crypto.Mac;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import monoidsafeidentity.CommunicationCipher;
-import monoidsafeidentity.LibSECP256r1;
-import monoidsafeidentity.SafeIdentityShareable;
+import monoid.SafeItem;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -31,23 +29,22 @@ public class ItemCipherTest {
   private static final byte[] KEY = { 1, 2, 3 };
   private static final byte[] ALIAS = "\u6d4b\u8bd5\u6761\u76ee".getBytes(StandardCharsets.UTF_8);
 
+  private final AESGcmCipher sharedCipher = new AESGcmCipher();
+
   @Test
   public void exportMatchesIndependentHostKeyDerivationAndGcm() throws Exception {
-    TestIdentity sender = new TestIdentity(1);
-    TestIdentity recipient = new TestIdentity(2);
-    ItemCipher cipher = new ItemCipher();
+    TestIdentity sender = new TestIdentity(1, sharedCipher);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher);
+    ItemCipher cipher = new ItemCipher(sharedCipher);
 
     for (boolean secret : new boolean[] { false, true }) {
       for (int length : new int[] { 0, 14, 15, 30, 31, 32, 128, 368, 369, 1024, 4096 }) {
         SafeItem item = item(bytes(length), secret);
-        byte[] encrypted = cipher.encrypt(sender, item, recipient.getPublicKey());
+        byte[] encrypted = encrypt(cipher, sender, item, recipient.getPublicKey());
 
         Assertions.assertEquals(length + 144, encrypted.length);
         Assertions.assertEquals(1, encrypted[0]);
-        Assertions.assertEquals(
-          encrypted.length <= 512 ? JCSystem.CLEAR_ON_RESET : JCSystem.NOT_A_TRANSIENT_OBJECT,
-          JCSystem.isTransient(encrypted)
-        );
+        Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(encrypted));
         Assertions.assertNotSame(item.data, encrypted);
         Assertions.assertArrayEquals(context(item), sender.lastContext);
         Assertions.assertArrayEquals(
@@ -67,9 +64,9 @@ public class ItemCipherTest {
 
   @Test
   public void importsIndependentHostCiphertext() throws Exception {
-    TestIdentity sender = new TestIdentity(1);
-    TestIdentity recipient = new TestIdentity(2);
-    ItemCipher cipher = new ItemCipher();
+    TestIdentity sender = new TestIdentity(1, sharedCipher);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher);
+    ItemCipher cipher = new ItemCipher(sharedCipher);
 
     for (boolean secret : new boolean[] { false, true }) {
       for (int length : new int[] {
@@ -94,10 +91,7 @@ public class ItemCipherTest {
         byte[] decrypted = decrypt(cipher, recipient, sender, item, encrypted);
 
         Assertions.assertArrayEquals(plaintext(item), decrypted);
-        Assertions.assertEquals(
-          decrypted.length <= 512 ? JCSystem.CLEAR_ON_RESET : JCSystem.NOT_A_TRANSIENT_OBJECT,
-          JCSystem.isTransient(decrypted)
-        );
+        Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(decrypted));
         Assertions.assertArrayEquals(original, encrypted);
       }
     }
@@ -105,9 +99,9 @@ public class ItemCipherTest {
 
   @Test
   public void contextBindsTheCompleteIndexAndUnambiguousNullableMetadata() throws Exception {
-    TestIdentity sender = new TestIdentity(1);
-    TestIdentity recipient = new TestIdentity(2);
-    ItemCipher cipher = new ItemCipher();
+    TestIdentity sender = new TestIdentity(1, sharedCipher);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher);
+    ItemCipher cipher = new ItemCipher(sharedCipher);
     SafeItem item = new SafeItem(
       null,
       INDEX,
@@ -123,7 +117,8 @@ public class ItemCipherTest {
       changed[index] ^= 1;
       Assertions.assertThrows(CryptoException.class, () ->
         cipher.decrypt(
-          recipient,
+          recipient.cipher,
+          null,
           changed,
           item.key,
           item.alias,
@@ -135,7 +130,8 @@ public class ItemCipherTest {
 
     Assertions.assertThrows(CryptoException.class, () ->
       cipher.decrypt(
-        recipient,
+        recipient.cipher,
+        null,
         INDEX,
         new byte[] { 1, 2 },
         new byte[] { 3 },
@@ -147,7 +143,8 @@ public class ItemCipherTest {
     for (int indexLength : new int[] { 0, 8, 9, 11 }) {
       Assertions.assertThrows(CryptoException.class, () ->
         cipher.decrypt(
-          recipient,
+          recipient.cipher,
+          null,
           new byte[indexLength],
           item.key,
           item.alias,
@@ -166,7 +163,8 @@ public class ItemCipherTest {
 
         Assertions.assertThrows(CryptoException.class, () ->
           cipher.decrypt(
-            recipient,
+            recipient.cipher,
+            null,
             INDEX,
             changedKey,
             alias,
@@ -176,7 +174,8 @@ public class ItemCipherTest {
         );
         Assertions.assertThrows(CryptoException.class, () ->
           cipher.decrypt(
-            recipient,
+            recipient.cipher,
+            null,
             INDEX,
             key,
             changedAlias,
@@ -199,9 +198,9 @@ public class ItemCipherTest {
 
   @Test
   public void rejectsMalformedContainersAndTamperingBeforeReturningPlaintext() throws Exception {
-    TestIdentity sender = new TestIdentity(1);
-    TestIdentity recipient = new TestIdentity(2);
-    ItemCipher cipher = new ItemCipher();
+    TestIdentity sender = new TestIdentity(1, sharedCipher);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher);
+    ItemCipher cipher = new ItemCipher(sharedCipher);
     SafeItem item = item(bytes(32), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
 
@@ -246,18 +245,18 @@ public class ItemCipherTest {
 
   @Test
   public void bindsExpectedSenderAndRecipient() throws Exception {
-    TestIdentity sender = new TestIdentity(1);
-    TestIdentity recipient = new TestIdentity(2);
-    TestIdentity other = new TestIdentity(3);
+    TestIdentity sender = new TestIdentity(1, sharedCipher);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher);
+    TestIdentity other = new TestIdentity(3, sharedCipher);
     SafeItem item = item(bytes(32), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
-    ItemCipher cipher = new ItemCipher();
+    ItemCipher cipher = new ItemCipher(sharedCipher);
 
     Assertions.assertThrows(CryptoException.class, () ->
       decrypt(cipher, recipient, other, item, encrypted)
     );
     Assertions.assertThrows(CryptoException.class, () ->
-      decrypt(new ItemCipher(), other, sender, item, encrypted)
+      decrypt(new ItemCipher(sharedCipher), other, sender, item, encrypted)
     );
     Assertions.assertArrayEquals(
       plaintext(item),
@@ -267,9 +266,9 @@ public class ItemCipherTest {
 
   @Test
   public void authenticatesPersistentPlaintextBeforeReturningIt() throws Exception {
-    TestIdentity sender = new TestIdentity(1);
-    TestIdentity recipient = new TestIdentity(2);
-    ItemCipher cipher = new ItemCipher();
+    TestIdentity sender = new TestIdentity(1, sharedCipher);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher);
+    ItemCipher cipher = new ItemCipher(sharedCipher);
     SafeItem item = item(bytes(4096), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
     byte[] changed = encrypted.clone();
@@ -287,12 +286,12 @@ public class ItemCipherTest {
 
   @Test
   public void repeatedExportsUseFreshKeysAndNonces() {
-    TestIdentity identity = new TestIdentity(1);
-    ItemCipher cipher = new ItemCipher();
+    TestIdentity identity = new TestIdentity(1, sharedCipher);
+    ItemCipher cipher = new ItemCipher(sharedCipher);
     SafeItem item = item(bytes(32), true);
-    byte[] first = cipher.encrypt(identity, item, identity.getPublicKey());
+    byte[] first = encrypt(cipher, identity, item, identity.getPublicKey());
     byte[] firstKey = identity.lastKey.clone();
-    byte[] second = cipher.encrypt(identity, item, identity.getPublicKey());
+    byte[] second = encrypt(cipher, identity, item, identity.getPublicKey());
 
     Assertions.assertFalse(Arrays.equals(firstKey, identity.lastKey));
     Assertions.assertFalse(
@@ -310,9 +309,9 @@ public class ItemCipherTest {
 
   @Test
   public void verifiesTheCompleteTagAgainOnEachOfThreeSuccessfulRounds() throws Exception {
-    TestIdentity sender = new TestIdentity(1);
-    TestIdentity recipient = new TestIdentity(2);
-    ItemCipher cipher = new ItemCipher();
+    TestIdentity sender = new TestIdentity(1, sharedCipher);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher);
+    ItemCipher cipher = new ItemCipher(sharedCipher);
     SafeItem item = item(bytes(32), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
     Field field = ItemCipher.class.getDeclaredField("tagValidation");
@@ -365,6 +364,24 @@ public class ItemCipherTest {
     return result;
   }
 
+  private static byte[] encrypt(
+    ItemCipher cipher,
+    TestIdentity sender,
+    SafeItem item,
+    byte[] recipientPublicKey
+  ) {
+    return cipher.encrypt(
+      sender.cipher,
+      null,
+      item.index,
+      item.key,
+      item.alias,
+      item.secret,
+      recipientPublicKey,
+      new TestData(item.data)
+    );
+  }
+
   private static byte[] decrypt(
     ItemCipher cipher,
     TestIdentity recipient,
@@ -373,7 +390,8 @@ public class ItemCipherTest {
     byte[] encrypted
   ) {
     return cipher.decrypt(
-      recipient,
+      recipient.cipher,
+      null,
       item.index,
       item.key,
       item.alias,
@@ -387,7 +405,7 @@ public class ItemCipherTest {
     byte[] communicationKey = bytes(32);
     byte[] context = context(item);
     byte[] nonce = bytes(12);
-    byte[] encryptedKey = sender.encryptCommunicationKey(
+    byte[] encryptedKey = sender.cipher.encrypt(
       recipient.getPublicKey(),
       context,
       communicationKey
@@ -458,14 +476,14 @@ public class ItemCipherTest {
   }
 
   /** Uses real HPKE while exposing only public fixtures to the independent payload oracle. */
-  private static class TestIdentity implements SafeIdentityShareable {
+  private static class TestIdentity {
 
     private final CommunicationCipher cipher;
     private final byte[] publicKey;
     private byte[] lastKey;
     private byte[] lastContext;
 
-    public TestIdentity(int scalar) {
+    public TestIdentity(int scalar, AESGcmCipher sharedCipher) {
       X9ECParameters curve = SECNamedCurves.getByName("secp256r1");
       publicKey = curve.getG().multiply(BigInteger.valueOf(scalar)).getEncoded(false);
       KeyPair identity = new KeyPair(KeyPair.ALG_EC_FP, (short) 256);
@@ -477,39 +495,59 @@ public class ItemCipherTest {
       privateKey[31] = (byte) scalar;
       privatePart.setS(privateKey, (short) 0, (short) privateKey.length);
       publicPart.setW(publicKey, (short) 0, (short) publicKey.length);
-      cipher = new CommunicationCipher(identity);
+      cipher = new CommunicationCipher(identity, sharedCipher) {
+        @Override
+        public byte[] encrypt(byte[] recipientPublicKey, byte[] context, byte[] key) {
+          lastKey = key.clone();
+          lastContext = context.clone();
+
+          return super.encrypt(recipientPublicKey, context, key);
+        }
+
+        @Override
+        public byte[] decrypt(byte[] senderPublicKey, byte[] context, byte[] encryptedKey) {
+          try {
+            return super.decrypt(senderPublicKey, context, encryptedKey);
+          } catch (IllegalArgumentException exception) {
+            // jCardSim leaks its host curve decoder's exception for an invalid ECDH point.
+            throw new CryptoException(CryptoException.ILLEGAL_VALUE);
+          }
+        }
+      };
     }
 
-    @Override
-    public byte[] getId() {
-      return new byte[4];
-    }
-
-    @Override
     public byte[] getPublicKey() {
       return publicKey.clone();
     }
+  }
 
-    @Override
-    public byte[] encryptCommunicationKey(byte[] recipientPublicKey, byte[] context, byte[] key) {
-      lastKey = key.clone();
-      lastContext = context.clone();
+  private static class TestData implements CommunicationDataShareable {
 
-      return cipher.encrypt(recipientPublicKey, context, key);
+    private final byte[] data;
+    private byte[] readBuffer;
+
+    TestData(byte[] data) {
+      this.data = data;
     }
 
     @Override
-    public byte[] decryptCommunicationKey(
-      byte[] senderPublicKey,
-      byte[] context,
-      byte[] encryptedKey
-    ) {
-      try {
-        return cipher.decrypt(senderPublicKey, context, encryptedKey);
-      } catch (IllegalArgumentException exception) {
-        // jCardSim leaks its host curve decoder's exception for an invalid ECDH point.
-        throw new CryptoException(CryptoException.ILLEGAL_VALUE);
+    public short getLength() {
+      Assertions.assertEquals(0, JCSystem.getTransactionDepth());
+      return (short) data.length;
+    }
+
+    @Override
+    public void read(short dataOffset, byte[] buffer, short offset, short length) {
+      Assertions.assertEquals(0, JCSystem.getTransactionDepth());
+      Assertions.assertTrue(buffer.length <= 256);
+
+      if (readBuffer == null) {
+        readBuffer = buffer;
+      } else {
+        Assertions.assertSame(readBuffer, buffer);
       }
+
+      System.arraycopy(data, dataOffset, buffer, offset, length);
     }
   }
 }

@@ -26,7 +26,7 @@ import monoid.MonoidApplet;
 import monoid.MonoidException;
 import monoid.Safe;
 import monoid.SafeException;
-import monoidsafeidentity.MonoidSafeIdentityApplet;
+import monoididentity.MonoidIdentityApplet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.MethodOrderer;
@@ -41,8 +41,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(BailExtension.class)
 public class MonoidAppletTest extends AppletTest {
 
-  private static final AID MONOID_SAFE_IDENTITY_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
+  private static final AID MONOID_IDENTITY_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
     "f06d6f6e6f696400010000"
   );
   private static final AID MONOID_AID = AIDUtil.create(
@@ -101,7 +101,7 @@ public class MonoidAppletTest extends AppletTest {
     if (simulator != null) {
       System.setProperty("com.licel.jcardsim.bouncycastle.rsa.allow_unsafe_mod", "true");
 
-      simulator.installApplet(MONOID_SAFE_IDENTITY_AID, MonoidSafeIdentityApplet.class);
+      simulator.installApplet(MONOID_IDENTITY_AID, MonoidIdentityApplet.class);
       simulator.installApplet(MONOID_AID, MonoidApplet.class);
     }
   }
@@ -111,60 +111,15 @@ public class MonoidAppletTest extends AppletTest {
   @Order(1)
   public void firstHello() throws Exception {
     CardManager manager = connect();
-    byte[] expectedId = null;
-    short expectedVersion = 0;
-    byte[] defaultResponse = null;
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 0);
 
-    for (int mode = 0; mode < 3; mode++) {
-      boolean includeSafe = mode == 2;
-      CBORBufferWriter cbor = new CBORBufferWriter();
+    CommandAPDU request = apdu(0x00, 0x20, 0, 0, writer.getDataBuffer());
+    ResponseAPDU response = manager.transmit(request);
 
-      cbor.map((short) (mode == 0 ? 0 : 1));
-      if (mode != 0) {
-        cbor.text("safe".getBytes());
-        cbor.bool(includeSafe);
-      }
-
-      CommandAPDU request = apdu(0x00, 0x20, 0, 0, cbor.getDataBuffer());
-      ResponseAPDU response = manager.transmit(request);
-
-      assertNoError(response);
-      assertFeatures(response);
-
-      if (mode == 0) {
-        defaultResponse = response.getData();
-      } else if (mode == 1) {
-        Assertions.assertArrayEquals(defaultResponse, response.getData());
-      }
-
-      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
-      Assertions.assertEquals(includeSafe ? 5 : 4, reader.map());
-      {
-        short version = reader.requireKey("version".getBytes()).integer();
-        byte[] id = reader.requireKey("id".getBytes()).bytes();
-        Assertions.assertEquals(4, id.length);
-        if (mode == 0) {
-          expectedVersion = version;
-          expectedId = id.clone();
-        } else {
-          Assertions.assertEquals(expectedVersion, version);
-          Assertions.assertArrayEquals(expectedId, id);
-        }
-
-        Assertions.assertFalse(reader.requireKey("pin".getBytes()).bool());
-        Assertions.assertEquals(includeSafe, reader.key("safe".getBytes()));
-
-        if (includeSafe) {
-          Assertions.assertEquals(4, reader.map());
-          Assertions.assertEquals(4, reader.requireKey("id".getBytes()).bytes().length);
-          byte[] publicKey = reader.requireKey("publicKey".getBytes()).bytes();
-          Assertions.assertEquals(65, publicKey.length);
-          Assertions.assertEquals(0x04, publicKey[0]);
-          Assertions.assertFalse(reader.requireKey("pin".getBytes()).bool());
-          Assertions.assertFalse(reader.requireKey("unlocked".getBytes()).bool());
-        }
-      }
-    }
+    assertNoError(response);
+    assertHello(response, false);
+    Assertions.assertArrayEquals(response.getData(), manager.transmit(request).getData());
   }
 
   @Test
@@ -261,11 +216,7 @@ public class MonoidAppletTest extends AppletTest {
   public void secondHello() throws Exception {
     CBORBufferWriter cbor = new CBORBufferWriter();
 
-    cbor.map((short) 1);
-    {
-      cbor.text("safe".getBytes());
-      cbor.bool(true);
-    }
+    cbor.map((short) 0);
 
     CommandAPDU request = apdu(0x00, 0x20, 0, 0, cbor.getDataBuffer());
 
@@ -273,22 +224,13 @@ public class MonoidAppletTest extends AppletTest {
 
     assertNoError(response);
 
-    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
-    reader.map();
-    {
-      Assertions.assertTrue(reader.requireKey("pin".getBytes()).integer() > 0);
-
-      reader.requireKey("safe".getBytes()).map();
-      {
-        Assertions.assertTrue(reader.requireKey("pin".getBytes()).integer() > 0);
-      }
-    }
+    assertHello(response, true);
   }
 
   @Test
   // @inplate-line {{java-test-order}}
   @Order(7)
-  public void unlockSafe() throws Exception {
+  public void updateSafePIN() throws Exception {
     CardManager manager = connect();
 
     authenticate(manager, true);
@@ -892,12 +834,12 @@ public class MonoidAppletTest extends AppletTest {
     );
 
     assertNoError(response);
-    assertFeatures(response);
+    assertHello(response, true);
 
     for (int chunkLength : new int[] { 15, 16, 17, 255 }) {
       response = transmitFragments(manager, 0x20, request, chunkLength);
       assertNoError(response);
-      assertFeatures(response);
+      assertHello(response, true);
     }
   }
 
@@ -910,12 +852,12 @@ public class MonoidAppletTest extends AppletTest {
     assertAcknowledgement(transmitFrame(manager, 0x90, 0x20, 0, 0, new byte[] { (byte) 0xFF }));
     ResponseAPDU response = transmitFragments(manager, 0x20, paddedHello(300), 255);
     assertNoError(response);
-    assertFeatures(response);
+    assertHello(response, true);
 
     assertAcknowledgement(transmitFrame(manager, 0x90, 0x20, 0, 0, new byte[] { (byte) 0xFF }));
     response = transmitFrame(manager, 0, 0x20, 0, 0, new byte[] { (byte) 0xA0 });
     assertNoError(response);
-    assertFeatures(response);
+    assertHello(response, true);
     Assertions.assertEquals(
       0x6883,
       transmitFrame(manager, 0xA0, 0x20, 0, 0, new byte[] { 0 }).getSW()
@@ -966,7 +908,7 @@ public class MonoidAppletTest extends AppletTest {
 
     ResponseAPDU response = transmitFragments(manager, 0x20, paddedHello(8192), 255);
     assertNoError(response);
-    assertFeatures(response);
+    assertHello(response, true);
 
     Assertions.assertEquals(
       0x6700,
@@ -1065,7 +1007,7 @@ public class MonoidAppletTest extends AppletTest {
       assertAcknowledgement(transmitFrame(manager, 0x90, 0x20, 0, 0, new byte[] { (byte) 0xA1 }));
 
       if (operation == 1) {
-        Assertions.assertTrue(simulator.selectApplet(MONOID_SAFE_IDENTITY_AID));
+        Assertions.assertTrue(simulator.selectApplet(MONOID_IDENTITY_AID));
       } else if (operation == 2) {
         simulator.reset();
       }
@@ -1139,7 +1081,7 @@ public class MonoidAppletTest extends AppletTest {
       }
 
       assertNoError(response);
-      assertFeatures(response);
+      assertHello(response, true);
       Assertions.assertEquals(0x6985, transmitFrame(manager, 0, 0xC0, 0, 0, new byte[0]).getSW());
     }
   }
@@ -2019,6 +1961,28 @@ public class MonoidAppletTest extends AppletTest {
   private void assertAcknowledgement(ResponseAPDU response) {
     Assertions.assertEquals(0x9000, response.getSW());
     Assertions.assertEquals(0, response.getData().length);
+  }
+
+  private void assertHello(ResponseAPDU response, boolean pinsSet) {
+    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+    Assertions.assertEquals(5, reader.map());
+    reader.requireKey("version".getBytes()).integer();
+    Assertions.assertEquals(4, reader.requireKey("id".getBytes()).bytes().length);
+
+    byte[] publicKey = reader.requireKey("publicKey".getBytes()).bytes();
+    Assertions.assertEquals(65, publicKey.length);
+    Assertions.assertEquals(0x04, publicKey[0]);
+    Assertions.assertFalse(reader.requireKey("bundle".getBytes()).bool());
+
+    Assertions.assertEquals(2, reader.requireKey("pins".getBytes()).map());
+    for (String pin : new String[] { "access", "safe" }) {
+      reader.requireKey(pin.getBytes());
+      if (pinsSet) {
+        Assertions.assertTrue(reader.integer() > 0);
+      } else {
+        Assertions.assertFalse(reader.bool());
+      }
+    }
   }
 
   private void assertFeatures(ResponseAPDU response) {

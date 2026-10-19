@@ -42,11 +42,11 @@ Now we can build the project with Gradle:
 Then install applets to a card with [gp] command:
 
 ```sh
-gp --install build/javacard/monoidsafeidentity.cap
+gp --install build/javacard/monoididentity.cap
 gp --install build/javacard/monoid.cap
 ```
 
-Keep the matching Safe Identity installed when replacing Monoid. See [Safe Identity](doc/safe-identity.md).
+Keep the matching Monoid Identity installed when replacing Monoid. See [Monoid Identity](doc/identity.md).
 
 Build and install with PowerShell:
 
@@ -79,7 +79,7 @@ Run tests on physical cards:
 # gp --uninstall build/javacard/monoid.cap
 
 # First installation only; preserve this applet across Monoid updates:
-# gp --install build/javacard/monoidsafeidentity.cap
+# gp --install build/javacard/monoididentity.cap
 gp --install build/javacard/monoid.cap
 ```
 
@@ -100,7 +100,7 @@ npx prettier --write .
 ## Architecture
 
 The _Monoid Applet_ owns Safe items, Access PIN, Safe PIN, key derivation and signing.
-The separate _Safe Identity Applet_ retains the card's identity across Monoid reinstallation.
+The separate _Monoid Identity Applet_ retains the card's identity across Monoid reinstallation.
 
 See [architecture](doc/architecture.md) for more details.
 
@@ -166,29 +166,22 @@ type Features = {
 #### `0x20` Hello
 
 ```ts
-type Request = {
-  /** Includes Safe information; defaults to false. */
-  safe?: boolean;
-};
+type Request = {};
 ```
 
 ```ts
 type Response = {
   version: number;
-  /** A 4-byte random id generated on _Monoid Applet_ installation. */
+  /** Persistent 4-byte random ID owned by Monoid Identity. */
   id: byte[];
-  features: Features;
-  /** Tries remaining for the PIN, or `false` if the PIN is not set. */
-  pin: number | false;
-  safe?: {
-    /** Persistent 4-byte random ID owned by Safe Identity. */
-    id: byte[];
-    /** Safe Identity P-256 public key, 65-byte uncompressed SEC 1. */
-    publicKey: byte[];
-    /** Tries remaining for the PIN, or `false` if the PIN is not set. */
-    pin: number | false;
-    /** Whether Monoid has unlocked Safe access. */
-    unlocked: boolean;
+  /** Monoid Identity P-256 public key, 65-byte uncompressed SEC 1. */
+  publicKey: byte[];
+  /** SHA-256 of the Bundle key, or false when not enrolled. */
+  bundle: byte[] | false;
+  /** Tries remaining, or false when the PIN is not set. */
+  pins: {
+    access: number | false;
+    safe: number | false;
   };
 };
 ```
@@ -220,6 +213,64 @@ type Request = {
 
 ```ts
 type Response = {};
+```
+
+#### `0x23` Create Bundle
+
+[Bundle initialization and format](doc/bundle.md).
+
+> Requires authentication with safe PIN.
+
+```ts
+type Request = {
+  /** Generates a new key, replacing any Bundle; at least two 65-byte public keys, including self. */
+  publicKeys: byte[][];
+};
+```
+
+```ts
+type Response = {
+  /** SHA-256 of the Bundle key. */
+  bundle: byte[];
+  /** Request order, excluding self. */
+  packets: {
+    publicKey: byte[];
+    data: byte[];
+  }[];
+};
+```
+
+#### `0x24` Import Bundle
+
+> Requires authentication with safe PIN.
+
+```ts
+type Request = {
+  senderPublicKey: byte[];
+  data: byte[];
+};
+```
+
+```ts
+type Response = {
+  /** Identical key and membership succeed unchanged; differences conflict. */
+  bundle: byte[];
+};
+```
+
+#### `0x25` Reset Bundle
+
+> Requires authentication with safe PIN.
+
+```ts
+/** Preserves Identity, items and both PINs. */
+type Request = {};
+```
+
+```ts
+type Response = {
+  bundle: false;
+};
 ```
 
 #### `0x2F` System information
@@ -386,8 +437,8 @@ type Response = {};
 ```ts
 type Request = {
   index: byte[];
-  /** Recipient Safe Identity public key (65-byte uncompressed SEC 1). */
-  recipientPublicKey: byte[];
+  /** Required without a Bundle (65-byte SEC 1); ignored when enrolled. */
+  recipientPublicKey?: byte[];
 };
 ```
 
@@ -409,8 +460,8 @@ type Response = {
 type Request = {
   /** Original index used for Export. */
   index: byte[];
-  /** Expected sender's Safe Identity public key (65-byte uncompressed SEC 1). */
-  senderPublicKey: byte[];
+  /** Required for asymmetric envelopes; not needed for Bundle envelopes. */
+  senderPublicKey?: byte[];
   key?: byte[];
   alias?: string;
   /** Export response data; index, key and alias must match that export. */

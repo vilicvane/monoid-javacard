@@ -15,22 +15,24 @@ Applet AIDs append a one-byte applet number and a two-byte version.
 <!-- @inplate
 | Component | Package AID | Applet AID |
 | --- | --- | --- |
-| Safe Identity | `{{hex MONOID_SAFE_IDENTITY_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_SAFE_IDENTITY_AID uppercase=true}}` |
+| Monoid Identity | `{{hex MONOID_IDENTITY_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_IDENTITY_AID uppercase=true}}` |
 | Monoid | `{{hex MONOID_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_AID uppercase=true}}` |
 -->
 
-| Component     | Package AID        | Applet AID               |
-| ------------- | ------------------ | ------------------------ |
-| Safe Identity | `F06D6F6E6F696400` | `F06D6F6E6F696400010000` |
-| Monoid        | `F06D6F6E6F696402` | `F06D6F6E6F696402010000` |
+| Component       | Package AID        | Applet AID               |
+| --------------- | ------------------ | ------------------------ |
+| Monoid Identity | `F06D6F6E6F696400` | `F06D6F6E6F696400010000` |
+| Monoid          | `F06D6F6E6F696402` | `F06D6F6E6F696402010000` |
 
 <!-- @end -->
 
 Identity and Monoid use separate CAP files. Install Identity before Monoid.
 Monoid owns Safe item storage, both PINs, derivation and signing in one applet
-context. Safe Identity keeps its own key pair and random ID across Monoid
-replacement; it has no PIN or authorization session. See [Safe Identity](safe-identity.md)
-for its card-local interface and communication key format.
+context. Monoid Identity keeps its key pair, random ID and optional Bundle across
+Monoid replacement; it has no PIN or authorization session. It performs complete
+item encryption and decryption, enforcing Bundle export policy internally. See
+[Monoid Identity](identity.md) for its card-local interface and [Bundle](bundle.md)
+for fixed membership and enrollment.
 
 The installation script defaults to `Install`, which does not delete installed
 applets. Explicit `ReinstallMonoid` clears all Safe items and both PINs while
@@ -40,7 +42,7 @@ preserving Identity. Export items before reinstallation and import them afterwar
 sequenceDiagram
     participant MonoidApp
     participant MonoidApplet
-    participant SafeIdentityApplet
+    participant MonoidIdentityApplet
 
     MonoidApp ->> MonoidApplet: authenticate
     MonoidApplet -->> MonoidApplet: verify Access or Safe PIN
@@ -57,11 +59,11 @@ sequenceDiagram
     MonoidApplet -->> MonoidApplet: read key, derive and sign
     MonoidApplet -->> MonoidApp: signature
 
-    note over MonoidApplet, SafeIdentityApplet: Item Transfer
+    note over MonoidApplet, MonoidIdentityApplet: Item Transfer
 
     MonoidApp ->> MonoidApplet: export or import
-    MonoidApplet <<->> SafeIdentityApplet: encrypt or decrypt communication key
-    MonoidApplet -->> MonoidApplet: encrypt or decrypt item
+    MonoidApplet <<->> MonoidIdentityApplet: encrypt or decrypt complete item
+    MonoidApplet -->> MonoidApplet: store authenticated imported data
     MonoidApplet -->> MonoidApp: response
 ```
 
@@ -105,13 +107,15 @@ window as GET RESPONSE advances. Large key or alias metadata can still require
 a larger window. Small signing keys are materialized only when the signing or
 derivation operation needs them.
 
-Export and Import keep their complete cryptographic work buffer private to Safe.
-Buffers up to 512 bytes try transient memory, falling back to persistent storage
-when necessary; larger buffers use temporary persistent storage directly.
-Import verifies the complete artifact before publishing data. These operations
+Export and Import keep their complete cryptographic work buffer private to Identity.
+Input snapshots and complete results use temporary persistent arrays. Cryptographic
+working state and bounded cross-applet buffers remain in transient memory.
+`CommunicationDataShareable` transfers bounded ranges across the applet boundary;
+completed results admit only the original caller. Import verifies the complete
+artifact before publishing data. These operations
 therefore need temporary persistent space in addition to the stored item.
 
-APDU fields and the 8192-byte complete-request limit are unchanged.
+The complete-request limit is 8192 bytes.
 
 ## Derivation cache
 
@@ -134,12 +138,17 @@ Taproot operations still compute the public keys needed for their adjustments.
 
 ## Authorization
 
-Access PIN and Safe PIN retain their separate command permissions. Monoid keeps
-the validated Safe PIN to reopen its internal storage when needed. Ordinary APDU
-authorization clears on deselection; Safe storage authorization clears on reset,
-PIN verification or PIN update. Verifying a PIN checks both the native
-`OwnerPIN` result and validation flag before publishing redundant authorization
-state. Subsequent storage access also checks the Safe PIN try counter.
+Access PIN and Safe PIN retain their separate command permissions. Commands
+validate their current authorization before opening internal Safe access; the
+Safe PIN must be set and unblocked. Sensitive commands additionally require Safe
+PIN authorization. Monoid does not persist a copy of the Safe PIN or automatically
+reverify it during ordinary storage access.
+
+Ordinary APDU authorization clears on deselection. Verifying a PIN checks both
+the native `OwnerPIN` result and validation flag before publishing redundant
+authorization state; subsequent access checks repeat three times. Only successful
+Safe PIN authentication resets its failed-attempt counter. Access-authenticated
+storage operations do not reset that counter.
 
 Safe storage, item objects and derivation caches belong to Monoid's applet
 context. They no longer expose a separate Safe Shareable interface. Replacing
@@ -147,6 +156,9 @@ Monoid removes those objects together with both PINs; a replacement applet canno
 use the old Safe PIN to access a surviving standalone Safe.
 
 Identity remains a separate applet and admits Monoid by its version-independent
-AID prefix. AIDs identify applications, not their code. Preserving Identity
-permits recovery of previously exported items after Monoid reinstallation.
+AID prefix. AIDs identify applications, not their code. Preserving Identity and
+its Bundle state permits recovery of the corresponding exported items after
+Monoid reinstallation. Hello exposes the stable Identity ID and public key,
+the Bundle key hash or `false`, and both PIN try counters. Cryptographic capability
+declarations are returned by System Information.
 Third-party authorization and signing interfaces are not yet implemented.

@@ -1,4 +1,4 @@
-package monoidsafeidentity;
+package monoididentity;
 
 import javacard.security.ECKey;
 

@@ -19,7 +19,7 @@ public class CommandList extends Command implements CBORResponse {
   protected void run() throws MonoidException {
     requireAuth();
 
-    MonoidApplet.checkSafeUnlocked();
+    MonoidApplet.safe.checkAccess();
 
     reader.map();
 

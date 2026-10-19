@@ -21,7 +21,7 @@ public final class CommandViewKey extends Command {
   protected void run() {
     requireAuth();
 
-    MonoidApplet.checkSafeUnlocked();
+    MonoidApplet.safe.checkAccess();
 
     Keystore keystore = MonoidApplet.keystore;
 

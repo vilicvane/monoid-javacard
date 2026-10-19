@@ -20,7 +20,7 @@ import monoid.Monoid001Derivation;
 import monoid.MonoidApplet;
 import monoid.MonoidException;
 import monoid.WeierstrassCurve;
-import monoidsafeidentity.MonoidSafeIdentityApplet;
+import monoididentity.MonoidIdentityApplet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,8 +28,8 @@ import org.junit.jupiter.api.Test;
 
 public class Monoid001Test extends AppletTest {
 
-  private static final AID MONOID_SAFE_IDENTITY_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
+  private static final AID MONOID_IDENTITY_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
     "f06d6f6e6f696400010000"
   );
   private static final AID MONOID_AID = AIDUtil.create(
@@ -55,7 +55,7 @@ public class Monoid001Test extends AppletTest {
     System.setProperty("com.licel.jcardsim.bouncycastle.rsa.allow_unsafe_mod", "true");
     resetAppletState();
 
-    simulator.installApplet(MONOID_SAFE_IDENTITY_AID, MonoidSafeIdentityApplet.class);
+    simulator.installApplet(MONOID_IDENTITY_AID, MonoidIdentityApplet.class);
     simulator.installApplet(MONOID_AID, MonoidApplet.class);
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
 
@@ -72,7 +72,7 @@ public class Monoid001Test extends AppletTest {
   @AfterEach
   public void clear() {
     simulator.deleteApplet(MONOID_AID);
-    simulator.deleteApplet(MONOID_SAFE_IDENTITY_AID);
+    simulator.deleteApplet(MONOID_IDENTITY_AID);
     resetAppletState();
   }
 
@@ -80,7 +80,6 @@ public class Monoid001Test extends AppletTest {
     // Separate simulator instances share Java static fields within the test JVM.
     MonoidApplet.version = 0;
     MonoidApplet.safe = null;
-    MonoidApplet.safePIN = null;
     MonoidApplet.keystore = null;
   }
 
@@ -126,7 +125,7 @@ public class Monoid001Test extends AppletTest {
 
     Assertions.assertNotSame(workingKeys[0], workingKeys[1]);
     Assertions.assertNotSame(workingPublicKeys[0], workingPublicKeys[1]);
-    Assertions.assertTrue(simulator.selectApplet(MONOID_SAFE_IDENTITY_AID));
+    Assertions.assertTrue(simulator.selectApplet(MONOID_IDENTITY_AID));
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
 
     for (byte[] key : workingKeys) {

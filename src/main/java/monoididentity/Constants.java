@@ -1,4 +1,4 @@
-package monoidsafeidentity;
+package monoididentity;
 
 public final class Constants {
 

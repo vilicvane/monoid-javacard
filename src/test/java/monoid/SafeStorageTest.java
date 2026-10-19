@@ -9,7 +9,7 @@ import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import main.ShareableSimulatorRuntime;
-import monoidsafeidentity.MonoidSafeIdentityApplet;
+import monoididentity.MonoidIdentityApplet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,7 +20,7 @@ import org.junit.jupiter.api.function.Executable;
 public class SafeStorageTest {
 
   private static final AID IDENTITY_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
+    // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
     "f06d6f6e6f696400010000"
   );
   private static final AID MONOID_AID = AIDUtil.create(
@@ -39,7 +39,7 @@ public class SafeStorageTest {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
     runtime = new StorageRuntime();
     simulator = new CardSimulator(runtime);
-    simulator.installApplet(IDENTITY_AID, MonoidSafeIdentityApplet.class);
+    simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
     simulator.installApplet(MONOID_AID, MonoidApplet.class);
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
     safe = new Safe();

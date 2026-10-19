@@ -1,4 +1,4 @@
-package monoidsafeidentity;
+package monoididentity;
 
 import com.licel.jcardsim.bouncycastle.asn1.sec.SECNamedCurves;
 import com.licel.jcardsim.bouncycastle.asn1.x9.X9ECParameters;
@@ -43,6 +43,8 @@ public class CommunicationCipherTest {
   private static final byte[] RECIPIENT_PUBLIC_KEY = Hex.decode(
     "04423e363e1cd54ce7b7573110ac121399acbc9ed815fae03b72ffbd4c18b01836835c5a09513f28fc971b7266cfde2e96afe84bb0f266920e82c4f53b36e1a78d"
   );
+
+  private final AESGcmCipher sharedCipher = new AESGcmCipher();
 
   @Test
   public void unsignedComparisonRespectsByteBoundariesOffsetsAndLaterBytes() throws Exception {
@@ -90,8 +92,8 @@ public class CommunicationCipherTest {
       Assertions.assertTrue((highPublicKey[offset] & 0x80) != 0);
     }
 
-    CommunicationCipher low = new CommunicationCipher(lowIdentity);
-    CommunicationCipher high = new CommunicationCipher(highIdentity);
+    CommunicationCipher low = new CommunicationCipher(lowIdentity, sharedCipher);
+    CommunicationCipher high = new CommunicationCipher(highIdentity, sharedCipher);
     byte[] encryptedKey = low.encrypt(highPublicKey, CONTEXT, COMMUNICATION_KEY);
     Assertions.assertArrayEquals(
       COMMUNICATION_KEY,
@@ -121,7 +123,10 @@ public class CommunicationCipherTest {
     );
     // Keep the RFC key schedule, with this interface's 32-byte plaintext and empty AAD.
     byte[] encryptedKey = concat(enc, cipher.doFinal(COMMUNICATION_KEY));
-    CommunicationCipher recipient = new CommunicationCipher(identity(RECIPIENT_PRIVATE_KEY));
+    CommunicationCipher recipient = new CommunicationCipher(
+      identity(RECIPIENT_PRIVATE_KEY),
+      sharedCipher
+    );
 
     Assertions.assertArrayEquals(
       COMMUNICATION_KEY,
@@ -131,14 +136,20 @@ public class CommunicationCipherTest {
 
   @Test
   public void freshEncryptionsMatchIndependentHostDecryption() throws Exception {
-    CommunicationCipher sender = new CommunicationCipher(identity(SENDER_PRIVATE_KEY));
-    CommunicationCipher recipient = new CommunicationCipher(identity(RECIPIENT_PRIVATE_KEY));
+    CommunicationCipher sender = new CommunicationCipher(
+      identity(SENDER_PRIVATE_KEY),
+      sharedCipher
+    );
+    CommunicationCipher recipient = new CommunicationCipher(
+      identity(RECIPIENT_PRIVATE_KEY),
+      sharedCipher
+    );
     byte[] first = sender.encrypt(RECIPIENT_PUBLIC_KEY, CONTEXT, COMMUNICATION_KEY);
     byte[] second = sender.encrypt(RECIPIENT_PUBLIC_KEY, CONTEXT, COMMUNICATION_KEY);
 
     Assertions.assertEquals(113, first.length);
     Assertions.assertNotSame(first, second);
-    Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(first));
+    Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(first));
     Assertions.assertFalse(Arrays.equals(first, second));
 
     for (byte[] encryptedKey : new byte[][] { first, second }) {
@@ -146,7 +157,7 @@ public class CommunicationCipherTest {
       byte[] original = encryptedKey.clone();
       byte[] key = recipient.decrypt(SENDER_PUBLIC_KEY, CONTEXT, encryptedKey);
       Assertions.assertNotSame(encryptedKey, key);
-      Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(key));
+      Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(key));
       Assertions.assertArrayEquals(COMMUNICATION_KEY, key);
       Assertions.assertArrayEquals(original, encryptedKey);
     }
@@ -155,7 +166,7 @@ public class CommunicationCipherTest {
   @Test
   public void selfEncryptionKeepsTheStableIdentity() {
     KeyPair identity = identity(SENDER_PRIVATE_KEY);
-    CommunicationCipher cipher = new CommunicationCipher(identity);
+    CommunicationCipher cipher = new CommunicationCipher(identity, sharedCipher);
 
     for (int pass = 0; pass < 2; pass++) {
       byte[] encryptedKey = cipher.encrypt(SENDER_PUBLIC_KEY, CONTEXT, COMMUNICATION_KEY);
@@ -173,8 +184,14 @@ public class CommunicationCipherTest {
 
   @Test
   public void authenticationBindsSenderRecipientContextAndCiphertext() {
-    CommunicationCipher sender = new CommunicationCipher(identity(SENDER_PRIVATE_KEY));
-    CommunicationCipher recipient = new CommunicationCipher(identity(RECIPIENT_PRIVATE_KEY));
+    CommunicationCipher sender = new CommunicationCipher(
+      identity(SENDER_PRIVATE_KEY),
+      sharedCipher
+    );
+    CommunicationCipher recipient = new CommunicationCipher(
+      identity(RECIPIENT_PRIVATE_KEY),
+      sharedCipher
+    );
     byte[] encryptedKey = sender.encrypt(RECIPIENT_PUBLIC_KEY, CONTEXT, COMMUNICATION_KEY);
 
     Assertions.assertThrows(RuntimeException.class, () ->
@@ -206,8 +223,14 @@ public class CommunicationCipherTest {
 
   @Test
   public void tagVerificationRunsFreshChecksAndFailsConservativelyInEachRound() throws Exception {
-    CommunicationCipher sender = new CommunicationCipher(identity(SENDER_PRIVATE_KEY));
-    CommunicationCipher recipient = new CommunicationCipher(identity(RECIPIENT_PRIVATE_KEY));
+    CommunicationCipher sender = new CommunicationCipher(
+      identity(SENDER_PRIVATE_KEY),
+      sharedCipher
+    );
+    CommunicationCipher recipient = new CommunicationCipher(
+      identity(RECIPIENT_PRIVATE_KEY),
+      sharedCipher
+    );
     byte[] encryptedKey = sender.encrypt(RECIPIENT_PUBLIC_KEY, CONTEXT, COMMUNICATION_KEY);
     Field validation = CommunicationCipher.class.getDeclaredField("tagValidation");
     validation.setAccessible(true);
@@ -254,8 +277,14 @@ public class CommunicationCipherTest {
 
   @Test
   public void rejectsNonCanonicalAndOffCurvePublicKeys() {
-    CommunicationCipher sender = new CommunicationCipher(identity(SENDER_PRIVATE_KEY));
-    CommunicationCipher recipient = new CommunicationCipher(identity(RECIPIENT_PRIVATE_KEY));
+    CommunicationCipher sender = new CommunicationCipher(
+      identity(SENDER_PRIVATE_KEY),
+      sharedCipher
+    );
+    CommunicationCipher recipient = new CommunicationCipher(
+      identity(RECIPIENT_PRIVATE_KEY),
+      sharedCipher
+    );
     byte[] encryptedKey = sender.encrypt(RECIPIENT_PUBLIC_KEY, CONTEXT, COMMUNICATION_KEY);
     byte[] infinity = new byte[65];
     byte[] offCurve = new byte[65];
@@ -289,7 +318,10 @@ public class CommunicationCipherTest {
 
   @Test
   public void rejectsUnsupportedKeyAndEnvelopeLengths() {
-    CommunicationCipher sender = new CommunicationCipher(identity(SENDER_PRIVATE_KEY));
+    CommunicationCipher sender = new CommunicationCipher(
+      identity(SENDER_PRIVATE_KEY),
+      sharedCipher
+    );
 
     for (int length : new int[] { 0, 16, 31, 33 }) {
       Assertions.assertThrows(RuntimeException.class, () ->
