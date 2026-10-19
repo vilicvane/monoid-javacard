@@ -246,3 +246,10 @@
 
 130. [user] 要求添加卸载所有Monoid Applet的脚本。[agent] 新增scripts/uninstall.ps1，可选Reader；通过GP注册表From归属枚举正式02/01/00包实例，依次先删实例再删包，覆盖旧版AID、多实例及部分安装，无需CAP或构建。跳过未安装项，GP失败即停止，不使用force、不删除其他包；执行会清除Safe数据及Identity。AID由Inplate同步，README给出调用方式；Windows PowerShell5.1下24组隔离mock检查通过，含历史实卡注册表fixture，格式与模板检查通过，未执行实卡卸载。
 
+## ae6a2e9
+
+131. [user] 要求设计卡上Security Key Applet及Monoid对其他Applet的授权流程，未来由APP管理授权；提出通过Safe Item Type授权管理凭证记录，并明确FIDO PIN由Security Key Applet自行保存验证；要求UP等缺乏硬件验证手段的声明默认开启以方便早期调试，后续允许用户在APP关闭。[agent] 提议CTAP前端、Monoid受限签名/Type范围数据访问、Safe持久授权/凭证分层，授权绑定安装实例且每次核对，与CTAP PIN/UV分离；软件UP策略不等于跳过真实PIN/授权检查或统一置真所有协议字段。识别CLEAR_ON_DESELECT跨上下文限制、CAP接口依赖阻碍独立升级、普通可编辑Safe Item不宜保存授权表等边界。仅设计研究，具体API未批准、未改生产代码或访问实卡，详见 [Security Key与Applet授权草案](./131.md)。
+
+132. [user] 要求先验证Applet切换流程。[agent] 在55690320隔离验证Client→Monoid SIO→Safe的Monoid-001/P-256派生签名；原路径因DESELECT失败，改RESET后未缓存派生仍失败，单独启用SHA-512 externalAccess后通过。完成12轮普通APDU/SIO交替、冷复位及保留客户端/Safe/Identity独立卸装Monoid，60次独立验签和14次公钥对照通过；切回Monoid需重验普通命令认证，每轮空闲RAM稳定。模拟器368断言通过但不模拟完整防火墙且验签使用显式host shim。接口CAP独立及不持久持有SIO的卸载方案可行，正式授权/CTAP/API未实现；临时包全清、原注册表和SELECT/Hello基线一致，详见 [Applet切换与SIO签名验证](./132.md)。
+
+133. [user] 在核对真实SIO流程及Safe既有RESET用法后，批准正式接入相关适配。[agent] P-256/Monoid-001初始化、派生、缓存工作副本和ECDSA结果迁为RESET；SHA-512/HMAC/ECDH启用externalAccess，保留原DESELECT复制方法及命令认证/传输生命周期。新增切换保留、复位清零和缓存恢复测试；302项模拟器测试、三份CAP及格式/模板检查通过。冻结正式源码实卡验证SIO派生签名、6轮入口交替、复位和8组既有算法，累计68次独立验签、25次公钥核对；临时实例/包全清、原卡基线一致。正式SIO授权API和CTAP仍未新增，详见 [P-256共享签名正式适配](./133.md)。

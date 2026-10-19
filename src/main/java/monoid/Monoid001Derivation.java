@@ -27,12 +27,12 @@ public final class Monoid001Derivation extends KeyDerivation {
     short counterOffset = (short) (contextOffset + context.length);
     byte[] data = JCSystem.makeTransientByteArray(
       (short) (counterOffset + 2),
-      JCSystem.CLEAR_ON_DESELECT
+      JCSystem.CLEAR_ON_RESET
     );
-    byte[] candidate = JCSystem.makeTransientByteArray(MASTER_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+    byte[] candidate = JCSystem.makeTransientByteArray(MASTER_LENGTH, JCSystem.CLEAR_ON_RESET);
     byte[] block = JCSystem.makeTransientByteArray(
       LibHMACSha512.BLOCK_BYTES,
-      JCSystem.CLEAR_ON_DESELECT
+      JCSystem.CLEAR_ON_RESET
     );
 
     Util.arrayCopyNonAtomic(
@@ -65,7 +65,7 @@ public final class Monoid001Derivation extends KeyDerivation {
         !Utils.isZero(candidate, (short) 0, KEY_LENGTH) &&
         LibMath.compare(candidate, (short) 0, CurveSECP256r1.R, (short) 0, KEY_LENGTH) < 0
       ) {
-        return Utils.duplicateAsTransientDeselect(candidate, (short) 0, KEY_LENGTH);
+        return Utils.duplicateAsTransientReset(candidate, (short) 0, KEY_LENGTH);
       }
     }
 

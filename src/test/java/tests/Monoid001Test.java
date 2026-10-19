@@ -15,8 +15,11 @@ import javax.smartcardio.ResponseAPDU;
 import monoid.CBORBufferReader;
 import monoid.CBORBufferWriter;
 import monoid.Command;
+import monoid.DerivedKey;
+import monoid.Monoid001Derivation;
 import monoid.MonoidApplet;
 import monoid.MonoidException;
+import monoid.WeierstrassCurve;
 import monoidsafe.MonoidSafeApplet;
 import monoidsafeidentity.MonoidSafeIdentityApplet;
 import org.junit.jupiter.api.AfterEach;
@@ -115,6 +118,52 @@ public class Monoid001Test extends AppletTest {
     authenticate(true);
     Assertions.assertArrayEquals(SEED, field(transmit(0x32, itemRequest(seedIndex)), "data"));
     Assertions.assertArrayEquals(master, field(transmit(0x32, itemRequest(masterIndex)), "data"));
+  }
+
+  @Test
+  public void derivedWorkingCopiesSurviveDeselectAndClearOnReset() throws Exception {
+    byte[] context = Hex.decode("007f80ff0001");
+    byte[] master = hmac(SALT, SEED);
+    byte[] expectedKey = privateKey(master, context);
+    byte[] expectedPublicKey = publicKey(master, context);
+    Monoid001Derivation derivation = new Monoid001Derivation();
+    DerivedKey derived = derivation.deriveFromSeed(SEED, context);
+    byte[][] workingKeys = { derived.getKey(), derived.getKey() };
+    byte[][] workingPublicKeys = {
+      derived.getPublicKey(WeierstrassCurve.secp256r1),
+      derived.getPublicKey(WeierstrassCurve.secp256r1),
+    };
+
+    Assertions.assertNotSame(workingKeys[0], workingKeys[1]);
+    Assertions.assertNotSame(workingPublicKeys[0], workingPublicKeys[1]);
+    Assertions.assertTrue(simulator.selectApplet(MONOID_SAFE_AID));
+    Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
+
+    for (byte[] key : workingKeys) {
+      Assertions.assertArrayEquals(expectedKey, key);
+    }
+
+    for (byte[] key : workingPublicKeys) {
+      Assertions.assertArrayEquals(expectedPublicKey, key);
+    }
+
+    simulator.reset();
+
+    for (byte[] key : workingKeys) {
+      Assertions.assertArrayEquals(new byte[key.length], key);
+    }
+
+    for (byte[] key : workingPublicKeys) {
+      Assertions.assertArrayEquals(new byte[key.length], key);
+    }
+
+    Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
+    DerivedKey recovered = derivation.deriveFromSeed(SEED, context);
+    Assertions.assertArrayEquals(expectedKey, recovered.getKey());
+    Assertions.assertArrayEquals(
+      expectedPublicKey,
+      recovered.getPublicKey(WeierstrassCurve.secp256r1)
+    );
   }
 
   @Test

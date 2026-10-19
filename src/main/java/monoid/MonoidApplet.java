@@ -155,7 +155,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   private static void ensureInitialization() {
     if (!versionInitialized) {
-      byte[] buffer = JCSystem.makeTransientByteArray((short) 16, JCSystem.CLEAR_ON_DESELECT);
+      byte[] buffer = JCSystem.makeTransientByteArray((short) 16, JCSystem.CLEAR_ON_RESET);
 
       short length = JCSystem.getAID().getBytes(buffer, (short) 0);
 

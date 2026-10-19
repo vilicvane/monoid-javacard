@@ -57,7 +57,7 @@ public abstract class WeierstrassCurve {
   public byte[] derivePublicKey(ECPrivateKey privateKey) {
     byte[] publicKey = JCSystem.makeTransientByteArray(
       getPublicKeyLength(),
-      JCSystem.CLEAR_ON_DESELECT
+      JCSystem.CLEAR_ON_RESET
     );
 
     derivePublicKey(privateKey, publicKey, (short) 0);

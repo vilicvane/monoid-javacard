@@ -68,6 +68,18 @@ public final class Utils {
     return duplicateAsTransientDeselect(buffer, (short) 0, (short) buffer.length);
   }
 
+  public static byte[] duplicateAsTransientReset(byte[] buffer, short offset, short length) {
+    byte[] duplicate = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_RESET);
+
+    Util.arrayCopyNonAtomic(buffer, offset, duplicate, (short) 0, length);
+
+    return duplicate;
+  }
+
+  public static byte[] duplicateAsTransientReset(byte[] buffer) {
+    return duplicateAsTransientReset(buffer, (short) 0, (short) buffer.length);
+  }
+
   public static byte[] duplicateAsPersistent(byte[] buffer, short offset, short length) {
     byte[] duplicate = new byte[buffer.length];
 

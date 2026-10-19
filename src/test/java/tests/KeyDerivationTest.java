@@ -35,9 +35,9 @@ public class KeyDerivationTest {
     Assertions.assertArrayEquals(first, third);
     Assertions.assertNotSame(first, second);
     Assertions.assertNotSame(second, third);
-    Assertions.assertEquals(JCSystem.CLEAR_ON_DESELECT, JCSystem.isTransient(first));
-    Assertions.assertEquals(JCSystem.CLEAR_ON_DESELECT, JCSystem.isTransient(second));
-    Assertions.assertEquals(JCSystem.CLEAR_ON_DESELECT, JCSystem.isTransient(third));
+    Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(first));
+    Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(second));
+    Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(third));
   }
 
   @Test

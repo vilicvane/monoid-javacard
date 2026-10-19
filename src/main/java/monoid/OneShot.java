@@ -30,10 +30,7 @@ public final class OneShot {
     try {
       signature.init(privateKey, Signature.MODE_SIGN);
 
-      byte[] out = JCSystem.makeTransientByteArray(
-        signature.getLength(),
-        JCSystem.CLEAR_ON_DESELECT
-      );
+      byte[] out = JCSystem.makeTransientByteArray(signature.getLength(), JCSystem.CLEAR_ON_RESET);
 
       short length = signature.signPreComputedHash(
         digest,
@@ -43,7 +40,7 @@ public final class OneShot {
         (short) 0
       );
 
-      return Utils.duplicateAsTransientDeselect(out, (short) 0, length);
+      return Utils.duplicateAsTransientReset(out, (short) 0, length);
     } finally {
       signature.close();
     }

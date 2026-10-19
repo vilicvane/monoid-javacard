@@ -13,7 +13,7 @@ public final class DerivedKey {
   }
 
   public byte[] getKey() {
-    return Utils.duplicateAsTransientDeselect(key);
+    return Utils.duplicateAsTransientReset(key);
   }
 
   public byte[] getPublicKey(WeierstrassCurve curve) {
@@ -24,6 +24,6 @@ public final class DerivedKey {
       return result;
     }
 
-    return Utils.duplicateAsTransientDeselect(publicKey);
+    return Utils.duplicateAsTransientReset(publicKey);
   }
 }

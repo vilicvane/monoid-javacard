@@ -53,7 +53,7 @@ public class DerivedKeyTest {
     Arrays.fill(input, (byte) 0);
     byte[] first = key.getKey();
     Assertions.assertArrayEquals(expected, first);
-    Assertions.assertEquals(JCSystem.CLEAR_ON_DESELECT, JCSystem.isTransient(first));
+    Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(first));
     Arrays.fill(first, (byte) 0);
 
     byte[] second = key.getKey();
@@ -154,7 +154,7 @@ public class DerivedKeyTest {
     byte[] first = key.getPublicKey(curve);
 
     Assertions.assertArrayEquals(expected, first);
-    Assertions.assertEquals(JCSystem.CLEAR_ON_DESELECT, JCSystem.isTransient(first));
+    Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(first));
     Assertions.assertEquals(1, curve.imports);
     Assertions.assertEquals(1, curve.publicKeys);
     first[0] ^= 1;
@@ -163,7 +163,7 @@ public class DerivedKeyTest {
 
     Assertions.assertNotSame(first, second);
     Assertions.assertArrayEquals(expected, second);
-    Assertions.assertEquals(JCSystem.CLEAR_ON_DESELECT, JCSystem.isTransient(second));
+    Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(second));
     Arrays.fill(second, (byte) 0);
 
     SimulatorSystem.instance().reset();
