@@ -1,4 +1,4 @@
-// Generated from monoidsafe/LibSecurity.java by Inplate.
+// Generated from monoid/LibSecurity.java by Inplate.
 package monoidsafeidentity;
 
 import javacard.framework.ISO7816;

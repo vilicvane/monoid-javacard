@@ -93,7 +93,7 @@ task prepareSimulatorCommunicationCipher {
 }
 
 task prepareSimulatorAESGcmCipher {
-	def packages = ['monoidsafeidentity', 'monoidsafe']
+	def packages = ['monoidsafeidentity', 'monoid']
 	def originals = packages.collect { file("src/main/java/${it}/AESGcmCipher.java") }
 	def adapted = packages.collect { file("${buildDir}/generated/simulator/${it}/AESGcmCipher.java") }
 	inputs.files originals
@@ -115,8 +115,8 @@ task prepareSimulatorAESGcmCipher {
 }
 
 task prepareSimulatorItemCipher {
-	def original = file('src/main/java/monoidsafe/ItemCipher.java')
-	def adapted = file("${buildDir}/generated/simulator/monoidsafe/ItemCipher.java")
+	def original = file('src/main/java/monoid/ItemCipher.java')
+	def adapted = file("${buildDir}/generated/simulator/monoid/ItemCipher.java")
 	inputs.file original
 	outputs.file adapted
 
@@ -160,8 +160,8 @@ task prepareSimulatorHMACSha512 {
 }
 
 task prepareSimulatorStorage {
-	def original = file('src/main/java/monoidsafe/MonoidSafeApplet.java')
-	def adapted = file("${buildDir}/generated/simulator/monoidsafe/MonoidSafeApplet.java")
+	def original = file('src/main/java/monoid/Safe.java')
+	def adapted = file("${buildDir}/generated/simulator/monoid/Safe.java")
 	inputs.file original
 	outputs.file adapted
 
@@ -186,7 +186,7 @@ compileSimulatorMath {
 	source file("${buildDir}/generated/simulator/monoid/LibHMACSha512.java")
 	source file("${buildDir}/generated/simulator/monoidsafeidentity/CommunicationCipher.java")
 	source file("${buildDir}/generated/simulator/monoidsafeidentity/AESGcmCipher.java")
-	source file("${buildDir}/generated/simulator/monoidsafe/AESGcmCipher.java")
-	source file("${buildDir}/generated/simulator/monoidsafe/ItemCipher.java")
-	source file("${buildDir}/generated/simulator/monoidsafe/MonoidSafeApplet.java")
+	source file("${buildDir}/generated/simulator/monoid/AESGcmCipher.java")
+	source file("${buildDir}/generated/simulator/monoid/ItemCipher.java")
+	source file("${buildDir}/generated/simulator/monoid/Safe.java")
 }

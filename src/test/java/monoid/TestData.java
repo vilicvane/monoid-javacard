@@ -1,9 +1,9 @@
-package monoidsafe;
+package monoid;
 
 import javacard.framework.JCSystem;
 import org.junit.jupiter.api.Assertions;
 
-class TestData implements SafeDataShareable {
+class TestData implements SafeDataSource {
 
   private final byte[] data;
   private byte[] readBuffer;
@@ -34,7 +34,7 @@ class TestData implements SafeDataShareable {
     System.arraycopy(data, dataOffset, buffer, offset, length);
   }
 
-  static byte[] read(SafeDataShareable source) {
+  static byte[] read(SafeDataSource source) {
     byte[] data = new byte[source.getLength()];
     byte[] buffer = (byte[]) JCSystem.makeGlobalArray(
       JCSystem.ARRAY_TYPE_BYTE,

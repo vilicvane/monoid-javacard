@@ -16,67 +16,53 @@ Applet AIDs append a one-byte applet number and a two-byte version.
 | Component | Package AID | Applet AID |
 | --- | --- | --- |
 | Safe Identity | `{{hex MONOID_SAFE_IDENTITY_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_SAFE_IDENTITY_AID uppercase=true}}` |
-| Safe | `{{hex MONOID_SAFE_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_SAFE_AID uppercase=true}}` |
 | Monoid | `{{hex MONOID_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_AID uppercase=true}}` |
 -->
 
 | Component     | Package AID        | Applet AID               |
 | ------------- | ------------------ | ------------------------ |
 | Safe Identity | `F06D6F6E6F696400` | `F06D6F6E6F696400010000` |
-| Safe          | `F06D6F6E6F696401` | `F06D6F6E6F696401010000` |
 | Monoid        | `F06D6F6E6F696402` | `F06D6F6E6F696402010000` |
 
 <!-- @end -->
 
-Identity, Safe and Monoid use separate CAP files, with dependencies
-Monoid → Safe → Identity. Install them in the reverse order. Safe Identity keeps
-its own key pair across Safe replacement; it has no PIN or authorization session.
-Safe returns the persistent random ID owned by Identity. See [Safe Identity](safe-identity.md)
+Identity and Monoid use separate CAP files. Install Identity before Monoid.
+Monoid owns Safe item storage, both PINs, derivation and signing in one applet
+context. Safe Identity keeps its own key pair and random ID across Monoid
+replacement; it has no PIN or authorization session. See [Safe Identity](safe-identity.md)
 for its card-local interface and communication key format.
 
-Earlier firmware used package `00` for Safe and `01` for Monoid. Migrating these
-installations requires preserving the items before replacing both packages and
-updating clients to select the new Monoid AID.
-The new Safe AID equals the old Monoid AID; the ordinary installation script is
-not a migration tool for that layout.
+The installation script defaults to `Install`, which does not delete installed
+applets. Explicit `ReinstallMonoid` clears all Safe items and both PINs while
+preserving Identity. Export items before reinstallation and import them afterward.
 
 ```mermaid
 sequenceDiagram
     participant MonoidApp
     participant MonoidApplet
-    participant MonoidSafeApplet
-    participant ThirdPartyApplet
+    participant SafeIdentityApplet
 
-    MonoidApp ->> MonoidApplet: safe PIN
-    MonoidApplet ->> MonoidSafeApplet: verify safe PIN
-    MonoidApplet -->> MonoidApplet: store safe PIN (safe unlocked)
+    MonoidApp ->> MonoidApplet: authenticate
+    MonoidApplet -->> MonoidApplet: verify Access or Safe PIN
 
-    MonoidApp ->> MonoidApplet: set access PIN
-
-    note over MonoidApp, MonoidSafeApplet: Safe Management
+    note over MonoidApp, MonoidApplet: Safe Management
 
     MonoidApp ->> MonoidApplet: list safe items
     MonoidApplet -->> MonoidApp: safe items (indexes)
     MonoidApp <<->> MonoidApplet: safe management (get, set, remove)
-    MonoidApplet <<->> MonoidSafeApplet: safe management
-    MonoidApp ->> MonoidApplet: grant safe item access (sign/verify/direct) to third parties
-    MonoidApplet ->> MonoidSafeApplet: store third-party permissions
 
-    note over MonoidApp, MonoidSafeApplet: App Signing
+    note over MonoidApp, MonoidApplet: Signing
 
     MonoidApp ->> MonoidApplet: sign
-    MonoidApplet ->> MonoidSafeApplet: retrieve safe item (private key)
-    MonoidSafeApplet -->> MonoidApplet: private key
+    MonoidApplet -->> MonoidApplet: read key, derive and sign
     MonoidApplet -->> MonoidApp: signature
 
-    note over MonoidApplet, ThirdPartyApplet: Third-Party Signing
+    note over MonoidApplet, SafeIdentityApplet: Item Transfer
 
-    ThirdPartyApplet ->> MonoidApplet: list access-granted safe items
-    MonoidApplet -->> ThirdPartyApplet: safe items (indexes and permissions)
-    ThirdPartyApplet ->> MonoidApplet: sign
-    MonoidApplet ->> MonoidSafeApplet: retrieve safe item (private key)
-    MonoidSafeApplet -->> MonoidApplet: private key
-    MonoidApplet -->> ThirdPartyApplet: signature
+    MonoidApp ->> MonoidApplet: export or import
+    MonoidApplet <<->> SafeIdentityApplet: encrypt or decrypt communication key
+    MonoidApplet -->> MonoidApplet: encrypt or decrypt item
+    MonoidApplet -->> MonoidApp: response
 ```
 
 ## Persistent storage
@@ -84,7 +70,7 @@ sequenceDiagram
 Safe checks the card's available persistent space before allocating a new
 item, replacement data or a non-null alias. Less than the estimated allocation
 plus 4096 bytes returns `6A84`. The reserve is defined by
-`MonoidSafeApplet.MIN_AVAILABLE_PERSISTENT_MEMORY`.
+`Safe.MIN_AVAILABLE_PERSISTENT_MEMORY`.
 
 The estimate includes the new byte arrays and, when required, the full replacement
 item directory at two bytes per reference. Object headers and alignment are
@@ -105,14 +91,13 @@ The built-in key types are `0x0301` (secp256k1), `0x0302` (secp256r1) and
 `0x0401` (Ed25519). Removing the former master type shifted these categories.
 Indices and exported items using the former master or curve types cannot be
 reused unchanged; in particular, the former secp256k1 type `0x0401` now denotes
-Ed25519. Updating Monoid alone does not migrate existing Safe data.
+Ed25519. There is no automatic conversion of these former types.
 
-Each item stores its data in one persistent byte array. `SafeDataShareable`
-provides a length and repeatable range reads into a caller-provided global buffer.
-Safe checks the owning session on each read; the interface never exposes its
-private array. Create and Set copy input through a buffer of at most 256 bytes,
-then publish the completed replacement. Data and secret change atomically;
-alias updates remain separate.
+Each item stores its data in one persistent byte array. The internal
+`SafeDataSource` interface provides a length and repeatable range reads into a
+supplied buffer. Stored-data reads check Safe authorization. Create and Set copy
+input into new persistent arrays, then publish the completed replacement.
+Data and secret change atomically; alias updates remain separate.
 
 Get and Export use the existing response transport. Responses fitting in one
 256-byte packet borrow the APDU buffer; larger data is read through a fixed
@@ -126,8 +111,7 @@ when necessary; larger buffers use temporary persistent storage directly.
 Import verifies the complete artifact before publishing data. These operations
 therefore need temporary persistent space in addition to the stored item.
 
-APDU fields and the 8192-byte complete-request limit are unchanged. The data SIO
-signatures require Safe and Monoid to be updated together.
+APDU fields and the 8192-byte complete-request limit are unchanged.
 
 ## Derivation cache
 
@@ -148,20 +132,21 @@ eviction or Monoid removal; hits do not refresh the eviction order.
 Weierstrass public-key reuse currently serves ordinary ViewKey; BIP340 and
 Taproot operations still compute the public keys needed for their adjustments.
 
-## Some thoughts
+## Authorization
 
-### Third-party applet to _Monoid Applet_ authentication nodes
+Access PIN and Safe PIN retain their separate command permissions. Monoid keeps
+the validated Safe PIN to reopen its internal storage when needed. Ordinary APDU
+authorization clears on deselection; Safe storage authorization clears on reset,
+PIN verification or PIN update. Verifying a PIN checks both the native
+`OwnerPIN` result and validation flag before publishing redundant authorization
+state. Subsequent storage access also checks the Safe PIN try counter.
 
-> Under the assumption that third-party applets hold the credentials to access the safe via _Monoid Applet_, so upgrade or reinstallation of _Monoid Applet_ will not reset applets' access to the safe.
+Safe storage, item objects and derivation caches belong to Monoid's applet
+context. They no longer expose a separate Safe Shareable interface. Replacing
+Monoid removes those objects together with both PINs; a replacement applet cannot
+use the old Safe PIN to access a surviving standalone Safe.
 
-Applet AIDs identify applications; they do not authenticate their code. A card owner can install modified Monoid code under an accepted AID. Reinstalling Monoid removes its cached Safe PIN, but Safe must also prevent another applet from inheriting an existing authorization.
-
-Safe returns a caller-bound session through `SafeShareable`. After initial PIN setup, data access and PIN changes require that session to verify the Safe PIN. Each caller retains its own authorization when the terminal switches between applets. Repeated interface acquisition reuses that caller's authorized session and preserves its item interfaces. Checking the PIN revokes only that caller's previous authorization; a failed check does not revoke other callers unless it exhausts the shared try counter. Updating the PIN, exhausting its try counter, or resetting the card revokes all sessions. Item interfaces belong to the session that returned them.
-
-Safe uses one native `OwnerPIN` for the PIN value and shared try counter. It checks both the comparison result and native validation flag before publishing a session's redundant authorization state. Subsequent access checks the caller's own authorization and the shared lock state, since the native validation flag describes the most recent PIN check rather than every caller's grant. Authorization states and the links used for revocation clear on card reset.
-
-These checks apply during continuous card power, including when a terminal switches between applets. Selecting another applet alone does not reset Safe's authorization. Other applets require terminal commands or applet calls to execute; they do not run in the background.
-
-Session binding uses the JCRE caller AID object's identity. Preventing a replacement applet from inheriting authorization requires the runtime to issue a different AID object on reinstallation or clear transient authorization during installation. The tested card issues a different AID object even without a reset; this is a card compatibility requirement, not a portable guarantee of the Shareable API.
-
-An applet given the correct Safe PIN can access the stored secrets. This boundary does not authenticate installed code or protect credentials supplied to a malicious replacement applet.
+Identity remains a separate applet and admits Monoid by its version-independent
+AID prefix. AIDs identify applications, not their code. Preserving Identity
+permits recovery of previously exported items after Monoid reinstallation.
+Third-party authorization and signing interfaces are not yet implemented.

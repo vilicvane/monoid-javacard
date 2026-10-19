@@ -1,4 +1,4 @@
-package monoidsafe;
+package monoid;
 
 import com.licel.jcardsim.bouncycastle.asn1.sec.SECNamedCurves;
 import com.licel.jcardsim.bouncycastle.asn1.x9.X9ECParameters;
@@ -108,7 +108,14 @@ public class ItemCipherTest {
     TestIdentity sender = new TestIdentity(1);
     TestIdentity recipient = new TestIdentity(2);
     ItemCipher cipher = new ItemCipher();
-    SafeItem item = new SafeItem(INDEX, new byte[] { 1 }, new byte[] { 2, 3 }, bytes(32), true);
+    SafeItem item = new SafeItem(
+      null,
+      INDEX,
+      new byte[] { 1 },
+      new byte[] { 2, 3 },
+      bytes(32),
+      true
+    );
     byte[] encrypted = encryptOnHost(sender, recipient, item);
 
     for (int index = 0; index < INDEX.length; index++) {
@@ -152,7 +159,7 @@ public class ItemCipherTest {
 
     for (byte[] key : new byte[][] { null, new byte[0] }) {
       for (byte[] alias : new byte[][] { null, new byte[0] }) {
-        SafeItem nullable = new SafeItem(INDEX, key, alias, bytes(32), false);
+        SafeItem nullable = new SafeItem(null, INDEX, key, alias, bytes(32), false);
         byte[] envelope = encryptOnHost(sender, recipient, nullable);
         byte[] changedKey = key == null ? new byte[0] : null;
         byte[] changedAlias = alias == null ? new byte[0] : null;
@@ -347,7 +354,7 @@ public class ItemCipherTest {
   }
 
   private static SafeItem item(byte[] data, boolean secret) {
-    return new SafeItem(INDEX, KEY, ALIAS, data, secret);
+    return new SafeItem(null, INDEX, KEY, ALIAS, data, secret);
   }
 
   private static byte[] plaintext(SafeItem item) {

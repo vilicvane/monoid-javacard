@@ -1,6 +1,6 @@
-package monoidsafe;
+package monoid;
 
-import static monoidsafe.TestData.read;
+import static monoid.TestData.read;
 
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
@@ -15,19 +15,14 @@ import main.ShareableSimulatorRuntime;
 import monoidsafeidentity.MonoidSafeIdentityApplet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import tests.SafeCallerApplet;
 
-public class MonoidSafeAppletTest {
+public class SafeTest {
 
   private static final AID IDENTITY_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
     "f06d6f6e6f696400010000"
   );
-  private static final AID SAFE_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_AID}}"
-    "f06d6f6e6f696401010000"
-  );
-  private static final AID CALLER_AID = AIDUtil.create(
+  private static final AID MONOID_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_AID_WITHOUT_VERSION}}0001"
     "f06d6f6e6f696402010001"
   );
@@ -36,7 +31,7 @@ public class MonoidSafeAppletTest {
 
   @Test
   public void createsAndReplacesLargeDataThroughBoundedReads() {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     byte[] index = { 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
     byte[] original = new byte[2051];
 
@@ -45,9 +40,9 @@ public class MonoidSafeAppletTest {
     }
 
     TestData source = new TestData(original);
-    SafeItemShareable item = safe.create(index, null, null, source, false);
+    SafeItem item = safe.create(index, null, null, source, false);
     Assertions.assertEquals(9, source.readCount);
-    SafeDataShareable snapshot = item.getData();
+    SafeDataSource snapshot = item.getData();
     Assertions.assertArrayEquals(original, read(snapshot));
     byte[] range = new byte[23];
     snapshot.read((short) 1023, range, (short) 2, (short) 17);
@@ -75,7 +70,7 @@ public class MonoidSafeAppletTest {
 
   @Test
   public void failedSourceReadsLeaveExistingDataAndSecretUnchanged() {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     byte[] index = { 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
     TestData failedCreate = failingData();
     ISOException exception = Assertions.assertThrows(ISOException.class, () ->
@@ -84,7 +79,7 @@ public class MonoidSafeAppletTest {
     Assertions.assertEquals(ISO7816.SW_WRONG_DATA, exception.getReason());
     Assertions.assertNull(safe.get(index));
 
-    SafeItemShareable item = safe.create(index, null, null, new TestData(new byte[] { 1 }), false);
+    SafeItem item = safe.create(index, null, null, new TestData(new byte[] { 1 }), false);
     Assertions.assertThrows(ISOException.class, () -> item.setData(failingData()));
     Assertions.assertThrows(ISOException.class, () -> item.setData(failingData(), true));
     Assertions.assertArrayEquals(new byte[] { 1 }, read(item.getData()));
@@ -94,7 +89,7 @@ public class MonoidSafeAppletTest {
 
   @Test
   public void snapshotsCreateMetadataBeforeCallingTheDataSource() {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     byte[] index = { 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
     byte[] originalIndex = index.clone();
     byte[] key = { 1, 2 };
@@ -108,7 +103,7 @@ public class MonoidSafeAppletTest {
         return super.getLength();
       }
     };
-    SafeItemShareable item = safe.create(index, key, alias, source, false);
+    SafeItem item = safe.create(index, key, alias, source, false);
 
     Assertions.assertArrayEquals(originalIndex, item.getIndex());
     Assertions.assertArrayEquals(new byte[] { 1, 2 }, item.getKey());
@@ -119,7 +114,7 @@ public class MonoidSafeAppletTest {
   @Test
   public void nestedCreationOfTheSameIndexPreservesTheFirstItem() {
     for (boolean createOnRead : new boolean[] { false, true }) {
-      SafeShareable safe = initializeSafe();
+      Safe safe = initializeSafe();
       byte[] index = { 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
       TestData source = new TestData(new byte[512]) {
         @Override
@@ -148,7 +143,7 @@ public class MonoidSafeAppletTest {
       };
       Assertions.assertNull(safe.create(index, null, null, source, false));
       Assertions.assertEquals(1, safe.list((short) 0).getCount());
-      SafeItemShareable item = safe.get(index);
+      SafeItem item = safe.get(index);
       Assertions.assertArrayEquals(new byte[] { 7 }, item.getKey());
       Assertions.assertArrayEquals(new byte[] { 9 }, read(item.getData()));
       Assertions.assertTrue(item.isSecret());
@@ -157,9 +152,9 @@ public class MonoidSafeAppletTest {
 
   @Test
   public void rechecksAuthorizationBeforePublishingCopiedData() {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     byte[] index = createItem(safe, (short) 0x1000, 1, null, new byte[] { 1 });
-    SafeItemShareable item = safe.get(index);
+    SafeItem item = safe.get(index);
     TestData source = new TestData(new byte[512]) {
       @Override
       public void read(short dataOffset, byte[] buffer, short offset, short length) {
@@ -181,14 +176,14 @@ public class MonoidSafeAppletTest {
 
   @Test
   public void retainedDataHandlesRequireCurrentSessionAuthorization() {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     byte[] index = createItem(safe, (short) 0x1000, 1, null, new byte[] { 1, 2, 3 });
-    SafeItemShareable item = safe.get(index);
-    SafeDataShareable data = item.getData();
-    SafeDataShareable encrypted = item.exportData(safe.getPublicKey());
+    SafeItem item = safe.get(index);
+    SafeDataSource data = item.getData();
+    SafeDataSource encrypted = item.exportData(safe.getPublicKey());
     Assertions.assertFalse(safe.checkPIN(new byte[6], (short) 0, (byte) 6));
 
-    for (SafeDataShareable retained : new SafeDataShareable[] { data, encrypted }) {
+    for (SafeDataSource retained : new SafeDataSource[] { data, encrypted }) {
       ISOException exception = Assertions.assertThrows(ISOException.class, retained::getLength);
       Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
       exception = Assertions.assertThrows(ISOException.class, () ->
@@ -200,13 +195,13 @@ public class MonoidSafeAppletTest {
 
   @Test
   public void snapshotsImportMetadataBeforeCallingTheDataSource() {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     byte[] index = { 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
     byte[] originalIndex = index.clone();
     byte[] key = { 1, 2 };
     byte[] alias = { 3, 4 };
     byte[] publicKey = safe.getPublicKey();
-    SafeItemShareable item = safe.create(index, key, alias, new TestData(new byte[] { 5 }), true);
+    SafeItem item = safe.create(index, key, alias, new TestData(new byte[] { 5 }), true);
     byte[] encrypted = read(item.exportData(publicKey));
     item.remove();
 
@@ -221,7 +216,7 @@ public class MonoidSafeAppletTest {
       }
     };
     safe.importItem(index, key, alias, publicKey, source);
-    SafeItemShareable imported = safe.get(originalIndex);
+    SafeItem imported = safe.get(originalIndex);
 
     Assertions.assertNotNull(imported);
     Assertions.assertArrayEquals(new byte[] { 1, 2 }, imported.getKey());
@@ -259,39 +254,39 @@ public class MonoidSafeAppletTest {
 
   @Test
   public void listsItemsByBinaryKeyPrefixAndTypeInInsertionOrder() {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     byte[] data = { (byte) 0x80, 0, 2 };
     byte[] first = createItem(
       safe,
-      (short) 0x0301,
+      (short) 0x1301,
       1,
       new byte[] { (byte) 0x80, 0, (byte) 0xFF },
       new byte[] { 1 }
     );
     byte[] second = createItem(
       safe,
-      (short) 0x0302,
+      (short) 0x1302,
       2,
       new byte[] { (byte) 0x80, 0, (byte) 0xFF },
       new byte[] { 2 }
     );
-    createItem(safe, (short) 0x0301, 3, new byte[] { (byte) 0x80, 1, (byte) 0xFF }, data);
+    createItem(safe, (short) 0x1301, 3, new byte[] { (byte) 0x80, 1, (byte) 0xFF }, data);
     byte[] fourth = createItem(
       safe,
-      (short) 0x0401,
+      (short) 0x1401,
       4,
       new byte[] { (byte) 0x80, 0, (byte) 0xFF },
       new byte[] { 4 }
     );
-    createItem(safe, (short) 0x0301, 5, new byte[] { 0, (byte) 0x80, 0 }, data);
-    createItem(safe, (short) 0x0301, 6, null, data);
+    createItem(safe, (short) 0x1301, 5, new byte[] { 0, (byte) 0x80, 0 }, data);
+    createItem(safe, (short) 0x1301, 6, null, data);
     byte[] key = { (byte) 0x80, 0 };
 
     assertListedItems(safe, (short) 0, key, first, second, fourth);
-    assertListedItems(safe, (short) 0x0300, key, first, second);
-    assertListedItems(safe, (short) 0x0301, key, first);
-    assertListedItems(safe, (short) 0x0401, key, fourth);
-    assertListedItems(safe, (short) 0x0600, key);
+    assertListedItems(safe, (short) 0x1300, key, first, second);
+    assertListedItems(safe, (short) 0x1301, key, first);
+    assertListedItems(safe, (short) 0x1401, key, fourth);
+    assertListedItems(safe, (short) 0x1600, key);
     assertListedItems(safe, (short) 0, data);
     assertListedItems(
       safe,
@@ -306,19 +301,19 @@ public class MonoidSafeAppletTest {
 
   @Test
   public void handlesMissingAndEmptyKeysAndPrefixLengthBoundaries() {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     byte[] data = { (byte) 0x80, 0 };
-    byte[] absent = createItem(safe, (short) 0x0301, 1, null, data);
-    byte[] empty = createItem(safe, (short) 0x0301, 2, new byte[0], data);
-    byte[] value = createItem(safe, (short) 0x0302, 3, data, new byte[0]);
+    byte[] absent = createItem(safe, (short) 0x1301, 1, null, data);
+    byte[] empty = createItem(safe, (short) 0x1301, 2, new byte[0], data);
+    byte[] value = createItem(safe, (short) 0x1302, 3, data, new byte[0]);
 
     Assertions.assertEquals(3, safe.list((short) 0).getCount());
     Assertions.assertNull(safe.get(absent).getKey());
     Assertions.assertArrayEquals(new byte[0], safe.get(empty).getKey());
     assertListedItems(safe, (short) 0, null, absent, empty, value);
     assertListedItems(safe, (short) 0, new byte[0], absent, empty, value);
-    assertListedItems(safe, (short) 0x0301, null, absent, empty);
-    assertListedItems(safe, (short) 0x0301, new byte[0], absent, empty);
+    assertListedItems(safe, (short) 0x1301, null, absent, empty);
+    assertListedItems(safe, (short) 0x1301, new byte[0], absent, empty);
     assertListedItems(safe, (short) 0, new byte[] { (byte) 0x80 }, value);
     assertListedItems(safe, (short) 0, new byte[] { (byte) 0x80, 0 }, value);
     assertListedItems(safe, (short) 0, new byte[] { (byte) 0x80, 0, 0 });
@@ -327,11 +322,11 @@ public class MonoidSafeAppletTest {
 
   @Test
   public void copiesCreationKeysAndPreservesThemWhenDataChanges() {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     byte[] key = { 1, 2 };
     byte[] data = { 3, 4 };
-    byte[] index = createItem(safe, (short) 0x0301, 1, key, data);
-    SafeItemShareable item = safe.get(index);
+    byte[] index = createItem(safe, (short) 0x1301, 1, key, data);
+    SafeItem item = safe.get(index);
     key[0] = 9;
     byte[] returnedKey = item.getKey();
     returnedKey[0] = 8;
@@ -347,15 +342,15 @@ public class MonoidSafeAppletTest {
 
   @Test
   public void iteratorsKeepIndependentCursorsAndCopyTheKeyPrefix() {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     byte[] first = createItem(safe, (short) 0x1000, 1, new byte[] { 1, 2 }, new byte[] { 1 });
     byte[] second = createItem(safe, (short) 0x1000, 2, new byte[] { 2, 3 }, new byte[] { 2 });
     byte[] third = createItem(safe, (short) 0x1000, 3, new byte[] { 1, 4 }, new byte[] { 3 });
     byte[] prefix = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) 1);
     prefix[0] = 1;
-    SafeItemIteratorShareable filtered = safe.list((short) 0, prefix);
+    SafeItemIterator filtered = safe.list((short) 0, prefix);
     prefix[0] = 2;
-    SafeItemIteratorShareable all = safe.list((short) 0);
+    SafeItemIterator all = safe.list((short) 0);
 
     Assertions.assertEquals(2, filtered.getCount());
     Assertions.assertEquals(3, all.getCount());
@@ -372,39 +367,33 @@ public class MonoidSafeAppletTest {
 
   @Test
   public void measuresOnlyMatchingMetadataAndPreservesMissingAndEmptyFields() {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     byte[] absent = createItem(safe, (short) 0x1002, 1, null, new byte[] { 1 });
     byte[] empty = createItem(safe, (short) 0x1002, 2, new byte[0], new byte[] { 2 });
     safe.get(empty).setAlias(new byte[0]);
     byte[] index = createItem(safe, (short) 0x1001, 3, new byte[] { 1, 2, 3 }, new byte[] { 3 });
-    SafeItemShareable item = safe.get(index);
+    SafeItem item = safe.get(index);
     item.setAlias(new byte[] { 4, 5, 6, 7 });
 
+    Assertions.assertEquals(Safe.INDEX_LENGTH + 7, safe.list((short) 0).getMaxMetadataLength());
+    Assertions.assertEquals(Safe.INDEX_LENGTH, safe.list((short) 0x1002).getMaxMetadataLength());
     Assertions.assertEquals(
-      SafeShareable.INDEX_LENGTH + 7,
-      safe.list((short) 0).getMaxMetadataLength()
-    );
-    Assertions.assertEquals(
-      SafeShareable.INDEX_LENGTH,
-      safe.list((short) 0x1002).getMaxMetadataLength()
-    );
-    Assertions.assertEquals(
-      SafeShareable.INDEX_LENGTH + 7,
+      Safe.INDEX_LENGTH + 7,
       safe.list((short) 0x1001).getMaxMetadataLength()
     );
-    SafeItemIteratorShareable missing = safe.list((short) 0, new byte[] { 9 });
+    SafeItemIterator missing = safe.list((short) 0, new byte[] { 9 });
     Assertions.assertEquals(0, missing.getCount());
     Assertions.assertEquals(0, missing.getMaxMetadataLength());
     Assertions.assertNull(missing.next());
 
     byte[] destination = (byte[]) JCSystem.makeGlobalArray(
       JCSystem.ARRAY_TYPE_BYTE,
-      (short) (SafeShareable.INDEX_LENGTH + 11)
+      (short) (Safe.INDEX_LENGTH + 11)
     );
     Arrays.fill(destination, (byte) 0x7E);
     short offset = 2;
-    Assertions.assertEquals(SafeShareable.INDEX_LENGTH, item.getIndex(destination, offset));
-    offset += SafeShareable.INDEX_LENGTH;
+    Assertions.assertEquals(Safe.INDEX_LENGTH, item.getIndex(destination, offset));
+    offset += Safe.INDEX_LENGTH;
     Assertions.assertEquals(3, item.getKey(destination, offset));
     offset += 3;
     Assertions.assertEquals(4, item.getAlias(destination, offset));
@@ -427,9 +416,9 @@ public class MonoidSafeAppletTest {
 
   @Test
   public void secretCanOnlyBeClearedWhenReplacingData() {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     byte[] index = createItem(safe, (short) 0x1001, 1, null, new byte[] { 1, 2 });
-    SafeItemShareable item = safe.get(index);
+    SafeItem item = safe.get(index);
     Assertions.assertFalse(item.isSecret());
     item.setSecret(true);
     Assertions.assertTrue(item.isSecret());
@@ -463,13 +452,13 @@ public class MonoidSafeAppletTest {
   }
 
   @Test
-  public void prefixListingAndReturnedItemsRequireSessionAuthorization() {
-    SafeShareable safe = initializeSafe();
+  public void prefixListingAndReturnedItemsRequireAuthorization() {
+    Safe safe = initializeSafe();
     byte[] key = { (byte) 0x80, 0 };
     byte[] data = { 1, 2 };
-    byte[] itemIndex = createItem(safe, (short) 0x0301, 1, key, data);
-    SafeItemIteratorShareable iterator = safe.list((short) 0, key);
-    SafeItemShareable item = iterator.next();
+    byte[] itemIndex = createItem(safe, (short) 0x1301, 1, key, data);
+    SafeItemIterator iterator = safe.list((short) 0, key);
+    SafeItem item = iterator.next();
     Assertions.assertArrayEquals(key, item.getKey());
     Assertions.assertArrayEquals(data, read(item.getData()));
 
@@ -493,7 +482,7 @@ public class MonoidSafeAppletTest {
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
     exception = Assertions.assertThrows(ISOException.class, iterator::next);
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
-    byte[] destination = new byte[SafeShareable.INDEX_LENGTH];
+    byte[] destination = new byte[Safe.INDEX_LENGTH];
     Arrays.fill(destination, (byte) 0x7E);
     exception = Assertions.assertThrows(ISOException.class, () ->
       item.getIndex(destination, (short) 0)
@@ -526,24 +515,23 @@ public class MonoidSafeAppletTest {
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
   }
 
-  private SafeShareable initializeSafe() {
+  private Safe initializeSafe() {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
 
     ShareableSimulatorRuntime runtime = new ShareableSimulatorRuntime();
     CardSimulator simulator = new CardSimulator(runtime);
     simulator.installApplet(IDENTITY_AID, MonoidSafeIdentityApplet.class);
-    simulator.installApplet(SAFE_AID, MonoidSafeApplet.class);
-    simulator.installApplet(CALLER_AID, SafeCallerApplet.class);
-    Assertions.assertTrue(simulator.selectApplet(CALLER_AID));
-    SafeShareable safe = (SafeShareable) runtime.getSharedObject(SAFE_AID, (byte) 0);
+    simulator.installApplet(MONOID_AID, MonoidApplet.class);
+    Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
+    Safe safe = new Safe();
     safe.updatePIN(PIN, (short) 0, (byte) PIN.length);
     Assertions.assertTrue(safe.checkPIN(PIN, (short) 0, (byte) PIN.length));
 
     return safe;
   }
 
-  private byte[] createItem(SafeShareable safe, short type, int id, byte[] key, byte[] data) {
-    byte[] index = new byte[SafeShareable.INDEX_LENGTH];
+  private byte[] createItem(Safe safe, short type, int id, byte[] key, byte[] data) {
+    byte[] index = new byte[Safe.INDEX_LENGTH];
     index[0] = (byte) (type >> 8);
     index[1] = (byte) type;
     index[index.length - 1] = (byte) id;
@@ -552,12 +540,12 @@ public class MonoidSafeAppletTest {
     return index;
   }
 
-  private void assertListedItems(SafeShareable safe, short type, byte[] key, byte[]... indexes) {
-    SafeItemIteratorShareable items = safe.list(type, key);
+  private void assertListedItems(Safe safe, short type, byte[] key, byte[]... indexes) {
+    SafeItemIterator items = safe.list(type, key);
     Assertions.assertEquals(indexes.length, items.getCount());
 
     for (int position = 0; position < indexes.length; position++) {
-      SafeItemShareable item = items.next();
+      SafeItem item = items.next();
 
       Assertions.assertNotNull(item);
       Assertions.assertArrayEquals(indexes[position], item.getIndex());
@@ -572,12 +560,12 @@ public class MonoidSafeAppletTest {
   }
 
   private void checkRemoval(int capacity, int removedPosition) {
-    SafeShareable safe = initializeSafe();
+    Safe safe = initializeSafe();
     List<byte[]> indexes = new ArrayList<>();
     List<byte[]> values = new ArrayList<>();
 
     for (int item = 0; item < capacity; item++) {
-      byte[] index = new byte[SafeShareable.INDEX_LENGTH];
+      byte[] index = new byte[Safe.INDEX_LENGTH];
       index[0] = 0x10;
       index[index.length - 1] = (byte) item;
       byte[] data = { (byte) item };
@@ -606,17 +594,17 @@ public class MonoidSafeAppletTest {
     assertItems(safe, indexes, values);
   }
 
-  private void assertItems(SafeShareable safe, List<byte[]> indexes, List<byte[]> values) {
-    SafeItemIteratorShareable items = safe.list((short) 0);
+  private void assertItems(Safe safe, List<byte[]> indexes, List<byte[]> values) {
+    SafeItemIterator items = safe.list((short) 0);
     Assertions.assertEquals(indexes.size(), items.getCount());
 
     for (int position = 0; position < indexes.size(); position++) {
-      SafeItemShareable item = items.next();
+      SafeItem item = items.next();
 
       Assertions.assertNotNull(item);
       Assertions.assertArrayEquals(indexes.get(position), item.getIndex());
       Assertions.assertArrayEquals(values.get(position), read(item.getData()));
-      SafeItemShareable found = safe.get(indexes.get(position));
+      SafeItem found = safe.get(indexes.get(position));
       Assertions.assertNotNull(found);
       Assertions.assertArrayEquals(item.getIndex(), found.getIndex());
       Assertions.assertArrayEquals(read(item.getData()), read(found.getData()));

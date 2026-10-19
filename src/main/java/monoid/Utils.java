@@ -1,9 +1,65 @@
 package monoid;
 
 import javacard.framework.JCSystem;
+import javacard.framework.SystemException;
 import javacard.framework.Util;
 
 public final class Utils {
+
+  private static final short COPY_BUFFER_LENGTH = 256;
+  private static final short TRANSIENT_BUFFER_LENGTH = 512;
+
+  public static byte[] makePrivateByteArray(short length) {
+    if (length <= TRANSIENT_BUFFER_LENGTH) {
+      try {
+        return JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_RESET);
+      } catch (SystemException e) {
+        if (e.getReason() != SystemException.NO_TRANSIENT_SPACE) {
+          throw e;
+        }
+      }
+    }
+
+    return new byte[length];
+  }
+
+  public static byte[] duplicateAsPrivate(byte[] source) {
+    byte[] duplicate = makePrivateByteArray((short) source.length);
+    Util.arrayCopyNonAtomic(source, (short) 0, duplicate, (short) 0, (short) source.length);
+    return duplicate;
+  }
+
+  public static byte[] duplicateAsPersistent(SafeDataSource source, short length) {
+    byte[] duplicate = new byte[length];
+
+    if (length > 0) {
+      byte[] buffer = JCSystem.makeTransientByteArray(
+        length < COPY_BUFFER_LENGTH ? length : COPY_BUFFER_LENGTH,
+        JCSystem.CLEAR_ON_RESET
+      );
+      copy(source, (short) 0, duplicate, (short) 0, length, buffer);
+    }
+
+    return duplicate;
+  }
+
+  public static void copy(
+    SafeDataSource source,
+    short sourceOffset,
+    byte[] dest,
+    short offset,
+    short length,
+    byte[] buffer
+  ) {
+    while (length > 0) {
+      short copied = length < buffer.length ? length : (short) buffer.length;
+      source.read(sourceOffset, buffer, (short) 0, copied);
+      Util.arrayCopyNonAtomic(buffer, (short) 0, dest, offset, copied);
+      sourceOffset += copied;
+      offset += copied;
+      length -= copied;
+    }
+  }
 
   public static void reverse(byte[] buffer, short offset, short length) {
     for (short index = 0; index < (short) (length / 2); index++) {
@@ -81,7 +137,7 @@ public final class Utils {
   }
 
   public static byte[] duplicateAsPersistent(byte[] buffer, short offset, short length) {
-    byte[] duplicate = new byte[buffer.length];
+    byte[] duplicate = new byte[length];
 
     Util.arrayCopyNonAtomic(buffer, offset, duplicate, (short) 0, length);
 
@@ -90,9 +146,5 @@ public final class Utils {
 
   public static byte[] duplicateAsPersistent(byte[] buffer) {
     return duplicateAsPersistent(buffer, (short) 0, (short) buffer.length);
-  }
-
-  public static byte[] makeGlobalByteArray(short length) {
-    return (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, length);
   }
 }

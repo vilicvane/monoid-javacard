@@ -1,5 +1,5 @@
 // Generated from monoidsafeidentity/AESGcmCipher.java by Inplate.
-package monoidsafe;
+package monoid;
 
 import javacard.framework.JCSystem;
 import javacard.framework.Util;

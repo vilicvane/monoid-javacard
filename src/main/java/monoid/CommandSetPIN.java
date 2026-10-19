@@ -8,7 +8,7 @@ public final class CommandSetPIN extends Command {
 
     reader.map();
 
-    byte[] pin = Utils.duplicateAsGlobal(reader.requireKey(Text.pin).text());
+    byte[] pin = reader.requireKey(Text.pin).text();
 
     boolean safePIN = reader.key(Text.safe) && reader.boolTrue();
 

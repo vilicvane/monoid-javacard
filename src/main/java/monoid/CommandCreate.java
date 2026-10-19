@@ -1,8 +1,5 @@
 package monoid;
 
-import monoidsafe.SafeItemShareable;
-import monoidsafe.SafeShareable;
-
 public class CommandCreate extends Command {
 
   @Override
@@ -18,14 +15,14 @@ public class CommandCreate extends Command {
     byte[] alias = reader.key(Text.alias) ? reader.text() : null;
     boolean secret = reader.key(Text.secret) && reader.bool();
 
-    SafeItemShareable item;
+    SafeItem item;
 
     if (reader.key(Text.type)) {
       short type = reader.is(CBOR.TYPE_TEXT) ? Safe.type(reader) : reader.integer();
 
       item = MonoidApplet.safe.create(type, key, alias, data, secret);
     } else {
-      byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
+      byte[] index = reader.requireKey(Text.index).bytes(Safe.INDEX_LENGTH);
 
       item = MonoidApplet.safe.create(index, key, alias, data, secret);
     }

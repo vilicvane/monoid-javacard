@@ -1,6 +1,6 @@
 param(
-	[ValidateSet('Install', 'ReinstallMonoid', 'ReinstallSafe')]
-	[string]$Mode = 'ReinstallMonoid',
+	[ValidateSet('Install', 'ReinstallMonoid')]
+	[string]$Mode = 'Install',
 	[string[]]$RunCommands
 )
 
@@ -23,17 +23,11 @@ if ($LASTEXITCODE -ne 0) {
 switch ($Mode) {
 	'Install' {
 		Invoke-GlobalPlatform --install build\javacard\monoidsafeidentity.cap;
-		Invoke-GlobalPlatform --install build\javacard\monoidsafe.cap;
 		Invoke-GlobalPlatform --install build\javacard\monoid.cap;
 	}
 	'ReinstallMonoid' {
+		Write-Host 'Reinstalling Monoid clears all stored Safe items and PINs. Safe Identity is preserved.';
 		Invoke-GlobalPlatform --uninstall build\javacard\monoid.cap;
-		Invoke-GlobalPlatform --install build\javacard\monoid.cap;
-	}
-	'ReinstallSafe' {
-		Invoke-GlobalPlatform --uninstall build\javacard\monoid.cap;
-		Invoke-GlobalPlatform --uninstall build\javacard\monoidsafe.cap;
-		Invoke-GlobalPlatform --install build\javacard\monoidsafe.cap;
 		Invoke-GlobalPlatform --install build\javacard\monoid.cap;
 	}
 }

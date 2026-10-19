@@ -22,8 +22,7 @@ import main.ShareableSimulatorRuntime;
 import monoid.CBORBufferReader;
 import monoid.CBORBufferWriter;
 import monoid.MonoidApplet;
-import monoidsafe.MonoidSafeApplet;
-import monoidsafe.SafeShareable;
+import monoid.Safe;
 import monoidsafeidentity.MonoidSafeIdentityApplet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -35,17 +34,13 @@ public class MonoidItemTransferTest {
     // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
     "f06d6f6e6f696400010000"
   );
-  private static final AID SAFE_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_AID}}"
-    "f06d6f6e6f696401010000"
-  );
   private static final AID MONOID_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_AID}}"
     "f06d6f6e6f696402010000"
   );
   private static final AID IDENTITY_CALLER_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_AID_WITHOUT_VERSION}}0001"
-    "f06d6f6e6f696401010001"
+    // @inplate-line "{{hex MONOID_AID_WITHOUT_VERSION}}0001"
+    "f06d6f6e6f696402010001"
   );
 
   private static final String SAFE_PIN = "888888";
@@ -151,7 +146,7 @@ public class MonoidItemTransferTest {
 
       // A former 32B-key/32B-chain-code item is no longer a recognized item type.
       assertError(card.transmit(0x34, fields("type", 0x0320, "data", SEED)), "INVALID_PARAMETER");
-      byte[] oldIndex = new byte[SafeShareable.INDEX_LENGTH];
+      byte[] oldIndex = new byte[Safe.INDEX_LENGTH];
       oldIndex[0] = 3;
       oldIndex[1] = 32;
       assertError(
@@ -328,7 +323,7 @@ public class MonoidItemTransferTest {
       card.authenticate(false);
 
       List<Map<String, Object>> invalidRequests = new ArrayList<>();
-      for (int offset : new int[] { 0, SafeShareable.INDEX_LENGTH - 1 }) {
+      for (int offset : new int[] { 0, Safe.INDEX_LENGTH - 1 }) {
         byte[] changed = index.clone();
         changed[offset] ^= 1;
         Map<String, Object> request = transfer.request(sender);
@@ -589,17 +584,11 @@ public class MonoidItemTransferTest {
     try (Card card = new Card(true)) {
       for (int length : new int[] { 255, 32, 64, 252 }) {
         byte[] data = sequence(length);
-        byte[] expectedIndex = new byte[SafeShareable.INDEX_LENGTH];
+        byte[] expectedIndex = new byte[Safe.INDEX_LENGTH];
         expectedIndex[0] = 2;
         expectedIndex[1] = (byte) length;
         byte[] digest = MessageDigest.getInstance("SHA-256").digest(data);
-        System.arraycopy(
-          digest,
-          0,
-          expectedIndex,
-          SafeShareable.INDEX_ID_OFFSET,
-          SafeShareable.INDEX_ID_LENGTH
-        );
+        System.arraycopy(digest, 0, expectedIndex, Safe.INDEX_ID_OFFSET, Safe.INDEX_ID_LENGTH);
 
         byte[] index = card.create("seed", null, null, data, false);
         Assertions.assertArrayEquals(expectedIndex, index);
@@ -612,7 +601,7 @@ public class MonoidItemTransferTest {
   }
 
   @Test
-  public void reinstallingSafePreservesIdentityAndRestoresEncryptedItems() throws Exception {
+  public void reinstallingMonoidPreservesIdentityAndRestoresEncryptedItems() throws Exception {
     try (Card card = new Card(true)) {
       byte[] sender = card.publicKey();
       byte[] identityId = card.safeId();
@@ -624,7 +613,7 @@ public class MonoidItemTransferTest {
       Transfer plain = card.export(plainIndex, sender);
       Transfer secret = card.export(keyIndex, sender);
 
-      card.reinstallSafe();
+      card.reinstallMonoid();
       Assertions.assertArrayEquals(sender, card.publicKey());
       Assertions.assertArrayEquals(identityId, card.safeId());
       Assertions.assertEquals(0, itemCount(card));
@@ -765,7 +754,7 @@ public class MonoidItemTransferTest {
   }
 
   private static byte[] customIndex(int identifier) {
-    byte[] index = new byte[SafeShareable.INDEX_LENGTH];
+    byte[] index = new byte[Safe.INDEX_LENGTH];
     index[0] = 0x10;
     index[index.length - 2] = (byte) (identifier >> 8);
     index[index.length - 1] = (byte) identifier;
@@ -902,7 +891,7 @@ public class MonoidItemTransferTest {
       System.setProperty("com.licel.jcardsim.bouncycastle.rsa.allow_unsafe_mod", "true");
       simulator = new CardSimulator(new ShareableSimulatorRuntime());
       simulator.installApplet(IDENTITY_AID, MonoidSafeIdentityApplet.class);
-      simulator.installApplet(SAFE_AID, MonoidSafeApplet.class);
+
       if (installMonoid) {
         installMonoid();
       }
@@ -967,13 +956,12 @@ public class MonoidItemTransferTest {
       Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
     }
 
-    void reinstallSafe() {
+    void reinstallMonoid() {
       Assertions.assertTrue(simulator.selectApplet(IDENTITY_AID));
       simulator.deleteApplet(MONOID_AID);
-      simulator.deleteApplet(SAFE_AID);
+
       resetAppletState();
       // jCardSim retains the loaded classes when deleting instances.
-      simulator.createApplet(SAFE_AID, new byte[0], (short) 0, (byte) 0);
       simulator.createApplet(MONOID_AID, new byte[0], (short) 0, (byte) 0);
       initializePINs();
     }
@@ -1059,7 +1047,7 @@ public class MonoidItemTransferTest {
         simulator.deleteApplet(MONOID_AID);
         resetAppletState();
       }
-      simulator.deleteApplet(SAFE_AID);
+
       simulator.deleteApplet(IDENTITY_AID);
     }
   }

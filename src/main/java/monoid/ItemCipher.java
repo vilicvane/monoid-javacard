@@ -1,4 +1,4 @@
-package monoidsafe;
+package monoid;
 
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
@@ -77,7 +77,7 @@ public class ItemCipher {
     random.nextBytes(communicationKey, (short) 0, KEY_LENGTH);
 
     byte[] encryptedKey = identity.encryptCommunicationKey(
-      recipientPublicKey,
+      Utils.duplicateAsGlobal(recipientPublicKey),
       context,
       communicationKey
     );
@@ -118,7 +118,7 @@ public class ItemCipher {
     byte[] key,
     byte[] alias,
     byte[] senderPublicKey,
-    SafeDataShareable encryptedData
+    SafeDataSource encryptedData
   ) {
     short encryptedLength = encryptedData.getLength();
 
@@ -165,7 +165,7 @@ public class ItemCipher {
   }
 
   private byte[] createContext(byte[] index, byte[] key, byte[] alias) {
-    if (index.length != SafeShareable.INDEX_LENGTH) {
+    if (index.length != Safe.INDEX_LENGTH) {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
     }
 
@@ -174,7 +174,7 @@ public class ItemCipher {
     digest.update(CONTEXT, (short) 0, (short) CONTEXT.length);
     suffix[0] = VERSION;
     digest.update(suffix, (short) 0, (short) 1);
-    digest.update(index, (short) 0, SafeShareable.INDEX_LENGTH);
+    digest.update(index, (short) 0, Safe.INDEX_LENGTH);
     updateContext(key);
     updateContext(alias);
     digest.doFinal(EMPTY, (short) 0, (short) 0, context, (short) 0);

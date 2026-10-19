@@ -1,9 +1,7 @@
-// Generated from monoidsafe/LibSecurity.java by Inplate.
 package monoid;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
-import monoidsafe.Constants;
 
 public final class LibSecurity {
 

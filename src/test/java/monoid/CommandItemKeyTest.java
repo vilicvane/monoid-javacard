@@ -9,8 +9,6 @@ import javacard.framework.AID;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import main.ShareableSimulatorRuntime;
-import monoidsafe.MonoidSafeApplet;
-import monoidsafe.SafeShareable;
 import monoidsafeidentity.MonoidSafeIdentityApplet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -22,10 +20,6 @@ public class CommandItemKeyTest {
   private static final AID MONOID_SAFE_IDENTITY_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
     "f06d6f6e6f696400010000"
-  );
-  private static final AID MONOID_SAFE_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_AID}}"
-    "f06d6f6e6f696401010000"
   );
   private static final AID MONOID_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_AID}}"
@@ -43,7 +37,6 @@ public class CommandItemKeyTest {
 
     simulator = new CardSimulator(new ShareableSimulatorRuntime());
     simulator.installApplet(MONOID_SAFE_IDENTITY_AID, MonoidSafeIdentityApplet.class);
-    simulator.installApplet(MONOID_SAFE_AID, MonoidSafeApplet.class);
     simulator.installApplet(MONOID_AID, MonoidApplet.class);
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
 
@@ -54,7 +47,6 @@ public class CommandItemKeyTest {
   @AfterEach
   public void clear() {
     simulator.deleteApplet(MONOID_AID);
-    simulator.deleteApplet(MONOID_SAFE_AID);
     simulator.deleteApplet(MONOID_SAFE_IDENTITY_AID);
     resetAppletState();
   }
@@ -285,7 +277,7 @@ public class CommandItemKeyTest {
   }
 
   private byte[] customIndex(int id) {
-    byte[] index = new byte[SafeShareable.INDEX_LENGTH];
+    byte[] index = new byte[Safe.INDEX_LENGTH];
     index[0] = 0x10;
     index[index.length - 1] = (byte) id;
     return index;

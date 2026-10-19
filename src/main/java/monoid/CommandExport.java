@@ -1,9 +1,5 @@
 package monoid;
 
-import monoidsafe.SafeDataShareable;
-import monoidsafe.SafeItemShareable;
-import monoidsafe.SafeShareable;
-
 public class CommandExport extends Command {
 
   private final SafeDataResponse response = new SafeDataResponse();
@@ -16,14 +12,14 @@ public class CommandExport extends Command {
 
     reader.map();
 
-    byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
+    byte[] index = reader.requireKey(Text.index).bytes(Safe.INDEX_LENGTH);
     byte[] recipientPublicKey = reader.requireKey(Text.recipientPublicKey).bytes((short) 65);
 
-    SafeItemShareable item = MonoidApplet.safe.require(index);
+    SafeItem item = MonoidApplet.safe.require(index);
 
     byte[] key = item.getKey();
     byte[] alias = item.getAlias();
-    SafeDataShareable data = item.exportData(Utils.duplicateAsGlobal(recipientPublicKey));
+    SafeDataSource data = item.exportData(recipientPublicKey);
 
     short entries = 1;
 

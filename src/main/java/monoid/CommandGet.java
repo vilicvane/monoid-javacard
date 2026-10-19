@@ -1,10 +1,7 @@
 package monoid;
 
-import static monoidsafe.Constants.SAFE_FALSE;
-import static monoidsafe.Constants.SAFE_TRUE;
-
-import monoidsafe.SafeItemShareable;
-import monoidsafe.SafeShareable;
+import static monoid.Constants.SAFE_FALSE;
+import static monoid.Constants.SAFE_TRUE;
 
 public class CommandGet extends Command {
 
@@ -18,9 +15,9 @@ public class CommandGet extends Command {
 
     reader.map();
 
-    byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
+    byte[] index = reader.requireKey(Text.index).bytes(Safe.INDEX_LENGTH);
 
-    final SafeItemShareable item = MonoidApplet.safe.require(index);
+    final SafeItem item = MonoidApplet.safe.require(index);
 
     LibSecurity.Condition secret = new LibSecurity.Condition() {
       @Override

@@ -9,7 +9,7 @@ import java.util.Arrays;
 import javacard.framework.AID;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
-import monoidsafe.MonoidSafeApplet;
+import monoidsafeidentity.MonoidSafeIdentityApplet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,9 +17,9 @@ import org.junit.jupiter.api.Test;
 
 public class MonoidInitializationTest {
 
-  private static final AID SAFE_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_AID}}"
-    "f06d6f6e6f696401010000"
+  private static final AID IDENTITY_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
+    "f06d6f6e6f696400010000"
   );
   private static final String MONOID_AID =
     // @inplate-line "{{hex MONOID_AID}}";
@@ -37,13 +37,13 @@ public class MonoidInitializationTest {
     MonoidApplet.keystore = null;
     memory = new CountingTransientMemory();
     simulator = new CardSimulator(new SimulatorRuntime(memory));
-    simulator.installApplet(SAFE_AID, MonoidSafeApplet.class);
+    simulator.installApplet(IDENTITY_AID, MonoidSafeIdentityApplet.class);
   }
 
   @AfterEach
   public void clear() {
     uninstall();
-    simulator.deleteApplet(SAFE_AID);
+    simulator.deleteApplet(IDENTITY_AID);
   }
 
   @Test
@@ -85,7 +85,7 @@ public class MonoidInitializationTest {
 
   private void uninstall() {
     if (installedAID != null) {
-      Assertions.assertTrue(simulator.selectApplet(SAFE_AID));
+      Assertions.assertTrue(simulator.selectApplet(IDENTITY_AID));
       simulator.deleteApplet(installedAID);
       installedAID = null;
     }

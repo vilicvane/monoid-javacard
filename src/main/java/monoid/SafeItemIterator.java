@@ -1,11 +1,11 @@
-package monoidsafe;
+package monoid;
 
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
 
-public class SafeSessionItemIterator implements SafeItemIteratorShareable {
+public class SafeItemIterator {
 
-  private final SafeSession session;
+  private final Safe safe;
   private final SafeItem[] items;
   private final short length;
   private final short type;
@@ -13,25 +13,19 @@ public class SafeSessionItemIterator implements SafeItemIteratorShareable {
   private final short count;
   private final short maxMetadataLength;
 
-  // SIO calls run with the client selected, so Safe-owned state must use CLEAR_ON_RESET.
+  // Keep iteration state usable when Monoid is called by another applet.
   private final short[] position = JCSystem.makeTransientShortArray(
     (short) 1,
     JCSystem.CLEAR_ON_RESET
   );
 
-  public SafeSessionItemIterator(
-    SafeSession session,
-    SafeItem[] items,
-    short length,
-    short type,
-    byte[] keyPrefix
-  ) {
-    this.session = session;
+  public SafeItemIterator(Safe safe, SafeItem[] items, short length, short type, byte[] keyPrefix) {
+    this.safe = safe;
     this.items = items;
     this.length = length;
     this.type = type;
 
-    // A global argument cannot be retained in the iterator.
+    // Snapshot the filter for the duration of this enumeration.
     this.keyPrefix = keyPrefix != null && keyPrefix.length > 0
       ? JCSystem.makeTransientByteArray((short) keyPrefix.length, JCSystem.CLEAR_ON_RESET)
       : null;
@@ -55,7 +49,7 @@ public class SafeSessionItemIterator implements SafeItemIteratorShareable {
       if (item.matches(type, this.keyPrefix)) {
         count++;
 
-        short metadataLength = SafeShareable.INDEX_LENGTH;
+        short metadataLength = Safe.INDEX_LENGTH;
 
         if (item.key != null) {
           metadataLength += (short) item.key.length;
@@ -75,27 +69,24 @@ public class SafeSessionItemIterator implements SafeItemIteratorShareable {
     this.maxMetadataLength = maxMetadataLength;
   }
 
-  @Override
   public short getCount() {
-    session.assertAccess();
+    safe.assertAccess();
     return count;
   }
 
-  @Override
   public short getMaxMetadataLength() {
-    session.assertAccess();
+    safe.assertAccess();
     return maxMetadataLength;
   }
 
-  @Override
-  public SafeItemShareable next() {
-    session.assertAccess();
+  public SafeItem next() {
+    safe.assertAccess();
 
     while (position[0] < length) {
       SafeItem item = items[position[0]++];
 
       if (item.matches(type, keyPrefix)) {
-        return new SafeSessionItem(session, item);
+        return item;
       }
     }
 

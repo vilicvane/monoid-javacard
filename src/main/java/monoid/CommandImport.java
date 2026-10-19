@@ -2,7 +2,7 @@ package monoid;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
-import monoidsafe.SafeShareable;
+import javacard.framework.JCSystem;
 
 public class CommandImport extends Command {
 
@@ -15,11 +15,11 @@ public class CommandImport extends Command {
     reader.map();
 
     reader.requireKey(Text.index);
-    byte[] index = readGlobalBytes(SafeShareable.INDEX_LENGTH);
+    byte[] index = readBytes(Safe.INDEX_LENGTH);
     reader.requireKey(Text.senderPublicKey);
-    byte[] senderPublicKey = readGlobalBytes((short) 65);
-    byte[] key = reader.key(Text.key) ? readGlobalBytes((short) -1) : null;
-    byte[] alias = reader.key(Text.alias) ? Utils.duplicateAsGlobal(reader.text()) : null;
+    byte[] senderPublicKey = readBytes((short) 65);
+    byte[] key = reader.key(Text.key) ? readBytes((short) -1) : null;
+    byte[] alias = reader.key(Text.alias) ? reader.text() : null;
 
     reader.requireKey(Text.data);
     SafeData data = SafeData.fromReader(reader);
@@ -29,7 +29,7 @@ public class CommandImport extends Command {
     sendEmptyMap();
   }
 
-  private byte[] readGlobalBytes(short expectedLength) {
+  private byte[] readBytes(short expectedLength) {
     short offset = reader.getOffset();
     short length = reader.bytesLength();
 
@@ -37,7 +37,7 @@ public class CommandImport extends Command {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
-    byte[] data = Utils.makeGlobalByteArray(length);
+    byte[] data = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
     ((CBORReader) reader).setOffset(offset);
     reader.bytes(data);
     return data;

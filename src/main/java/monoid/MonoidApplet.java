@@ -1,20 +1,17 @@
 package monoid;
 
-import static monoidsafe.Constants.SAFE_FALSE;
-import static monoidsafe.Constants.SAFE_TRUE;
+import static monoid.Constants.SAFE_FALSE;
+import static monoid.Constants.SAFE_TRUE;
 
 import javacard.framework.AID;
 import javacard.framework.APDU;
 import javacard.framework.Applet;
 import javacard.framework.AppletEvent;
-import javacard.framework.ISO7816;
-import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javacard.framework.Shareable;
 import javacard.framework.Util;
 import javacard.security.RandomData;
-import monoidsafe.SafeShareable;
 
 public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
@@ -128,6 +125,8 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
   }
 
   MonoidApplet() {
+    safe = new Safe();
+
     RandomData.OneShot random = RandomData.OneShot.open(RandomData.ALG_TRNG);
 
     if (random != null) {
@@ -161,23 +160,6 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
       version = Util.getShort(buffer, (short) (length - 2));
       versionInitialized = true;
-    }
-
-    if (safe == null) {
-      SafeShareable sio = (SafeShareable) JCSystem.getAppletShareableInterfaceObject(
-        JCSystem.lookupAID(
-          Constants.MONOID_SAFE_AID,
-          (short) 0,
-          (byte) Constants.MONOID_SAFE_AID.length
-        ),
-        (byte) 0
-      );
-
-      if (sio == null) {
-        ISOException.throwIt(ISO7816.SW_FILE_INVALID);
-      }
-
-      safe = new Safe(sio);
     }
 
     if (keystore == null) {

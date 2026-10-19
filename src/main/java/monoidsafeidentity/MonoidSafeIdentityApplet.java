@@ -36,9 +36,9 @@ public class MonoidSafeIdentityApplet extends Applet implements SafeIdentityShar
       return (
         caller != null &&
         caller.partialEquals(
-          Constants.MONOID_SAFE_AID_WITHOUT_VERSION,
+          Constants.MONOID_AID_WITHOUT_VERSION,
           (short) 0,
-          (byte) Constants.MONOID_SAFE_AID_WITHOUT_VERSION.length
+          (byte) Constants.MONOID_AID_WITHOUT_VERSION.length
         )
       );
     }

@@ -1,7 +1,7 @@
 package monoid;
 
-import static monoidsafe.Constants.SAFE_FALSE;
-import static monoidsafe.Constants.SAFE_TRUE;
+import static monoid.Constants.SAFE_FALSE;
+import static monoid.Constants.SAFE_TRUE;
 
 import javacard.framework.APDU;
 import javacard.framework.ISO7816;
@@ -338,7 +338,7 @@ public abstract class Command {
 
     boolean safeAuth = reader.key(Text.safe) && reader.boolTrue();
 
-    byte[] pin = Utils.duplicateAsGlobal(reader.requireKey(Text.pin).text());
+    byte[] pin = reader.requireKey(Text.pin).text();
 
     reader.restore();
 

@@ -1,8 +1,5 @@
 package monoid;
 
-import monoidsafe.SafeItemShareable;
-import monoidsafe.SafeShareable;
-
 public class CommandView extends Command {
 
   @Override
@@ -13,9 +10,9 @@ public class CommandView extends Command {
 
     reader.map();
 
-    byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
+    byte[] index = reader.requireKey(Text.index).bytes(Safe.INDEX_LENGTH);
 
-    SafeItemShareable item = MonoidApplet.safe.require(index);
+    SafeItem item = MonoidApplet.safe.require(index);
 
     byte[] key = item.getKey();
     byte[] alias = item.getAlias();

@@ -17,7 +17,6 @@ import monoid.Command;
 import monoid.CurveException;
 import monoid.MonoidApplet;
 import monoid.MonoidException;
-import monoidsafe.MonoidSafeApplet;
 import monoidsafeidentity.MonoidSafeIdentityApplet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -29,10 +28,6 @@ public class MonoidTaprootTest extends AppletTest {
   private static final AID MONOID_SAFE_IDENTITY_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
     "f06d6f6e6f696400010000"
-  );
-  private static final AID MONOID_SAFE_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_AID}}"
-    "f06d6f6e6f696401010000"
   );
   private static final AID MONOID_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_AID}}"
@@ -62,7 +57,6 @@ public class MonoidTaprootTest extends AppletTest {
     resetAppletState();
 
     simulator.installApplet(MONOID_SAFE_IDENTITY_AID, MonoidSafeIdentityApplet.class);
-    simulator.installApplet(MONOID_SAFE_AID, MonoidSafeApplet.class);
     simulator.installApplet(MONOID_AID, MonoidApplet.class);
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
 
@@ -79,7 +73,6 @@ public class MonoidTaprootTest extends AppletTest {
   @AfterEach
   public void clear() {
     simulator.deleteApplet(MONOID_AID);
-    simulator.deleteApplet(MONOID_SAFE_AID);
     simulator.deleteApplet(MONOID_SAFE_IDENTITY_AID);
     resetAppletState();
   }

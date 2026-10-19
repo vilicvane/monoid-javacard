@@ -4,7 +4,6 @@ import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.ECPrivateKey;
 import javacard.security.Key;
-import monoidsafe.SafeShareable;
 
 public final class Keystore {
 
@@ -38,7 +37,7 @@ public final class Keystore {
     byte[] path,
     byte[] taprootMerkleRoot
   ) {
-    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+    short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     if (!Safe.isTypeSeed(type)) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
@@ -62,7 +61,7 @@ public final class Keystore {
     EdwardsCurve curve,
     byte[] path
   ) {
-    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+    short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     if (!Safe.isTypeSeed(type)) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
@@ -77,7 +76,7 @@ public final class Keystore {
   }
 
   public byte[] getMonoid001PublicKeyFromSeed(byte[] index, byte[] context) {
-    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+    short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     if (!Safe.isTypeSeed(type)) {
       KeystoreException.throwIt(KeystoreException.REASON_INVALID_PARAMETER);
@@ -95,7 +94,7 @@ public final class Keystore {
   }
 
   public byte[] getWeierstrassKeyPublicKey(byte[] index, byte[] taprootMerkleRoot) {
-    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+    short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     WeierstrassCurve curve;
 
@@ -117,7 +116,7 @@ public final class Keystore {
   }
 
   public byte[] getEdwardsKeyPublicKey(byte[] index) {
-    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+    short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     EdwardsCurve curve;
 
@@ -153,7 +152,7 @@ public final class Keystore {
     byte[] context,
     byte[] digest
   ) throws KeystoreException, CurveException, SignerException {
-    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+    short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     byte[] key = requireKey(index);
 
@@ -205,7 +204,7 @@ public final class Keystore {
     short messageOffset,
     short messageLength
   ) throws KeystoreException, CurveException, SignerException {
-    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+    short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     byte[] key = requireKey(index);
 
@@ -239,7 +238,7 @@ public final class Keystore {
     byte[] digest,
     byte[] taprootMerkleRoot
   ) throws KeystoreException, CurveException, SignerException {
-    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+    short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     byte[] key = requireKey(index);
 

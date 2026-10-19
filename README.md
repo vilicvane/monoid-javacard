@@ -43,19 +43,17 @@ Then install applets to a card with [gp] command:
 
 ```sh
 gp --install build/javacard/monoidsafeidentity.cap
-gp --install build/javacard/monoidsafe.cap
 gp --install build/javacard/monoid.cap
 ```
 
-Keep Safe Identity installed when replacing Safe. See [Safe Identity](doc/safe-identity.md).
+Keep the matching Safe Identity installed when replacing Monoid. See [Safe Identity](doc/safe-identity.md).
 
 Build and install with PowerShell:
 
 ```powershell
-.\scripts\build-install.ps1 -Mode Install         # First installation
-.\scripts\build-install.ps1                      # ReinstallMonoid (default)
-.\scripts\build-install.ps1 -Mode ReinstallSafe   # Reinstall Safe and Monoid; clears Safe data
-.\scripts\uninstall.ps1                         # Remove all three applets and packages; clears Safe data and Identity
+.\scripts\build-install.ps1                       # Install (default)
+.\scripts\build-install.ps1 -Mode ReinstallMonoid # Clears Safe data and both PINs; preserves Identity
+.\scripts\uninstall.ps1                          # Removes Monoid and Identity, including their data
 ```
 
 > The gradle plugin task `./gradlew installJavaCard` will try to append multiple `--install` options to `gp` command, which is not supported in my case. So we have to do it manually.
@@ -79,11 +77,9 @@ Run tests on physical cards:
 ```sh
 # requires a clean installation:
 # gp --uninstall build/javacard/monoid.cap
-# gp --uninstall build/javacard/monoidsafe.cap
 
-# First installation only; preserve this applet across Safe updates:
+# First installation only; preserve this applet across Monoid updates:
 # gp --install build/javacard/monoidsafeidentity.cap
-gp --install build/javacard/monoidsafe.cap
 gp --install build/javacard/monoid.cap
 ```
 
@@ -103,10 +99,8 @@ npx prettier --write .
 
 ## Architecture
 
-The _Monoid Applet_ stores the safe PIN required by _Monoid Safe Applet_. When it has the safe PIN, the safe is considered **unlocked**, meaning:
-
-1. _Monoid Applet_ itself can access the safe freely (commands probably have their own authentication requirements though).
-2. Applets with granted permissions can interact (sign/verify) with keys and access data in _Monoid Safe Applet_ (via _Monoid Applet_).
+The _Monoid Applet_ owns Safe items, Access PIN, Safe PIN, key derivation and signing.
+The separate _Safe Identity Applet_ retains the card's identity across Monoid reinstallation.
 
 See [architecture](doc/architecture.md) for more details.
 
@@ -193,7 +187,7 @@ type Response = {
     publicKey: byte[];
     /** Tries remaining for the PIN, or `false` if the PIN is not set. */
     pin: number | false;
-    /** Whether the safe is unlocked (i.e., Monoid Applet stores a validated safe PIN). */
+    /** Whether Monoid has unlocked Safe access. */
     unlocked: boolean;
   };
 };
@@ -219,7 +213,7 @@ type Response = {};
 ```ts
 type Request = {
   pin: string;
-  /** Also unlocks Safe after Monoid Applet reinstallation. */
+  /** Sets the Safe PIN instead of the Access PIN. */
   safe?: true;
 };
 ```

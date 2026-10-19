@@ -1,7 +1,5 @@
 package monoid;
 
-import monoidsafe.SafeShareable;
-
 public class CommandRemove extends Command {
 
   @Override
@@ -12,7 +10,7 @@ public class CommandRemove extends Command {
 
     reader.map();
 
-    byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
+    byte[] index = reader.requireKey(Text.index).bytes(Safe.INDEX_LENGTH);
 
     MonoidApplet.safe.require(index).remove();
 

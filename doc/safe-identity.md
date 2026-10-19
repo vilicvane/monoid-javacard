@@ -1,12 +1,11 @@
 # Safe Identity
 
 Safe Identity retains a P-256 key pair and a four-byte random ID generated on
-installation. Its private key has no export or replacement interface. Safe owns
-PINs, permissions and item data; Identity owns no Safe objects or sessions.
+installation. Its private key has no export or replacement interface. Monoid owns
+both PINs and Safe item data; Identity owns no Safe objects or sessions.
 
-Install Identity before Safe, then Monoid. Ordinary Safe updates preserve Identity.
+Install Identity before Monoid. Monoid updates preserve its matching Identity.
 Deleting Identity loses access to communication keys encrypted to that identity.
-The allocation and earlier-AID migration boundary are in [Architecture](architecture.md).
 
 ## Interface
 
@@ -27,8 +26,8 @@ public interface SafeIdentityShareable extends Shareable {
 - Communication keys: 32 bytes.
 - Context: byte string; empty is valid. Decryption requires the same bytes.
 - Arguments and results: global arrays for card-local cross-context calls.
-- Admission: Safe's version-independent AID prefix, checked on acquisition and invocation.
-- Direct APDUs: SELECT only. [Item transfer](item-transfer.md) belongs to Safe/Monoid;
+- Admission: Monoid's version-independent AID prefix, checked on acquisition and invocation.
+- Direct APDUs: SELECT only. [Item transfer](item-transfer.md) belongs to Monoid;
   Hello with `safe: true` exposes the Identity public key as `safe.publicKey`.
 
 ## Encryption format
@@ -65,7 +64,7 @@ protocol; this interface has no transfer state or single-use restriction.
 
 ## Safe ID
 
-Safe returns the ID stored in Identity. Reset, Safe replacement and PIN changes
+Monoid returns the ID stored in Identity. Reset, Monoid replacement and PIN changes
 preserve it; reinstalling Identity generates a new ID. The four-byte random value
 is a display identifier, not a peer authentication fingerprint or a guarantee of
 uniqueness. It is independent of the public key.
@@ -81,5 +80,5 @@ The native ECDH implementation must reject off-curve points; canonical encoding
 and coordinate ranges are checked before it is called.
 
 Simulator tests cover RFC-derived key scheduling, independent host decryption,
-tampering, malformed points and Identity/Safe lifecycle. Physical-card support,
+tampering, malformed points and Identity/Monoid lifecycle. Physical-card support,
 firewall behavior and deletion remain separate acceptance checks.

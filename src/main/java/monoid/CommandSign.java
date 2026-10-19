@@ -3,7 +3,6 @@ package monoid;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.MessageDigest;
-import monoidsafe.SafeShareable;
 
 public class CommandSign extends Command {
 
@@ -32,13 +31,13 @@ public class CommandSign extends Command {
 
     CBORMap request = reader.map(fields);
 
-    byte[] index = request.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
+    byte[] index = request.requireKey(Text.index).bytes(Safe.INDEX_LENGTH);
 
     byte[] curve = null;
     byte[] path = null;
     byte[] context = null;
 
-    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+    short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
     short declaredType = Safe.type(request.requireKey(Text.type));
 
     if (

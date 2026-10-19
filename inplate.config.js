@@ -5,38 +5,33 @@ import {readFileSync} from 'node:fs';
 
 // Applet packages cannot export ordinary helper classes to another CAP.
 const libSecuritySource = readFileSync(
-  new URL('./src/main/java/monoidsafe/LibSecurity.java', import.meta.url),
+  new URL('./src/main/java/monoid/LibSecurity.java', import.meta.url),
   'utf8',
 );
-const libSecurity = libSecuritySource.replace(
-  'package monoidsafe;',
-  'package monoid;\n\nimport monoidsafe.Constants;',
-);
 const identityLibSecurity = libSecuritySource.replace(
-  'package monoidsafe;',
+  'package monoid;',
   'package monoidsafeidentity;',
 );
 const safeAESGcmCipher = readFileSync(
   new URL('./src/main/java/monoidsafeidentity/AESGcmCipher.java', import.meta.url),
   'utf8',
-).replace('package monoidsafeidentity;', 'package monoidsafe;');
+).replace('package monoidsafeidentity;', 'package monoid;');
 const safeGHASH = readFileSync(
   new URL('./src/main/java/monoidsafeidentity/GHASH.java', import.meta.url),
   'utf8',
-).replace('package monoidsafeidentity;', 'package monoidsafe;');
+).replace('package monoidsafeidentity;', 'package monoid;');
 const secp256r1Parameters = readFileSync(
   new URL('./src/main/java/monoid/CurveSECP256r1.java', import.meta.url),
   'utf8',
 ).match(/\/\/ @formatter:off([\s\S]*?)\/\/ @formatter:on/)[1];
 
 const MONOID_VERSION = Buffer.from([0x00, 0x00]);
-const MONOID_SAFE_VERSION = Buffer.from([0x00, 0x00]);
 const MONOID_SAFE_IDENTITY_VERSION = Buffer.from([0x00, 0x00]);
 
 const MONOID_NAMESPACE = Buffer.concat([Buffer.from([0xf0]), Buffer.from('monoid')]);
 
 const MONOID_SAFE_IDENTITY_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x00])]);
-const MONOID_SAFE_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x01])]);
+const LEGACY_MONOID_SAFE_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x01])]);
 const MONOID_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x02])]);
 
 const MONOID_SAFE_IDENTITY_AID = Buffer.concat([
@@ -44,11 +39,6 @@ const MONOID_SAFE_IDENTITY_AID = Buffer.concat([
   Buffer.from([0x01]),
   MONOID_SAFE_IDENTITY_VERSION,
 ]);
-const MONOID_SAFE_AID_WITHOUT_VERSION = Buffer.concat([
-  MONOID_SAFE_PACKAGE_AID,
-  Buffer.from([0x01]),
-]);
-const MONOID_SAFE_AID = Buffer.concat([MONOID_SAFE_AID_WITHOUT_VERSION, MONOID_SAFE_VERSION]);
 const MONOID_AID_WITHOUT_VERSION = Buffer.concat([MONOID_PACKAGE_AID, Buffer.from([0x01])]);
 const MONOID_AID = Buffer.concat([MONOID_AID_WITHOUT_VERSION, MONOID_VERSION]);
 
@@ -56,9 +46,7 @@ const data = {
   MONOID_NAMESPACE,
   MONOID_SAFE_IDENTITY_PACKAGE_AID,
   MONOID_SAFE_IDENTITY_AID,
-  MONOID_SAFE_PACKAGE_AID,
-  MONOID_SAFE_AID_WITHOUT_VERSION,
-  MONOID_SAFE_AID,
+  LEGACY_MONOID_SAFE_PACKAGE_AID,
   MONOID_PACKAGE_AID,
   MONOID_AID_WITHOUT_VERSION,
   MONOID_AID,
@@ -70,22 +58,17 @@ export default {
   'build.gradle': {data},
   'scripts/uninstall.ps1': {data, commentStyles: ['#']},
   'src/main/java/*/Constants.java': {data},
-  'src/main/java/monoid/LibSecurity.java': {
-    template: '// Generated from monoidsafe/LibSecurity.java by Inplate.\n{{{libSecurity}}}',
-    data: {libSecurity},
-  },
   'src/main/java/monoidsafeidentity/LibSecurity.java': {
-    template:
-      '// Generated from monoidsafe/LibSecurity.java by Inplate.\n{{{identityLibSecurity}}}',
+    template: '// Generated from monoid/LibSecurity.java by Inplate.\n{{{identityLibSecurity}}}',
     data: {identityLibSecurity},
   },
   'src/main/java/monoidsafeidentity/LibSECP256r1.java': {data: {secp256r1Parameters}},
-  'src/main/java/monoidsafe/AESGcmCipher.java': {
+  'src/main/java/monoid/AESGcmCipher.java': {
     template:
       '// Generated from monoidsafeidentity/AESGcmCipher.java by Inplate.\n{{{safeAESGcmCipher}}}',
     data: {safeAESGcmCipher},
   },
-  'src/main/java/monoidsafe/GHASH.java': {
+  'src/main/java/monoid/GHASH.java': {
     template: '// Generated from monoidsafeidentity/GHASH.java by Inplate.\n{{{safeGHASH}}}',
     data: {safeGHASH},
   },

@@ -3,9 +3,8 @@ package monoid;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.Util;
-import monoidsafe.SafeDataShareable;
 
-public class SafeData implements SafeDataShareable {
+public class SafeData implements SafeDataSource {
 
   private final byte[] data;
   private final ByteSource source;

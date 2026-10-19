@@ -26,7 +26,6 @@ import monoid.MonoidApplet;
 import monoid.MonoidException;
 import monoid.Safe;
 import monoid.SafeException;
-import monoidsafe.MonoidSafeApplet;
 import monoidsafeidentity.MonoidSafeIdentityApplet;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
@@ -45,10 +44,6 @@ public class MonoidAppletTest extends AppletTest {
   private static final AID MONOID_SAFE_IDENTITY_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
     "f06d6f6e6f696400010000"
-  );
-  private static final AID MONOID_SAFE_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_AID}}"
-    "f06d6f6e6f696401010000"
   );
   private static final AID MONOID_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_AID}}"
@@ -107,7 +102,6 @@ public class MonoidAppletTest extends AppletTest {
       System.setProperty("com.licel.jcardsim.bouncycastle.rsa.allow_unsafe_mod", "true");
 
       simulator.installApplet(MONOID_SAFE_IDENTITY_AID, MonoidSafeIdentityApplet.class);
-      simulator.installApplet(MONOID_SAFE_AID, MonoidSafeApplet.class);
       simulator.installApplet(MONOID_AID, MonoidApplet.class);
     }
   }
@@ -1071,7 +1065,7 @@ public class MonoidAppletTest extends AppletTest {
       assertAcknowledgement(transmitFrame(manager, 0x90, 0x20, 0, 0, new byte[] { (byte) 0xA1 }));
 
       if (operation == 1) {
-        Assertions.assertTrue(simulator.selectApplet(MONOID_SAFE_AID));
+        Assertions.assertTrue(simulator.selectApplet(MONOID_SAFE_IDENTITY_AID));
       } else if (operation == 2) {
         simulator.reset();
       }

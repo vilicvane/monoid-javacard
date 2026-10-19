@@ -2,7 +2,6 @@ package monoid;
 
 import javacard.framework.APDU;
 import javacard.framework.JCSystem;
-import monoidsafe.SafeDataShareable;
 
 public class SafeDataResponse implements CBORResponse {
 
@@ -17,7 +16,7 @@ public class SafeDataResponse implements CBORResponse {
     JCSystem.CLEAR_ON_DESELECT
   );
 
-  public short start(CBORApduWriter writer, SafeDataShareable data, short prefixLength) {
+  public short start(CBORApduWriter writer, SafeDataSource data, short prefixLength) {
     short length = data.getLength();
     short headerLength = (short) (prefixLength + CBORWriter.metadataLength(length));
     short capacity = Utils.min(CHUNK_LENGTH, (short) APDU.getCurrentAPDUBuffer().length);
@@ -46,7 +45,7 @@ public class SafeDataResponse implements CBORResponse {
         byte[] buffer = APDU.getCurrentAPDUBuffer();
         short offset = writer.getLength();
 
-        ((SafeDataShareable) references[0]).read((short) 0, buffer, offset, state[0]);
+        ((SafeDataSource) references[0]).read((short) 0, buffer, offset, state[0]);
         writer.rawBytes(buffer, offset, state[0]);
       }
     } finally {
@@ -65,7 +64,7 @@ public class SafeDataResponse implements CBORResponse {
     byte[] buffer = APDU.getCurrentAPDUBuffer();
     short length = Utils.min(remaining, Utils.min(CHUNK_LENGTH, (short) buffer.length));
 
-    ((SafeDataShareable) references[0]).read(state[1], buffer, (short) 0, length);
+    ((SafeDataSource) references[0]).read(state[1], buffer, (short) 0, length);
     writer.rawBytes(buffer, (short) 0, length);
 
     state[1] += length;

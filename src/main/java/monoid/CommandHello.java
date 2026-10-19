@@ -1,7 +1,7 @@
 package monoid;
 
-import static monoidsafe.Constants.SAFE_FALSE;
-import static monoidsafe.Constants.SAFE_TRUE;
+import static monoid.Constants.SAFE_FALSE;
+import static monoid.Constants.SAFE_TRUE;
 
 public final class CommandHello extends Command {
 

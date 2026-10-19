@@ -1,21 +1,28 @@
 package monoid;
 
-import static monoidsafe.Constants.SAFE_FALSE;
-import static monoidsafe.Constants.SAFE_TRUE;
+import static monoid.Constants.SAFE_FALSE;
+import static monoid.Constants.SAFE_TRUE;
 
+import javacard.framework.AID;
+import javacard.framework.ISO7816;
+import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
+import javacard.framework.OwnerPIN;
 import javacard.framework.Util;
 import javacard.security.MessageDigest;
-import monoidsafe.SafeDataShareable;
-import monoidsafe.SafeItemIteratorShareable;
-import monoidsafe.SafeItemShareable;
-import monoidsafe.SafeShareable;
+import monoidsafeidentity.SafeIdentityShareable;
 
-/**
- * The `Safe` class is a `MonoidSafe` wrapper that validates known data types
- * and provides utility methods.
- */
 public final class Safe {
+
+  public static final byte INDEX_TYPE_OFFSET = 0;
+  public static final byte INDEX_TYPE_LENGTH = 2;
+  public static final byte INDEX_TYPE_CATEGORY_OFFSET = 0;
+  public static final byte INDEX_TYPE_METADATA_OFFSET = INDEX_TYPE_CATEGORY_OFFSET + 1;
+
+  public static final byte INDEX_ID_OFFSET = INDEX_TYPE_OFFSET + INDEX_TYPE_LENGTH;
+  public static final byte INDEX_ID_LENGTH = 8;
+
+  public static final byte INDEX_LENGTH = INDEX_TYPE_LENGTH + INDEX_ID_LENGTH;
 
   public static final short TYPE_MASK = (short) 0xFFFF;
   public static final short TYPE_CATEGORY_MASK = (short) 0xFF00;
@@ -40,71 +47,233 @@ public final class Safe {
   public static final byte[] TYPE_TEXT_ED25519 = {'e','d','2','5','5','1','9'};
   // @formatter:on
 
-  private SafeShareable safe;
-  private MessageDigest indexDigest;
+  public static final byte PIN_TRY_LIMIT = 5;
+  public static final byte MAX_PIN_LENGTH = 16;
+
+  private static final short AUTH_SAFE = (short) 0x5AFE;
+
+  private static final short PIN_UNSET = (short) 0xA501;
+  private static final short PIN_SET = (short) 0x5AFE;
+
+  private static final short ITEM_LENGTH_EXTENSION = 8;
+  private static final short MIN_AVAILABLE_PERSISTENT_MEMORY = 4096;
+
+  private OwnerPIN pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_LENGTH);
+
+  private final short[] auth = JCSystem.makeTransientShortArray((short) 2, JCSystem.CLEAR_ON_RESET);
+
+  private final LibSecurity.Condition authorizationValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      if (auth[0] == 0 && auth[1] == 0) {
+        return false;
+      }
+
+      if (auth[0] != AUTH_SAFE || auth[1] != (short) ~AUTH_SAFE) {
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+      }
+
+      return true;
+    }
+  };
+
+  private LibSecurity.Condition pinValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      return pin.isValidated();
+    }
+  };
+
+  private short pinState = PIN_UNSET;
+  private short pinStateInverse = (short) ~PIN_UNSET;
 
   private final LibSecurity.Condition pinSetValidation = new LibSecurity.Condition() {
     @Override
     public boolean check() {
-      return safe.isPINSet();
-    }
-  };
-  private final LibSecurity.Condition pinValidation = new LibSecurity.Condition() {
-    @Override
-    public boolean check() {
-      return safe.isPINValidated();
-    }
-  };
-  private final LibSecurity.Condition pinBlocked = new LibSecurity.Condition() {
-    @Override
-    public boolean check() {
-      return safe.getPINTriesRemaining() == 0;
+      short state = pinState;
+
+      if ((state != PIN_UNSET && state != PIN_SET) || pinStateInverse != (short) ~state) {
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+      }
+
+      return state == PIN_SET;
     }
   };
 
-  public Safe(SafeShareable safe) {
-    this.safe = safe;
-  }
+  private final LibSecurity.Condition pinBlockedValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      return pin.getTriesRemaining() == 0;
+    }
+  };
+
+  private SafeItem[] items = new SafeItem[ITEM_LENGTH_EXTENSION];
+
+  private short itemsLength = 0;
+
+  private final short[] availableMemory = JCSystem.makeTransientShortArray(
+    (short) 2,
+    JCSystem.CLEAR_ON_RESET
+  );
+
+  private MessageDigest indexDigest;
+  private ItemCipher itemCipher;
 
   public byte[] getId() {
-    return safe.getId();
+    return requireIdentity().getId();
   }
 
   public byte[] getPublicKey() {
-    return safe.getPublicKey();
+    return requireIdentity().getPublicKey();
+  }
+
+  private SafeIdentityShareable requireIdentity() {
+    AID identityAID = JCSystem.lookupAID(
+      Constants.MONOID_SAFE_IDENTITY_AID,
+      (short) 0,
+      (byte) Constants.MONOID_SAFE_IDENTITY_AID.length
+    );
+    SafeIdentityShareable identity = identityAID == null
+      ? null
+      : (SafeIdentityShareable) JCSystem.getAppletShareableInterfaceObject(identityAID, (byte) 0);
+
+    if (identity == null) {
+      ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+    }
+
+    return identity;
+  }
+
+  private ItemCipher requireItemCipher() {
+    if (itemCipher == null) {
+      itemCipher = new ItemCipher();
+    }
+
+    return itemCipher;
   }
 
   public boolean isPINSet() {
-    return safe.isPINSet();
+    return pinSetValidation.check();
   }
 
   short getPINSetResult(short conservativeResult) {
     return LibSecurity.check(pinSetValidation, conservativeResult);
   }
 
-  short getPINValidationResult() {
-    return LibSecurity.check(pinValidation, SAFE_FALSE);
-  }
-
   short getPINBlockedResult() {
-    return LibSecurity.check(pinBlocked, SAFE_TRUE);
-  }
-
-  public boolean checkPIN(byte[] pin) {
-    pin = Utils.duplicateAsGlobal(pin);
-    return safe.checkPIN(pin, (short) 0, (byte) pin.length);
-  }
-
-  public void updatePIN(byte[] pin) {
-    pin = Utils.duplicateAsGlobal(pin);
-    safe.updatePIN(pin, (short) 0, (byte) pin.length);
+    return LibSecurity.check(pinBlockedValidation, SAFE_TRUE);
   }
 
   public short getPINTriesRemaining() {
-    return safe.getPINTriesRemaining();
+    return pin.getTriesRemaining();
   }
 
-  public SafeItemShareable createKnownRandom(short type) throws SafeException {
+  public boolean checkPIN(byte[] pin) {
+    return checkPIN(pin, (short) 0, (byte) pin.length);
+  }
+
+  public boolean checkPIN(byte[] buffer, short offset, byte length) {
+    clearAuth();
+
+    try {
+      if (LibSecurity.check(pinSetValidation, SAFE_FALSE) != SAFE_TRUE) {
+        return false;
+      }
+
+      if (!pin.check(buffer, offset, length)) {
+        return false;
+      }
+
+      if (LibSecurity.check(pinValidation, SAFE_FALSE) != SAFE_TRUE) {
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+      }
+
+      auth[0] = 0;
+      auth[1] = (short) ~AUTH_SAFE;
+      auth[0] = AUTH_SAFE;
+
+      return true;
+    } finally {
+      if (LibSecurity.check(pinBlockedValidation, SAFE_TRUE) != SAFE_FALSE) {
+        clearAuth();
+      }
+    }
+  }
+
+  public void updatePIN(byte[] pin) {
+    updatePIN(pin, (short) 0, (byte) pin.length);
+  }
+
+  public void updatePIN(byte[] buffer, short offset, byte length) {
+    checkPINUpdate();
+
+    JCSystem.beginTransaction();
+
+    try {
+      checkPINUpdate();
+      clearAuth();
+
+      pin.update(buffer, offset, length);
+      pinState = PIN_SET;
+      pinStateInverse = (short) ~PIN_SET;
+
+      JCSystem.commitTransaction();
+    } finally {
+      if (JCSystem.getTransactionDepth() != 0) {
+        JCSystem.abortTransaction();
+      }
+    }
+  }
+
+  private void checkPINUpdate() {
+    if (LibSecurity.check(pinSetValidation, SAFE_TRUE) != SAFE_FALSE) {
+      assertAccess();
+    }
+  }
+
+  public boolean isPINValidated() {
+    return getPINValidationResult() == SAFE_TRUE;
+  }
+
+  short getPINValidationResult() {
+    if (getPINSetResult(SAFE_FALSE) != SAFE_TRUE) {
+      return SAFE_FALSE;
+    }
+
+    if (LibSecurity.check(authorizationValidation, SAFE_FALSE) != SAFE_TRUE) {
+      return SAFE_FALSE;
+    }
+
+    return getPINBlockedResult() == SAFE_FALSE ? SAFE_TRUE : SAFE_FALSE;
+  }
+
+  public SafeItemIterator list(short type) {
+    return list(type, null);
+  }
+
+  public SafeItemIterator list(short type, byte[] keyPrefix) {
+    assertAccess();
+    return new SafeItemIterator(this, items, itemsLength, type, keyPrefix);
+  }
+
+  public SafeItem get(byte[] index) {
+    assertAccess();
+    return getItem(index);
+  }
+
+  private SafeItem getItem(byte[] index) {
+    for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
+      SafeItem item = items[itemIndex];
+
+      if (item.matches(index)) {
+        return item;
+      }
+    }
+
+    return null;
+  }
+
+  public SafeItem createKnownRandom(short type) throws SafeException {
     switch (type) {
       case TYPE_WEIERSTRASS_SECP256K1:
         return createRandomRandom(type, (short) CurveSECP256k1.KEY_LENGTH);
@@ -139,18 +308,18 @@ public final class Safe {
    * overwhelming probability. Ed25519 stores a 32-byte seed, for which every
    * bit pattern is valid; expansion and clamping happen when importing it.
    */
-  private SafeItemShareable createRandomRandom(short refinedType, short length) {
+  private SafeItem createRandomRandom(short refinedType, short length) {
     byte[] data = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
 
     OneShot.random(data, (short) 0, length);
 
     SafeData source = new SafeData(data);
-    byte[] index = buildGlobalDigestIndex(refinedType, source);
+    byte[] index = buildDigestIndex(refinedType, source);
 
-    return safe.create(index, null, null, source, true);
+    return createItem(index, null, null, source, true);
   }
 
-  private SafeItemShareable createRandomScalar(short refinedType, byte[] order) {
+  private SafeItem createRandomScalar(short refinedType, byte[] order) {
     byte[] data = JCSystem.makeTransientByteArray((short) order.length, JCSystem.CLEAR_ON_DESELECT);
 
     do {
@@ -158,29 +327,13 @@ public final class Safe {
     } while (!isValidScalar(data, order));
 
     SafeData source = new SafeData(data);
-    byte[] index = buildGlobalDigestIndex(refinedType, source);
+    byte[] index = buildDigestIndex(refinedType, source);
 
-    return safe.create(index, null, null, source, true);
+    return createItem(index, null, null, source, true);
   }
 
-  public SafeItemIteratorShareable list(short type) {
-    return safe.list(type);
-  }
-
-  public SafeItemIteratorShareable list(short type, byte[] keyPrefix) {
-    keyPrefix = keyPrefix != null ? Utils.duplicateAsGlobal(keyPrefix) : null;
-
-    return safe.list(type, keyPrefix);
-  }
-
-  public SafeItemShareable get(byte[] index) {
-    index = Utils.duplicateAsGlobal(index);
-
-    return safe.get(index);
-  }
-
-  public SafeItemShareable require(byte[] index) {
-    SafeItemShareable item = get(index);
+  public SafeItem require(byte[] index) {
+    SafeItem item = get(index);
 
     if (item == null) {
       SafeException.throwIt(SafeException.REASON_NOT_FOUND);
@@ -189,39 +342,31 @@ public final class Safe {
     return item;
   }
 
-  public SafeItemShareable create(
-    short type,
-    byte[] key,
-    byte[] alias,
-    SafeDataShareable data,
-    boolean secret
-  ) throws SafeException {
+  public SafeItem create(short type, byte[] key, byte[] alias, SafeDataSource data, boolean secret)
+    throws SafeException {
     if (!isKnownDigestIndexedType(type)) {
       SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     }
 
     type = refineType(type, data);
 
-    byte[] index = buildGlobalDigestIndex(type, data);
+    byte[] index = buildDigestIndex(type, data);
 
-    key = key != null ? Utils.duplicateAsGlobal(key) : null;
-    alias = alias != null ? Utils.duplicateAsGlobal(alias) : null;
-
-    return safe.create(index, key, alias, data, secret);
+    return createItem(index, key, alias, data, secret);
   }
 
-  public SafeItemShareable create(
+  public SafeItem create(
     byte[] index,
     byte[] key,
     byte[] alias,
-    SafeDataShareable data,
+    SafeDataSource data,
     boolean secret
   ) {
-    if (index.length != SafeShareable.INDEX_LENGTH) {
+    if (index.length != Safe.INDEX_LENGTH) {
       SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     }
 
-    short type = Util.getShort(index, SafeShareable.INDEX_TYPE_OFFSET);
+    short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     byte[] builtIndex;
 
@@ -230,40 +375,280 @@ public final class Safe {
         SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
       }
 
-      builtIndex = buildGlobalDigestIndex(type, data);
+      builtIndex = buildDigestIndex(type, data);
 
       // Validate digest.
       if (
         Util.arrayCompare(
           index,
-          SafeShareable.INDEX_ID_OFFSET,
+          Safe.INDEX_ID_OFFSET,
           builtIndex,
-          SafeShareable.INDEX_ID_OFFSET,
-          SafeShareable.INDEX_ID_LENGTH
+          Safe.INDEX_ID_OFFSET,
+          Safe.INDEX_ID_LENGTH
         ) !=
         0
       ) {
         SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
       }
     } else {
-      builtIndex = Utils.duplicateAsGlobal(index);
+      builtIndex = index;
     }
 
-    key = key != null ? Utils.duplicateAsGlobal(key) : null;
-    alias = alias != null ? Utils.duplicateAsGlobal(alias) : null;
-
-    return safe.create(builtIndex, key, alias, data, secret);
+    return createItem(builtIndex, key, alias, data, secret);
   }
 
-  /** The request arrays must be global for the Safe Shareable call. */
+  private SafeItem createItem(
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    SafeDataSource data,
+    boolean secret
+  ) {
+    assertAccess();
+
+    if (getItem(index) != null) {
+      return null;
+    }
+
+    checkStorage(getItemStorageLength(index, key, alias, (short) 0));
+    index = Utils.duplicateAsPersistent(index);
+    key = key != null ? Utils.duplicateAsPersistent(key) : null;
+    alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
+
+    short dataLength = data.getLength();
+    assertAccess();
+    checkStorage((short) (dataLength + getItemTableExtensionLength()));
+    byte[] storedData = Utils.duplicateAsPersistent(data, dataLength);
+    assertAccess();
+
+    if (getItem(index) != null) {
+      return null;
+    }
+
+    short extensionLength = getItemTableExtensionLength();
+
+    if (extensionLength > 0) {
+      checkStorage(extensionLength);
+    }
+
+    return publishItem(index, key, alias, storedData, secret);
+  }
+
+  private short getItemStorageLength(byte[] index, byte[] key, byte[] alias, short dataLength) {
+    short length = (short) (index.length + dataLength);
+
+    if (key != null) {
+      length += (short) key.length;
+    }
+
+    if (alias != null) {
+      length += (short) alias.length;
+    }
+
+    return (short) (length + getItemTableExtensionLength());
+  }
+
+  private short getItemTableExtensionLength() {
+    // Estimate the new reference array; object headers are covered by the reserve.
+    return itemsLength == items.length
+      ? (short) ((short) (items.length + ITEM_LENGTH_EXTENSION) * 2)
+      : 0;
+  }
+
+  private SafeItem createItem(
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] data,
+    short dataOffset,
+    short dataLength,
+    boolean secret
+  ) {
+    checkStorage(getItemStorageLength(index, key, alias, dataLength));
+
+    index = Utils.duplicateAsPersistent(index);
+    key = key != null ? Utils.duplicateAsPersistent(key) : null;
+    alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
+    data = Utils.duplicateAsPersistent(data, dataOffset, dataLength);
+
+    return publishItem(index, key, alias, data, secret);
+  }
+
+  private SafeItem publishItem(
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] data,
+    boolean secret
+  ) {
+    SafeItem item = new SafeItem(this, index, key, alias, data, secret);
+    SafeItem[] updatedItems = items;
+
+    if (itemsLength == items.length) {
+      updatedItems = new SafeItem[(short) (items.length + ITEM_LENGTH_EXTENSION)];
+
+      for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
+        updatedItems[itemIndex] = items[itemIndex];
+      }
+    }
+
+    boolean extended = updatedItems != items;
+
+    JCSystem.beginTransaction();
+
+    try {
+      items = updatedItems;
+      items[itemsLength++] = item;
+      JCSystem.commitTransaction();
+    } finally {
+      if (JCSystem.getTransactionDepth() != 0) {
+        JCSystem.abortTransaction();
+      }
+    }
+
+    if (extended) {
+      JCSystem.requestObjectDeletion();
+    }
+
+    return item;
+  }
+
+  public SafeDataSource exportItem(SafeItem item, byte[] recipientPublicKey) {
+    assertAccess();
+    byte[] data = requireItemCipher().encrypt(requireIdentity(), item, recipientPublicKey);
+    assertAccess();
+    return new SafeStoredData(this, data);
+  }
+
   public void importItem(
     byte[] index,
     byte[] key,
     byte[] alias,
     byte[] senderPublicKey,
-    SafeDataShareable data
+    SafeDataSource data
   ) {
-    safe.importItem(index, key, alias, senderPublicKey, data);
+    assertAccess();
+
+    index = Utils.duplicateAsPrivate(index);
+    key = key != null ? Utils.duplicateAsPrivate(key) : null;
+    alias = alias != null ? Utils.duplicateAsPrivate(alias) : null;
+    senderPublicKey = Utils.duplicateAsPrivate(senderPublicKey);
+
+    byte[] plaintext = requireItemCipher().decrypt(
+      requireIdentity(),
+      index,
+      key,
+      alias,
+      senderPublicKey,
+      data
+    );
+    assertAccess();
+    short secret = Util.getShort(plaintext, (short) 0);
+
+    if (secret != SAFE_TRUE && secret != SAFE_FALSE) {
+      ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+    }
+
+    short dataLength = (short) (plaintext.length - ItemCipher.SECRET_LENGTH);
+    SafeItem item = getItem(index);
+
+    if (item != null) {
+      if (
+        item.secret != secret ||
+        !equal(item.key, key) ||
+        !equal(item.alias, alias) ||
+        item.data.length != dataLength ||
+        Util.arrayCompare(item.data, (short) 0, plaintext, ItemCipher.SECRET_LENGTH, dataLength) !=
+        0
+      ) {
+        ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+      }
+
+      return;
+    }
+
+    createItem(
+      index,
+      key,
+      alias,
+      plaintext,
+      ItemCipher.SECRET_LENGTH,
+      dataLength,
+      secret == SAFE_TRUE
+    );
+  }
+
+  private static boolean equal(byte[] left, byte[] right) {
+    return (
+      left == right ||
+      (left != null &&
+        right != null &&
+        left.length == right.length &&
+        Util.arrayCompare(left, (short) 0, right, (short) 0, (short) left.length) == 0)
+    );
+  }
+
+  public void remove(SafeItem item) {
+    assertAccess();
+
+    short indexToDelete = -1;
+
+    for (short index = 0; index < itemsLength; index++) {
+      if (items[index] == item) {
+        indexToDelete = index;
+        break;
+      }
+    }
+
+    if (indexToDelete < 0) {
+      return;
+    }
+
+    JCSystem.beginTransaction();
+
+    for (short index = indexToDelete; index < (short) (itemsLength - 1); index++) {
+      items[index] = items[(short) (index + 1)];
+    }
+
+    items[--itemsLength] = null;
+
+    JCSystem.requestObjectDeletion();
+
+    JCSystem.commitTransaction();
+  }
+
+  public void assertAccess() {
+    if (LibSecurity.check(pinSetValidation, SAFE_FALSE) != SAFE_TRUE) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+
+    if (LibSecurity.check(authorizationValidation, SAFE_FALSE) != SAFE_TRUE) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+
+    if (LibSecurity.check(pinBlockedValidation, SAFE_TRUE) != SAFE_FALSE) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+  }
+
+  void checkStorage(short length) {
+    JCSystem.getAvailableMemory(availableMemory, (short) 0, JCSystem.MEMORY_TYPE_PERSISTENT);
+    short required = (short) (MIN_AVAILABLE_PERSISTENT_MEMORY + length);
+
+    // The two shorts contain an unsigned 32-bit count, most significant half first.
+    if (
+      availableMemory[0] == 0 &&
+      (short) (availableMemory[1] ^ (short) 0x8000) < (short) (required ^ (short) 0x8000)
+    ) {
+      JCSystem.requestObjectDeletion();
+      ISOException.throwIt(ISO7816.SW_FILE_FULL);
+    }
+  }
+
+  private void clearAuth() {
+    auth[0] = 0;
+    auth[1] = 0;
+    pin.reset();
   }
 
   public static short type(byte[] buffer, short offset, short length) throws MonoidException {
@@ -344,10 +729,10 @@ public final class Safe {
     }
   }
 
-  private byte[] buildGlobalDigestIndex(short refinedType, SafeDataShareable data) {
-    byte[] index = Utils.makeGlobalByteArray(SafeShareable.INDEX_LENGTH);
+  private byte[] buildDigestIndex(short refinedType, SafeDataSource data) {
+    byte[] index = JCSystem.makeTransientByteArray(Safe.INDEX_LENGTH, JCSystem.CLEAR_ON_RESET);
 
-    Util.setShort(index, SafeShareable.INDEX_TYPE_OFFSET, refinedType);
+    Util.setShort(index, Safe.INDEX_TYPE_OFFSET, refinedType);
 
     byte[] digest = JCSystem.makeTransientByteArray(
       MessageDigest.LENGTH_SHA_256,
@@ -355,7 +740,10 @@ public final class Safe {
     );
 
     short length = data.getLength();
-    byte[] buffer = Utils.makeGlobalByteArray(Utils.min(length, (short) 256));
+    byte[] buffer = JCSystem.makeTransientByteArray(
+      Utils.min(length, (short) 256),
+      JCSystem.CLEAR_ON_RESET
+    );
 
     if (length <= buffer.length) {
       data.read((short) 0, buffer, (short) 0, length);
@@ -380,18 +768,12 @@ public final class Safe {
       }
     }
 
-    Util.arrayCopyNonAtomic(
-      digest,
-      (short) 0,
-      index,
-      SafeShareable.INDEX_ID_OFFSET,
-      SafeShareable.INDEX_ID_LENGTH
-    );
+    Util.arrayCopyNonAtomic(digest, (short) 0, index, Safe.INDEX_ID_OFFSET, Safe.INDEX_ID_LENGTH);
 
     return index;
   }
 
-  private static short refineType(short type, SafeDataShareable data) throws SafeException {
+  private static short refineType(short type, SafeDataSource data) throws SafeException {
     short length = data.getLength();
 
     switch (type) {
@@ -443,8 +825,8 @@ public final class Safe {
     return type;
   }
 
-  public static byte[] readData(SafeDataShareable data) {
-    byte[] buffer = Utils.makeGlobalByteArray(data.getLength());
+  public static byte[] readData(SafeDataSource data) {
+    byte[] buffer = JCSystem.makeTransientByteArray(data.getLength(), JCSystem.CLEAR_ON_RESET);
     data.read((short) 0, buffer, (short) 0, (short) buffer.length);
     return buffer;
   }

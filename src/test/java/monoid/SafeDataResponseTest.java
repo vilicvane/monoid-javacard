@@ -9,7 +9,6 @@ import javacard.framework.Applet;
 import javacard.framework.Util;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
-import monoidsafe.SafeDataShareable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -155,7 +154,7 @@ public class SafeDataResponseTest {
     }
   }
 
-  private static class TestData implements SafeDataShareable {
+  private static class TestData implements SafeDataSource {
 
     final byte[] data;
     int reads;

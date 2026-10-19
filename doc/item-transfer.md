@@ -83,11 +83,11 @@ Encrypt it with AES-128-GCM, the envelope's 12-byte nonce, empty AAD and a full
 16-byte tag. The metadata context authenticates public fields through HPKE and
 key derivation; the payload tag authenticates the secret flag and item data.
 
-Import authenticates the communication key, decrypts into a Safe-owned buffer,
-and verifies the complete payload tag before returning plaintext to Safe.
+Import authenticates the communication key, decrypts into a private buffer,
+and verifies the complete payload tag before storing plaintext in Safe.
 Private work buffers up to 512 bytes try transient memory, falling back to
 temporary persistent storage when needed. Larger buffers use persistent storage
-directly. Cross-applet data is copied in bounded ranges; Export and Import do not
+directly. Item data is copied in bounded ranges; Export and Import do not
 require a complete global array for the artifact.
 Successful tag verification is repeated three times. Safe accepts only the two
 defined secret encodings before committing an item. Invalid artifacts cannot
@@ -101,8 +101,8 @@ unverified public key belongs to the intended physical card. The four-byte Safe
 display ID is not a cryptographic identity fingerprint.
 
 An artifact is encrypted for one recipient Identity, which may be the sender
-itself. Retaining that Identity permits importing after Safe replacement. A
-different recipient requires a new Export.
+itself. Retaining a compatible Identity permits importing after Monoid replacement.
+A different recipient requires a new Export.
 
 Retrying an existing artifact does not re-encrypt it. Re-exporting generates a new
 key, nonce and envelope. Import succeeds without mutation when the existing item

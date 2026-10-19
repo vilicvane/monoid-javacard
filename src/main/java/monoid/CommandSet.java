@@ -1,8 +1,5 @@
 package monoid;
 
-import monoidsafe.SafeItemShareable;
-import monoidsafe.SafeShareable;
-
 public class CommandSet extends Command {
 
   @Override
@@ -13,13 +10,13 @@ public class CommandSet extends Command {
 
     reader.map();
 
-    byte[] index = reader.requireKey(Text.index).bytes(SafeShareable.INDEX_LENGTH);
+    byte[] index = reader.requireKey(Text.index).bytes(Safe.INDEX_LENGTH);
     byte[] alias = reader.key(Text.alias) ? reader.text() : null;
     SafeData data = reader.key(Text.data) ? SafeData.fromReader(reader) : null;
     boolean hasSecret = reader.key(Text.secret);
     boolean secret = hasSecret && reader.bool();
 
-    SafeItemShareable item = MonoidApplet.safe.require(index);
+    SafeItem item = MonoidApplet.safe.require(index);
 
     if (data != null) {
       if (hasSecret) {
@@ -32,7 +29,7 @@ public class CommandSet extends Command {
     }
 
     if (alias != null) {
-      item.setAlias(Utils.duplicateAsGlobal(alias));
+      item.setAlias(alias);
     }
 
     sendEmptyMap();

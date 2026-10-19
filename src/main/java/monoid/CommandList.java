@@ -3,9 +3,6 @@ package monoid;
 import javacard.framework.APDU;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
-import monoidsafe.SafeItemIteratorShareable;
-import monoidsafe.SafeItemShareable;
-import monoidsafe.SafeShareable;
 
 public class CommandList extends Command implements CBORResponse {
 
@@ -32,7 +29,7 @@ public class CommandList extends Command implements CBORResponse {
 
     byte[] keyPrefix = reader.key(Text.keyPrefix) ? reader.bytes() : null;
 
-    SafeItemIteratorShareable items = MonoidApplet.safe.list(type, keyPrefix);
+    SafeItemIterator items = MonoidApplet.safe.list(type, keyPrefix);
     short count = items.getCount();
 
     references[0] = items;
@@ -67,15 +64,15 @@ public class CommandList extends Command implements CBORResponse {
       return false;
     }
 
-    SafeItemShareable item = ((SafeItemIteratorShareable) references[0]).next();
+    SafeItem item = ((SafeItemIterator) references[0]).next();
     byte[] metadata = APDU.getCurrentAPDUBuffer();
 
     if (state[1] > metadata.length) {
-      metadata = Utils.makeGlobalByteArray(state[1]);
+      metadata = JCSystem.makeTransientByteArray(state[1], JCSystem.CLEAR_ON_DESELECT);
     }
 
     short indexLength = item.getIndex(metadata, (short) 0);
-    byte[] typeName = Safe.type(Util.getShort(metadata, SafeShareable.INDEX_TYPE_OFFSET));
+    byte[] typeName = Safe.type(Util.getShort(metadata, Safe.INDEX_TYPE_OFFSET));
     short keyOffset = indexLength;
     short keyLength = item.getKey(metadata, keyOffset);
     short aliasOffset = (short) (keyOffset + (keyLength > 0 ? keyLength : 0));

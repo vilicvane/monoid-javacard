@@ -1,6 +1,6 @@
-package monoidsafe;
+package monoid;
 
-import static monoidsafe.TestData.read;
+import static monoid.TestData.read;
 
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
@@ -15,20 +15,15 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
-import tests.SafeCallerApplet;
 
 /** Tests decisions from controlled memory reports, not allocator or garbage-collection behavior. */
-public class MonoidSafeStorageTest {
+public class SafeStorageTest {
 
   private static final AID IDENTITY_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
     "f06d6f6e6f696400010000"
   );
-  private static final AID SAFE_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_AID}}"
-    "f06d6f6e6f696401010000"
-  );
-  private static final AID CALLER_AID = AIDUtil.create(
+  private static final AID MONOID_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_AID_WITHOUT_VERSION}}0001"
     "f06d6f6e6f696402010001"
   );
@@ -37,7 +32,7 @@ public class MonoidSafeStorageTest {
 
   private StorageRuntime runtime;
   private CardSimulator simulator;
-  private SafeShareable safe;
+  private Safe safe;
 
   @BeforeEach
   public void initialize() {
@@ -45,18 +40,16 @@ public class MonoidSafeStorageTest {
     runtime = new StorageRuntime();
     simulator = new CardSimulator(runtime);
     simulator.installApplet(IDENTITY_AID, MonoidSafeIdentityApplet.class);
-    simulator.installApplet(SAFE_AID, MonoidSafeApplet.class);
-    simulator.installApplet(CALLER_AID, SafeCallerApplet.class);
-    Assertions.assertTrue(simulator.selectApplet(CALLER_AID));
-    safe = (SafeShareable) runtime.getSharedObject(SAFE_AID, (byte) 0);
+    simulator.installApplet(MONOID_AID, MonoidApplet.class);
+    Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
+    safe = new Safe();
     safe.updatePIN(PIN, (short) 0, (byte) PIN.length);
     Assertions.assertTrue(safe.checkPIN(PIN, (short) 0, (byte) PIN.length));
   }
 
   @AfterEach
   public void clear() {
-    simulator.deleteApplet(CALLER_AID);
-    simulator.deleteApplet(SAFE_AID);
+    simulator.deleteApplet(MONOID_AID);
     simulator.deleteApplet(IDENTITY_AID);
   }
 
@@ -77,7 +70,7 @@ public class MonoidSafeStorageTest {
 
     for (int available : new int[] { 4108, 32767, 32768, 65535 }) {
       runtime.report(available, available - 11, 0);
-      SafeItemShareable item = create(available);
+      SafeItem item = create(available);
       Assertions.assertNotNull(item);
       Assertions.assertEquals(2, runtime.memoryChecks);
       item.remove();
@@ -136,7 +129,7 @@ public class MonoidSafeStorageTest {
 
   @Test
   public void rejectedReplacementsPreserveDataSecretAndAlias() {
-    SafeItemShareable item = create(1);
+    SafeItem item = create(1);
 
     for (int available : new int[] { 4095, 4096, 4097 }) {
       runtime.report(available);
@@ -169,10 +162,10 @@ public class MonoidSafeStorageTest {
 
   @Test
   public void preservesReadsRemovalAndNonAllocatingUpdatesAtLowSpace() {
-    SafeItemShareable item = create(1);
+    SafeItem item = create(1);
     runtime.report(0);
 
-    SafeItemIteratorShareable items = safe.list((short) 0);
+    SafeItemIterator items = safe.list((short) 0);
     Assertions.assertEquals(1, items.getCount());
     Assertions.assertArrayEquals(index(1), items.next().getIndex());
     Assertions.assertArrayEquals(new byte[] { 1 }, read(safe.get(index(1)).getData()));
@@ -188,9 +181,9 @@ public class MonoidSafeStorageTest {
 
   @Test
   public void importUsesTheSameGuardAndPreservesDuplicateImport() {
-    SafeItemShareable item = create(1);
+    SafeItem item = create(1);
     byte[] publicKey = safe.getPublicKey();
-    SafeDataShareable envelope = item.exportData(publicKey);
+    SafeDataSource envelope = item.exportData(publicKey);
     item.remove();
 
     for (int available : new int[] { 4095, 4107 }) {
@@ -222,7 +215,7 @@ public class MonoidSafeStorageTest {
     Assertions.assertEquals(0, runtime.memoryChecks);
   }
 
-  private SafeItemShareable create(int id) {
+  private SafeItem create(int id) {
     return safe.create(
       index(id),
       null,
@@ -233,7 +226,7 @@ public class MonoidSafeStorageTest {
   }
 
   private byte[] index(int id) {
-    byte[] index = new byte[SafeShareable.INDEX_LENGTH];
+    byte[] index = new byte[Safe.INDEX_LENGTH];
     index[0] = 0x10;
     index[index.length - 2] = (byte) (id >> 8);
     index[index.length - 1] = (byte) id;

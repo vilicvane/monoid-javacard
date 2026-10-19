@@ -1,6 +1,5 @@
 package tests;
 
-import com.licel.jcardsim.utils.AIDUtil;
 import javacard.framework.AID;
 import javacard.framework.APDU;
 import javacard.framework.Applet;
@@ -9,7 +8,6 @@ import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.Shareable;
 import javacard.framework.Util;
-import monoidsafe.SafeShareable;
 import monoidsafeidentity.SafeIdentityShareable;
 
 /** Exercises Identity through applet calls, including forwarding its interface. */
@@ -20,14 +18,8 @@ public class IdentityCallerApplet extends Applet implements IdentityCallerSharea
   public static final byte ENCRYPT_KEY = 3;
   public static final byte DECRYPT_KEY = 4;
   public static final byte BORROW_IDENTITY = 5;
-  public static final byte GET_SAFE_ID = 6;
   public static final byte GET_IDENTITY_ID = 7;
   public static final byte MUTATE_ID_COPY = 8;
-
-  private static final AID SAFE_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_SAFE_AID}}"
-    "f06d6f6e6f696401010000"
-  );
 
   private SafeIdentityShareable identity;
 
@@ -96,13 +88,6 @@ public class IdentityCallerApplet extends Applet implements IdentityCallerSharea
         IdentityCallerShareable caller =
           (IdentityCallerShareable) JCSystem.getAppletShareableInterfaceObject(callerAID, (byte) 0);
         identity = caller.getIdentity();
-        return;
-      case GET_SAFE_ID:
-        SafeShareable safe = (SafeShareable) JCSystem.getAppletShareableInterfaceObject(
-          SAFE_AID,
-          (byte) 0
-        );
-        send(apdu, safe.getId());
         return;
       default:
         ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);

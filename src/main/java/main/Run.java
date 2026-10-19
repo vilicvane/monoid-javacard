@@ -7,7 +7,6 @@ import javacard.framework.AID;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import monoid.MonoidApplet;
-import monoidsafe.MonoidSafeApplet;
 import monoidsafeidentity.MonoidSafeIdentityApplet;
 
 public class Run {
@@ -25,21 +24,15 @@ public class Run {
       // @inplate-line "{{hex MONOID_SAFE_IDENTITY_AID}}"
       "f06d6f6e6f696400010000"
     );
-    AID monoidSafeAID = AIDUtil.create(
-      // @inplate-line "{{hex MONOID_SAFE_AID}}"
-      "f06d6f6e6f696401010000"
-    );
     AID monoidAID = AIDUtil.create(
       // @inplate-line "{{hex MONOID_AID}}"
       "f06d6f6e6f696402010000"
     );
 
     simulator.installApplet(monoidSafeIdentityAID, MonoidSafeIdentityApplet.class);
-    simulator.installApplet(monoidSafeAID, MonoidSafeApplet.class);
     simulator.installApplet(monoidAID, MonoidApplet.class);
 
     // 3. select applet
-    // simulator.selectApplet(monoidSafeAID);
     simulator.selectApplet(monoidAID);
 
     // // 2. install applet
