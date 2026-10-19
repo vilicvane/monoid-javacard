@@ -92,10 +92,9 @@ public class Monoid001Test extends AppletTest {
   }
 
   @Test
-  public void seedAndMasterDeriveTheSameContextKeys() throws Exception {
+  public void seedDerivesDistinctContextKeys() throws Exception {
     byte[] master = hmac(SALT, SEED);
     byte[] seedIndex = create("seed", SEED);
-    byte[] masterIndex = create("master", master);
     byte[] previous = null;
 
     for (byte[] context : new byte[][] {
@@ -106,7 +105,6 @@ public class Monoid001Test extends AppletTest {
     }) {
       byte[] expected = publicKey(master, context);
       assertPublicKey(transmit(0x40, keyRequest(seedIndex, "seed", context, null)), expected);
-      assertPublicKey(transmit(0x40, keyRequest(masterIndex, "master", context, null)), expected);
 
       if (previous != null) {
         Assertions.assertFalse(Arrays.equals(previous, expected));
@@ -117,7 +115,6 @@ public class Monoid001Test extends AppletTest {
 
     authenticate(true);
     Assertions.assertArrayEquals(SEED, field(transmit(0x32, itemRequest(seedIndex)), "data"));
-    Assertions.assertArrayEquals(master, field(transmit(0x32, itemRequest(masterIndex)), "data"));
   }
 
   @Test
@@ -206,7 +203,6 @@ public class Monoid001Test extends AppletTest {
     byte[] master = hmac(SALT, SEED);
     byte[] context = Hex.decode("0102030405060708");
     byte[] seedIndex = create("seed", SEED);
-    byte[] masterIndex = create("master", master);
     byte[] directIndex = create("secp256r1", privateKey(master, context));
 
     CBORBufferWriter writer = new CBORBufferWriter();
@@ -220,10 +216,6 @@ public class Monoid001Test extends AppletTest {
       transmit(0x41, keyRequest(seedIndex, "seed", context, "ecdsa")),
       Command.CODE_INTERNAL
     );
-    assertError(
-      transmit(0x41, keyRequest(masterIndex, "master", context, "ecdsa")),
-      Command.CODE_INTERNAL
-    );
 
     assertPublicKey(
       transmit(0x40, keyRequest(seedIndex, "seed", context, null)),
@@ -231,7 +223,6 @@ public class Monoid001Test extends AppletTest {
     );
     authenticate(true);
     Assertions.assertArrayEquals(SEED, field(transmit(0x32, itemRequest(seedIndex)), "data"));
-    Assertions.assertArrayEquals(master, field(transmit(0x32, itemRequest(masterIndex)), "data"));
   }
 
   @Test
@@ -378,54 +369,50 @@ public class Monoid001Test extends AppletTest {
   public void updatingSourceDataAtTheSameIndexChangesTheDerivedKey() throws Exception {
     byte[] context = Hex.decode("0102030405");
 
-    for (String type : new String[] { "seed", "master" }) {
-      byte[] source = type.equals("seed") ? SEED.clone() : hmac(SALT, SEED);
-      byte[] index = create(type, source);
-      byte[] master = type.equals("seed") ? hmac(SALT, source) : source;
-      byte[] original = publicKey(master, context);
-      assertPublicKey(transmit(0x40, keyRequest(index, type, context, null)), original);
-      assertPublicKey(transmit(0x40, keyRequest(index, type, context, null)), original);
+    byte[] source = SEED.clone();
+    byte[] index = create("seed", source);
+    byte[] master = hmac(SALT, source);
+    byte[] original = publicKey(master, context);
+    assertPublicKey(transmit(0x40, keyRequest(index, "seed", context, null)), original);
+    assertPublicKey(transmit(0x40, keyRequest(index, "seed", context, null)), original);
 
-      source[source.length - 1] ^= 1;
-      CBORBufferWriter writer = new CBORBufferWriter();
-      writer.map((short) 2);
-      writer.text("index".getBytes());
-      writer.bytes(index);
-      writer.text("data".getBytes());
-      writer.bytes(source);
-      assertNoError(transmit(0x33, writer.getDataBuffer()));
+    source[source.length - 1] ^= 1;
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 2);
+    writer.text("index".getBytes());
+    writer.bytes(index);
+    writer.text("data".getBytes());
+    writer.bytes(source);
+    assertNoError(transmit(0x33, writer.getDataBuffer()));
 
-      master = type.equals("seed") ? hmac(SALT, source) : source;
-      byte[] updated = publicKey(master, context);
-      Assertions.assertFalse(Arrays.equals(original, updated));
-      assertPublicKey(transmit(0x40, keyRequest(index, type, context, null)), updated);
-      Assertions.assertArrayEquals(source, field(transmit(0x32, itemRequest(index)), "data"));
-    }
+    master = hmac(SALT, source);
+    byte[] updated = publicKey(master, context);
+    Assertions.assertFalse(Arrays.equals(original, updated));
+    assertPublicKey(transmit(0x40, keyRequest(index, "seed", context, null)), updated);
+    Assertions.assertArrayEquals(source, field(transmit(0x32, itemRequest(index)), "data"));
   }
 
   @Test
   public void deletedSourcesCannotBeUsedThroughTheDerivationCache() throws Exception {
     byte[] context = Hex.decode("0102030405");
 
-    for (String type : new String[] { "seed", "master" }) {
-      byte[] source = type.equals("seed") ? SEED.clone() : hmac(SALT, SEED);
-      byte[] index = create(type, source);
-      byte[] master = type.equals("seed") ? hmac(SALT, source) : source;
-      assertPublicKey(
-        transmit(0x40, keyRequest(index, type, context, null)),
-        publicKey(master, context)
-      );
-      assertNoError(transmit(0x35, itemRequest(index)));
+    byte[] source = SEED.clone();
+    byte[] index = create("seed", source);
+    byte[] master = hmac(SALT, source);
+    assertPublicKey(
+      transmit(0x40, keyRequest(index, "seed", context, null)),
+      publicKey(master, context)
+    );
+    assertNoError(transmit(0x35, itemRequest(index)));
 
-      for (int instruction : new int[] { 0x40, 0x41 }) {
-        assertError(
-          transmit(
-            instruction,
-            keyRequest(index, type, context, instruction == 0x41 ? "ecdsa" : null)
-          ),
-          MonoidException.CODE_NOT_FOUND
-        );
-      }
+    for (int instruction : new int[] { 0x40, 0x41 }) {
+      assertError(
+        transmit(
+          instruction,
+          keyRequest(index, "seed", context, instruction == 0x41 ? "ecdsa" : null)
+        ),
+        MonoidException.CODE_NOT_FOUND
+      );
     }
   }
 

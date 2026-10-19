@@ -2,7 +2,7 @@
 
 Monoid supports BIP32 derivation and ECDSA or BIP340 Schnorr signing on
 `secp256k1`. Taproot uses the existing `0x40` View key and `0x41` Sign commands,
-with the same seed, master and independent `secp256k1` Safe items. Hello and
+with the same seed and independent `secp256k1` Safe items. Hello and
 System information advertise `['ecdsa', 'bip340']` under the `secp256k1` curve.
 The complete request and response definitions are in the [README](../README.md#0x40--0x4f-key-usage).
 
@@ -13,7 +13,7 @@ Use a stored seed with `type: 'seed'` and
 BIP86 path `m/86'/coin_type'/account'/change/address_index`. For Bitcoin mainnet,
 the first receiving key is `m/86'/0'/0'/0/0`. Encode the path using the existing
 BIP32 format: four bytes per index in big-endian order, with bit 31 set for
-hardened indices. A stored master uses `type: 'master'` with the same derivation.
+hardened indices.
 BIP32 fixes secp256k1 and uses `Bitcoin seed` for master generation.
 [BIP86](https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki)
 defines the account layout and no-script-tree output construction.
@@ -47,8 +47,8 @@ constructs the script tree and its root; the card applies the BIP341 TapTweak.
 Use the same root when querying the output key and signing through its key path.
 
 View key returns a 32-byte x-only output key when `taproot` is enabled and the
-existing 33-byte compressed public key when it is omitted or `false`. Seed and
-master queries also return the original derived node's 32-byte `chainCode`. The
+existing 33-byte compressed public key when it is omitted or `false`. Seed
+queries also return the original derived node's 32-byte `chainCode`. The
 tweaked public key and that chain code do not form a BIP32 extended public key:
 derive child nodes before applying TapTweak. Independent key queries have no
 chain code.

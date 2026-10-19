@@ -28,7 +28,6 @@ public class Text {
   public static final byte[] key = {'k','e','y'};
   public static final byte[] keyPrefix = {'k','e','y','P','r','e','f','i','x'};
   public static final byte[] length = {'l','e','n','g','t','h'};
-  public static final byte[] master = {'m','a','s','t','e','r'};
   public static final byte[] memories = {'m','e','m','o','r','i','e','s'};
   public static final byte[] merkleRoot = {'m','e','r','k','l','e','R','o','o','t'};
   public static final byte[] message = {'m','e','s','s','a','g','e'};

@@ -101,6 +101,12 @@ also count as occupied when checking a replacement.
 
 ## Item data
 
+The built-in key types are `0x0301` (secp256k1), `0x0302` (secp256r1) and
+`0x0401` (Ed25519). Removing the former master type shifted these categories.
+Indices and exported items using the former master or curve types cannot be
+reused unchanged; in particular, the former secp256k1 type `0x0401` now denotes
+Ed25519. Updating Monoid alone does not migrate existing Safe data.
+
 Each item stores its data in one persistent byte array. `SafeDataShareable`
 provides a length and repeatable range reads into a caller-provided global buffer.
 Safe checks the owning session on each read; the interface never exposes its
@@ -126,7 +132,7 @@ signatures require Safe and Monoid to be updated together.
 ## Derivation cache
 
 BIP32, SLIP-0010 Ed25519 and Monoid-001 share 32 persistent FIFO entries.
-Each entry matches the algorithm, source seed or master bytes, source kind and
+Each entry matches the algorithm, source seed bytes and
 complete path or context. A hit skips both seed-to-master and path derivation.
 Different paths have separate entries; intermediate path prefixes are not cached.
 

@@ -42,10 +42,7 @@ public class CommandSign extends Command {
     short declaredType = Safe.type(request.requireKey(Text.type));
 
     if (
-      declaredType !=
-        (Safe.isTypeSeed(type) || Safe.isTypeMaster(type)
-            ? (short) (type & Safe.TYPE_CATEGORY_MASK)
-            : type) ||
+      declaredType != (Safe.isTypeSeed(type) ? (short) (type & Safe.TYPE_CATEGORY_MASK) : type) ||
       request.key(Text.seed) ||
       request.key(Text.curve) ||
       request.key(Text.path)
@@ -55,8 +52,7 @@ public class CommandSign extends Command {
     }
 
     switch (type & Safe.TYPE_CATEGORY_MASK) {
-      case Safe.TYPE_SEED:
-      case Safe.TYPE_MASTER: {
+      case Safe.TYPE_SEED: {
         CBORMap derivationRequest = request.requireKey(Text.derivation).map(derivationFields);
 
         byte[] derivation = derivationRequest.requireKey(Text.type).text();

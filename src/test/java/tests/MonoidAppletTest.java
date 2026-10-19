@@ -63,21 +63,16 @@ public class MonoidAppletTest extends AppletTest {
   );
   private static final byte[] TEST_SEED_INDEX = Hex.decode("0240" + "7e083e348d6eb20e");
 
-  private static final byte[] TEST_MASTER = Hex.decode(
-    "5857033b6a5b148e096d2548438cc984b15a5c6590476ae4c12360718ef056c05926524c3889eeccfaaca9805ca83bec6038e01557ca41d11329879b64eb9089"
-  );
-  private static final byte[] TEST_MASTER_INDEX = Hex.decode("0320" + "aa169eed841d5f74");
-
   private static final byte[] TEST_SECP256K1_KEY = Hex.decode(
     "eff3af6963c58a7a8ad2462bd41486d0a146d8850bd497234da6d419041f4c58"
   );
-  private static final byte[] TEST_SECP256K1_KEY_INDEX = Hex.decode("0401" + "b5519fdc940daeb3");
+  private static final byte[] TEST_SECP256K1_KEY_INDEX = Hex.decode("0301" + "b5519fdc940daeb3");
 
   // RFC 8032, section 7.1, test 2; this is a public example private key seed.
   private static final byte[] TEST_ED25519_KEY = Hex.decode(
     "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"
   );
-  private static final byte[] TEST_ED25519_KEY_INDEX = Hex.decode("0501" + "3d2d9682cdba5296");
+  private static final byte[] TEST_ED25519_KEY_INDEX = Hex.decode("0401" + "3d2d9682cdba5296");
 
   private static final byte[] TEST_DIGEST = Hex.decode(
     "43ddcab065bcc7bd8d80c479ed29d3658ccf3ac3343b7044013008bde5ca19cf"
@@ -91,13 +86,6 @@ public class MonoidAppletTest extends AppletTest {
   );
   private static final byte[] TEST_SEED_DERIVED_CHAIN_CODE = Hex.decode(
     "78307a5fbe683c88809756308869b1e36790820c8a6e6552e1ad848eddbbb8ae"
-  );
-
-  private static final byte[] TEST_MASTER_DERIVED_PUBLIC_KEY = Hex.decode(
-    "02541cfc913dc568120034e040063f39933ca6965ac6cbd5e41f5a0c641ace57d3"
-  );
-  private static final byte[] TEST_MASTER_DERIVED_CHAIN_CODE = Hex.decode(
-    "2ff847394908fdc40c3b30c094f07df6ba5bbb1ac5cac1c978b46434ccffacce"
   );
 
   private static final byte[] TEST_SECP256K1_DERIVED_PUBLIC_KEY = Hex.decode(
@@ -342,11 +330,10 @@ public class MonoidAppletTest extends AppletTest {
       Safe.TYPE_TEXT_ENTROPY,
       Safe.TYPE_TEXT_SEED,
       Safe.TYPE_TEXT_SEED,
-      Safe.TYPE_TEXT_MASTER,
       Safe.TYPE_TEXT_SECP256K1,
     };
 
-    short[] lengths = { 32, 48, 64, 128, 32, 0 };
+    short[] lengths = { 32, 48, 64, 128, 0 };
 
     for (int index = 0; index < types.length; index++) {
       byte[] type = types[index];
@@ -553,7 +540,6 @@ public class MonoidAppletTest extends AppletTest {
     HashMap<byte[], byte[]> keys = new HashMap<>();
 
     keys.put(TEST_SEED_INDEX, TEST_SEED);
-    keys.put(TEST_MASTER_INDEX, TEST_MASTER);
     keys.put(TEST_SECP256K1_KEY_INDEX, TEST_SECP256K1_KEY);
     keys.put(TEST_ED25519_KEY_INDEX, TEST_ED25519_KEY);
 
@@ -629,9 +615,9 @@ public class MonoidAppletTest extends AppletTest {
     CBORBufferReader reader = new CBORBufferReader(buffer);
     reader.map();
     {
-      Assertions.assertEquals(10, reader.requireKey("items".getBytes()).array());
+      Assertions.assertEquals(8, reader.requireKey("items".getBytes()).array());
 
-      Assertions.assertTrue(reader.index((short) 9));
+      Assertions.assertTrue(reader.index((short) 7));
       reader.map();
       {
         reader.requireKey("type".getBytes()).text();
@@ -679,41 +665,6 @@ public class MonoidAppletTest extends AppletTest {
         Assertions.assertArrayEquals(
           reader.requireKey("chainCode".getBytes()).bytes(),
           TEST_SEED_DERIVED_CHAIN_CODE
-        );
-      }
-    }
-
-    {
-      CBORBufferWriter writer = new CBORBufferWriter();
-
-      writer.map((short) 3);
-      {
-        writer.text("index".getBytes());
-        writer.bytes(TEST_MASTER_INDEX);
-
-        writer.text("type".getBytes());
-        writer.text("master".getBytes());
-
-        writeDerivation(writer, false, TEST_PATH);
-      }
-
-      CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
-
-      ResponseAPDU response = manager.transmit(request);
-
-      assertNoError(response);
-
-      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
-
-      reader.map();
-      {
-        Assertions.assertArrayEquals(
-          reader.requireKey("publicKey".getBytes()).bytes(),
-          TEST_MASTER_DERIVED_PUBLIC_KEY
-        );
-        Assertions.assertArrayEquals(
-          reader.requireKey("chainCode".getBytes()).bytes(),
-          TEST_MASTER_DERIVED_CHAIN_CODE
         );
       }
     }
@@ -814,33 +765,6 @@ public class MonoidAppletTest extends AppletTest {
     {
       CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 5);
-      {
-        writer.text("index".getBytes());
-        writer.bytes(TEST_MASTER_INDEX);
-
-        writer.text("type".getBytes());
-        writer.text("master".getBytes());
-
-        writeDerivation(writer, false, TEST_PATH);
-
-        writer.text("cipher".getBytes());
-        writer.text("ecdsa".getBytes());
-
-        writer.text("digest".getBytes());
-        writer.bytes(TEST_DIGEST);
-      }
-
-      CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getDataBuffer());
-
-      ResponseAPDU response = manager.transmit(request);
-
-      assertSignature(response, TEST_DIGEST, TEST_MASTER_DERIVED_PUBLIC_KEY);
-    }
-
-    {
-      CBORBufferWriter writer = new CBORBufferWriter();
-
       writer.map((short) 4);
       {
         writer.text("index".getBytes());
@@ -868,106 +792,84 @@ public class MonoidAppletTest extends AppletTest {
   // @inplate-line {{java-test-order}}
   @Order(14)
   public void signED25519Message() throws Exception {
-    byte[][] indices = { TEST_SEED_INDEX, TEST_MASTER_INDEX };
     // Node.js crypto HMAC-SHA512 derivation and Ed25519 signing of 0x72 at m/44'/501'/0'/0'.
-    byte[][] signatures = {
-      Hex.decode(
-        "fcc50cf4592b2336b2c7c0915b2102656ee067f3fbff8b5454863cef0cf037a687945e97290a707faf9e20685d2ad9a12c89e8a4c4a59f791ea13644d160990e"
-      ),
-      Hex.decode(
-        "46bd2dd36ded172a640133204aea836f776662dc9ad597393419979bae920a42b626f8efec906a4d4cc238c94350071a4a900298472a096cfa2340cb5ecb5f03"
-      ),
-    };
+    byte[] signature = Hex.decode(
+      "fcc50cf4592b2336b2c7c0915b2102656ee067f3fbff8b5454863cef0cf037a687945e97290a707faf9e20685d2ad9a12c89e8a4c4a59f791ea13644d160990e"
+    );
 
     CardManager manager = connect();
 
     authenticate(manager, false);
 
-    for (int index = 0; index < indices.length; index++) {
-      CBORBufferWriter writer = new CBORBufferWriter();
+    CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 5);
-      {
-        writer.text("index".getBytes());
-        writer.bytes(indices[index]);
+    writer.map((short) 5);
+    {
+      writer.text("index".getBytes());
+      writer.bytes(TEST_SEED_INDEX);
 
-        writer.text("type".getBytes());
-        writer.text(index == 0 ? "seed".getBytes() : "master".getBytes());
+      writer.text("type".getBytes());
+      writer.text("seed".getBytes());
 
-        writeDerivation(writer, true, Hex.decode("8000002c800001f58000000080000000"));
+      writeDerivation(writer, true, Hex.decode("8000002c800001f58000000080000000"));
 
-        writer.text("cipher".getBytes());
-        writer.text("ed25519".getBytes());
+      writer.text("cipher".getBytes());
+      writer.text("ed25519".getBytes());
 
-        writer.text("message".getBytes());
-        writer.bytes(Hex.decode("72"));
-      }
-
-      CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getDataBuffer());
-
-      ResponseAPDU response = manager.transmit(request);
-
-      assertNoError(response);
-
-      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
-      reader.map();
-      Assertions.assertArrayEquals(
-        signatures[index],
-        reader.requireKey("signature".getBytes()).bytes()
-      );
+      writer.text("message".getBytes());
+      writer.bytes(Hex.decode("72"));
     }
+
+    CommandAPDU request = apdu(0x00, 0x41, 0, 0, writer.getDataBuffer());
+
+    ResponseAPDU response = manager.transmit(request);
+
+    assertNoError(response);
+
+    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+    reader.map();
+    Assertions.assertArrayEquals(signature, reader.requireKey("signature".getBytes()).bytes());
   }
 
   @Test
   // @inplate-line {{java-test-order}}
   @Order(15)
   public void viewEdwardsKeys() throws Exception {
-    byte[][] indices = { TEST_SEED_INDEX, TEST_MASTER_INDEX };
     // Node.js crypto HMAC-SHA512 derivation and Ed25519 public keys at m/44'/501'/0'/0'.
-    byte[][] publicKeys = {
-      Hex.decode("002dc5ffc81291faa8f95528b8366a3c22671ea7ef34df78a7e114f5fb86c67a"),
-      Hex.decode("7bf87e36e6c74f6e1867d6185b4bada35a2a2b6dde341f108a1354573d787682"),
-    };
-    byte[][] chainCodes = {
-      Hex.decode("a9222e023e472495cc6e674d480b5751e597c681ae819de014f6c781746a5c58"),
-      Hex.decode("1ae04e54c925c17a4a321906bae967dd1ec31d0aad405bcd858dd979e17a0e2a"),
-    };
+    byte[] publicKey = Hex.decode(
+      "002dc5ffc81291faa8f95528b8366a3c22671ea7ef34df78a7e114f5fb86c67a"
+    );
+    byte[] chainCode = Hex.decode(
+      "a9222e023e472495cc6e674d480b5751e597c681ae819de014f6c781746a5c58"
+    );
 
     CardManager manager = connect();
 
     authenticate(manager, false);
 
-    for (int index = 0; index < indices.length; index++) {
-      CBORBufferWriter writer = new CBORBufferWriter();
+    CBORBufferWriter writer = new CBORBufferWriter();
 
-      writer.map((short) 3);
-      {
-        writer.text("index".getBytes());
-        writer.bytes(indices[index]);
+    writer.map((short) 3);
+    {
+      writer.text("index".getBytes());
+      writer.bytes(TEST_SEED_INDEX);
 
-        writer.text("type".getBytes());
-        writer.text(index == 0 ? "seed".getBytes() : "master".getBytes());
+      writer.text("type".getBytes());
+      writer.text("seed".getBytes());
 
-        writeDerivation(writer, true, Hex.decode("8000002c800001f58000000080000000"));
-      }
-
-      CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
-
-      ResponseAPDU response = manager.transmit(request);
-
-      assertNoError(response);
-
-      CBORBufferReader reader = new CBORBufferReader(response.getBytes());
-      Assertions.assertEquals(2, reader.map());
-      Assertions.assertArrayEquals(
-        publicKeys[index],
-        reader.requireKey("publicKey".getBytes()).bytes()
-      );
-      Assertions.assertArrayEquals(
-        chainCodes[index],
-        reader.requireKey("chainCode".getBytes()).bytes()
-      );
+      writeDerivation(writer, true, Hex.decode("8000002c800001f58000000080000000"));
     }
+
+    CommandAPDU request = apdu(0x00, 0x40, 0, 0, writer.getDataBuffer());
+
+    ResponseAPDU response = manager.transmit(request);
+
+    assertNoError(response);
+
+    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+    Assertions.assertEquals(2, reader.map());
+    Assertions.assertArrayEquals(publicKey, reader.requireKey("publicKey".getBytes()).bytes());
+    Assertions.assertArrayEquals(chainCode, reader.requireKey("chainCode".getBytes()).bytes());
   }
 
   @Test
@@ -1091,14 +993,7 @@ public class MonoidAppletTest extends AppletTest {
 
     authenticate(manager, false);
 
-    int[] messageLengths = { 512, 1167, 4032, 8078, 8076 };
-    byte[][] indices = {
-      TEST_SEED_INDEX,
-      TEST_SEED_INDEX,
-      TEST_SEED_INDEX,
-      TEST_SEED_INDEX,
-      TEST_MASTER_INDEX,
-    };
+    int[] messageLengths = { 512, 1167, 4032, 8078 };
     // Node.js crypto HMAC-SHA512 derivation and Ed25519 signing of repeated bytes 0..255.
     byte[][] signatures = {
       Hex.decode(
@@ -1113,13 +1008,9 @@ public class MonoidAppletTest extends AppletTest {
       Hex.decode(
         "20e1b5301e69803696619d31eefc06a4651ecec9ea773882676cb370f89461117a34fa79b00e3f4abc08b5520df5b02b7feab8799385105730cb37946b28030f"
       ),
-      Hex.decode(
-        "12e3692f50448f2d2fc55af528df23b7b0c5ad1411b4c598c433ba1d42ee064f228eb03155b4b05b8617c2c8f189c11d837e67ebecbfc0b6f2805221008ee804"
-      ),
     };
 
     for (int index = 0; index < messageLengths.length; index++) {
-      boolean seed = indices[index] == TEST_SEED_INDEX;
       byte[] message = new byte[messageLengths[index]];
 
       for (int offset = 0; offset < message.length; offset++) {
@@ -1136,9 +1027,9 @@ public class MonoidAppletTest extends AppletTest {
           }
 
           writer.text("index".getBytes());
-          writer.bytes(indices[index]);
+          writer.bytes(TEST_SEED_INDEX);
           writer.text("type".getBytes());
-          writer.text(seed ? "seed".getBytes() : "master".getBytes());
+          writer.text("seed".getBytes());
           writeDerivation(writer, true, Hex.decode("8000002c800001f58000000080000000"));
           writer.text("cipher".getBytes());
           writer.text("ed25519".getBytes());
@@ -1151,7 +1042,7 @@ public class MonoidAppletTest extends AppletTest {
 
         byte[] request = writer.getDataBuffer();
 
-        if (message.length >= 8076) {
+        if (message.length == 8078) {
           Assertions.assertEquals(8192, request.length);
         }
 
@@ -1226,8 +1117,8 @@ public class MonoidAppletTest extends AppletTest {
 
     CBORBufferReader reader = new CBORBufferReader(response);
     reader.map();
-    Assertions.assertEquals(10, reader.requireKey("items".getBytes()).array());
-    Assertions.assertTrue(reader.index((short) 9));
+    Assertions.assertEquals(8, reader.requireKey("items".getBytes()).array());
+    Assertions.assertTrue(reader.index((short) 7));
     reader.map();
     Assertions.assertEquals(10, reader.requireKey("index".getBytes()).bytes().length);
     Assertions.assertEquals(0x6985, transmitFrame(manager, 0, 0xC0, 0, 0, new byte[0]).getSW());
@@ -1344,7 +1235,7 @@ public class MonoidAppletTest extends AppletTest {
         if (mode == 0) {
           writer.text("ed25519".getBytes());
         } else if (mode == 1) {
-          writer.integer((short) 0x0501);
+          writer.integer((short) 0x0401);
         } else {
           writer.bytes(index);
         }
@@ -1737,56 +1628,54 @@ public class MonoidAppletTest extends AppletTest {
     CardManager manager = connect();
     authenticate(manager, false);
 
-    for (byte[] index : new byte[][] { TEST_SEED_INDEX, TEST_MASTER_INDEX }) {
-      for (byte[] path : new byte[][] { new byte[0], TEST_PATH }) {
-        for (int instruction : new int[] { 0x40, 0x41 }) {
-          CBORBufferWriter writer = new CBORBufferWriter();
-          writer.map((short) (instruction == 0x41 ? 5 : 3));
-          writer.text("index".getBytes());
-          writer.bytes(index);
-          writer.text("type".getBytes());
-          writer.text(index == TEST_SEED_INDEX ? "seed".getBytes() : "master".getBytes());
-          writer.text("derivation".getBytes());
-          writer.map((short) 3);
-          writer.text("type".getBytes());
-          writer.text("slip10".getBytes());
-          writer.text("curve".getBytes());
-          writer.text("secp256r1".getBytes());
-          writer.text("path".getBytes());
-          writer.bytes(path);
+    for (byte[] path : new byte[][] { new byte[0], TEST_PATH }) {
+      for (int instruction : new int[] { 0x40, 0x41 }) {
+        CBORBufferWriter writer = new CBORBufferWriter();
+        writer.map((short) (instruction == 0x41 ? 5 : 3));
+        writer.text("index".getBytes());
+        writer.bytes(TEST_SEED_INDEX);
+        writer.text("type".getBytes());
+        writer.text("seed".getBytes());
+        writer.text("derivation".getBytes());
+        writer.map((short) 3);
+        writer.text("type".getBytes());
+        writer.text("slip10".getBytes());
+        writer.text("curve".getBytes());
+        writer.text("secp256r1".getBytes());
+        writer.text("path".getBytes());
+        writer.bytes(path);
 
-          if (instruction == 0x41) {
-            writer.text("cipher".getBytes());
-            writer.text("ecdsa".getBytes());
-            writer.text("digest".getBytes());
-            writer.bytes(TEST_DIGEST);
-          }
-
-          assertError(
-            manager.transmit(apdu(0, instruction, 0, 0, writer.getDataBuffer())),
-            MonoidException.CODE_INVALID_PARAMETER
-          );
+        if (instruction == 0x41) {
+          writer.text("cipher".getBytes());
+          writer.text("ecdsa".getBytes());
+          writer.text("digest".getBytes());
+          writer.bytes(TEST_DIGEST);
         }
+
+        assertError(
+          manager.transmit(apdu(0, instruction, 0, 0, writer.getDataBuffer())),
+          MonoidException.CODE_INVALID_PARAMETER
+        );
       }
     }
 
     CBORBufferWriter writer = new CBORBufferWriter();
     writer.map((short) 3);
     writer.text("index".getBytes());
-    writer.bytes(TEST_MASTER_INDEX);
+    writer.bytes(TEST_SEED_INDEX);
     writer.text("type".getBytes());
-    writer.text("master".getBytes());
+    writer.text("seed".getBytes());
     writeDerivation(writer, false, TEST_PATH);
     ResponseAPDU response = manager.transmit(apdu(0, 0x40, 0, 0, writer.getDataBuffer()));
     assertNoError(response);
     CBORBufferReader reader = new CBORBufferReader(response.getBytes());
     reader.map();
     Assertions.assertArrayEquals(
-      TEST_MASTER_DERIVED_PUBLIC_KEY,
+      TEST_SEED_DERIVED_PUBLIC_KEY,
       reader.requireKey("publicKey".getBytes()).bytes()
     );
     Assertions.assertArrayEquals(
-      TEST_MASTER_DERIVED_CHAIN_CODE,
+      TEST_SEED_DERIVED_CHAIN_CODE,
       reader.requireKey("chainCode".getBytes()).bytes()
     );
   }
@@ -1799,7 +1688,7 @@ public class MonoidAppletTest extends AppletTest {
     if (mode == 0) {
       writer.text("secp256r1".getBytes());
     } else if (mode == 1) {
-      writer.integer((short) 0x0402);
+      writer.integer((short) 0x0302);
     } else {
       writer.bytes(secp256r1Index(data));
     }
@@ -1811,7 +1700,7 @@ public class MonoidAppletTest extends AppletTest {
 
   private byte[] secp256r1Index(byte[] data) throws Exception {
     byte[] index = new byte[10];
-    index[0] = 0x04;
+    index[0] = 0x03;
     index[1] = 0x02;
     System.arraycopy(MessageDigest.getInstance("SHA-256").digest(data), 0, index, 2, 8);
     return index;
@@ -1819,7 +1708,7 @@ public class MonoidAppletTest extends AppletTest {
 
   private byte[] ed25519Index(byte[] data) throws Exception {
     byte[] index = new byte[10];
-    index[0] = 0x05;
+    index[0] = 0x04;
     index[1] = 0x01;
     System.arraycopy(MessageDigest.getInstance("SHA-256").digest(data), 0, index, 2, 8);
     return index;
@@ -1966,7 +1855,7 @@ public class MonoidAppletTest extends AppletTest {
     Assertions.assertTrue(foundExample);
     Assertions.assertTrue(foundItem);
 
-    for (short category : new short[] { 0x0400, 0x0500 }) {
+    for (short category : new short[] { 0x0300, 0x0400 }) {
       writer.reset();
       writer.map((short) 1);
       writer.text("type".getBytes());

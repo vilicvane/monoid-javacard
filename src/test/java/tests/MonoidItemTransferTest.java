@@ -124,11 +124,11 @@ public class MonoidItemTransferTest {
   @Test
   public void randomItemsAreSecretForEverySupportedKeyType() {
     try (Card card = new Card(true)) {
-      String[] types = { "entropy", "seed", "master", "secp256k1", "secp256r1", "ed25519" };
+      String[] types = { "entropy", "seed", "secp256k1", "secp256r1", "ed25519" };
 
       for (String type : types) {
         Map<String, Object> request = fields("type", type);
-        if (type.equals("entropy") || type.equals("seed") || type.equals("master")) {
+        if (type.equals("entropy") || type.equals("seed")) {
           request.put("length", type.equals("seed") ? 64 : 32);
         }
 
@@ -139,6 +139,83 @@ public class MonoidItemTransferTest {
       }
 
       Assertions.assertEquals(types.length, itemCount(card));
+    }
+  }
+
+  @Test
+  public void removedMasterTypeIsRejectedByPublicCommands() {
+    try (Card card = new Card(true)) {
+      assertError(card.transmit(0x30, fields("type", "master")), "INVALID_PARAMETER");
+      assertError(card.transmit(0x34, fields("type", "master", "data", SEED)), "INVALID_PARAMETER");
+      assertError(card.transmit(0x38, fields("type", "master", "length", 32)), "INVALID_PARAMETER");
+
+      // A former 32B-key/32B-chain-code item is no longer a recognized item type.
+      assertError(card.transmit(0x34, fields("type", 0x0320, "data", SEED)), "INVALID_PARAMETER");
+      byte[] oldIndex = new byte[SafeShareable.INDEX_LENGTH];
+      oldIndex[0] = 3;
+      oldIndex[1] = 32;
+      assertError(
+        card.transmit(0x34, fields("index", oldIndex, "data", SEED)),
+        "INVALID_PARAMETER"
+      );
+      Assertions.assertEquals(0, itemCount(card));
+
+      byte[] index = card.create("seed", null, null, SEED, false);
+
+      for (int instruction : new int[] { 0x40, 0x41 }) {
+        Map<String, Object> request = fields("index", index, "type", "master");
+
+        if (instruction == 0x41) {
+          request.put("cipher", "ecdsa");
+          request.put("digest", DIGEST);
+        }
+
+        assertError(card.transmit(instruction, request), "INVALID_PARAMETER");
+      }
+
+      assertData(card, index, SEED);
+    }
+  }
+
+  @Test
+  public void curveItemTypesUseTheRenumberedCategories() {
+    try (Card card = new Card(true)) {
+      String[] names = { "secp256k1", "secp256r1", "ed25519" };
+      short[] types = { 0x0301, 0x0302, 0x0401 };
+      byte[] scalar = new byte[32];
+      scalar[31] = 1;
+
+      for (int position = 0; position < types.length; position++) {
+        byte[] index = card.create(names[position], null, null, scalar, false);
+        Assertions.assertEquals(types[position] >> 8, index[0] & 0xFF);
+        Assertions.assertEquals(types[position] & 0xFF, index[1] & 0xFF);
+        card.success(0x35, fields("index", index));
+        Assertions.assertArrayEquals(
+          index,
+          card.success(0x34, fields("type", types[position], "data", scalar)).bytes("index")
+        );
+
+        CBORBufferReader reader = card.success(0x30, fields("type", types[position])).reader();
+        Assertions.assertEquals(1, reader.requireKey(bytes("items")).array());
+        Assertions.assertTrue(reader.index((short) 0));
+        reader.map();
+        Assertions.assertArrayEquals(
+          bytes(names[position]),
+          reader.requireKey(bytes("type")).text()
+        );
+      }
+
+      for (int category : new int[] { 0x0300, 0x0400 }) {
+        CBORBufferReader reader = card.success(0x30, fields("type", category)).reader();
+        short count = reader.requireKey(bytes("items")).array();
+        Assertions.assertEquals(category == 0x0300 ? 2 : 1, count);
+
+        for (short position = 0; position < count; position++) {
+          Assertions.assertTrue(reader.index(position));
+          reader.map();
+          Assertions.assertEquals(category >> 8, reader.requireKey(bytes("index")).bytes()[0]);
+        }
+      }
     }
   }
 
@@ -510,12 +587,11 @@ public class MonoidItemTransferTest {
   @Test
   public void digestIndexedItemsHashTheEntireDataSource() throws Exception {
     try (Card card = new Card(true)) {
-      for (int length : new int[] { 510, 32, 64, 508 }) {
-        boolean master = length > 64;
+      for (int length : new int[] { 255, 32, 64, 252 }) {
         byte[] data = sequence(length);
         byte[] expectedIndex = new byte[SafeShareable.INDEX_LENGTH];
-        expectedIndex[0] = master ? (byte) 3 : (byte) 2;
-        expectedIndex[1] = (byte) (master ? length / 2 : length);
+        expectedIndex[0] = 2;
+        expectedIndex[1] = (byte) length;
         byte[] digest = MessageDigest.getInstance("SHA-256").digest(data);
         System.arraycopy(
           digest,
@@ -525,7 +601,7 @@ public class MonoidItemTransferTest {
           SafeShareable.INDEX_ID_LENGTH
         );
 
-        byte[] index = card.create(master ? "master" : "seed", null, null, data, false);
+        byte[] index = card.create("seed", null, null, data, false);
         Assertions.assertArrayEquals(expectedIndex, index);
         assertData(card, index, data);
         card.success(0x35, fields("index", index));

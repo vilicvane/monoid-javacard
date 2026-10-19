@@ -260,7 +260,7 @@ type Response = {
 ### `0x30` ~ `0x3F` Safe management
 
 ```ts
-type SafeItemKeyType = 'entropy' | 'seed' | 'master' | 'secp256k1' | 'secp256r1' | 'ed25519';
+type SafeItemKeyType = 'entropy' | 'seed' | 'secp256k1' | 'secp256r1' | 'ed25519';
 type SafeItemType = SafeItemKeyType | byte;
 ```
 
@@ -436,7 +436,7 @@ type Response = {};
 /** Always creates a secret item. */
 type Request = {
   type: SafeItemKeyType;
-  /** Required for entropy/seed/master, in bytes; master stores twice this length. */
+  /** Required for entropy/seed, in bytes. */
   length?: number;
 };
 ```
@@ -458,7 +458,7 @@ type KeySECP256k1 = {
       type: 'secp256k1';
     }
   | {
-      type: 'seed' | 'master';
+      type: 'seed';
       derivation: {
         /** Uses "Bitcoin seed" for seed-to-master generation. */
         type: 'bip32';
@@ -475,7 +475,7 @@ type KeyED25519 = {
       type: 'ed25519';
     }
   | {
-      type: 'seed' | 'master';
+      type: 'seed';
       derivation: {
         /** Uses "ed25519 seed" for seed-to-master generation. */
         type: 'slip10';
@@ -493,9 +493,8 @@ type KeySECP256r1 = {
       type: 'secp256r1';
     }
   | {
-      type: 'seed' | 'master';
+      type: 'seed';
       derivation: {
-        /** Monoid-001; master is its 64-byte HKDF PRK. */
         type: 'monoid-001';
         /** Opaque bytes; empty context is valid. */
         context: byte[];
@@ -582,16 +581,13 @@ The first 2 bytes are the type of the item (`0x0000` to `0x0FFF` and `0xFFFF` ar
 - `0x02` `"seed"` Seed key
   - +1 byte seed length
   - +8 bytes digest of seed
-- `0x03` `"master"` Master key
-  - +1 byte master key length (note data length is master key length \* 2)
-  - +8 bytes digest of master key
-- `0x04` Weierstrass key
-  - `0x0401` `"secp256k1"` SECP256K1 key
+- `0x03` Weierstrass key
+  - `0x0301` `"secp256k1"` SECP256K1 key
     - +8 bytes digest of key
-  - `0x0402` `"secp256r1"` P-256 key (32-byte big-endian scalar, `1 <= d < n`)
+  - `0x0302` `"secp256r1"` P-256 key (32-byte big-endian scalar, `1 <= d < n`)
     - +8 bytes digest of key
-- `0x05` Edwards key
-  - `0x0501` `"ed25519"` Ed25519 key (32-byte private-key seed)
+- `0x04` Edwards key
+  - `0x0401` `"ed25519"` Ed25519 key (32-byte private-key seed)
     - +8 bytes digest of key
 - `0x0FFF` Generic data (draft, not implemented yet)
   - +8 bytes unique identifier

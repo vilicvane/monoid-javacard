@@ -263,34 +263,34 @@ public class MonoidSafeAppletTest {
     byte[] data = { (byte) 0x80, 0, 2 };
     byte[] first = createItem(
       safe,
-      (short) 0x0401,
+      (short) 0x0301,
       1,
       new byte[] { (byte) 0x80, 0, (byte) 0xFF },
       new byte[] { 1 }
     );
     byte[] second = createItem(
       safe,
-      (short) 0x0402,
+      (short) 0x0302,
       2,
       new byte[] { (byte) 0x80, 0, (byte) 0xFF },
       new byte[] { 2 }
     );
-    createItem(safe, (short) 0x0401, 3, new byte[] { (byte) 0x80, 1, (byte) 0xFF }, data);
+    createItem(safe, (short) 0x0301, 3, new byte[] { (byte) 0x80, 1, (byte) 0xFF }, data);
     byte[] fourth = createItem(
       safe,
-      (short) 0x0501,
+      (short) 0x0401,
       4,
       new byte[] { (byte) 0x80, 0, (byte) 0xFF },
       new byte[] { 4 }
     );
-    createItem(safe, (short) 0x0401, 5, new byte[] { 0, (byte) 0x80, 0 }, data);
-    createItem(safe, (short) 0x0401, 6, null, data);
+    createItem(safe, (short) 0x0301, 5, new byte[] { 0, (byte) 0x80, 0 }, data);
+    createItem(safe, (short) 0x0301, 6, null, data);
     byte[] key = { (byte) 0x80, 0 };
 
     assertListedItems(safe, (short) 0, key, first, second, fourth);
-    assertListedItems(safe, (short) 0x0400, key, first, second);
-    assertListedItems(safe, (short) 0x0401, key, first);
-    assertListedItems(safe, (short) 0x0501, key, fourth);
+    assertListedItems(safe, (short) 0x0300, key, first, second);
+    assertListedItems(safe, (short) 0x0301, key, first);
+    assertListedItems(safe, (short) 0x0401, key, fourth);
     assertListedItems(safe, (short) 0x0600, key);
     assertListedItems(safe, (short) 0, data);
     assertListedItems(
@@ -308,17 +308,17 @@ public class MonoidSafeAppletTest {
   public void handlesMissingAndEmptyKeysAndPrefixLengthBoundaries() {
     SafeShareable safe = initializeSafe();
     byte[] data = { (byte) 0x80, 0 };
-    byte[] absent = createItem(safe, (short) 0x0401, 1, null, data);
-    byte[] empty = createItem(safe, (short) 0x0401, 2, new byte[0], data);
-    byte[] value = createItem(safe, (short) 0x0402, 3, data, new byte[0]);
+    byte[] absent = createItem(safe, (short) 0x0301, 1, null, data);
+    byte[] empty = createItem(safe, (short) 0x0301, 2, new byte[0], data);
+    byte[] value = createItem(safe, (short) 0x0302, 3, data, new byte[0]);
 
     Assertions.assertEquals(3, safe.list((short) 0).getCount());
     Assertions.assertNull(safe.get(absent).getKey());
     Assertions.assertArrayEquals(new byte[0], safe.get(empty).getKey());
     assertListedItems(safe, (short) 0, null, absent, empty, value);
     assertListedItems(safe, (short) 0, new byte[0], absent, empty, value);
-    assertListedItems(safe, (short) 0x0401, null, absent, empty);
-    assertListedItems(safe, (short) 0x0401, new byte[0], absent, empty);
+    assertListedItems(safe, (short) 0x0301, null, absent, empty);
+    assertListedItems(safe, (short) 0x0301, new byte[0], absent, empty);
     assertListedItems(safe, (short) 0, new byte[] { (byte) 0x80 }, value);
     assertListedItems(safe, (short) 0, new byte[] { (byte) 0x80, 0 }, value);
     assertListedItems(safe, (short) 0, new byte[] { (byte) 0x80, 0, 0 });
@@ -330,7 +330,7 @@ public class MonoidSafeAppletTest {
     SafeShareable safe = initializeSafe();
     byte[] key = { 1, 2 };
     byte[] data = { 3, 4 };
-    byte[] index = createItem(safe, (short) 0x0401, 1, key, data);
+    byte[] index = createItem(safe, (short) 0x0301, 1, key, data);
     SafeItemShareable item = safe.get(index);
     key[0] = 9;
     byte[] returnedKey = item.getKey();
@@ -467,7 +467,7 @@ public class MonoidSafeAppletTest {
     SafeShareable safe = initializeSafe();
     byte[] key = { (byte) 0x80, 0 };
     byte[] data = { 1, 2 };
-    byte[] itemIndex = createItem(safe, (short) 0x0401, 1, key, data);
+    byte[] itemIndex = createItem(safe, (short) 0x0301, 1, key, data);
     SafeItemIteratorShareable iterator = safe.list((short) 0, key);
     SafeItemShareable item = iterator.next();
     Assertions.assertArrayEquals(key, item.getKey());

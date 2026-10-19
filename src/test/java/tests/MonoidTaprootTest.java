@@ -45,9 +45,6 @@ public class MonoidTaprootTest extends AppletTest {
   private static final byte[] SEED = Hex.decode(
     "5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4"
   );
-  private static final byte[] MASTER = Hex.decode(
-    "1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf677923408dadd3c7b56eed15567707ae5e5dca089de972e07f3b860450e2a3b70e"
-  );
   private static final byte[] DIGEST = Hex.decode(
     "43ddcab065bcc7bd8d80c479ed29d3658ccf3ac3343b7044013008bde5ca19cf"
   );
@@ -96,9 +93,8 @@ public class MonoidTaprootTest extends AppletTest {
   }
 
   @Test
-  public void bip86SeedAndMasterItems() throws Exception {
+  public void bip86SeedItems() throws Exception {
     byte[] seedIndex = create("seed", SEED);
-    byte[] masterIndex = create("master", MASTER);
 
     for (String[] vector : readVectors()) {
       byte[] path = Hex.decode(vector[1]);
@@ -106,26 +102,24 @@ public class MonoidTaprootTest extends AppletTest {
       byte[] outputKey = Hex.decode(vector[4]);
       byte[] chainCode = Hex.decode(vector[6]);
 
-      for (byte[] index : new byte[][] { seedIndex, masterIndex }) {
-        ResponseAPDU response = transmit(0x40, keyRequest(index, path, null, null, null));
-        Assertions.assertArrayEquals(compressedKey, field(response, "publicKey"), vector[0]);
-        Assertions.assertArrayEquals(chainCode, field(response, "chainCode"), vector[0]);
+      ResponseAPDU response = transmit(0x40, keyRequest(seedIndex, path, null, null, null));
+      Assertions.assertArrayEquals(compressedKey, field(response, "publicKey"), vector[0]);
+      Assertions.assertArrayEquals(chainCode, field(response, "chainCode"), vector[0]);
 
-        response = transmit(0x40, keyRequest(index, path, null, null, new byte[0]));
-        Assertions.assertArrayEquals(outputKey, field(response, "publicKey"), vector[0]);
-        Assertions.assertArrayEquals(chainCode, field(response, "chainCode"), vector[0]);
+      response = transmit(0x40, keyRequest(seedIndex, path, null, null, new byte[0]));
+      Assertions.assertArrayEquals(outputKey, field(response, "publicKey"), vector[0]);
+      Assertions.assertArrayEquals(chainCode, field(response, "chainCode"), vector[0]);
 
-        assertSignature(
-          transmit(0x41, keyRequest(index, path, "bip340", DIGEST, new byte[0])),
-          DIGEST,
-          outputKey
-        );
-        assertSignature(
-          transmit(0x41, keyRequest(index, path, "bip340", DIGEST, null)),
-          DIGEST,
-          Arrays.copyOfRange(compressedKey, 1, 33)
-        );
-      }
+      assertSignature(
+        transmit(0x41, keyRequest(seedIndex, path, "bip340", DIGEST, new byte[0])),
+        DIGEST,
+        outputKey
+      );
+      assertSignature(
+        transmit(0x41, keyRequest(seedIndex, path, "bip340", DIGEST, null)),
+        DIGEST,
+        Arrays.copyOfRange(compressedKey, 1, 33)
+      );
     }
   }
 
@@ -185,11 +179,7 @@ public class MonoidTaprootTest extends AppletTest {
   @Test
   public void booleanTaprootForDirectAndDerivedKeys() throws Exception {
     String[] vector = readVectors().get(0);
-    byte[][] indices = {
-      create("secp256k1", Hex.decode(vector[2])),
-      create("seed", SEED),
-      create("master", MASTER),
-    };
+    byte[][] indices = { create("secp256k1", Hex.decode(vector[2])), create("seed", SEED) };
 
     for (int item = 0; item < indices.length; item++) {
       byte[] path = item == 0 ? null : Hex.decode(vector[1]);
@@ -489,12 +479,11 @@ public class MonoidTaprootTest extends AppletTest {
     String[] vector = readVectors().get(0);
     byte[][] indices = {
       create("seed", SEED),
-      create("master", MASTER),
       create("secp256k1", Hex.decode(vector[2])),
       create("secp256r1", Hex.decode(vector[2])),
       create("ed25519", new byte[32]),
     };
-    String[] mismatchedTypes = { "master", "seed", "secp256r1", "secp256k1", "secp256k1" };
+    String[] mismatchedTypes = { "secp256k1", "secp256r1", "secp256k1", "secp256k1" };
 
     for (int item = 0; item < indices.length; item++) {
       for (String type : new String[] { null, mismatchedTypes[item], "unknown" }) {
@@ -680,11 +669,7 @@ public class MonoidTaprootTest extends AppletTest {
     writer.bytes(index);
 
     writer.text("type".getBytes());
-    writer.text(
-      (index[0] == 2
-          ? "seed"
-          : index[0] == 3 ? "master" : index[0] == 4 ? "secp256k1" : "ed25519").getBytes()
-    );
+    writer.text((index[0] == 2 ? "seed" : index[0] == 3 ? "secp256k1" : "ed25519").getBytes());
 
     if (path != null) {
       writer.text("derivation".getBytes());

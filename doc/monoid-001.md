@@ -2,7 +2,7 @@
 
 API identifier: `monoid-001`.
 
-Monoid-001 derives a secp256r1 private key from a seed or its saved master and
+Monoid-001 derives a secp256r1 private key from a seed and
 opaque context bytes. It uses [RFC 5869 HKDF](https://www.rfc-editor.org/rfc/rfc5869#section-2)
 with SHA-512 and follows the P-256 rejection-sampling pattern in
 [RFC 9180 section 7.1.3](https://www.rfc-editor.org/rfc/rfc9180#section-7.1.3).
@@ -12,7 +12,6 @@ implement HPKE's `DeriveKeyPair` or SLIP-0010.
 ## Inputs and encoding
 
 - `seed`: 64 bytes of secret seed material.
-- `master`: the 64-byte HKDF PRK defined below. Select either seed or master.
 - `context`: an arbitrary byte string, including the empty string.
 - `label`: the ten ASCII bytes `Monoid-001`, without a terminator.
 - `n`: the secp256r1 subgroup order,
@@ -30,10 +29,8 @@ master = HKDF-Extract-SHA512(salt = label, IKM = seed)
        = HMAC-SHA512(key = label, data = seed)
 ```
 
-A stored master is this complete 64-byte PRK. It is used directly without
-another Extract step. It is not a private scalar followed by a chain code;
-BIP32 and SLIP-0010 masters are not Monoid-001 masters merely because their
-lengths match. The Safe's general `master` category does not record provenance.
+The internal master is this complete 64-byte PRK. It is not a private scalar
+followed by a chain code.
 
 ## Context derivation
 
@@ -64,7 +61,7 @@ fails without returning a key or wrapping the retry counter.
 ```ts
 type KeyMonoid001 = {
   index: byte[];
-  type: 'seed' | 'master';
+  type: 'seed';
   derivation: {
     type: 'monoid-001';
     context: byte[];
@@ -78,7 +75,7 @@ returning the existing 64-byte low-S `r || s` signature. Neither command
 accepts `taproot` for this scheme, including `false`. The derivation has no
 `curve` or `path` override. Independent private-key items do not accept it.
 
-The same seed, its corresponding saved master and the same context produce
+The same seed and the same context produce
 the same key. The index, lookup key, alias, signing digest and card identity
 are not derivation inputs. Empty context still derives a key; it does not
 select a master scalar.

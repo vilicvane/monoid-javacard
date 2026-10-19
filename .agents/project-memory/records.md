@@ -253,3 +253,11 @@
 132. [user] 要求先验证Applet切换流程。[agent] 在55690320隔离验证Client→Monoid SIO→Safe的Monoid-001/P-256派生签名；原路径因DESELECT失败，改RESET后未缓存派生仍失败，单独启用SHA-512 externalAccess后通过。完成12轮普通APDU/SIO交替、冷复位及保留客户端/Safe/Identity独立卸装Monoid，60次独立验签和14次公钥对照通过；切回Monoid需重验普通命令认证，每轮空闲RAM稳定。模拟器368断言通过但不模拟完整防火墙且验签使用显式host shim。接口CAP独立及不持久持有SIO的卸载方案可行，正式授权/CTAP/API未实现；临时包全清、原注册表和SELECT/Hello基线一致，详见 [Applet切换与SIO签名验证](./132.md)。
 
 133. [user] 在核对真实SIO流程及Safe既有RESET用法后，批准正式接入相关适配。[agent] P-256/Monoid-001初始化、派生、缓存工作副本和ECDSA结果迁为RESET；SHA-512/HMAC/ECDH启用externalAccess，保留原DESELECT复制方法及命令认证/传输生命周期。新增切换保留、复位清零和缓存恢复测试；302项模拟器测试、三份CAP及格式/模板检查通过。冻结正式源码实卡验证SIO派生签名、6轮入口交替、复位和8组既有算法，累计68次独立验签、25次公钥核对；临时实例/包全清、原卡基线一致。正式SIO授权API和CTAP仍未新增，详见 [P-256共享签名正式适配](./133.md)。
+
+## 633e4d1
+
+134. [user] 要求提交后继续Security Key接入；随后将授权收敛为固定标准派生密钥（client不能继续派生）或seed下的Monoid-001派生，并明确domain在001派生阶段加入。[agent] 前序适配已提交未推送；提案同步token/tokenHash命名、两类授权与Monoid私钥边界，撤回通用domain-master方向，建议对domain/clientContext做长度分隔；固定Key保持原标准派生结果。整体管理/SIO接口与精确编码仍需确认，仅P-256已有SIO实卡验证，其他算法需适配。未改生产源码或访问实卡，详见 [Applet授权API提案](./134.md)。
+
+135. [user] 要求实卡测量32B token的SHA-256耗时。[agent] 卡55690320隔离探针240条命令全部校验，复用原生共享引擎的16/64/256轮差分约2.37ms/次；完整单次APDU直接7.70ms、SIO9.44ms，重新创建引擎加hash分别28.88/30.59ms，比复用多约21.2ms。三CAP及15项哈希检查通过，两实例/三包已清理，原注册表和应用基线一致，读卡器释放。正式授权API仍未批准，未改生产源码，详见 [原生SHA-256 token计时](./135.md)。
+
+136. [user] 批准移除整个项目的对外master支持并前移后续type；APP交给其他会话。[agent] Java Card已删除master条目、创建及ViewKey/Sign入口，secp256k1/secp256r1/Ed25519改为0301/0302/0401，内部seed→master算法与缓存保留；旧master/曲线类型的index和导出数据不能直接沿用，不含数据迁移或实卡部署。更新文档、示例和拒绝旧入口/新type映射测试，304项模拟器测试、三个CAP转换校验及Prettier/Inplate通过。用户回忆master源于Megnat时期Tangem SDK流程，当前SDK可佐证该模式但不能确认历史版本；entropy只对应助记词，passphrase参与之后的seed计算。详见 [移除对外master支持](./136.md)。

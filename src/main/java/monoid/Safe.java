@@ -24,11 +24,10 @@ public final class Safe {
 
   public static final short TYPE_ENTROPY = 0x0100;
   public static final short TYPE_SEED = 0x0200;
-  public static final short TYPE_MASTER = 0x0300;
-  public static final short TYPE_WEIERSTRASS = 0x0400;
+  public static final short TYPE_WEIERSTRASS = 0x0300;
   public static final short TYPE_WEIERSTRASS_SECP256K1 = TYPE_WEIERSTRASS | 0x01;
   public static final short TYPE_WEIERSTRASS_SECP256R1 = TYPE_WEIERSTRASS | 0x02;
-  public static final short TYPE_EDWARDS = 0x0500;
+  public static final short TYPE_EDWARDS = 0x0400;
   public static final short TYPE_EDWARDS_ED25519 = TYPE_EDWARDS | 0x01;
   public static final short TYPE_GENERIC = 0x0FFF;
   public static final short TYPE_RESERVED_EXTENSION_MARK = (short) 0xFFFF;
@@ -36,7 +35,6 @@ public final class Safe {
   // @formatter:off
   public static final byte[] TYPE_TEXT_ENTROPY = {'e','n','t','r','o','p','y'};
   public static final byte[] TYPE_TEXT_SEED = {'s','e','e','d'};
-  public static final byte[] TYPE_TEXT_MASTER = {'m','a','s','t','e','r'};
   public static final byte[] TYPE_TEXT_SECP256K1 = {'s','e','c','p','2','5','6','k','1'};
   public static final byte[] TYPE_TEXT_SECP256R1 = {'s','e','c','p','2','5','6','r','1'};
   public static final byte[] TYPE_TEXT_ED25519 = {'e','d','2','5','5','1','9'};
@@ -126,15 +124,6 @@ public final class Safe {
         }
 
         return createRandomRandom(type, keyLength);
-      }
-      case TYPE_MASTER: {
-        short keyLength = (short) (type & TYPE_METADATA_MASK);
-
-        if (keyLength == 0) {
-          SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
-        }
-
-        return createRandomRandom(type, (short) (keyLength * 2));
       }
     }
 
@@ -282,8 +271,6 @@ public final class Safe {
       return TYPE_ENTROPY;
     } else if (Utils.isEqual(TYPE_TEXT_SEED, buffer, offset, length)) {
       return TYPE_SEED;
-    } else if (Utils.isEqual(TYPE_TEXT_MASTER, buffer, offset, length)) {
-      return TYPE_MASTER;
     } else if (Utils.isEqual(TYPE_TEXT_SECP256K1, buffer, offset, length)) {
       return TYPE_WEIERSTRASS_SECP256K1;
     } else if (Utils.isEqual(TYPE_TEXT_SECP256R1, buffer, offset, length)) {
@@ -306,8 +293,6 @@ public final class Safe {
         return TYPE_TEXT_ENTROPY;
       case TYPE_SEED:
         return TYPE_TEXT_SEED;
-      case TYPE_MASTER:
-        return TYPE_TEXT_MASTER;
       case TYPE_WEIERSTRASS:
       case TYPE_EDWARDS:
         switch (type) {
@@ -333,10 +318,6 @@ public final class Safe {
     return (type & TYPE_CATEGORY_MASK) == (TYPE_SEED & TYPE_CATEGORY_MASK);
   }
 
-  public static boolean isTypeMaster(short type) {
-    return (type & TYPE_CATEGORY_MASK) == (TYPE_MASTER & TYPE_CATEGORY_MASK);
-  }
-
   public static boolean isTypeWeierstrass(short type) {
     return (type & TYPE_CATEGORY_MASK) == (TYPE_WEIERSTRASS & TYPE_CATEGORY_MASK);
   }
@@ -345,7 +326,6 @@ public final class Safe {
     switch (type & TYPE_CATEGORY_MASK) {
       case TYPE_ENTROPY:
       case TYPE_SEED:
-      case TYPE_MASTER:
         return true;
       default:
         return false;
@@ -356,7 +336,6 @@ public final class Safe {
     switch (type & TYPE_CATEGORY_MASK) {
       case TYPE_ENTROPY:
       case TYPE_SEED:
-      case TYPE_MASTER:
       case TYPE_WEIERSTRASS:
       case TYPE_EDWARDS:
         return true;
@@ -457,19 +436,6 @@ public final class Safe {
         }
 
         return (short) (type | length);
-      }
-      case TYPE_MASTER: {
-        short keyLength = (short) (length / 2);
-        short specifiedKeyLength = (short) (type & TYPE_METADATA_MASK);
-
-        if (
-          (short) (keyLength * 2) != length ||
-          (specifiedKeyLength != 0 && specifiedKeyLength != keyLength)
-        ) {
-          SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
-        }
-
-        return (short) (type | keyLength);
       }
     }
 

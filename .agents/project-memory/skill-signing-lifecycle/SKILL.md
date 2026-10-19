@@ -5,7 +5,9 @@ description: Monoid Java Card signing workload and RAM lifecycle assumptions. Us
 
 # Monoid Java Card signing lifecycle
 
-Source: `../records.md`, records 12–20, 34, 37–43, 47–51, 57–61, 63–71, 73–80, 106, 111–113, 115–116, 121–127 and 132–133. Treat these records and their references as authoritative and keep them up to date.
+Source: `../records.md`, records 12–20, 34, 37–43, 47–51, 57–61, 63–71, 73–80, 106, 111–113, 115–116, 121–127, 132–133 and 136. Treat these records and their references as authoritative and keep them up to date.
+
+- Record136 removes the public stored-master type and ViewKey/Sign selectors. Normal public derivation now starts from a stored seed; independent keys still sign directly. Internal seed-to-master computation, node APIs and cache behavior remain. Older records' saved-master scenarios and timing comparisons describe historical firmware, not a supported public input.
 
 - Record133 promotes the P-256/Monoid-001 adaptations into production. Initialize version scratch, P-256 keys/public scratch, HMAC buffers/keys, Monoid001 scratch, Weierstrass public results and ECDSA outputs with RESET. DerivedKey returns RESET operation copies on both first use and cache hits. Relevant native factories use externalAccess=true; jCardSim alone gets a generated SHA-512 factory adaptation, never the CAP source. Command authentication/transport and other algorithms' own workspaces are unchanged. RESET still clears on reset and does not make a working buffer persistent or remove normal GC; the shared derivation cache policy stays the same. See133 for lifecycle tests, physical regression and boundaries.
 
