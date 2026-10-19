@@ -1,4 +1,6 @@
---- af4f994 ---
+# Project Memory Records
+
+## af4f994
 
 1. [user] 所有 API 变更都必须事先获得用户明确同意。API、协议、审批。
 2. [user] 当前工作范围限定在 Monoid Java Card 项目；暂时撤回对 Monoid APP 的改动，在原有 API 的基础上实现 Solana 签名。
@@ -49,9 +51,7 @@
 47. [agent] 完成记录 45 的全部阶段目标：移除 ECCurve、ECPoint、BigNat、BigNatInternal 及无调用的 MathAllocator/MathStatus；CurveED25519 直接持有共享 255-bit ECPrivateKey 和 XY KeyAgreement，保留 setK(1)、零标量单位点及 Wei→Edwards 转换，无随机 keypair 生成；密钥、nonce、响应和转换值使用 byte[]。LibMath 保留按字节估商取模、模加减、RSA 模平方组合的模乘和 p−2 模逆；MathResources 仅一个共享 RSA512 key/Cipher 和 160B transient scratch。39 项模拟器测试（约 10.8 万次取模对照）、Hello 9000、生产 CAP 转换/验证通过；独立代码审查通过。2026-10-12 同实体卡对比冻结的本轮重构前源码，构造 1808→342ms，Solana 四级 SLIP+导入 939→673ms、150B Message 签名 2088→1417ms；均为独立探针 APDU 时间，不含上下文/派生器初始化，构造一项单列。共享曲线+签名器创建后 deselect 空闲 RAM 1616→3088B，带已导入密钥 1520→2992B；静态显式数组合计 1563→482B，不含原生对象。十组实体卡回归及十组取模微基准通过，clear/deselect/物理 reset 后同上下文可重新导入并正确签名。7A/7B 临时包全部删除，卡片 registry 前后一致，原 Monoid 两个应用可选。外部 API、APP 和暂存区未改动；Keystore EdDSA 接线仍属后续工作。中途逐位取模虽正确但签名约 6.4s，已以最终估商实现替换，不能作为当前性能。来源和许可证集中保留，测试脚本与证据位于忽略的 .research/ed25519/byte-array-refactor-card。 详见 [重构验证记录](./47.md)。
 48. [agent] 按用户批准的设计移除 MathResources，将一个 RSA512 key/Cipher 和 160B transient scratch 收入 LibMath 私有静态共享字段，沿用 LibHMACSha512 的 init/dispose 并接入 Applet 安装/卸载；mod、modMult、modInv、modExp 删除 resources 参数，CurveED25519 不再持有或清理数学资源。各运算 finally 仅清理自己负责的数组，嵌套模幂不擦除外层中间值；取模用私有重载承载算法，保持 CAP 的异常处理范围较小。40 项模拟器测试、Hello 9000、CAP 转换/校验和格式检查通过；本轮未使用实体卡，记录 47 的时间与 RAM 实测对应此次调整前的源码，后续硬件复测需先适配忽略目录内的旧探针。未修改暂存区或外部 API。
 
----
-
-b883572 ---
+## b883572
 
 49. [agent] 接通 Keystore.signEDDSAMessage：沿用已有 seed→master 转换，调用 LibSLIP10Ed25519 在 master 副本内派生，再经共享 EdwardsCurve 导入 ED25519Key 并签原始 Message。Signer 入口接收 EdwardsCurve，内部识别 CurveED25519 后调用 LibED25519；finally 清理 Safe 返回的 key 副本、master/派生值和展开密钥，共享原生资源继续保留。41 项模拟器测试及 CAP 转换/校验通过；新增原有认证 0x41 短 APDU 集成测试，从已存 seed/master 分别派生 m/44'/501'/0'/0' 并签 1B Message，与 Node crypto 独立结果一致。能力列表及 Ed25519 ViewKey 尚未接入，长请求传输仍未恢复；本轮未使用实体卡或改动外部 API。
 50. [user] Lib 前缀表示静态方法库；同意将 LibSLIP10Ed25519.derive 静态化，每次调用创建一次工作数组、沿路径复用并在 finally 清理，不增加共享状态或 init/dispose。LibED25519 保留绑定曲线及签名工作区的实例结构，重命名为 ED25519Signer；外层 Signer 负责分派，具体签名器实现算法。
@@ -60,7 +60,7 @@ b883572 ---
 53. [agent] 接通 Hello/SystemInformation 共用的能力声明，最终结构按记录 54。CommandSystemInformation 汇总两类曲线及对应 cipher，移除 WeierstrassCurve 和 Signer 中不再使用的独立列表 writer，沿用 Text 常量及 CBOR writer 风格。两条指令测试核对完整嵌套结构和曲线/算法对应关系，15 项 Applet 模拟器回归（含 ECDSA/EdDSA 签名）及 CAP 转换/校验通过；长请求传输仍待接入，本轮未使用实体卡或修改暂存区。
 54. [user] 明确批准调整能力声明，将 ciphers 放到对应的 curve 下面：features = {curves: [{name: 'secp256k1', ciphers: ['ecdsa']}, {name: 'ed25519', ciphers: ['eddsa']}] }，移除独立的 features.ciphers；签名请求保持不变。取代记录 53 最初采用的两份独立能力列表。
 
---- 42eda62 ---
+## 42eda62
 
 55. [agent] 阶段性提交完成后，从单条短 APDU 的完整接收恢复传输层工作：CBORApduReader.receive 显式调用 setIncomingAndReceive，首读完整时直接使用 APDU 缓冲；未收齐时才分配精确长度 transient 数组，后续 receiveBytes(0) 并复制累计。Command 外层 finally 擦除接收副本、解除引用并请求 GC，接收异常不进入业务异常转换；GET RESPONSE 仍走原有路径。17 项接收/Applet 模拟器测试和 CAP 转换/校验通过，覆盖接收状态、255B 请求及空请求拒绝后重试；jCardSim 预装完整请求，不能据此声称真实分批接收路径已验证。本轮未使用实体卡，新增接收改动未提交。跨 APDU 的首/中/末段仍待实现；旧 8192B 上限与 AES 持久缓存是历史实现选择，当前 Sign/LibED25519 需要完整 Message byte[]，下一步需明确长请求缓冲及消息读取方式，不能直接恢复旧暂存实现并声称支持 8KB 签名。
 56. [agent] 为接入可分块读取的长请求暂存，将 CBORReader 的底层 getBuffer 抽象替换为 read(offset) 与 read(offset, out, outOffset, length)，组织对齐 CBORWriter；CBORBufferReader 和 CBORApduReader 仍通过现有数组实现，业务解析接口不变，键匹配通过读取接口逐字节比较。22 项 CBOR/接收/Applet 模拟器测试及 CAP 转换/校验通过；尚未增加加密暂存、跨 APDU 状态机或改变签名输入，当前 bytes() 仍分配完整字段副本，不能据此声称长 Message 已不占整块 RAM。未使用实体卡或修改暂存区。
@@ -75,22 +75,22 @@ b883572 ---
 65. [agent] 已实现记录 64，60 项模拟器测试、CAP 校验及 14 组实体卡测试通过；255B 分片下 1167B Message 签名和 600B Create 均已通过，详见 [实现及实测](./65.md)。隔离测试包已清理，原应用正常，暂存区未改。
 66. [agent] 更正 Message 内存约束的表述：Pure Ed25519 要求原始 Message 可完整重读两遍，并不要求全部同时驻留 RAM；此前是 byte[] 接口和当前 transient chunk 存储的实现限制。若签名直接从持久暂存区分块重读，EncryptedBuffer 可以降低 RAM 占用；客户端重传两遍还需严格的一致性校验。用户要求先提交当前阶段，再讨论后续方案，尚未批准恢复持久暂存或修改传输协议。
 
---- 8abf0c5 ---
+## 8abf0c5
 
 67. [agent] 实体卡测得当前纯 RAM 版本的可重复 Message 上限：普通响应缓冲时 seed 1184B、master 1458B；读取 600B 数据后分别降至 928B、946B，详见 [容量边界实测](./67.md)。每组上限加 1B 均失败，全部成功签名与独立实现一致，失败后小消息签名均恢复正常；隔离包清理和原应用复核通过。未修改生产代码或 API。
 68. [agent] 按用户要求修复响应缓冲保留容量的问题：按需分配，完整发送/取消/deselect/发送失败后擦除、解除引用并请求 GC，未完成的多段响应继续保留；65 项模拟器测试及 CAP 校验通过，实体卡大响应后仍可正确签 seed 1184B / master 1458B，详见 [修复与复测](./68.md)。记录 67 中大响应造成的持续容量下降已解决；未重新测定修复后的精确上限。
 69. [agent] 持久化暂存的加密必要性应基于既定保护目标，而非仅因存储介质是 persistent。Java Card 对象隔离与 Applet 访问控制可保护应用层明文；现有 Safe 也直接持久保存 seed/master。成功卸载重装不会继承旧 Applet 对象，但 reset/断电保留 persistent 内容；仅重装 Monoid 保留独立 Safe 的数据。临时密钥加密额外提供中断后无法解密残留内容的属性，目前未确定有此要求。后续优先评估普通持久缓冲及明确访问/清理规则，尚未实施持久暂存或修改 API；不能将公开 Solana Message 的特性自动推广到所有通用请求。依据 Oracle JCRE §11.3.4.2 与持久对象/防火墙定义，以及当前 Safe 和安装脚本。
 
---- ecae74d ---
+## ecae74d
 
 70. [user] 批准按需持久化扩展，并明确小型分段请求仍用 RAM，超过阈值才使用持久存储；不采用所有分段请求一律持久化的方案。
 71. [agent] 请求接收器保留前 512B 完整 CBOR 请求于 RAM，溢出部分按 256B 块按需持久分配；持久引用表确保 reset 后仍可擦除未完成请求。69 项模拟器测试、CAP 校验及 9 组实体卡测试通过，8192B 请求可签 seed 8096B / master 8114B Message，详见 [实现与实测](./71.md)。取消/错误/reset/超限恢复通过，隔离包已清理且原应用正常；API 和分片协议保持不变。
 
---- 74a31cd ---
+## 74a31cd
 
 72. [user] doc/cards.md 面向用户选购卡片，研究过程与详细实测应按 Project Memory 保存到对应数字 MD 文件；README 保持简洁，以命令定义为主，具体传输协议另设对应文档。
 
---- 760dae7 ---
+## 760dae7
 
 73. [user] 同意按现有 secp256k1 item 结构补齐独立 Ed25519 key：新增 ed25519 类型，保存 32B 私钥 seed，支持导入、随机创建、公钥查询和直接签名；区别于用于层级派生的通用 seed/master。最初的 0x0402 编码由 74 替代；详见 [原实现与验证](./73.md)。
 
@@ -100,7 +100,7 @@ b883572 ---
 
 76. [agent] 按用户要求完成当前版实体卡验证和性能对照：发现并修复 Safe 满容量删除的尾槽越界，新增回归先失败后通过；全部 74 项模拟器测试及 CAP 校验通过。旧 Monoid 与当前版共用修复后的 Safe，各通过 16 组实体卡测试和 32 次独立验签，覆盖当前 0x0501、派生、算法切换、最大请求、取消和真实复位。短 Ed25519 中位耗时增加约 2%–2.8%，BTC 基本不变，最大请求略快；空闲 RAM 均恢复到 2320B。所有隔离包成功卸载、注册表恢复原样，未出现本次 AID 无法删除；详见 [删除修复与实卡对照](./76.md)。
 
---- 29d69cb ---
+## 29d69cb
 
 77. [agent] 按用户许可完成 BIP340/BIP86 基础验证，未改正式 API 或生产源码。复用现有 secp256k1 点乘、LibMath 和 BIP32，模拟器与实体卡各通过 7 组、48 次独立验签和 30 组模乘边界；实卡完整测试命令中位耗时为裸签 417ms、加 TapTweak 544ms、五级派生后签名约 1.10–1.11s。隔离测试包全部卸载、原注册表恢复；尚未集成完整 Monoid 或实现卡内签名自验，详见 [实验范围、数据和限制](./77.md)。
 
@@ -110,7 +110,7 @@ b883572 ---
 
 80. [user] 同意将 Sign/ViewKey 的 taproot 扩展为 Taproot | boolean：省略/false 不调整，true/{} 为 BIP86，merkleRoot 对象语义不变；false 与省略完全等价，ECDSA/EdDSA 也允许携带，只有启用时才限制曲线与 cipher。详见 [布尔值语义与验证](./80.md)。
 
---- 239b4cb ---
+## 239b4cb
 
 81. [agent] 用户授权卸载原 Monoid/Safe 并安装最新版，但原 Monoid 包 F06D6F6E6F696401 与实例 F06D6F6E6F69640101 均拒绝 DELETE（6985），复位后仍失败；已排除 CAP 中新旧 Applet AID 长度导致工具匹配失败。注册表未变，旧实例可 SELECT，但 Hello 返回 6F00；Safe 未尝试删除，最新版尚未安装，未执行 PIN 初始化或更新。详见 [证据与阻塞状态](./81.md)。
 
@@ -146,27 +146,27 @@ b883572 ---
 
 97. [user] 明确批准向当前测试卡55690320的ISD写入可能永久保留的标准P-256全局曲线参数00，并继续公钥导入与Token验证；[agent] 已通过STORE DATA164+107B配置成功，随机P-256公钥导入及有效Token加载/安装通过，缺失或错误Load/Install Token四项均6982。全局参数按批准保留，其余临时域/包/实例/密钥全清，详见 [成功路径、对照与最终状态](./97.md)；取代90–96中P-256配置未解决的状态。
 
---- 10426f8 ---
+## 10426f8
 
 98. [user] 将授权加固目标收敛为抵抗单次翻转，重复检查由31轮减为3轮，保留short宽编码及现有auth反码；要求通用真假常量、复用循环并批准批量完成其余同类检查，按谓词语义选择保守结果，随后同意继续剩余修改并要求实卡测试。[agent] 已接入Safe和Monoid授权路径，并将Access PIN持久状态改为short及反码、与PIN事务写入；Applet导出限制要求每包编译LibSecurity，由Inplate同步一份源码。138项测试、两个CAP及21组实卡验证通过，三种签名独立验签通过，临时应用全清且原注册表一致，详见 [编码结果与保守检查](./98.md)。
 
---- 44ef108 ---
+## 44ef108
 
 99. [user] 要求开始Security Key第一组ES256算法，先修改Java Card README中的API定义；README按最终交付结果描述，不写计划中或待开发，文档和实现一并完成后提交。API文档只保留必要签名和相关注释，删除近期加入的解释性正文。[agent] 已定义secp256r1独立密钥、0x0402类型、生成/导入、公钥查询和现有ECDSA摘要签名入口；不包含P-256 HD派生或协议接入，详见 [API定义与实现边界](./99.md)。
 
 100. [user] 要求去掉secp256r1后的P-256别名，核对curve/cipher语义并按建议更新README；Cryptography按曲线树状列出cipher，Features使用通用类型并引用该列表；随后要求同步现有常量并排除README提交。[agent] 已将常量、命令分支、能力声明及测试统一为bip340和ed25519，保留Curve名称及ecdsa，修正Bitcoin文档的ECDSA编码说明；138项模拟器测试和两份CAP验证通过，详见 [语义审计与命名边界](./100.md)。
 
---- 7f72789 ---
+## 7f72789
 
 101. [user] 要求实现用于Passkey的第一种签名方式，并严格沿用现有实现风格。[agent] 已完成独立P-256/ES256的创建、随机生成、公钥查询、签名及能力声明；实卡定位并修正原生ECDSA输出容量假设，改按getLength分配；149项模拟器测试、两份CAP和实卡9组验证通过，临时包已清理，详见 [ES256实现与实卡验证](./101.md)。
 
 102. [user] 不要对可控数据做防御性的验证。[agent] 移除Keystore对已存P-256密钥的重复校验及对应测试，把摘要长度校验移到CommandSign外部请求入口；保留输入与算法本身的必要约束，详见 [信任可控数据](./102.md)。
 
---- c6b426c ---
+## c6b426c
 
 103. [user] 要求为list增加data prefix参数的重载，按Data前缀筛选条目。[agent] Safe Java/Shareable新增list(short type, byte[] dataPrefix)，类型与原始字节前缀同时匹配；null或空前缀不限制数据，保持顺序、返回结构及会话授权，Monoid包装层将前缀复制到global array；未扩展APDU请求。151项模拟器测试、两份CAP和格式检查通过；未测试实体卡。
 
---- 697188b ---
+## 697188b
 
 104. [user] 希望为现有secp256r1密钥增加派生能力，供未来Passkey按Credential ID等信息生成专用密钥，允许标准或自定义方案，先讨论建议；检索能力完成后要求提出与现有输入语义自洽的参数。[agent] 比较SLIP-0010、SLIP-0022与HKDF后，建议通用上下文HKDF及P-256拒绝采样，参数提案为独立secp256r1的Key增加derivation:{context}，供ViewKey/Sign共用；尚未获准具体算法/API，也未实现，详见 [派生方案与凭证边界](./104.md)。
 
@@ -174,43 +174,43 @@ b883572 ---
 
 106. [user] 明确要求相对较大数据的支持必须等遇到具体使用场景再考虑，不为假设的极限场景增加卡片实现和验证成本；本轮key预期通常十几个字节，二三十个字节已足够。[agent] 将实际数据规模作为设计和验收依据，已观察到的超出场景的限制如实记录，不据此自动增加缓冲、协议、容量上限或内存管理复杂度。
 
---- 2728592 ---
+## 2728592
 
 107. [user] 指出现有path存在隐含语义，询问seed到master遵循的规范，并提出保留基础入口、后续增加BTC/EVM/Solana打包配置的方向；进一步询问以HD钱包惯例作为API上下文如何解读。[agent] 核对BIP32、SLIP-0010与BIP39，明确seed参数实为HMAC标签；修正最初必须新增scheme的倾向，当前可用文档固定每条曲线的HD方案，不必预建通用KDF选择器；区分代码接受扩展节点与API约定master为根节点，重新审视104的context扩展；既有BIP32无效标量处理缺失已记录，尚未修改API或实现，详见 [派生语义与链级预设](./107.md)。
 
 108. [user] 认可显式Key.type与嵌套派生签名，要求仅允许taproot:false的分支直接禁止该参数；随后批准自有派生改从seed/master开始，要求更新README并调整已有实现的API，指出实现方法名也需适配，并要求实卡测试后提交。[agent] ViewKey/Sign接入类型核对与bip32/slip10分支，Keystore使用固定主节点标签并拒绝旧参数及不适用的Taproot；签名方法明确为ED25519/BIP340，派生公钥方法明确BIP32/SLIP10Ed25519；157项模拟器测试及实卡11组验证通过，24次签名独立验签通过，临时包已清理，原卡基线保持一致；monoid-p256-v1算法细节仍需确定，本轮不实现，详见 [显式类型与完整签名约定](./108.md)。
 
---- 59f6e04 ---
+## 59f6e04
 
 109. [user] 开始确定自定义派生算法，讨论用途命名与规范编号，指出版本号容易暗示语义延续，并质疑Monoid Derivation 001与monoid-001的编号关系。[agent] 修正建议为统一规范编号Monoid-001/API monoid-001，另设描述性标题，不另建派生算法编号序列；固定完整派生语义并将用途留给应用context；只是建议，未更改API或算法，详见 [自定义派生规范命名](./109.md)。
 
 110. [user] 批准Monoid-001命名并要求按此前讨论的标准KDF加拒绝采样实现派生。[agent] 接入HKDF-SHA512的Extract/Expand与P-256标量拒绝采样，master为64B PRK，seed/master同源等价；沿用ViewKey/Sign并保持空context有效，明确拒绝不适用的参数；170项模拟器测试与实卡8组验证通过，11次签名独立验签通过，临时包已清理且原卡基线一致，详见 [算法定义与验证](./110.md)。
 
---- 16070d4 ---
+## 16070d4
 
 111. [user] 要求提交Monoid-001并开始统一派生缓存，直接改造三个Lib类；随后要求全局共用32条缓存并扩大实卡覆盖。[agent] 已提交Monoid-001；三类改为KeyDerivation子类，由Keystore复用实例；全局32条持久缓存按FIFO淘汰，匹配实例及完整master/input，事务发布条目和游标，命中返回操作副本且不写持久存储；183项模拟器测试及实卡14组验证通过，65组交替派生、41次独立验签、132次公钥核对，空闲RAM读数稳定，临时包已清理，详见 [统一派生缓存](./111.md)。
 
---- 9e9d45c ---
+## 9e9d45c
 
 112. [user] 询问历史签名耗时差异，随后批准修复持久CBOR游标并实卡对照。[agent] 五个标量和四组快照迁入CLEAR_ON_DESELECT，解析/API不变；184项模拟器测试通过，同卡两版264次操作、146次独立验签及复位恢复通过。直接ECDSA约996→635ms，缓存BIP32签名1472→884ms、Monoid-001 1520→901ms、300B Ed25519 3410→2746ms，实测RAM增加80B；临时包已清理，详见 [签名耗时与CBOR游标修复](./112.md)。
 
 113. [user] 要求协调Payload装配与顺序读取、核对历史并独立记录skill，随后要求同Payload顺序遍历实测并授权有效后继续实现。[agent] 历史确认2025-07-17的cd1fade改为从map首部查找；336次三模式实卡探针测得顺序解析约108–164ms，重复查找约287–496ms。Sign/ViewKey接入CBORMap字段偏移索引，保留乱序、首个重复字段和按算法读取；192项模拟器测试与两版278次实卡操作通过，156次独立验签，直接ECDSA 630→517ms、BIP32 879→679ms、Monoid-001 901→688ms，空闲RAM不变；临时包清理并将全部13条CBOR命令的推荐顺序提取到cbor-field-order.json供APP读取，提供JS重排模板及5项通过的Node测试，并更新skill，详见 [CBOR读取顺序与成本](./113.md)。
 
---- 1bb6f1b ---
+## 1bb6f1b
 
 114. [user] 要求先提交当前代码，再将最新Applet安装到已放好的APP测试卡，后续由APP会话接入和用户验收。[agent] 已提交CBOR改动并将正式Safe/Monoid安装至51433520；旧Safe接口需同步更新，重装前核对四个公开测试密钥，随后恢复原数据、索引、DeFi别名及PIN。新Monoid ID为304BC794、Safe ID为FC512DFA；复位、数据/公钥、7次独立签名验证及最终应用列表检查通过，读卡器已释放，详见 [APP测试卡安装](./114.md)。
 
---- 428ab67 ---
+## 428ab67
 
 115. [user] 要求可选条目的端到端加密双卡备份，接受多次交替刷卡；批准独立Identity/Safe/Monoid包编号00/01/02，Identity只持有长期密钥及随机4B ID、无PIN，提供通信密钥加解密；比较两种GHASH后选定软件版，要求完整AES-GCM接入及实卡计时，并测试多记录所需的更大数据。[agent] 已实现四个Identity SIO接口及固定P-256 HPKE Auth封装，Safe委托读取ID；原生GCM缺失由软件CTR/GHASH与原生AES解决，协议不变。216项模拟器测试及实卡完整互操作、篡改拒绝、复位恢复通过；修复实卡Util.arrayCompare有符号排序导致的公钥误拒绝及标量采样偏差。32B密钥加密/解密中位597/552ms，含探针GC为658/613ms；原ID生命周期及卸载验证保留。后续独立大负载GCM测试通过581条实卡/755条模拟APDU及8项定向单测：1KB RAM加解密各约5.65s，持久缓冲约8.45/8.54s，4KB持久缓冲33.53/33.84s；探针4KB RAM分配不足，持久缓冲及篡改恢复正确。临时包全清、原注册表及密钥元数据一致，未修改APP或安装正式AID；以上大负载为算法探针，条目备份仍未接入，详见 [备份、稳定身份与AID分配](./115.md)。
 
---- a0d0a7f ---
+## a0d0a7f
 
 116. [user] 接受Identity保持小接口、Safe处理条目GCM、Monoid负责传输的分工，要求先提交再确定API；批准Secret标记、精简后的Get/Set/Export/Import及随机生成项固定secret，随后选择Hello.safe.publicKey并授权实现；之后批准Hello增加可选safe布尔值，省略/false不返回Safe区块、true返回完整信息。[agent] 已提交Identity/GCM阶段结果a0d0a7f，未推送且保留无关暂存SVG。本轮接入上述API：Get普通认证且仅返回非secret数据；Set数据和flag原子更新，单独降级拒绝；Export为Safe PIN、Import普通认证并保留index/元数据/secret，完全重复成功、冲突6985。Safe内完成HPKE通信密钥封装及AES-GCM条目加密，每条144B开销；Identity接口按调用取得，不持久缓存。239项模拟器测试及CAP检查通过，实卡主suite162次操作验证32/256B普通与secret条目往返、篡改/权限/冲突、P-256及传输后Ed25519签名；32B热Export/Import约1.47/1.53s，256B约2.80/3.60s。诊断后去除跨SIO重复复制、短响应借APDU、精简共享上下文，并仅在RAM不足时将Import私有明文工作区回退持久空间；同版本前后测得上下文reset RAM增量由1213降至628B，最终查询余量1412/1408B不是峰值。补充60次操作验证256B tag错误不发布及正常恢复、传输后未缓存BIP32/ECDSA和BIP340/Taproot、保留Identity实际卸装Safe/Monoid后的加密恢复及签名；临时包全清、原注册表/SELECT/Hello基线一致，正式CAP验证但未部署。README保持签名式文档，封装规范独立至doc/item-transfer.md；历史草案已由当前实现覆盖，验证与SIO/任意收件公钥信任边界详见 [条目导出导入](./116.md)。
 
 117. [user] 要求使用两张没有锁 AID 的新卡安装最新应用、在第一张生成测试数据后进行双卡复制；明确允许清空源卡已有旧 Monoid 包。[agent] 已完成56050420（Safe ID9BF4F117）到56038920（958A7EFA）的实卡复制：两卡保留同版正式Identity/Safe/Monoid及系统注册表，Identity公钥不同。64B seed、三种独立私钥、32/256B普通数据共6项经加密导出导入，保留index/key/alias/secret；源列表不变，重复导入后目标仍恰好6项。两卡8公钥及HD chainCode一致，各10次独立签名验真，未读取私钥明文。六项Export/首次Import命令累计10.836/11.053s，排除认证、核对和换卡；读卡器释放，未改生产代码或提交，详见 [双实体卡加密复制](./117.md)。
 
---- d64d0fb ---
+## d64d0fb
 
 118. [user] 将当前卡命名为 Test 1、上一张卡命名为 Test 2，要求记录以便经常复用。[agent] 按刚完成的实卡身份核对：Test 1 = CPLC序列号56050420、Safe ID9BF4F117；Test 2 = 56038920、Safe ID958A7EFA。二者分别是记录117双卡测试的源卡和目标卡，但名称不绑定后续复制方向。操作前仍核对实际卡身份，PIN不写入项目记忆。
 
@@ -228,20 +228,21 @@ b883572 ---
 
 125. [user] 批准CBORResponse逐单元生成、writer固定RAM窗口打包续传及每APDU最多4条的方案，明确保留现有枚举接口。[agent] List接入固定RAM窗口与GET RESPONSE逐包枚举/GC，保留旧缓冲响应及Safe SIO；267项模拟器测试、三份正式CAP、格式与模板检查通过。实卡55690320的120条/7569B响应分30包，基线16.780s；剩余2080B/1056B仍完整返回，544B时List和已知index的Get均返回INTERNAL，释放占位后恢复。取消/重选/错误GET续传检查通过，所有完成边界内存读数恢复；四个临时包全清，原注册表/响应基线和暂存区不变，详见 [List流式响应与分批枚举](./125.md)。
 
---- 1e5a5d8 ---
+## 1e5a5d8
 
 126. [user] 要求提交前序改动并增加4KiB持久空间写入guard，随后要求只在写入前检查并加入预计数据长度，接受少量对象开销、不再写后复查；要求再次实卡测试后提交。[agent] 前序改动已提交；Safe按新增数组和完整目录扩容长度预估，不足预计长度+4096B时返回6A84。当前版本通过273项测试、三个CAP及格式/模板检查；卡55690320的89个验证命令符合预期，包括7次低空间6A84、原值保留、读取/删除及释放后的创建/导入恢复。四个临时包全清，原注册表及应用行为基线一致。保留既有Set逐字段更新语义，详见 [Safe持久空间写入guard](./126.md)。
 
---- 37c30cd ---
+## 37c30cd
 
 127. [user] 要求全路径派生缓存覆盖seed和公钥，并核对Solana历史耗时及回退。[agent] 全局32条FIFO按算法/原始seed或master/来源类型/完整path或context保存DerivedKey；命中跳过master及路径派生，并复用公钥和Ed25519展开结果，复位后恢复工作密钥、每次仍重新计算nonce。281项单测及三个手动检查、三份CAP、格式/模板检查通过；同卡55690320两版各95条命令、46公钥及含补充对照的118次签名独立核对通过，View中位1093→621ms、300B Sign2617→2086ms、冷复位首次View加空Sign3662→2662ms，空闲RAM一致。直接密钥对照也快约80–92ms；192条独立RSA探针复现持久key实例参数设置可差5.33ms/次，因此上述为整版收益而非纯缓存微基准。四个临时包全清、原注册表/SELECT/Hello保持；历史解析回退及计时边界详见 [全路径缓存与Solana耗时](./127.md)。
 
---- f8d1fb3 ---
+## f8d1fb3
 
 128. [user] 希望解决单条Safe Item的data过大时操作耗尽RAM的问题，并明确批准SafeDataShareable长度/范围读取接口及相关Safe SIO签名调整。[agent] 保留单个Index及持久byte[]，输入按块复制，Get/Export复用固定窗口响应；大加密工作区使用临时持久空间，APDU/CBOR及8192B请求上限不变。实卡发现并修复合法version0导致每APDU重复分配16B的初始化缺陷。301项测试、三个CAP通过；卡55690320最终192项命令记录验证普通读写到8000B、独立加密往返到4097B及三种曲线验签。8000B创建/读取/替换约2.15/2.93/1.87s，4097B加密导出/导入约36.29/36.07s；各档空闲RAM一致但未测峰值。所有临时包已清，原注册表及应用行为基线一致，未正式部署，详见 [Safe Item分块读写](./128.md)。
 
 129. [user] 审阅PIN原子性修改后，指出并列API参数要求不一致且不同步可恢复，要求撤回。[agent] 恢复原有PIN分步更新与包装器内部global复制，删除专属测试，保留大data改动和暂存区；Set未修改。当前Safe PIN认证后重复设置相同PIN可同步缓存，单独认证不刷新副本。已撤回方案的308项测试及46条实卡命令证据仅作研究记录，详见 [PIN原子性尝试与撤回](./129.md)。
 
---- e2abc6e ---
+## e2abc6e
 
 130. [user] 要求添加卸载所有Monoid Applet的脚本。[agent] 新增scripts/uninstall.ps1，可选Reader；通过GP注册表From归属枚举正式02/01/00包实例，依次先删实例再删包，覆盖旧版AID、多实例及部分安装，无需CAP或构建。跳过未安装项，GP失败即停止，不使用force、不删除其他包；执行会清除Safe数据及Identity。AID由Inplate同步，README给出调用方式；Windows PowerShell5.1下24组隔离mock检查通过，含历史实卡注册表fixture，格式与模板检查通过，未执行实卡卸载。
+
