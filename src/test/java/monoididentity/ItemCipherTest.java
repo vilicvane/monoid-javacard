@@ -1,7 +1,10 @@
 package monoididentity;
 
+import static tests.AppletTest.aidBytes;
+
 import com.licel.jcardsim.bouncycastle.asn1.sec.SECNamedCurves;
 import com.licel.jcardsim.bouncycastle.asn1.x9.X9ECParameters;
+import com.licel.jcardsim.utils.AIDUtil;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.lang.reflect.Field;
@@ -9,6 +12,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import javacard.framework.AID;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.CryptoException;
@@ -24,6 +28,11 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class ItemCipherTest {
+
+  private static final AID CALLER_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_AID}}"
+    "f06d6f6e6f69640201"
+  );
 
   private static final byte[] INDEX = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
   private static final byte[] KEY = { 1, 2, 3 };
@@ -119,6 +128,7 @@ public class ItemCipherTest {
         cipher.decrypt(
           recipient.cipher,
           null,
+          CALLER_AID,
           changed,
           item.key,
           item.alias,
@@ -132,6 +142,7 @@ public class ItemCipherTest {
       cipher.decrypt(
         recipient.cipher,
         null,
+        CALLER_AID,
         INDEX,
         new byte[] { 1, 2 },
         new byte[] { 3 },
@@ -145,6 +156,7 @@ public class ItemCipherTest {
         cipher.decrypt(
           recipient.cipher,
           null,
+          CALLER_AID,
           new byte[indexLength],
           item.key,
           item.alias,
@@ -165,6 +177,7 @@ public class ItemCipherTest {
           cipher.decrypt(
             recipient.cipher,
             null,
+            CALLER_AID,
             INDEX,
             changedKey,
             alias,
@@ -176,6 +189,7 @@ public class ItemCipherTest {
           cipher.decrypt(
             recipient.cipher,
             null,
+            CALLER_AID,
             INDEX,
             key,
             changedAlias,
@@ -193,6 +207,49 @@ public class ItemCipherTest {
     Assertions.assertArrayEquals(
       plaintext(item),
       decrypt(cipher, recipient, sender, item, encrypted)
+    );
+  }
+
+  @Test
+  public void bindsTheFullCallerAIDAndItsLength() throws Exception {
+    TestIdentity sender = new TestIdentity(1, sharedCipher);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher);
+    ItemCipher cipher = new ItemCipher(sharedCipher);
+    SafeItem item = item(bytes(32), true);
+    byte[] encrypted = encryptOnHost(sender, recipient, item);
+    byte[] caller = aidBytes(CALLER_AID);
+    byte[] changed = caller.clone();
+    changed[changed.length - 1] ^= 1;
+    byte[] extended = Arrays.copyOf(caller, caller.length + 1);
+
+    for (byte[] other : new byte[][] { changed, extended }) {
+      AID otherCaller = new AID(other, (short) 0, (byte) other.length);
+      Assertions.assertThrows(CryptoException.class, () ->
+        cipher.decrypt(
+          recipient.cipher,
+          null,
+          otherCaller,
+          item.index,
+          item.key,
+          item.alias,
+          sender.getPublicKey(),
+          new TestData(encrypted)
+        )
+      );
+    }
+
+    Assertions.assertArrayEquals(
+      plaintext(item),
+      cipher.decrypt(
+        recipient.cipher,
+        null,
+        new AID(caller, (short) 0, (byte) caller.length),
+        item.index,
+        item.key,
+        item.alias,
+        sender.getPublicKey(),
+        new TestData(encrypted)
+      )
     );
   }
 
@@ -373,6 +430,7 @@ public class ItemCipherTest {
     return cipher.encrypt(
       sender.cipher,
       null,
+      CALLER_AID,
       item.index,
       item.key,
       item.alias,
@@ -392,6 +450,7 @@ public class ItemCipherTest {
     return cipher.decrypt(
       recipient.cipher,
       null,
+      CALLER_AID,
       item.index,
       item.key,
       item.alias,
@@ -432,6 +491,9 @@ public class ItemCipherTest {
     DataOutputStream output = new DataOutputStream(bytes);
     output.write("Monoid Item".getBytes(StandardCharsets.US_ASCII));
     output.writeByte(1);
+    byte[] caller = aidBytes(CALLER_AID);
+    output.writeByte(caller.length);
+    output.write(caller);
     output.write(item.index);
 
     for (byte[] value : new byte[][] { item.key, item.alias }) {

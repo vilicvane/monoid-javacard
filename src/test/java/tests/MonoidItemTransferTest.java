@@ -32,15 +32,15 @@ public class MonoidItemTransferTest {
 
   private static final AID IDENTITY_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
-    "f06d6f6e6f696400010000"
+    "f06d6f6e6f69640001"
   );
   private static final AID MONOID_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_AID}}"
-    "f06d6f6e6f696402010000"
+    "f06d6f6e6f69640201"
   );
   private static final AID IDENTITY_CALLER_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_AID_WITHOUT_VERSION}}0001"
-    "f06d6f6e6f696402010001"
+    // @inplate-line "{{hex MONOID_NAMESPACE}}7f11"
+    "f06d6f6e6f69647f11"
   );
 
   private static final String SAFE_PIN = "888888";
@@ -1047,7 +1047,6 @@ public class MonoidItemTransferTest {
     }
 
     private static void resetAppletState() {
-      MonoidApplet.version = 0;
       MonoidApplet.safe = null;
       MonoidApplet.keystore = null;
     }

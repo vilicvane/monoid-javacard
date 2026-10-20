@@ -64,7 +64,8 @@ nullable(null)  = FF FF
 nullable(value) = u16(length(value)) || value
 
 context = SHA-256(
-  "Monoid Item" || version || index || nullable(key) || nullable(alias)
+  "Monoid Item" || version || u8(length(callerAID)) || callerAID
+  || index || nullable(key) || nullable(alias)
 )
 ```
 
@@ -74,9 +75,14 @@ normalization. An omitted optional field uses `null`; an empty byte string or al
 uses length `0000`. These encodings are distinct. Length `FFFF` is reserved for
 null; lengths count bytes rather than characters.
 
+`callerAID` is the full calling applet AID obtained by Identity from the Java Card
+runtime. It is not supplied by the host or carried as a selectable envelope field.
+The receiving applet must have the same AID as the sender. Monoid uses its fixed
+instance AID; other applets can use the same algorithms in their own domains.
+
 `version` is the envelope's single version byte (`01` or `02`). The 32-byte context
 is included in payload-key derivation and, for version `01`, is the HPKE `info`
-protecting the communication key. Changing the index, either optional field, or
+protecting the communication key. Changing the caller AID, index, either optional field, or
 whether a field is omitted invalidates the artifact.
 
 ## Payload encryption
@@ -98,10 +104,14 @@ An empty salt is equivalent to 32 zero bytes. For this one-block expansion:
 K = HMAC-SHA256(PRK, "Monoid Item Key" || context || 01)[0:16]
 ```
 
-Version `02` uses its 32-byte random salt and the persistent Bundle key:
+Version `02` first derives a caller-specific key from the persistent Bundle root,
+then uses the envelope's 32-byte random salt:
 
 ```text
-PRK = HKDF-Extract(salt = envelope.salt, IKM = bundleKey)
+callerKey = HMAC-SHA256(
+  bundleKey, "Monoid Bundle Caller Key" || u8(length(callerAID)) || callerAID
+)
+PRK = HKDF-Extract(salt = envelope.salt, IKM = callerKey)
 K   = HKDF-Expand(PRK, info = "Monoid Bundle Item Key" || context, L = 16)
 ```
 
@@ -137,7 +147,7 @@ physical card. The four-byte display ID is not a cryptographic identity fingerpr
 
 An asymmetric artifact targets one Identity, which may be the sender itself;
 a different recipient requires a new Export. A Bundle artifact can be imported
-by any member holding the shared key. Retaining Identity and its Bundle state
+by the same applet AID on any member holding the shared key. Retaining Identity and its Bundle state
 permits importing the corresponding artifacts after Monoid replacement.
 
 Retrying an existing artifact does not re-encrypt it. Re-exporting generates a new

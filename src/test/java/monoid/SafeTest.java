@@ -20,11 +20,11 @@ public class SafeTest {
 
   private static final AID IDENTITY_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
-    "f06d6f6e6f696400010000"
+    "f06d6f6e6f69640001"
   );
   private static final AID MONOID_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_AID_WITHOUT_VERSION}}0001"
-    "f06d6f6e6f696402010001"
+    // @inplate-line "{{hex MONOID_AID}}"
+    "f06d6f6e6f69640201"
   );
 
   private static final byte[] PIN = { 1, 2, 3, 4, 5, 6 };
@@ -524,6 +524,7 @@ public class SafeTest {
     simulator.installApplet(MONOID_AID, MonoidApplet.class);
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
     Safe safe = new Safe();
+    safe.initializeIdentity();
     safe.updatePIN(PIN, (short) 0, (byte) PIN.length);
     Assertions.assertTrue(safe.checkPIN(PIN, (short) 0, (byte) PIN.length));
 

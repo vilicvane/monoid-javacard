@@ -3,16 +3,19 @@
 Monoid Identity retains a P-256 key pair and a four-byte random ID generated on
 installation. Its private key has no export or replacement interface. Identity
 also owns the optional Bundle key and fixed membership, and performs complete
-item encryption and decryption. Monoid owns both PINs, Safe item storage and
+item encryption and decryption for applets in separate caller domains. Monoid owns both PINs, Safe item storage and
 command authorization.
 
 Install Identity before Monoid. Monoid updates preserve its matching Identity.
-Deleting Identity removes its private key and local Bundle state.
+Deleting Identity removes its private key, binding secret and local Bundle state.
 
 ## Interface
 
 ```java
 public interface IdentityShareable extends Shareable {
+  /** Stable private binding token for the runtime caller's complete AID. */
+  byte[] getToken();
+
   byte[] getId();
 
   byte[] getPublicKey();
@@ -56,23 +59,66 @@ public interface CommunicationDataShareable extends Shareable {
 
 - ID: four random bytes, generated once at Identity installation.
 - Public keys: 65-byte SEC 1 uncompressed P-256 points (`04 || X || Y`).
+- Binding tokens: 32 bytes, distinct for each caller AID and Identity instance.
 - Bundle keys and asymmetric item communication keys: 32 bytes, kept inside Identity.
 - Metadata: ten-byte index, optional byte-string key and optional UTF-8 alias.
   Null and empty fields remain distinct.
 - Byte-array arguments and direct results: global arrays for card-local calls.
   Data sources use repeatable range reads through a bounded global buffer.
 - Completed data results are readable only by their original calling applet.
-- Admission: Monoid's version-independent AID prefix, checked on acquisition and invocation.
+- Admission: any registered applet can acquire the interface, read public information,
+  get its own token and encrypt/decrypt its own transfer domain. Bundle creation,
+  import and reset require the exact Monoid instance AID on every call.
 - Direct APDUs: SELECT only. Monoid owns [item transfer](item-transfer.md) and
   [Bundle management](bundle.md) commands; Hello exposes `id`, `publicKey` and
   `bundle` directly.
 
-Identity derives authenticated contexts internally from the operation and
-metadata. Callers cannot supply arbitrary HPKE contexts or retrieve decrypted
+Identity derives authenticated contexts internally from the operation, full runtime
+caller AID and metadata. Callers cannot choose another AID, supply arbitrary HPKE contexts or retrieve decrypted
 communication or Bundle keys. Enrollment and ordinary item transfer use separate
 cryptographic domains. With a Bundle installed, item encryption always uses it;
 `recipientPublicKey` is ignored. Decryption dispatches by envelope version and
 still accepts asymmetric items addressed to the local Identity.
+
+Matching applet AIDs on different cards can exchange data; different AIDs cannot
+decrypt each other's envelopes, even within the same Bundle. Bundle item transfers
+derive a caller-specific key from the shared root before deriving each payload key.
+The root key and its public hash remain common to all members. See
+[item transfer](item-transfer.md) for the exact derivation.
+
+## Identity binding
+
+Identity generates an independent random 32-byte secret at installation:
+
+```text
+token = HMAC-SHA256(identitySecret,
+  "Monoid Identity Token" || callerAID || callerAID || callerAID)
+```
+
+`callerAID` is the complete AID supplied by the Java Card runtime at the SIO call,
+not an argument. Each of the three occurrences is read afresh from the runtime
+and immediately added to HMAC. The secret is never returned; tokens are not available through
+APDUs. Bundle changes do not affect them. Repeated calls return independent copies
+of the same token for that caller and Identity.
+
+Identity keeps up to 32 tokens in a persistent FIFO cache keyed by complete AID.
+Hits verify the runtime caller and return a copy without recomputing HMAC or
+writing the cache. Reset preserves entries; eviction only causes the same token
+to be computed again. Entries retain private bytes, not references to callers.
+Requests inside an existing transaction can use cached tokens but do not publish
+new entries.
+
+Before its first command, Monoid stores a private persistent copy of its token.
+This happens before any PIN or item can be created. Later Identity operations
+retrieve a fresh global token and compare it directly, without creating another
+persistent copy or sending the saved token back to Identity. A mismatch is
+rejected, including after reset, and never causes automatic rebinding. Monoid
+retains no Identity object reference.
+
+Deleting Monoid deletes its data, PINs and binding; a new instance can bind to
+the retained Identity and recover previously exported items. This assumes trusted
+initial applets and the Java Card firewall; it does not authenticate installed code
+or prevent the accepted [two-card migration workflow](bundle.md#recovery-and-data-migration).
 
 ## HPKE profile
 
@@ -109,7 +155,7 @@ Monoid reads the result by range and associates each packet with its recipient
 in the Create Bundle response.
 
 The caller must obtain the expected peer public key through its trust mechanism;
-the envelope does not establish that trust. AID admission isolates applets but
+the envelope does not establish that trust. Caller AIDs isolate transfer domains but
 does not authenticate installed code. Item transfer has no single-use restriction;
 Bundle import is idempotent only for an identical key and membership. Bundle creation
 always generates a new key and replaces the local Bundle.

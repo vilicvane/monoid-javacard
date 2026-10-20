@@ -119,6 +119,13 @@ public final class Safe {
 
   private MessageDigest indexDigest;
   private ItemCipher itemCipher;
+  private byte[] identityToken;
+
+  void initializeIdentity() {
+    if (identityToken == null) {
+      identityToken = Utils.duplicateAsPrivate(getIdentity().getToken());
+    }
+  }
 
   public byte[] getId() {
     return requireIdentity().getId();
@@ -158,6 +165,17 @@ public final class Safe {
   }
 
   private IdentityShareable requireIdentity() {
+    IdentityShareable identity = getIdentity();
+    byte[] token = identity.getToken();
+
+    if (LibSecurity.check(identityToken, token, SAFE_FALSE) != SAFE_TRUE) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+
+    return identity;
+  }
+
+  private IdentityShareable getIdentity() {
     AID identityAID = JCSystem.lookupAID(
       Constants.MONOID_IDENTITY_AID,
       (short) 0,

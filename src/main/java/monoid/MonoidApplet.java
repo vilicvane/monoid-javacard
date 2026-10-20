@@ -10,7 +10,6 @@ import javacard.framework.AppletEvent;
 import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javacard.framework.Shareable;
-import javacard.framework.Util;
 
 public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
@@ -19,10 +18,6 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   private static final short PIN_UNSET = (short) 0xA501;
   private static final short PIN_SET = (short) 0x5AFE;
-
-  public static short version = 0;
-
-  private static boolean versionInitialized;
 
   public static OwnerPIN pin;
 
@@ -37,8 +32,6 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
   private static LibSecurity.Condition pinUpdateAuthorizationRequired;
 
   public static void install(byte[] bArray, short bOffset, byte bLength) {
-    versionInitialized = false;
-
     MonoidException.init();
     PINException.init();
     SafeException.init();
@@ -131,14 +124,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
   }
 
   private static void ensureInitialization() {
-    if (!versionInitialized) {
-      byte[] buffer = JCSystem.makeTransientByteArray((short) 16, JCSystem.CLEAR_ON_RESET);
-
-      short length = JCSystem.getAID().getBytes(buffer, (short) 0);
-
-      version = Util.getShort(buffer, (short) (length - 2));
-      versionInitialized = true;
-    }
+    safe.initializeIdentity();
 
     if (keystore == null) {
       keystore = new Keystore(safe);

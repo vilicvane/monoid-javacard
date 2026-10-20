@@ -1,14 +1,19 @@
 package monoididentity;
 
+import static tests.AppletTest.aidBytes;
+
 import com.licel.jcardsim.bouncycastle.asn1.sec.SECNamedCurves;
 import com.licel.jcardsim.bouncycastle.asn1.x9.X9ECParameters;
+import com.licel.jcardsim.utils.AIDUtil;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import javacard.framework.AID;
 import javacard.framework.JCSystem;
+import javacard.security.CryptoException;
 import javacard.security.ECPrivateKey;
 import javacard.security.ECPublicKey;
 import javacard.security.KeyPair;
@@ -21,6 +26,11 @@ import org.junit.jupiter.api.Test;
 import tests.IdentityCallerApplet.Data;
 
 public class BundleTest {
+
+  private static final AID CALLER_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_AID}}"
+    "f06d6f6e6f69640201"
+  );
 
   private static final X9ECParameters CURVE = SECNamedCurves.getByName("secp256r1");
   private static final byte[] INDEX = { 3, 0, 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -139,6 +149,7 @@ public class BundleTest {
         byte[] encrypted = cipher.encrypt(
           sender,
           bundle,
+          CALLER_AID,
           INDEX,
           KEY,
           ALIAS,
@@ -161,7 +172,16 @@ public class BundleTest {
         );
         Assertions.assertArrayEquals(
           plaintext,
-          cipher.decrypt(receiver, imported, INDEX, KEY, ALIAS, null, new Data(encrypted))
+          cipher.decrypt(
+            receiver,
+            imported,
+            CALLER_AID,
+            INDEX,
+            KEY,
+            ALIAS,
+            null,
+            new Data(encrypted)
+          )
         );
 
         byte[] hostEnvelope = encrypted.clone();
@@ -169,7 +189,16 @@ public class BundleTest {
         System.arraycopy(ciphertext, 0, hostEnvelope, 77, ciphertext.length);
         Assertions.assertArrayEquals(
           plaintext,
-          cipher.decrypt(receiver, imported, INDEX, KEY, ALIAS, null, new Data(hostEnvelope))
+          cipher.decrypt(
+            receiver,
+            imported,
+            CALLER_AID,
+            INDEX,
+            KEY,
+            ALIAS,
+            null,
+            new Data(hostEnvelope)
+          )
         );
       }
     }
@@ -184,6 +213,7 @@ public class BundleTest {
     byte[] encrypted = cipher.encrypt(
       sender,
       bundle,
+      CALLER_AID,
       INDEX,
       KEY,
       ALIAS,
@@ -193,28 +223,90 @@ public class BundleTest {
     );
 
     Assertions.assertThrows(RuntimeException.class, () ->
-      cipher.decrypt(sender, null, INDEX, KEY, ALIAS, null, new Data(encrypted))
+      cipher.decrypt(sender, null, CALLER_AID, INDEX, KEY, ALIAS, null, new Data(encrypted))
     );
     Assertions.assertThrows(RuntimeException.class, () ->
-      cipher.decrypt(sender, different, INDEX, KEY, ALIAS, null, new Data(encrypted))
+      cipher.decrypt(sender, different, CALLER_AID, INDEX, KEY, ALIAS, null, new Data(encrypted))
     );
     Assertions.assertThrows(RuntimeException.class, () ->
-      cipher.decrypt(sender, bundle, new byte[10], KEY, ALIAS, null, new Data(encrypted))
+      cipher.decrypt(
+        sender,
+        bundle,
+        CALLER_AID,
+        new byte[10],
+        KEY,
+        ALIAS,
+        null,
+        new Data(encrypted)
+      )
     );
     Assertions.assertThrows(RuntimeException.class, () ->
-      cipher.decrypt(sender, bundle, INDEX, new byte[0], ALIAS, null, new Data(encrypted))
+      cipher.decrypt(
+        sender,
+        bundle,
+        CALLER_AID,
+        INDEX,
+        new byte[0],
+        ALIAS,
+        null,
+        new Data(encrypted)
+      )
     );
     Assertions.assertThrows(RuntimeException.class, () ->
-      cipher.decrypt(sender, bundle, INDEX, KEY, null, null, new Data(encrypted))
+      cipher.decrypt(sender, bundle, CALLER_AID, INDEX, KEY, null, null, new Data(encrypted))
     );
 
     for (int offset : new int[] { 0, 1, 33, 65, 77, encrypted.length - 1 }) {
       byte[] changed = encrypted.clone();
       changed[offset] ^= 1;
       Assertions.assertThrows(RuntimeException.class, () ->
-        cipher.decrypt(sender, bundle, INDEX, KEY, ALIAS, null, new Data(changed))
+        cipher.decrypt(sender, bundle, CALLER_AID, INDEX, KEY, ALIAS, null, new Data(changed))
       );
     }
+  }
+
+  @Test
+  public void bundleItemsAreIsolatedByTheFullCallerAIDAndItsLength() {
+    CommunicationCipher sender = communication(1);
+    Bundle bundle = Bundle.create(concat(publicKey(1), publicKey(2)), publicKey(1), sender);
+    ItemCipher cipher = new ItemCipher(sharedCipher);
+    byte[] data = bytes(32);
+    byte[] encrypted = cipher.encrypt(
+      sender,
+      bundle,
+      CALLER_AID,
+      INDEX,
+      KEY,
+      ALIAS,
+      Constants.SAFE_TRUE,
+      null,
+      new Data(data)
+    );
+    byte[] caller = aidBytes(CALLER_AID);
+    byte[] changed = caller.clone();
+    changed[changed.length - 1] ^= 1;
+    byte[] extended = Arrays.copyOf(caller, caller.length + 1);
+
+    for (byte[] other : new byte[][] { changed, extended }) {
+      AID otherCaller = new AID(other, (short) 0, (byte) other.length);
+      Assertions.assertThrows(CryptoException.class, () ->
+        cipher.decrypt(sender, bundle, otherCaller, INDEX, KEY, ALIAS, null, new Data(encrypted))
+      );
+    }
+
+    Assertions.assertArrayEquals(
+      concat(new byte[] { 0x5A, (byte) 0xFE }, data),
+      cipher.decrypt(
+        sender,
+        bundle,
+        new AID(caller, (short) 0, (byte) caller.length),
+        INDEX,
+        KEY,
+        ALIAS,
+        null,
+        new Data(encrypted)
+      )
+    );
   }
 
   @Test
@@ -227,6 +319,7 @@ public class BundleTest {
     byte[] encrypted = cipher.encrypt(
       sender,
       null,
+      CALLER_AID,
       INDEX,
       KEY,
       ALIAS,
@@ -236,20 +329,39 @@ public class BundleTest {
     );
     Assertions.assertArrayEquals(
       concat(new byte[] { 0x5A, (byte) 0xFE }, bytes(32)),
-      cipher.decrypt(receiver, bundle, INDEX, KEY, ALIAS, publicKey(1), new Data(encrypted))
+      cipher.decrypt(
+        receiver,
+        bundle,
+        CALLER_AID,
+        INDEX,
+        KEY,
+        ALIAS,
+        publicKey(1),
+        new Data(encrypted)
+      )
     );
 
     byte[] enrollment = bundle.encryptPackets(members, publicKey(1), sender);
     byte[] forgedItem = encrypted.clone();
     System.arraycopy(enrollment, 133, forgedItem, 1, 113);
     Assertions.assertThrows(RuntimeException.class, () ->
-      cipher.decrypt(receiver, bundle, INDEX, KEY, ALIAS, publicKey(1), new Data(forgedItem))
+      cipher.decrypt(
+        receiver,
+        bundle,
+        CALLER_AID,
+        INDEX,
+        KEY,
+        ALIAS,
+        publicKey(1),
+        new Data(forgedItem)
+      )
     );
 
     Bundle imported = Bundle.decrypt(publicKey(1), publicKey(2), enrollment, receiver);
     byte[] bundled = cipher.encrypt(
       receiver,
       imported,
+      CALLER_AID,
       INDEX,
       KEY,
       ALIAS,
@@ -259,11 +371,20 @@ public class BundleTest {
     );
     Assertions.assertArrayEquals(
       concat(new byte[] { 0x5A, (byte) 0xFE }, bytes(32)),
-      cipher.decrypt(sender, bundle, INDEX, KEY, ALIAS, null, new Data(bundled))
+      cipher.decrypt(sender, bundle, CALLER_AID, INDEX, KEY, ALIAS, null, new Data(bundled))
     );
     Assertions.assertArrayEquals(
       concat(new byte[] { 0x5A, (byte) 0xFE }, bytes(32)),
-      cipher.decrypt(receiver, imported, INDEX, KEY, ALIAS, publicKey(1), new Data(encrypted))
+      cipher.decrypt(
+        receiver,
+        imported,
+        CALLER_AID,
+        INDEX,
+        KEY,
+        ALIAS,
+        publicKey(1),
+        new Data(encrypted)
+      )
     );
   }
 
@@ -289,6 +410,7 @@ public class BundleTest {
     byte[] encrypted = cipher.encrypt(
       sender,
       null,
+      CALLER_AID,
       index,
       key,
       alias,
@@ -298,13 +420,27 @@ public class BundleTest {
     );
     Assertions.assertArrayEquals(
       concat(new byte[] { 0x5A, (byte) 0xFE }, bytes(32)),
-      cipher.decrypt(receiver, null, INDEX, KEY, ALIAS, publicKey(1), new Data(encrypted))
+      cipher.decrypt(
+        receiver,
+        null,
+        CALLER_AID,
+        INDEX,
+        KEY,
+        ALIAS,
+        publicKey(1),
+        new Data(encrypted)
+      )
     );
   }
 
   private byte[] bundleCrypt(int mode, byte[] key, byte[] envelope, byte[] input) throws Exception {
     byte[] salt = Arrays.copyOfRange(envelope, 33, 65);
-    byte[] prk = hmac(salt, key);
+    byte[] caller = aidBytes(CALLER_AID);
+    byte[] callerKey = hmac(
+      key,
+      concat(ascii("Monoid Bundle Caller Key"), new byte[] { (byte) caller.length }, caller)
+    );
+    byte[] prk = hmac(salt, callerKey);
     byte[] encryptionKey = Arrays.copyOf(
       hmac(prk, concat(ascii("Monoid Bundle Item Key"), metadataContext(), new byte[] { 1 })),
       16
@@ -323,6 +459,9 @@ public class BundleTest {
     DataOutputStream out = new DataOutputStream(buffer);
     out.write(ascii("Monoid Item"));
     out.writeByte(2);
+    byte[] caller = aidBytes(CALLER_AID);
+    out.writeByte(caller.length);
+    out.write(caller);
     out.write(INDEX);
     out.writeShort(KEY.length);
     out.write(KEY);

@@ -8,6 +8,61 @@ import org.junit.jupiter.api.Test;
 public class LibSecurityTest {
 
   @Test
+  public void arraysRequireEveryByteToMatch() {
+    byte[] expected = new byte[32];
+
+    for (int index = 0; index < expected.length; index++) {
+      expected[index] = (byte) (index * 17);
+    }
+
+    for (short conservativeResult : new short[] { Constants.SAFE_FALSE, Constants.SAFE_TRUE }) {
+      Assertions.assertEquals(
+        Constants.SAFE_TRUE,
+        LibSecurity.check(expected, expected.clone(), conservativeResult)
+      );
+
+      for (int index = 0; index < expected.length; index++) {
+        for (int bit = 0; bit < 8; bit++) {
+          byte[] actual = expected.clone();
+          actual[index] ^= (byte) (1 << bit);
+
+          Assertions.assertEquals(
+            Constants.SAFE_FALSE,
+            LibSecurity.check(expected, actual, conservativeResult)
+          );
+        }
+      }
+
+      byte[] actual = expected.clone();
+      actual[0] ^= (byte) 0x80;
+      actual[31] ^= (byte) 0x80;
+
+      Assertions.assertEquals(
+        Constants.SAFE_FALSE,
+        LibSecurity.check(expected, actual, conservativeResult)
+      );
+    }
+  }
+
+  @Test
+  public void missingOrDifferentLengthBindingsDoNotMatch() {
+    for (short conservativeResult : new short[] { Constants.SAFE_FALSE, Constants.SAFE_TRUE }) {
+      Assertions.assertEquals(
+        Constants.SAFE_FALSE,
+        LibSecurity.check(null, new byte[32], conservativeResult)
+      );
+      Assertions.assertEquals(
+        Constants.SAFE_FALSE,
+        LibSecurity.check(new byte[32], new byte[31], conservativeResult)
+      );
+      Assertions.assertEquals(
+        Constants.SAFE_FALSE,
+        LibSecurity.check(new byte[32], new byte[33], conservativeResult)
+      );
+    }
+  }
+
+  @Test
   public void falseIsConservativeForValidation() {
     assertResult(Constants.SAFE_FALSE, Constants.SAFE_TRUE, 3, true, true, true);
     assertResult(Constants.SAFE_FALSE, Constants.SAFE_FALSE, 1, false, true, true);
@@ -39,6 +94,12 @@ public class LibSecurityTest {
             },
             corrupted
           )
+        );
+
+        Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
+
+        exception = Assertions.assertThrows(ISOException.class, () ->
+          LibSecurity.check(new byte[32], new byte[32], corrupted)
         );
 
         Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());

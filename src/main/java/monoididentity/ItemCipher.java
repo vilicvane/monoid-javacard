@@ -1,5 +1,6 @@
 package monoididentity;
 
+import javacard.framework.AID;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
@@ -26,13 +27,13 @@ final class ItemCipher {
   private static final short TAG_LENGTH = 16;
   private static final short KEY_LENGTH = 32;
   private static final short HASH_LENGTH = 32;
-  private static final short HMAC_BLOCK_LENGTH = 64;
   private static final short COPY_BUFFER_LENGTH = 64;
 
   // @formatter:off
   private static final byte[] EMPTY = {};
   private static final byte[] CONTEXT = {'M','o','n','o','i','d',' ','I','t','e','m'};
   private static final byte[] KEY_CONTEXT = {'M','o','n','o','i','d',' ','I','t','e','m',' ','K','e','y'};
+  private static final byte[] BUNDLE_CALLER_CONTEXT = {'M','o','n','o','i','d',' ','B','u','n','d','l','e',' ','C','a','l','l','e','r',' ','K','e','y'};
   private static final byte[] BUNDLE_KEY_CONTEXT = {'M','o','n','o','i','d',' ','B','u','n','d','l','e',' ','I','t','e','m',' ','K','e','y'};
   // @formatter:on
 
@@ -63,13 +64,17 @@ final class ItemCipher {
       false
     );
     keyBytes = new byte[KEY_LENGTH];
-    hmacBlock = JCSystem.makeTransientByteArray(HMAC_BLOCK_LENGTH, JCSystem.CLEAR_ON_RESET);
+    hmacBlock = JCSystem.makeTransientByteArray(
+      LibHMACSha256.BLOCK_LENGTH,
+      JCSystem.CLEAR_ON_RESET
+    );
     suffix = new byte[2];
   }
 
   byte[] encrypt(
     CommunicationCipher communication,
     Bundle bundle,
+    AID caller,
     byte[] index,
     byte[] key,
     byte[] alias,
@@ -78,11 +83,13 @@ final class ItemCipher {
     CommunicationDataShareable data
   ) {
     byte[] buffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, COPY_BUFFER_LENGTH);
+    byte[] callerBytes = new byte[16];
+    byte callerLength = caller.getBytes(callerBytes, (short) 0);
     byte version = bundle == null ? VERSION_IDENTITY : VERSION_BUNDLE;
     short nonceOffset = nonceOffset(version);
     short dataOffset = (short) (nonceOffset + NONCE_LENGTH);
     short overhead = (short) (dataOffset + SECRET_LENGTH + TAG_LENGTH);
-    byte[] context = createContext(version, index, key, alias);
+    byte[] context = createContext(version, callerBytes, callerLength, index, key, alias);
     recipientPublicKey = CommunicationData.duplicateAsPrivate(recipientPublicKey);
     short dataLength = data.getLength();
 
@@ -115,8 +122,9 @@ final class ItemCipher {
         HASH_LENGTH
       );
       random.nextBytes(encryptedData, BUNDLE_SALT_OFFSET, KEY_LENGTH);
+      deriveBundleCallerKey(bundle.key, callerBytes, callerLength);
       deriveKey(
-        bundle.key,
+        keyBytes,
         context,
         encryptedData,
         BUNDLE_SALT_OFFSET,
@@ -152,6 +160,7 @@ final class ItemCipher {
   byte[] decrypt(
     CommunicationCipher communication,
     Bundle bundle,
+    AID caller,
     byte[] index,
     byte[] key,
     byte[] alias,
@@ -159,6 +168,8 @@ final class ItemCipher {
     CommunicationDataShareable encryptedData
   ) {
     byte[] buffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, COPY_BUFFER_LENGTH);
+    byte[] callerBytes = new byte[16];
+    byte callerLength = caller.getBytes(callerBytes, (short) 0);
     index = CommunicationData.duplicateAsPrivate(index);
     key = CommunicationData.duplicateAsPrivate(key);
     alias = CommunicationData.duplicateAsPrivate(alias);
@@ -178,7 +189,7 @@ final class ItemCipher {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
     }
 
-    byte[] context = createContext(version, index, key, alias);
+    byte[] context = createContext(version, callerBytes, callerLength, index, key, alias);
 
     if (version == VERSION_IDENTITY) {
       byte[] encryptedKey = CommunicationData.makePrivateByteArray(ENCRYPTED_KEY_LENGTH);
@@ -203,7 +214,8 @@ final class ItemCipher {
         ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
       }
 
-      deriveKey(bundle.key, context, buffer, HASH_LENGTH, KEY_LENGTH, BUNDLE_KEY_CONTEXT);
+      deriveBundleCallerKey(bundle.key, callerBytes, callerLength);
+      deriveKey(keyBytes, context, buffer, HASH_LENGTH, KEY_LENGTH, BUNDLE_KEY_CONTEXT);
     }
 
     short length = (short) (encryptedLength - dataOffset - TAG_LENGTH);
@@ -234,7 +246,14 @@ final class ItemCipher {
     }
   }
 
-  private byte[] createContext(byte version, byte[] index, byte[] key, byte[] alias) {
+  private byte[] createContext(
+    byte version,
+    byte[] caller,
+    byte callerLength,
+    byte[] index,
+    byte[] key,
+    byte[] alias
+  ) {
     if (index.length != INDEX_LENGTH) {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
     }
@@ -244,6 +263,9 @@ final class ItemCipher {
     digest.update(CONTEXT, (short) 0, (short) CONTEXT.length);
     suffix[0] = version;
     digest.update(suffix, (short) 0, (short) 1);
+    suffix[0] = callerLength;
+    digest.update(suffix, (short) 0, (short) 1);
+    digest.update(caller, (short) 0, callerLength);
     digest.update(index, (short) 0, INDEX_LENGTH);
     updateContext(key);
     updateContext(alias);
@@ -270,35 +292,24 @@ final class ItemCipher {
     short saltLength,
     byte[] label
   ) {
-    beginHmac(salt, saltOffset, saltLength);
+    LibHMACSha256.begin(digest, hmacBlock, salt, saltOffset, saltLength);
     digest.doFinal(key, (short) 0, KEY_LENGTH, keyBytes, (short) 0);
-    finishHmac();
-    beginHmac(keyBytes, (short) 0, KEY_LENGTH);
+    LibHMACSha256.finish(digest, hmacBlock, keyBytes, (short) 0);
+    LibHMACSha256.begin(digest, hmacBlock, keyBytes, (short) 0, KEY_LENGTH);
     digest.update(label, (short) 0, (short) label.length);
     digest.update(context, (short) 0, HASH_LENGTH);
     suffix[0] = 1;
     digest.doFinal(suffix, (short) 0, (short) 1, keyBytes, (short) 0);
-    finishHmac();
+    LibHMACSha256.finish(digest, hmacBlock, keyBytes, (short) 0);
     encryptionKey.setKey(keyBytes, (short) 0);
   }
 
-  private void beginHmac(byte[] key, short offset, short length) {
-    digest.reset();
-    Util.arrayFillNonAtomic(hmacBlock, (short) 0, HMAC_BLOCK_LENGTH, (byte) 0x36);
-
-    for (short index = 0; index < length; index++) {
-      hmacBlock[index] ^= key[(short) (offset + index)];
-    }
-
-    digest.update(hmacBlock, (short) 0, HMAC_BLOCK_LENGTH);
-  }
-
-  private void finishHmac() {
-    for (short index = 0; index < HMAC_BLOCK_LENGTH; index++) {
-      hmacBlock[index] ^= (byte) (0x36 ^ 0x5C);
-    }
-
-    digest.update(hmacBlock, (short) 0, HMAC_BLOCK_LENGTH);
-    digest.doFinal(keyBytes, (short) 0, HASH_LENGTH, keyBytes, (short) 0);
+  private void deriveBundleCallerKey(byte[] key, byte[] caller, byte callerLength) {
+    LibHMACSha256.begin(digest, hmacBlock, key, (short) 0, KEY_LENGTH);
+    digest.update(BUNDLE_CALLER_CONTEXT, (short) 0, (short) BUNDLE_CALLER_CONTEXT.length);
+    suffix[0] = callerLength;
+    digest.update(suffix, (short) 0, (short) 1);
+    digest.doFinal(caller, (short) 0, callerLength, keyBytes, (short) 0);
+    LibHMACSha256.finish(digest, hmacBlock, keyBytes, (short) 0);
   }
 }

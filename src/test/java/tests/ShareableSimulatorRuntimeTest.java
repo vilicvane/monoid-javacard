@@ -21,15 +21,15 @@ public class ShareableSimulatorRuntimeTest {
 
   private static final AID IDENTITY_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
-    "f06d6f6e6f696400010000"
+    "f06d6f6e6f69640001"
   );
   private static final AID MONOID_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_AID}}"
-    "f06d6f6e6f696402010000"
+    "f06d6f6e6f69640201"
   );
   private static final AID CALLER_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_AID_WITHOUT_VERSION}}0001"
-    "f06d6f6e6f696402010001"
+    // @inplate-line "{{hex MONOID_NAMESPACE}}7f11"
+    "f06d6f6e6f69647f11"
   );
 
   @Test

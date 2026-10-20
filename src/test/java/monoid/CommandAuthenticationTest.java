@@ -24,11 +24,11 @@ public class CommandAuthenticationTest {
 
   private static final AID MONOID_IDENTITY_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
-    "f06d6f6e6f696400010000"
+    "f06d6f6e6f69640001"
   );
   private static final AID MONOID_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_AID}}"
-    "f06d6f6e6f696402010000"
+    "f06d6f6e6f69640201"
   );
 
   private static final byte[] PIN = "314159".getBytes(StandardCharsets.US_ASCII);
@@ -562,7 +562,6 @@ public class CommandAuthenticationTest {
 
   private void resetAppletState() {
     // Separate simulator instances share Java static fields within the test JVM.
-    MonoidApplet.version = 0;
     MonoidApplet.safe = null;
     MonoidApplet.keystore = null;
   }

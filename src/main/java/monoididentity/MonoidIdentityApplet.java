@@ -19,9 +19,22 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   public static final byte ID_LENGTH = 4;
 
+  private static final short TOKEN_LENGTH = 32;
+  private static final short TOKEN_CACHE_SIZE = 32;
+  private static final short TOKEN_AID_ROUNDS = 3;
+
+  // @formatter:off
+  private static final byte[] TOKEN_CONTEXT = {'M','o','n','o','i','d',' ','I','d','e','n','t','i','t','y',' ','T','o','k','e','n'};
+  // @formatter:on
+
   private byte[] id = new byte[ID_LENGTH];
+  private final byte[] tokenSecret = new byte[TOKEN_LENGTH];
+  private final TokenCacheEntry[] tokenCache = new TokenCacheEntry[TOKEN_CACHE_SIZE];
+  private short nextTokenCacheIndex;
 
   private KeyPair keyPair;
+  private MessageDigest tokenDigest;
+  private byte[] tokenHmacBlock;
   private AESGcmCipher aesGcmCipher;
   private CommunicationCipher communicationCipher;
   private ItemCipher itemCipher;
@@ -39,15 +52,18 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   private final LibSecurity.Condition callerAdmissionValidation = new LibSecurity.Condition() {
     @Override
     public boolean check() {
+      return callerCheckParameters[0] != null;
+    }
+  };
+
+  private final LibSecurity.Condition monoidAdmissionValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
       AID caller = (AID) callerCheckParameters[0];
 
       return (
         caller != null &&
-        caller.partialEquals(
-          Constants.MONOID_AID_WITHOUT_VERSION,
-          (short) 0,
-          (byte) Constants.MONOID_AID_WITHOUT_VERSION.length
-        )
+        caller.equals(Constants.MONOID_AID, (short) 0, (byte) Constants.MONOID_AID.length)
       );
     }
   };
@@ -59,6 +75,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   MonoidIdentityApplet() {
     RandomData random = RandomData.getInstance(RandomData.ALG_TRNG);
     random.nextBytes(id, (short) 0, (short) id.length);
+    random.nextBytes(tokenSecret, (short) 0, TOKEN_LENGTH);
 
     keyPair = new KeyPair(KeyPair.ALG_EC_FP, KeyBuilder.LENGTH_EC_FP_256);
     LibSECP256r1.initialize((ECPrivateKey) keyPair.getPrivate());
@@ -77,7 +94,69 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   @Override
   public Shareable getShareableInterfaceObject(AID clientAID, byte parameter) {
-    return checkCaller(clientAID) == Constants.SAFE_TRUE ? this : null;
+    return checkCaller(clientAID, callerAdmissionValidation) == Constants.SAFE_TRUE ? this : null;
+  }
+
+  @Override
+  public byte[] getToken() {
+    assertCaller();
+    assertCommunicationAvailable();
+
+    for (short i = 0; i < TOKEN_CACHE_SIZE; i++) {
+      TokenCacheEntry cached = tokenCache[i];
+
+      if (
+        cached != null && LibSecurity.check(cached, Constants.SAFE_FALSE) == Constants.SAFE_TRUE
+      ) {
+        return duplicateAsGlobal(cached.token);
+      }
+    }
+
+    byte[] token = new byte[TOKEN_LENGTH];
+    byte[] caller = new byte[16];
+    byte callerLength = 0;
+
+    if (tokenDigest == null) {
+      tokenHmacBlock = JCSystem.makeTransientByteArray(
+        LibHMACSha256.BLOCK_LENGTH,
+        JCSystem.CLEAR_ON_RESET
+      );
+      tokenDigest = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, true);
+    }
+
+    LibHMACSha256.begin(tokenDigest, tokenHmacBlock, tokenSecret, (short) 0, TOKEN_LENGTH);
+    tokenDigest.update(TOKEN_CONTEXT, (short) 0, (short) TOKEN_CONTEXT.length);
+
+    for (short round = 0; round < TOKEN_AID_ROUNDS; round++) {
+      callerLength = JCSystem.getPreviousContextAID().getBytes(caller, (short) 0);
+      tokenDigest.update(caller, (short) 0, callerLength);
+    }
+
+    tokenDigest.doFinal(caller, (short) 0, (short) 0, token, (short) 0);
+    LibHMACSha256.finish(tokenDigest, tokenHmacBlock, token, (short) 0);
+
+    // A caller's transaction must not make an otherwise valid token request fail.
+    if (JCSystem.getTransactionDepth() == 0) {
+      TokenCacheEntry entry = new TokenCacheEntry(caller, callerLength, token);
+      JCSystem.beginTransaction();
+
+      try {
+        tokenCache[nextTokenCacheIndex] = entry;
+        nextTokenCacheIndex++;
+
+        if (nextTokenCacheIndex == TOKEN_CACHE_SIZE) {
+          nextTokenCacheIndex = 0;
+        }
+
+        JCSystem.commitTransaction();
+      } finally {
+        if (JCSystem.getTransactionDepth() != 0) {
+          JCSystem.abortTransaction();
+        }
+      }
+    }
+
+    return duplicateAsGlobal(token);
   }
 
   @Override
@@ -109,7 +188,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   @Override
   public CommunicationDataShareable createBundle(byte[] publicKeys) {
-    assertCaller();
+    assertMonoidCaller();
     assertCommunicationAvailable();
 
     byte[] ownPublicKey = publicKey();
@@ -124,7 +203,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   @Override
   public byte[] importBundle(byte[] senderPublicKey, byte[] data) {
-    assertCaller();
+    assertMonoidCaller();
     assertCommunicationAvailable();
 
     byte[] hash = (byte[]) JCSystem.makeGlobalArray(
@@ -153,7 +232,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   @Override
   public void resetBundle() {
-    assertCaller();
+    assertMonoidCaller();
     assertCommunicationAvailable();
 
     publishBundle(null);
@@ -170,12 +249,14 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   ) {
     assertCaller();
     assertCommunicationAvailable();
+    AID caller = JCSystem.getPreviousContextAID();
     communicationOperation[0] = 1;
 
     try {
       byte[] encryptedData = requireItemCipher().encrypt(
         requireCommunicationCipher(),
         bundle,
+        caller,
         index,
         key,
         alias,
@@ -184,7 +265,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
         data
       );
 
-      return new CommunicationData(encryptedData, JCSystem.getPreviousContextAID());
+      return new CommunicationData(encryptedData, caller);
     } finally {
       communicationOperation[0] = 0;
     }
@@ -200,12 +281,14 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   ) {
     assertCaller();
     assertCommunicationAvailable();
+    AID caller = JCSystem.getPreviousContextAID();
     communicationOperation[0] = 1;
 
     try {
       byte[] plaintext = requireItemCipher().decrypt(
         requireCommunicationCipher(),
         bundle,
+        caller,
         index,
         key,
         alias,
@@ -213,7 +296,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
         data
       );
 
-      return new CommunicationData(plaintext, JCSystem.getPreviousContextAID());
+      return new CommunicationData(plaintext, caller);
     } finally {
       communicationOperation[0] = 0;
     }
@@ -273,16 +356,28 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   }
 
   private void assertCaller() {
-    if (checkCaller(JCSystem.getPreviousContextAID()) != Constants.SAFE_TRUE) {
+    if (
+      checkCaller(JCSystem.getPreviousContextAID(), callerAdmissionValidation) !=
+      Constants.SAFE_TRUE
+    ) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
     }
   }
 
-  private short checkCaller(AID caller) {
+  private void assertMonoidCaller() {
+    if (
+      checkCaller(JCSystem.getPreviousContextAID(), monoidAdmissionValidation) !=
+      Constants.SAFE_TRUE
+    ) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+  }
+
+  private short checkCaller(AID caller, LibSecurity.Condition validation) {
     callerCheckParameters[0] = caller;
 
     try {
-      return LibSecurity.check(callerAdmissionValidation, Constants.SAFE_FALSE);
+      return LibSecurity.check(validation, Constants.SAFE_FALSE);
     } finally {
       callerCheckParameters[0] = null;
     }
@@ -296,5 +391,23 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     Util.arrayCopyNonAtomic(data, (short) 0, duplicate, (short) 0, (short) data.length);
 
     return duplicate;
+  }
+
+  private static final class TokenCacheEntry implements LibSecurity.Condition {
+
+    private final byte[] caller;
+    private final byte callerLength;
+    private final byte[] token;
+
+    private TokenCacheEntry(byte[] caller, byte callerLength, byte[] token) {
+      this.caller = caller;
+      this.callerLength = callerLength;
+      this.token = token;
+    }
+
+    @Override
+    public boolean check() {
+      return JCSystem.getPreviousContextAID().equals(caller, (short) 0, callerLength);
+    }
   }
 }

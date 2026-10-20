@@ -15,27 +15,21 @@ const secp256r1Parameters = readFileSync(
 ).match(/\/\/ @formatter:off([\s\S]*?)\/\/ @formatter:on/)[1];
 
 const MONOID_VERSION = Buffer.from([0x00, 0x00]);
-const MONOID_IDENTITY_VERSION = Buffer.from([0x00, 0x00]);
 
 const MONOID_NAMESPACE = Buffer.concat([Buffer.from([0xf0]), Buffer.from('monoid')]);
 
 const MONOID_IDENTITY_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x00])]);
 const MONOID_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x02])]);
 
-const MONOID_IDENTITY_AID = Buffer.concat([
-  MONOID_IDENTITY_PACKAGE_AID,
-  Buffer.from([0x01]),
-  MONOID_IDENTITY_VERSION,
-]);
-const MONOID_AID_WITHOUT_VERSION = Buffer.concat([MONOID_PACKAGE_AID, Buffer.from([0x01])]);
-const MONOID_AID = Buffer.concat([MONOID_AID_WITHOUT_VERSION, MONOID_VERSION]);
+const MONOID_IDENTITY_AID = Buffer.concat([MONOID_IDENTITY_PACKAGE_AID, Buffer.from([0x01])]);
+const MONOID_AID = Buffer.concat([MONOID_PACKAGE_AID, Buffer.from([0x01])]);
 
 const data = {
+  MONOID_VERSION,
   MONOID_NAMESPACE,
   MONOID_IDENTITY_PACKAGE_AID,
   MONOID_IDENTITY_AID,
   MONOID_PACKAGE_AID,
-  MONOID_AID_WITHOUT_VERSION,
   MONOID_AID,
 };
 

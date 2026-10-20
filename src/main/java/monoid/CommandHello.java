@@ -12,7 +12,7 @@ public final class CommandHello extends Command {
     writer.map((short) 5);
     {
       writer.text(Text.version);
-      writer.integer(MonoidApplet.version);
+      writer.integer(Constants.MONOID_VERSION);
 
       writer.text(Text.id);
       writer.bytes(MonoidApplet.safe.getId());

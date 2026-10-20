@@ -23,7 +23,7 @@ public class CommandSystemInformation extends Command {
     writer.map((short) 2);
     {
       writer.text(Text.monoid);
-      writer.integer(MonoidApplet.version);
+      writer.integer(Constants.MONOID_VERSION);
 
       writer.text(Text.javacard);
       writer.array((short) 2);

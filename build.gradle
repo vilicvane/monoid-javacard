@@ -145,7 +145,7 @@ javacard {
 			applet {
 				className 'monoididentity.MonoidIdentityApplet'
 				// @inplate-line aid '{{hex MONOID_IDENTITY_AID}}'
-				aid 'f06d6f6e6f696400010000'
+				aid 'f06d6f6e6f69640001'
 			}
 		}
 
@@ -163,7 +163,7 @@ javacard {
 			applet {
 				className 'monoid.MonoidApplet'
 				// @inplate-line aid '{{hex MONOID_AID}}'
-				aid 'f06d6f6e6f696402010000'
+				aid 'f06d6f6e6f69640201'
 			}
 
 			dependencies {

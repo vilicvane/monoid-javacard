@@ -140,6 +140,25 @@ task prepareSimulatorItemCipher {
 	}
 }
 
+task prepareSimulatorIdentity {
+	def original = file('src/main/java/monoididentity/MonoidIdentityApplet.java')
+	def adapted = file("${buildDir}/generated/simulator/monoididentity/MonoidIdentityApplet.java")
+	inputs.file original
+	outputs.file adapted
+
+	doLast {
+		def source = original.text
+		def pattern = /MessageDigest\.ALG_SHA_256, true/
+		if ((source =~ pattern).count != 1) {
+			throw new GradleException('Unexpected simulator Identity digest shared-access match count')
+		}
+
+		// The simulator rejects shared digest factories and does not model the firewall.
+		adapted.parentFile.mkdirs()
+		adapted.text = source.replaceAll(pattern, 'MessageDigest.ALG_SHA_256, false')
+	}
+}
+
 task prepareSimulatorHMACSha512 {
 	def original = file('src/main/java/monoid/LibHMACSha512.java')
 	def adapted = file("${buildDir}/generated/simulator/monoid/LibHMACSha512.java")
@@ -182,10 +201,11 @@ task prepareSimulatorStorage {
 }
 
 compileSimulatorMath {
-	dependsOn prepareSimulatorCommunicationCipher, prepareSimulatorAESGcmCipher, prepareSimulatorItemCipher, prepareSimulatorHMACSha512, prepareSimulatorStorage
+	dependsOn prepareSimulatorCommunicationCipher, prepareSimulatorAESGcmCipher, prepareSimulatorItemCipher, prepareSimulatorIdentity, prepareSimulatorHMACSha512, prepareSimulatorStorage
 	source file("${buildDir}/generated/simulator/monoid/LibHMACSha512.java")
 	source file("${buildDir}/generated/simulator/monoididentity/CommunicationCipher.java")
 	source file("${buildDir}/generated/simulator/monoididentity/AESGcmCipher.java")
 	source file("${buildDir}/generated/simulator/monoididentity/ItemCipher.java")
+	source file("${buildDir}/generated/simulator/monoididentity/MonoidIdentityApplet.java")
 	source file("${buildDir}/generated/simulator/monoid/Safe.java")
 }

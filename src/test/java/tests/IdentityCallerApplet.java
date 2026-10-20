@@ -31,6 +31,9 @@ public class IdentityCallerApplet
   public static final byte BORROW_RESULT = 14;
   public static final byte READ_RESULT = 15;
   public static final byte ENCRYPT_REENTRANT = 16;
+  public static final byte GET_TOKEN = 17;
+  public static final byte MUTATE_TOKEN_COPY = 18;
+  public static final byte GET_TOKEN_ABORT_TRANSACTION = 19;
 
   private IdentityShareable identity;
   private CommunicationDataShareable result;
@@ -75,6 +78,35 @@ public class IdentityCallerApplet
         return;
       case GET_PUBLIC_KEY:
         send(apdu, identity.getPublicKey());
+        return;
+      case GET_TOKEN:
+        send(apdu, identity.getToken());
+        return;
+      case MUTATE_TOKEN_COPY:
+        byte[] token = identity.getToken();
+        token[0] ^= (byte) 0xFF;
+        send(apdu, token);
+        return;
+      case GET_TOKEN_ABORT_TRANSACTION:
+        byte[] transactionToken = (byte[]) JCSystem.makeGlobalArray(
+          JCSystem.ARRAY_TYPE_BYTE,
+          (short) 32
+        );
+        JCSystem.beginTransaction();
+
+        try {
+          Util.arrayCopyNonAtomic(
+            identity.getToken(),
+            (short) 0,
+            transactionToken,
+            (short) 0,
+            (short) transactionToken.length
+          );
+        } finally {
+          JCSystem.abortTransaction();
+        }
+
+        send(apdu, transactionToken);
         return;
       case GET_IDENTITY_ID:
         send(apdu, identity.getId());

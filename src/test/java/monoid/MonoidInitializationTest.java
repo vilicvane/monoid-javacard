@@ -19,11 +19,16 @@ public class MonoidInitializationTest {
 
   private static final AID IDENTITY_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
-    "f06d6f6e6f696400010000"
+    "f06d6f6e6f69640001"
   );
-  private static final String MONOID_AID =
-    // @inplate-line "{{hex MONOID_AID}}";
-    "f06d6f6e6f696402010000";
+  private static final AID MONOID_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_AID}}"
+    "f06d6f6e6f69640201"
+  );
+  private static final AID OTHER_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_NAMESPACE}}7f11"
+    "f06d6f6e6f69647f11"
+  );
 
   private CountingTransientMemory memory;
   private CardSimulator simulator;
@@ -46,9 +51,9 @@ public class MonoidInitializationTest {
   }
 
   @Test
-  public void zeroVersionDoesNotAllocateMoreTransientMemoryForSmallerFragments() {
-    install(0);
-    assertVersion(transmit(new byte[] { (byte) 0xA0 }, 255), 0);
+  public void initializationDoesNotAllocateMoreTransientMemoryForSmallerFragments() {
+    install(MONOID_AID);
+    assertVersion(transmit(new byte[] { (byte) 0xA0 }, 255));
     byte[] request = paddedRequest();
     int expectedAllocation = allocatedForRequest(request, 255);
 
@@ -57,11 +62,11 @@ public class MonoidInitializationTest {
   }
 
   @Test
-  public void reportsEveryVersionAfterReinstallingTheApplet() {
-    for (int version : new int[] { 0x1234, 0x8001, 0xFFFF, 0, 1 }) {
-      install(version);
-      assertVersion(transmit(new byte[] { (byte) 0xA0 }, 255), version);
-      assertVersion(transmit(new byte[] { (byte) 0xA0 }, 255), version);
+  public void reportsTheConfiguredVersionIndependentlyOfTheInstanceAID() {
+    for (AID aid : new AID[] { MONOID_AID, OTHER_AID }) {
+      install(aid);
+      assertVersion(transmit(new byte[] { (byte) 0xA0 }, 255));
+      assertVersion(transmit(new byte[] { (byte) 0xA0 }, 255));
       uninstall();
     }
   }
@@ -70,14 +75,12 @@ public class MonoidInitializationTest {
     int before = memory.allocatedByteCount;
     byte[] response = transmit(request, frameLength);
     int allocated = memory.allocatedByteCount - before;
-    assertVersion(response, 0);
+    assertVersion(response);
     return allocated;
   }
 
-  private void install(int version) {
-    installedAID = AIDUtil.create(
-      MONOID_AID.substring(0, MONOID_AID.length() - 4) + String.format("%04x", version)
-    );
+  private void install(AID aid) {
+    installedAID = aid;
     simulator.installApplet(installedAID, MonoidApplet.class);
     Assertions.assertTrue(simulator.selectApplet(installedAID));
   }
@@ -114,10 +117,10 @@ public class MonoidInitializationTest {
     return response.getData();
   }
 
-  private void assertVersion(byte[] data, int expected) {
+  private void assertVersion(byte[] data) {
     CBORBufferReader reader = new CBORBufferReader(data);
     reader.map();
-    Assertions.assertEquals((short) expected, reader.requireKey(Text.version).integer());
+    Assertions.assertEquals(Constants.MONOID_VERSION, reader.requireKey(Text.version).integer());
   }
 
   private byte[] paddedRequest() {

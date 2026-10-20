@@ -4,11 +4,11 @@
 
 <!-- @inplate
 AIDs use the namespace `{{hex MONOID_NAMESPACE uppercase=true}}`, followed by a one-byte package number.
-Applet AIDs append a one-byte applet number and a two-byte version.
+Applet AIDs append a one-byte applet number; software versions are independent of AIDs.
 -->
 
 AIDs use the namespace `F06D6F6E6F6964`, followed by a one-byte package number.
-Applet AIDs append a one-byte applet number and a two-byte version.
+Applet AIDs append a one-byte applet number; software versions are independent of AIDs.
 
 <!-- @end -->
 
@@ -19,10 +19,10 @@ Applet AIDs append a one-byte applet number and a two-byte version.
 | Monoid | `{{hex MONOID_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_AID uppercase=true}}` |
 -->
 
-| Component       | Package AID        | Applet AID               |
-| --------------- | ------------------ | ------------------------ |
-| Monoid Identity | `F06D6F6E6F696400` | `F06D6F6E6F696400010000` |
-| Monoid          | `F06D6F6E6F696402` | `F06D6F6E6F696402010000` |
+| Component       | Package AID        | Applet AID           |
+| --------------- | ------------------ | -------------------- |
+| Monoid Identity | `F06D6F6E6F696400` | `F06D6F6E6F69640001` |
+| Monoid          | `F06D6F6E6F696402` | `F06D6F6E6F69640201` |
 
 <!-- @end -->
 
@@ -155,10 +155,17 @@ context. They no longer expose a separate Safe Shareable interface. Replacing
 Monoid removes those objects together with both PINs; a replacement applet cannot
 use the old Safe PIN to access a surviving standalone Safe.
 
-Identity remains a separate applet and admits Monoid by its version-independent
-AID prefix. AIDs identify applications, not their code. Preserving Identity and
-its Bundle state permits recovery of the corresponding exported items after
-Monoid reinstallation. Hello exposes the stable Identity ID and public key,
+Identity remains a separate applet. It provides caller-specific binding tokens
+and encrypted transfer to other applets, with full runtime caller AIDs separating
+their cryptographic domains. Only the exact Monoid AID can manage Bundle membership.
+Monoid privately binds its Identity token before processing its first command;
+later Identity calls must match that token. Replacing Identity cannot automatically
+rebind a Monoid that retains its data. AIDs identify applications, not their code.
+Preserving Identity and its Bundle state permits recovery of the corresponding
+exported items after Monoid reinstallation, including the accepted
+[two-card data migration boundary](bundle.md#recovery-and-data-migration).
+Hello exposes the stable Identity ID and public key,
 the Bundle key hash or `false`, and both PIN try counters. Cryptographic capability
-declarations are returned by System Information.
+declarations are returned by System Information. Both commands report the software
+version from an independent build constant, not from the instance AID.
 Third-party authorization and signing interfaces are not yet implemented.
