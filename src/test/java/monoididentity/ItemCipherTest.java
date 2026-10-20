@@ -13,6 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import javacard.framework.AID;
+import javacard.framework.ISO7816;
+import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.CryptoException;
@@ -39,6 +41,32 @@ public class ItemCipherTest {
   private static final byte[] ALIAS = "\u6d4b\u8bd5\u6761\u76ee".getBytes(StandardCharsets.UTF_8);
 
   private final AESGcmCipher sharedCipher = new AESGcmCipher();
+
+  @Test
+  public void invalidBundleStateCannotSelectAsymmetricEncryption() {
+    ItemCipher cipher = new ItemCipher(sharedCipher);
+
+    for (short valid : new short[] { Constants.SAFE_TRUE, Constants.SAFE_FALSE }) {
+      for (int bit = 0; bit < 16; bit++) {
+        short invalid = (short) (valid ^ (1 << bit));
+        ISOException exception = Assertions.assertThrows(ISOException.class, () ->
+          cipher.encrypt(
+            null,
+            null,
+            invalid,
+            CALLER_AID,
+            INDEX,
+            KEY,
+            ALIAS,
+            Constants.SAFE_TRUE,
+            null,
+            null
+          )
+        );
+        Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
+      }
+    }
+  }
 
   @Test
   public void exportMatchesIndependentHostKeyDerivationAndGcm() throws Exception {
@@ -430,6 +458,7 @@ public class ItemCipherTest {
     return cipher.encrypt(
       sender.cipher,
       null,
+      Constants.SAFE_TRUE,
       CALLER_AID,
       item.index,
       item.key,

@@ -26,7 +26,7 @@ public class IdentityCallerApplet
   public static final byte MUTATE_ID_COPY = 8;
   public static final byte GET_BUNDLE = 9;
   public static final byte CREATE_BUNDLE = 10;
-  public static final byte IMPORT_BUNDLE = 12;
+  public static final byte JOIN_BUNDLE = 12;
   public static final byte RESET_BUNDLE = 13;
   public static final byte BORROW_RESULT = 14;
   public static final byte READ_RESULT = 15;
@@ -34,6 +34,8 @@ public class IdentityCallerApplet
   public static final byte GET_TOKEN = 17;
   public static final byte MUTATE_TOKEN_COPY = 18;
   public static final byte GET_TOKEN_ABORT_TRANSACTION = 19;
+  public static final byte RESET_BUNDLE_WITHOUT_TRANSACTION = 20;
+  public static final byte ENCRYPT_RESET_REENTRANT = 21;
 
   private IdentityShareable identity;
   private CommunicationDataShareable result;
@@ -119,6 +121,7 @@ public class IdentityCallerApplet
       case ENCRYPT_DATA:
       case DECRYPT_DATA:
       case ENCRYPT_REENTRANT:
+      case ENCRYPT_RESET_REENTRANT:
         byte[] publicKey = duplicate(buffer, (short) 0, (short) 65);
         short contextLength = (short) (buffer[65] & 0xFF);
         short contextOffset = 66;
@@ -130,11 +133,22 @@ public class IdentityCallerApplet
         );
 
         byte[] index = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) 10);
-        Data source = instruction == ENCRYPT_REENTRANT
+        Data source = instruction == ENCRYPT_REENTRANT || instruction == ENCRYPT_RESET_REENTRANT
           ? new Data(data) {
             @Override
             public void read(short dataOffset, byte[] buffer, short offset, short length) {
-              identity.resetBundle();
+              if (instruction == ENCRYPT_RESET_REENTRANT) {
+                JCSystem.beginTransaction();
+                try {
+                  identity.resetBundle();
+                } finally {
+                  if (JCSystem.getTransactionDepth() != 0) {
+                    JCSystem.abortTransaction();
+                  }
+                }
+              } else {
+                identity.createBundle(identity.getPublicKey());
+              }
               super.read(dataOffset, buffer, offset, length);
             }
           }
@@ -166,16 +180,30 @@ public class IdentityCallerApplet
         result = identity.createBundle(duplicate(buffer, (short) 0, length));
         send(apdu, readResult((short) 0));
         return;
-      case IMPORT_BUNDLE:
+      case JOIN_BUNDLE:
         send(
           apdu,
-          identity.importBundle(
+          identity.joinBundle(
             duplicate(buffer, (short) 0, (short) 65),
             duplicate(buffer, (short) 65, (short) (length - 65))
           )
         );
         return;
       case RESET_BUNDLE:
+        byte[] depth = new byte[1];
+        JCSystem.beginTransaction();
+        try {
+          identity.resetBundle();
+          depth[0] = JCSystem.getTransactionDepth();
+          JCSystem.commitTransaction();
+        } finally {
+          if (JCSystem.getTransactionDepth() != 0) {
+            JCSystem.abortTransaction();
+          }
+        }
+        send(apdu, depth);
+        return;
+      case RESET_BUNDLE_WITHOUT_TRANSACTION:
         identity.resetBundle();
         return;
       default:

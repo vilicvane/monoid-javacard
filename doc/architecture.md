@@ -1,5 +1,7 @@
 # Monoid Architecture
 
+See [security boundaries](security.md) for the trust model and audit baseline.
+
 ## AIDs
 
 <!-- @inplate

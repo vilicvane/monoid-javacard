@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import javacard.framework.AID;
 import javacard.framework.ISO7816;
+import javacard.framework.JCSystem;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import javax.smartcardio.CommandAPDU;
@@ -323,7 +324,7 @@ public class MonoidIdentityAppletTest {
       acquire(IDENTITY_AID);
       byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
       assertDenied(transmit(IdentityCallerApplet.CREATE_BUNDLE, publicKey));
-      assertDenied(transmit(IdentityCallerApplet.IMPORT_BUNDLE, concat(publicKey, new byte[0])));
+      assertDenied(transmit(IdentityCallerApplet.JOIN_BUNDLE, concat(publicKey, new byte[0])));
       assertDenied(transmit(IdentityCallerApplet.RESET_BUNDLE));
       Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
     }
@@ -445,7 +446,62 @@ public class MonoidIdentityAppletTest {
   }
 
   @Test
-  public void bundleReplacementIsAtomicAndImportsAreIdempotentUntilExplicitlyRemoved() {
+  public void resetBundleRequiresCallerTransactionAndPreservesIdentity() {
+    initializeManager();
+    simulator.installApplet(OTHER_IDENTITY_AID, MonoidIdentityApplet.class);
+    select(MONOID_AID);
+    acquire(OTHER_IDENTITY_AID);
+    byte[] recipientPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    acquire(IDENTITY_AID);
+    byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    byte[] id = success(transmit(IdentityCallerApplet.GET_IDENTITY_ID));
+    byte[] token = success(transmit(IdentityCallerApplet.GET_TOKEN));
+    byte[] members = concat(publicKey, recipientPublicKey);
+    success(transmit(IdentityCallerApplet.CREATE_BUNDLE, members));
+    byte[] bundle = success(transmit(IdentityCallerApplet.GET_BUNDLE));
+
+    Assertions.assertEquals(
+      0x6985,
+      transmit(IdentityCallerApplet.RESET_BUNDLE_WITHOUT_TRANSACTION).getSW()
+    );
+    Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
+    Assertions.assertEquals(
+      0x6985,
+      transmit(
+        IdentityCallerApplet.ENCRYPT_RESET_REENTRANT,
+        payload(publicKey, CONTEXT, KEY)
+      ).getSW()
+    );
+    Assertions.assertEquals(0, JCSystem.getTransactionDepth());
+    Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
+    Assertions.assertEquals(
+      2,
+      success(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)))[0]
+    );
+
+    // Identity leaves the transaction open for Monoid to commit with its item changes.
+    // jCardSim tracks transaction depth but does not emulate persistent-field rollback.
+    Assertions.assertArrayEquals(
+      new byte[] { 1 },
+      success(transmit(IdentityCallerApplet.RESET_BUNDLE))
+    );
+    Assertions.assertEquals(0, JCSystem.getTransactionDepth());
+    Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
+    Assertions.assertArrayEquals(publicKey, success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY)));
+    Assertions.assertArrayEquals(id, success(transmit(IdentityCallerApplet.GET_IDENTITY_ID)));
+    Assertions.assertArrayEquals(token, success(transmit(IdentityCallerApplet.GET_TOKEN)));
+    Assertions.assertArrayEquals(
+      new byte[] { 1 },
+      success(transmit(IdentityCallerApplet.RESET_BUNDLE))
+    );
+    success(transmit(IdentityCallerApplet.CREATE_BUNDLE, members));
+    Assertions.assertFalse(
+      Arrays.equals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)))
+    );
+  }
+
+  @Test
+  public void bundleCreationCannotReplaceExistingBundlesAndJoinsAreIdempotent() throws Exception {
     initializeManager();
     simulator.installApplet(OTHER_IDENTITY_AID, MonoidIdentityApplet.class);
     select(MONOID_AID);
@@ -455,18 +511,11 @@ public class MonoidIdentityAppletTest {
     byte[] recipientPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     acquire(IDENTITY_AID);
     Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
-    success(
-      transmit(IdentityCallerApplet.CREATE_BUNDLE, concat(recipientPublicKey, senderPublicKey))
-    );
-    byte[] originalBundle = success(transmit(IdentityCallerApplet.GET_BUNDLE));
     Assertions.assertNotEquals(
       0x9000,
       transmit(IdentityCallerApplet.CREATE_BUNDLE, senderPublicKey).getSW()
     );
-    Assertions.assertArrayEquals(
-      originalBundle,
-      success(transmit(IdentityCallerApplet.GET_BUNDLE))
-    );
+    Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
     byte[] invalidPublicKey = new byte[65];
     invalidPublicKey[0] = 4;
     Assertions.assertNotEquals(
@@ -476,41 +525,104 @@ public class MonoidIdentityAppletTest {
         concat(concat(recipientPublicKey, senderPublicKey), invalidPublicKey)
       ).getSW()
     );
-    Assertions.assertArrayEquals(
-      originalBundle,
-      success(transmit(IdentityCallerApplet.GET_BUNDLE))
-    );
+    Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
     byte[] envelope = success(
-      transmit(IdentityCallerApplet.CREATE_BUNDLE, concat(senderPublicKey, recipientPublicKey))
+      transmit(IdentityCallerApplet.CREATE_BUNDLE, concat(recipientPublicKey, senderPublicKey))
     );
     byte[] bundle = success(transmit(IdentityCallerApplet.GET_BUNDLE));
     Assertions.assertEquals(32, bundle.length);
-    Assertions.assertFalse(Arrays.equals(originalBundle, bundle));
+    Assertions.assertEquals(
+      0x6985,
+      transmit(
+        IdentityCallerApplet.CREATE_BUNDLE,
+        concat(senderPublicKey, recipientPublicKey)
+      ).getSW()
+    );
+    Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
 
     acquire(OTHER_IDENTITY_AID);
     Assertions.assertArrayEquals(
       bundle,
-      success(transmit(IdentityCallerApplet.IMPORT_BUNDLE, concat(senderPublicKey, envelope)))
+      success(transmit(IdentityCallerApplet.JOIN_BUNDLE, concat(senderPublicKey, envelope)))
     );
     Assertions.assertArrayEquals(
       bundle,
-      success(transmit(IdentityCallerApplet.IMPORT_BUNDLE, concat(senderPublicKey, envelope)))
+      success(transmit(IdentityCallerApplet.JOIN_BUNDLE, concat(senderPublicKey, envelope)))
     );
     Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
+
+    AID otherSenderAID = AIDUtil.create(
+      // @inplate-line "{{hex MONOID_NAMESPACE}}7f14"
+      "f06d6f6e6f69647f14"
+    );
+    simulator.installApplet(otherSenderAID, MonoidIdentityApplet.class);
+    select(MONOID_AID);
+    acquire(otherSenderAID);
+    byte[] otherSenderPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    byte[] conflictingEnvelope = success(
+      transmit(IdentityCallerApplet.CREATE_BUNDLE, concat(otherSenderPublicKey, recipientPublicKey))
+    );
+    Assertions.assertFalse(
+      Arrays.equals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)))
+    );
+    acquire(OTHER_IDENTITY_AID);
+    Assertions.assertEquals(
+      0x6985,
+      transmit(
+        IdentityCallerApplet.JOIN_BUNDLE,
+        concat(otherSenderPublicKey, conflictingEnvelope)
+      ).getSW()
+    );
+    Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
+
+    Field absenceField = MonoidIdentityApplet.class.getDeclaredField("bundleAbsenceValidation");
+    absenceField.setAccessible(true);
+    Object recipient = runtime.lookupApplet(OTHER_IDENTITY_AID).getApplet();
+    LibSecurity.Condition absence = (LibSecurity.Condition) absenceField.get(recipient);
+    final int[] reads = { 0 };
+    absenceField.set(recipient, (LibSecurity.Condition) () -> ++reads[0] == 1 || absence.check());
+    try {
+      // One false "no Bundle" observation must not replace or bypass the existing Bundle.
+      Assertions.assertEquals(
+        0x6985,
+        transmit(
+          IdentityCallerApplet.CREATE_BUNDLE,
+          concat(senderPublicKey, recipientPublicKey)
+        ).getSW()
+      );
+      Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
+      reads[0] = 0;
+      Assertions.assertEquals(
+        0x6985,
+        transmit(
+          IdentityCallerApplet.JOIN_BUNDLE,
+          concat(otherSenderPublicKey, conflictingEnvelope)
+        ).getSW()
+      );
+      Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
+      reads[0] = 0;
+      Assertions.assertEquals(
+        2,
+        success(
+          transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(recipientPublicKey, CONTEXT, KEY))
+        )[0]
+      );
+      Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
+    } finally {
+      absenceField.set(recipient, absence);
+    }
     simulator.reset();
     select(MONOID_AID);
     acquire(OTHER_IDENTITY_AID);
     Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
 
-    success(transmit(IdentityCallerApplet.RESET_BUNDLE));
-    Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
     Assertions.assertArrayEquals(
       recipientPublicKey,
       success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY))
     );
     Assertions.assertArrayEquals(
       bundle,
-      success(transmit(IdentityCallerApplet.IMPORT_BUNDLE, concat(senderPublicKey, envelope)))
+      success(transmit(IdentityCallerApplet.JOIN_BUNDLE, concat(senderPublicKey, envelope)))
     );
     Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
   }

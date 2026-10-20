@@ -298,3 +298,13 @@
 151. [user] 要求先去掉每次token校验的持久副本并测改善。[agent] Safe直接以global局部变量调用LibSecurity包内数组重载，移除候选字段/回调；三轮比较及计数检查、首次持久绑定、缓存、HMAC和PIN路径不变。327项JUnit、两正式及8隔离CAP通过；卡55690320两版278次操作全通过，Hello391.65→266.18ms（快32.04%），Create Bundle2634.49→2484.06ms，传输省18–62ms；对照基本不变，空闲及17项最低采样RAM均不变。临时包全清、原registry/响应保留，未正式部署或提交；详见 [直接比较global token](./151.md)。
 
 152. [user] 要求将AID三次加入token hash，实卡测性能通过后提交推送。[agent] 缓存未命中时三轮独立读取运行时完整AID并立即加入HMAC，复用原16B数组；缓存/最终三轮比较、首次绑定和PIN不变，新token不自动重绑。329项JUnit、5项JS、两正式和12隔离CAP通过；卡55690320两版310次操作全通过，重算完整请求144.28→147.57ms（+3.29ms），命中77.48→77.46ms、Hello266.44→266.50ms；16项业务区间重叠，17项RAM最低值和空闲读数均不变。临时包全清、原registry/响应保留，未正式部署，详见 [三次AID输入](./152.md)。
+
+## 5df1f5e
+
+153. [user] 要求继续Applet授权。[agent] 按Monoid/Safe合并后的现状整理134草案，保留已确认的types/keys/seed模型；拟先接0x26/27/28管理、内部持久授权目录和monoidapi客户端身份接口，安装级随机token不复用Identity稳定token。新增接口尚待明确确认，未改生产或访问卡；见 [授权管理接入提案](./153.md)。
+
+154. [user] 批准0x23 Create Bundle和0x24 Join Bundle，Create拒绝覆盖已有Bundle；曾改为仅GP重建，随后明确恢复0xFF Reset并要求完全无需PIN，空请求/响应，清条目/派生缓存/Bundle而保留PIN和Identity。[agent] Import相关方法和类统一改Join；Safe.reset在同一事务中清本地条目/缓存并调用Identity.resetBundle，后者限固定Monoid调用方且要求已有事务；0x25不支持。任意APDU调用方可清本地数据但不能由此读取/导出，PIN次数与锁死状态不变；GC不保证物理擦除，既有密文和入组包不撤销。334项JUnit、5项JS与两正式CAP通过；隔离卡55690320完成161次操作及满32缓存跨SIO真实回滚，临时包清理、原registry/响应保留，详见 [Bundle创建/加入与原子Reset](./154.md)。
+
+155. [user] 希望用专门文档集中安全边界及此前约定，供后续audit作基准。[agent] 新增doc/security.md并从README/架构链接，按当前合并架构核对PIN权限、Secret、Identity/AID隔离、Bundle固定成员和认可的同AID迁出路径，注明GP/host信任、持久内存、事务和物理验证边界，并同步154恢复的原子Reset；待审查的PIN输入转换与未实现能力不列为已验证保证。详见 [安全审计基线](./155.md)。
+
+156. [user] 提议Hello nonce签名以检测Monoid Applet被替换，接受独立安装密钥方向，要求先记录、完成当前Reset需求后继续。[agent] 现有Hello公钥属于Identity且随Monoid重装保留，不能证明Monoid未换；建议安装生成P-256密钥、客户端首次信任后pinning，正常重装换key而Reset保留，未来明确升级同步。具体nonce/proof字段及签名编码尚未批准；无生产/README/实卡改动，详见 [Hello挑战与安装身份提案](./156.md)。

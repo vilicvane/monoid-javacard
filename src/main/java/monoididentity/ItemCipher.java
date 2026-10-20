@@ -74,6 +74,7 @@ final class ItemCipher {
   byte[] encrypt(
     CommunicationCipher communication,
     Bundle bundle,
+    short bundleAbsent,
     AID caller,
     byte[] index,
     byte[] key,
@@ -82,10 +83,14 @@ final class ItemCipher {
     byte[] recipientPublicKey,
     CommunicationDataShareable data
   ) {
+    if (bundleAbsent != Constants.SAFE_TRUE && bundleAbsent != Constants.SAFE_FALSE) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+
     byte[] buffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, COPY_BUFFER_LENGTH);
     byte[] callerBytes = new byte[16];
     byte callerLength = caller.getBytes(callerBytes, (short) 0);
-    byte version = bundle == null ? VERSION_IDENTITY : VERSION_BUNDLE;
+    byte version = bundleAbsent == Constants.SAFE_TRUE ? VERSION_IDENTITY : VERSION_BUNDLE;
     short nonceOffset = nonceOffset(version);
     short dataOffset = (short) (nonceOffset + NONCE_LENGTH);
     short overhead = (short) (dataOffset + SECRET_LENGTH + TAG_LENGTH);
@@ -101,7 +106,7 @@ final class ItemCipher {
     byte[] encryptedData = CommunicationData.makePrivateByteArray(length);
     encryptedData[0] = version;
 
-    if (bundle == null) {
+    if (bundleAbsent == Constants.SAFE_TRUE) {
       byte[] communicationKey = CommunicationData.makePrivateByteArray(KEY_LENGTH);
       random.nextBytes(communicationKey, (short) 0, KEY_LENGTH);
       byte[] encryptedKey = communication.encrypt(recipientPublicKey, context, communicationKey);

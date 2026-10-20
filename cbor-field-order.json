@@ -14,9 +14,6 @@
   "0x24": {
     "$": ["senderPublicKey", "data"]
   },
-  "0x25": {
-    "$": []
-  },
   "0x2F": {
     "$": []
   },
@@ -56,5 +53,8 @@
     "$": ["index", "type", "derivation", "cipher", "taproot", "digest", "message"],
     "$.derivation": ["type", "curve", "path", "context"],
     "$.taproot": ["merkleRoot"]
+  },
+  "0xFF": {
+    "$": []
   }
 }

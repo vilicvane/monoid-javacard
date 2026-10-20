@@ -150,18 +150,31 @@ public final class Safe {
   }
 
   /** Both inputs must be global arrays for the Identity call. */
-  public byte[] importBundle(byte[] senderPublicKey, byte[] data) {
+  public byte[] joinBundle(byte[] senderPublicKey, byte[] data) {
     Command.requireAuth(Command.AUTH_SAFE);
     checkAccess();
 
-    return requireIdentity().importBundle(senderPublicKey, data);
+    return requireIdentity().joinBundle(senderPublicKey, data);
   }
 
-  public void resetBundle() {
-    Command.requireAuth(Command.AUTH_SAFE);
-    checkAccess();
+  public void reset() {
+    IdentityShareable identity = requireIdentity();
+    SafeItem[] emptyItems = new SafeItem[ITEM_LENGTH_EXTENSION];
+    JCSystem.beginTransaction();
 
-    requireIdentity().resetBundle();
+    try {
+      items = emptyItems;
+      itemsLength = 0;
+      KeyDerivation.clearCache();
+      identity.resetBundle();
+      JCSystem.commitTransaction();
+    } finally {
+      if (JCSystem.getTransactionDepth() != 0) {
+        JCSystem.abortTransaction();
+      }
+    }
+
+    JCSystem.requestObjectDeletion();
   }
 
   private IdentityShareable requireIdentity() {

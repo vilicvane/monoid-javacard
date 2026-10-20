@@ -1,6 +1,6 @@
 package monoid;
 
-public final class CommandImportBundle extends Command {
+public final class CommandJoinBundle extends Command {
 
   @Override
   protected void run() {
@@ -9,7 +9,7 @@ public final class CommandImportBundle extends Command {
     reader.map();
     byte[] senderPublicKey = reader.requireKey(Text.senderPublicKey).bytesGlobal((short) 65);
     byte[] data = reader.requireKey(Text.data).bytesGlobal();
-    byte[] bundle = MonoidApplet.safe.importBundle(senderPublicKey, data);
+    byte[] bundle = MonoidApplet.safe.joinBundle(senderPublicKey, data);
 
     writer.map((short) 1);
     {

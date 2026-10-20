@@ -68,6 +68,13 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     }
   };
 
+  private final LibSecurity.Condition bundleAbsenceValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      return bundle == null;
+    }
+  };
+
   public static void install(byte[] buffer, short offset, byte length) {
     new MonoidIdentityApplet().register();
   }
@@ -191,18 +198,22 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     assertMonoidCaller();
     assertCommunicationAvailable();
 
+    if (LibSecurity.check(bundleAbsenceValidation, Constants.SAFE_FALSE) != Constants.SAFE_TRUE) {
+      ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+    }
+
     byte[] ownPublicKey = publicKey();
     CommunicationCipher cipher = requireCommunicationCipher();
-    Bundle replacement = Bundle.create(publicKeys, ownPublicKey, cipher);
-    byte[] packets = replacement.encryptPackets(publicKeys, ownPublicKey, cipher);
+    Bundle created = Bundle.create(publicKeys, ownPublicKey, cipher);
+    byte[] packets = created.encryptPackets(publicKeys, ownPublicKey, cipher);
     CommunicationData result = new CommunicationData(packets, JCSystem.getPreviousContextAID());
-    publishBundle(replacement);
+    publishBundle(created);
 
     return result;
   }
 
   @Override
-  public byte[] importBundle(byte[] senderPublicKey, byte[] data) {
+  public byte[] joinBundle(byte[] senderPublicKey, byte[] data) {
     assertMonoidCaller();
     assertCommunicationAvailable();
 
@@ -210,19 +221,19 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
       JCSystem.ARRAY_TYPE_BYTE,
       MessageDigest.LENGTH_SHA_256
     );
-    Bundle imported = Bundle.decrypt(
+    Bundle joined = Bundle.decrypt(
       senderPublicKey,
       publicKey(),
       data,
       requireCommunicationCipher()
     );
 
-    if (bundle != null) {
-      if (!bundle.matches(imported)) {
+    if (LibSecurity.check(bundleAbsenceValidation, Constants.SAFE_FALSE) != Constants.SAFE_TRUE) {
+      if (!bundle.matches(joined)) {
         ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
       }
     } else {
-      publishBundle(imported);
+      publishBundle(joined);
     }
 
     Util.arrayCopyNonAtomic(bundle.hash, (short) 0, hash, (short) 0, MessageDigest.LENGTH_SHA_256);
@@ -235,7 +246,11 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     assertMonoidCaller();
     assertCommunicationAvailable();
 
-    publishBundle(null);
+    if (JCSystem.getTransactionDepth() == 0) {
+      ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+    }
+
+    bundle = null;
   }
 
   @Override
@@ -256,6 +271,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
       byte[] encryptedData = requireItemCipher().encrypt(
         requireCommunicationCipher(),
         bundle,
+        LibSecurity.check(bundleAbsenceValidation, Constants.SAFE_FALSE),
         caller,
         index,
         key,

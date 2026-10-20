@@ -9,12 +9,15 @@ import static tests.MonoidItemTransferTest.fields;
 import static tests.MonoidItemTransferTest.sequence;
 
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import monoid.CBORBufferReader;
+import monoid.MonoidApplet;
+import monoid.Safe;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import tests.MonoidItemTransferTest.Card;
@@ -37,11 +40,14 @@ public class MonoidBundleTest {
 
       try (Card card = new Card(true)) {
         byte[] publicKey = card.publicKey();
+        byte[] itemIndex = customIndex(200);
+        byte[] itemData = sequence(32);
+        card.create(itemIndex, null, null, itemData, false);
         List<Map<String, Object>> requests = Arrays.asList(
           fields("publicKeys", new byte[][] { peerKey, publicKey }),
-          fields("senderPublicKey", peerKey, "data", new byte[0]),
-          fields()
+          fields("senderPublicKey", peerKey, "data", new byte[0])
         );
+        int[] instructions = { 0x23, 0x24 };
 
         for (boolean access : new boolean[] { false, true }) {
           card.reset();
@@ -51,12 +57,14 @@ public class MonoidBundleTest {
 
           for (int index = 0; index < requests.size(); index++) {
             assertError(
-              card.transmit(0x23 + index, requests.get(index)),
+              card.transmit(instructions[index], requests.get(index)),
               access ? "ACCESS_DENIED" : "UNAUTHORIZED"
             );
           }
 
           assertNoBundle(card);
+          card.authenticate(false);
+          assertData(card, itemIndex, itemData);
         }
 
         card.authenticate(true);
@@ -64,20 +72,23 @@ public class MonoidBundleTest {
         byte[] bundle = created.bytes("bundle");
         assertPackets(created, new byte[][] { peerKey, publicKey }, publicKey);
         assertBundle(card, bundle);
-        assertCleared(card.success(0x25, fields()));
-        assertNoBundle(card);
+        assertData(card, itemIndex, itemData);
         Assertions.assertEquals(0x6D00, card.transmit(0x29, fields()).status);
       }
     }
   }
 
   @Test
-  public void blockedSafePINDeniesBundleManagementAfterSuccessfulAuthentication() {
+  public void blockedSafePINDeniesBundleManagementButAllowsResetWithoutUnlocking()
+    throws Exception {
     try (Card peer = new Card(false)) {
       byte[] peerKey = peer.bootstrapPublicKey();
 
       try (Card card = new Card(true)) {
         byte[] publicKey = card.publicKey();
+        byte[] identity = card.safeId();
+        card.create(customIndex(211), null, "note", sequence(32), false);
+        card.create("ed25519", null, "secret key", ED25519_KEY, true);
         Map<String, Object> create = fields("publicKeys", new byte[][] { peerKey, publicKey });
         card.authenticate(true);
         Result created = card.success(0x23, create);
@@ -99,13 +110,164 @@ public class MonoidBundleTest {
 
         List<Map<String, Object>> requests = Arrays.asList(
           create,
-          fields("senderPublicKey", publicKey, "data", data),
-          fields()
+          fields("senderPublicKey", publicKey, "data", data)
         );
+        int[] instructions = { 0x23, 0x24 };
         for (int index = 0; index < requests.size(); index++) {
-          assertError(card.transmit(0x23 + index, requests.get(index)), "SAFE_BLOCKED");
+          assertError(card.transmit(instructions[index], requests.get(index)), "SAFE_BLOCKED");
           assertBundle(card, bundle);
         }
+
+        Assertions.assertEquals(0, card.success(0xFF, fields()).size());
+        assertNoBundle(card);
+        Field itemsField = Safe.class.getDeclaredField("items");
+        itemsField.setAccessible(true);
+        for (Object item : (Object[]) itemsField.get(MonoidApplet.safe)) {
+          Assertions.assertNull(item);
+        }
+        Field lengthField = Safe.class.getDeclaredField("itemsLength");
+        lengthField.setAccessible(true);
+        Assertions.assertEquals(0, lengthField.getShort(MonoidApplet.safe));
+        Assertions.assertArrayEquals(identity, card.safeId());
+        Assertions.assertArrayEquals(publicKey, card.publicKey());
+        assertPINTries(card, "safe", 0);
+        assertPINTries(card, "access", 5);
+        card.authenticate(false);
+        assertError(card.transmit(0x30, fields()), "SAFE_BLOCKED");
+        assertError(card.transmit(0x21, fields("pin", "888888", "safe", true)), "INVALID_PIN");
+        assertPINTries(card, "safe", 0);
+      }
+    }
+  }
+
+  @Test
+  public void resetDoesNotRequireInitializedPINs() {
+    try (Card card = new Card(false)) {
+      card.installMonoid(false);
+      byte[] identity = card.safeId();
+      byte[] publicKey = card.publicKey();
+
+      for (int attempt = 0; attempt < 2; attempt++) {
+        Assertions.assertEquals(0, card.success(0xFF, fields()).size());
+        Assertions.assertArrayEquals(identity, card.safeId());
+        Assertions.assertArrayEquals(publicKey, card.publicKey());
+        assertNoBundle(card);
+        CBORBufferReader reader = card.success(0x20, fields()).reader();
+        reader.requireKey("pins".getBytes(StandardCharsets.US_ASCII)).map();
+        Assertions.assertFalse(
+          reader.requireKey("access".getBytes(StandardCharsets.US_ASCII)).bool()
+        );
+        Assertions.assertFalse(
+          reader.requireKey("safe".getBytes(StandardCharsets.US_ASCII)).bool()
+        );
+        assertError(card.transmit(0x30, fields()), "UNAUTHORIZED");
+      }
+    }
+  }
+
+  @Test
+  public void resetRemovesItemsAndBundleButPreservesIdentityAndPINs() throws Exception {
+    try (Card peer = new Card(false)) {
+      byte[] peerKey = peer.bootstrapPublicKey();
+
+      try (Card card = new Card(true)) {
+        byte[] identity = card.safeId();
+        byte[] publicKey = card.publicKey();
+        byte[] plainIndex = customIndex(210);
+        byte[][] members = { publicKey, peerKey };
+
+        for (boolean bundled : new boolean[] { false, true }) {
+          card.create(plainIndex, sequence(12), "note", sequence(64), false);
+          byte[] secretIndex = card.create("ed25519", null, "secret key", ED25519_KEY, true);
+          byte[] seedIndex = card.create("seed", null, "wallet", sequence(64), true);
+          card.authenticate(true);
+          byte[] bundle = null;
+          if (bundled) {
+            bundle = card.success(0x23, fields("publicKeys", members)).bytes("bundle");
+          }
+
+          Assertions.assertEquals(0x6D00, card.transmit(0x25, fields()).status);
+
+          // A rejected Identity binding must leave both the items and Bundle unchanged.
+          Field tokenField = Safe.class.getDeclaredField("identityToken");
+          tokenField.setAccessible(true);
+          byte[] token = (byte[]) tokenField.get(MonoidApplet.safe);
+          token[0] ^= 1;
+          try {
+            Assertions.assertEquals(0x6982, card.transmit(0xFF, fields()).status);
+          } finally {
+            token[0] ^= 1;
+          }
+          assertData(card, plainIndex, sequence(64));
+          assertMetadata(card, secretIndex, null, "secret key", true);
+          assertMetadata(card, seedIndex, null, "wallet", true);
+          if (bundled) {
+            assertBundle(card, bundle);
+          } else {
+            assertNoBundle(card);
+          }
+
+          if (bundled) {
+            card.reset();
+          } else {
+            card.authenticate(false);
+          }
+          Assertions.assertEquals(0, card.success(0xFF, fields()).size());
+          assertNoBundle(card);
+          if (bundled) {
+            assertError(card.transmit(0x30, fields()), "UNAUTHORIZED");
+          } else {
+            assertEmpty(card);
+            assertError(
+              card.transmit(0x36, fields("index", plainIndex, "recipientPublicKey", peerKey)),
+              "ACCESS_DENIED"
+            );
+          }
+          card.authenticate(true);
+          assertEmpty(card);
+          for (byte[] index : new byte[][] { plainIndex, secretIndex, seedIndex }) {
+            for (int instruction : new int[] { 0x31, 0x32, 0x36 }) {
+              assertError(
+                card.transmit(instruction, fields("index", index, "recipientPublicKey", peerKey)),
+                "NOT_FOUND"
+              );
+            }
+          }
+          assertError(
+            card.transmit(0x40, fields("index", secretIndex, "type", "ed25519")),
+            "NOT_FOUND"
+          );
+          assertError(
+            card.transmit(
+              0x41,
+              fields(
+                "index",
+                secretIndex,
+                "type",
+                "ed25519",
+                "cipher",
+                "ed25519",
+                "message",
+                new byte[] { 0x72 }
+              )
+            ),
+            "NOT_FOUND"
+          );
+          Assertions.assertArrayEquals(identity, card.safeId());
+          Assertions.assertArrayEquals(publicKey, card.publicKey());
+          card.reset();
+          card.authenticate(false);
+          assertEmpty(card);
+          card.authenticate(true);
+          assertEmpty(card);
+        }
+
+        Assertions.assertEquals(0, card.success(0xFF, fields()).size());
+        card.create(plainIndex, null, "new note", sequence(32), false);
+        assertData(card, plainIndex, sequence(32));
+        Assertions.assertEquals(1, exportItem(card, plainIndex, peerKey).bytes("data")[0]);
+        byte[] bundle = card.success(0x23, fields("publicKeys", members)).bytes("bundle");
+        assertBundleEnvelope(exportItem(card, plainIndex, null).bytes("data"), bundle);
       }
     }
   }
@@ -149,17 +311,6 @@ public class MonoidBundleTest {
         first.transmit(0x23, fields("publicKeys", new byte[][] { secondKey, thirdKey })).status
       );
       assertNoBundle(first);
-
-      Result created = first.success(0x23, fields("publicKeys", members));
-      byte[] bundle = created.bytes("bundle");
-      Map<String, byte[]> packets = assertPackets(created, members, firstKey);
-      Assertions.assertEquals(32, bundle.length);
-      assertBundle(first, bundle);
-      Assertions.assertEquals(
-        0x6985,
-        first.transmit(0x23, fields("publicKeys", new byte[][] { secondKey, thirdKey })).status
-      );
-      assertBundle(first, bundle);
       byte[] invalidPoint = new byte[65];
       invalidPoint[0] = 4;
       Result invalidPointResult = first.transmit(
@@ -168,7 +319,19 @@ public class MonoidBundleTest {
       );
       // jCardSim exposes BouncyCastle's IllegalArgumentException for off-curve points.
       assertError(invalidPointResult, "INTERNAL");
+      assertNoBundle(first);
+      byte[] asymmetricData = exportItem(first, plainIndex, secondKey).bytes("data");
+      Assertions.assertEquals(1, asymmetricData[0]);
+
+      Result created = first.success(0x23, fields("publicKeys", members));
+      byte[] bundle = created.bytes("bundle");
+      Map<String, byte[]> packets = assertPackets(created, members, firstKey);
+      Assertions.assertEquals(32, bundle.length);
       assertBundle(first, bundle);
+      Assertions.assertEquals(0x6985, first.transmit(0x23, fields("publicKeys", members)).status);
+      assertBundle(first, bundle);
+      assertData(first, plainIndex, payload);
+      assertMetadata(first, secretIndex, null, "secret key", true);
       Assertions.assertFalse(packets.containsKey(Hex.toHexString(outsiderKey)));
 
       byte[] secondEnrollment = packets.get(Hex.toHexString(secondKey));
@@ -188,28 +351,27 @@ public class MonoidBundleTest {
       byte[] secretData = exportItem(first, secretIndex, null).bytes("data");
       assertBundleEnvelope(secretData, bundle);
 
-      assertCleared(first.success(0x25, fields()));
-      assertNoBundle(first);
       Assertions.assertArrayEquals(identity, first.safeId());
       Assertions.assertArrayEquals(firstKey, first.publicKey());
       first.reset();
       first.authenticate(false);
       assertData(first, plainIndex, payload);
       assertMetadata(first, secretIndex, null, "secret key", true);
-      first.authenticate(true);
-      byte[] asymmetricData = exportItem(first, plainIndex, secondKey).bytes("data");
-      Assertions.assertEquals(1, asymmetricData[0]);
+      assertBundle(first, bundle);
+      first.uninstallMonoid();
 
-      Result interim = first.success(0x23, fields("publicKeys", members));
-      Result replaced = first.success(0x23, fields("publicKeys", members));
-      byte[] otherBundle = replaced.bytes("bundle");
+      outsider.installMonoid();
+      outsider.create(plainIndex, lookupKey, "large note", payload, false);
+      outsider.authenticate(true);
+      byte[][] otherMembers = { outsiderKey, secondKey };
+      Result otherCreated = outsider.success(0x23, fields("publicKeys", otherMembers));
+      byte[] otherBundle = otherCreated.bytes("bundle");
       Assertions.assertFalse(Arrays.equals(bundle, otherBundle));
-      Assertions.assertFalse(Arrays.equals(interim.bytes("bundle"), otherBundle));
-      byte[] conflictingEnrollment = assertPackets(replaced, members, firstKey).get(
+      byte[] conflictingEnrollment = assertPackets(otherCreated, otherMembers, outsiderKey).get(
         Hex.toHexString(secondKey)
       );
-      byte[] foreignData = exportItem(first, plainIndex, null).bytes("data");
-      first.uninstallMonoid();
+      byte[] foreignData = exportItem(outsider, plainIndex, null).bytes("data");
+      outsider.uninstallMonoid();
 
       second.installMonoid();
       second.authenticate(true);
@@ -219,11 +381,11 @@ public class MonoidBundleTest {
         second.transmit(0x24, fields("senderPublicKey", firstKey, "data", tamperedEnrollment))
       );
       assertNoBundle(second);
-      assertImported(
+      assertJoined(
         second.success(0x24, fields("senderPublicKey", firstKey, "data", secondEnrollment)),
         bundle
       );
-      assertImported(
+      assertJoined(
         second.success(0x24, fields("senderPublicKey", firstKey, "data", secondEnrollment)),
         bundle
       );
@@ -231,7 +393,7 @@ public class MonoidBundleTest {
         0x6985,
         second.transmit(
           0x24,
-          fields("senderPublicKey", firstKey, "data", conflictingEnrollment)
+          fields("senderPublicKey", outsiderKey, "data", conflictingEnrollment)
         ).status
       );
       assertBundle(second, bundle);
@@ -280,7 +442,7 @@ public class MonoidBundleTest {
 
       third.installMonoid();
       third.authenticate(true);
-      assertImported(
+      assertJoined(
         third.success(0x24, fields("senderPublicKey", firstKey, "data", thirdEnrollment)),
         bundle
       );
@@ -297,7 +459,7 @@ public class MonoidBundleTest {
           fields("senderPublicKey", firstKey, "data", secondEnrollment)
         ).status
       );
-      assertNoBundle(outsider);
+      assertBundle(outsider, otherBundle);
       Assertions.assertEquals(
         0x6985,
         outsider.transmit(
@@ -343,14 +505,24 @@ public class MonoidBundleTest {
     Assertions.assertFalse(reader.requireKey("bundle".getBytes(StandardCharsets.US_ASCII)).bool());
   }
 
-  private static void assertCleared(Result result) {
-    Assertions.assertEquals(1, result.size());
-    Assertions.assertFalse(
-      result.reader().requireKey("bundle".getBytes(StandardCharsets.US_ASCII)).bool()
+  private static void assertEmpty(Card card) {
+    CBORBufferReader reader = card.success(0x30, fields()).reader();
+    Assertions.assertEquals(
+      0,
+      reader.requireKey("items".getBytes(StandardCharsets.US_ASCII)).array()
     );
   }
 
-  private static void assertImported(Result result, byte[] bundle) {
+  private static void assertPINTries(Card card, String pin, int tries) {
+    CBORBufferReader reader = card.success(0x20, fields()).reader();
+    reader.requireKey("pins".getBytes(StandardCharsets.US_ASCII)).map();
+    Assertions.assertEquals(
+      tries,
+      reader.requireKey(pin.getBytes(StandardCharsets.US_ASCII)).integer()
+    );
+  }
+
+  private static void assertJoined(Result result, byte[] bundle) {
     Assertions.assertEquals(1, result.size());
     Assertions.assertArrayEquals(bundle, result.bytes("bundle"));
   }

@@ -23,12 +23,13 @@ public interface IdentityShareable extends Shareable {
   /** SHA-256 of the Bundle key, or null when not enrolled. */
   byte[] getBundle();
 
-  /** Generates/replaces; returns concatenated enrollment packets in input order, excluding self. */
+  /** Requires no Bundle; returns concatenated enrollment packets in input order, excluding self. */
   CommunicationDataShareable createBundle(byte[] publicKeys);
 
-  /** Returns the hash of the actually stored Bundle after import or an identical retry. */
-  byte[] importBundle(byte[] senderPublicKey, byte[] data);
+  /** Joins a Bundle and returns its stored hash; identical enrollment is idempotent. */
+  byte[] joinBundle(byte[] senderPublicKey, byte[] data);
 
+  /** Clears the local Bundle within Monoid's active reset transaction. */
   void resetBundle();
 
   CommunicationDataShareable encryptData(
@@ -67,8 +68,8 @@ public interface CommunicationDataShareable extends Shareable {
   Data sources use repeatable range reads through a bounded global buffer.
 - Completed data results are readable only by their original calling applet.
 - Admission: any registered applet can acquire the interface, read public information,
-  get its own token and encrypt/decrypt its own transfer domain. Bundle creation,
-  import and reset require the exact Monoid instance AID on every call.
+  get its own token and encrypt/decrypt its own transfer domain. Creating, joining or
+  clearing a Bundle requires the exact Monoid instance AID on every call.
 - Direct APDUs: SELECT only. Monoid owns [item transfer](item-transfer.md) and
   [Bundle management](bundle.md) commands; Hello exposes `id`, `publicKey` and
   `bundle` directly.
@@ -103,7 +104,7 @@ of the same token for that caller and Identity.
 
 Identity keeps up to 32 tokens in a persistent FIFO cache keyed by complete AID.
 Hits verify the runtime caller and return a copy without recomputing HMAC or
-writing the cache. Reset preserves entries; eviction only causes the same token
+writing the cache. Card reset and `0xFF Reset` preserve entries; eviction only causes the same token
 to be computed again. Entries retain private bytes, not references to callers.
 Requests inside an existing transaction can use cached tokens but do not publish
 new entries.
@@ -157,12 +158,16 @@ in the Create Bundle response.
 The caller must obtain the expected peer public key through its trust mechanism;
 the envelope does not establish that trust. Caller AIDs isolate transfer domains but
 does not authenticate installed code. Item transfer has no single-use restriction;
-Bundle import is idempotent only for an identical key and membership. Bundle creation
-always generates a new key and replaces the local Bundle.
+Joining a Bundle is idempotent only for an identical key and membership. Bundle
+creation requires no existing Bundle. Neither method replaces an installed Bundle.
+`resetBundle` requires an active transaction owned by Monoid and no communication
+operation in progress. Monoid calls it while atomically clearing its items and
+derivation cache through `0xFF Reset`; it is not a standalone host operation.
+See [reinitialization](bundle.md#reinitialization) for Reset and the GP lifecycle.
 
 ## Safe ID
 
-Hello returns the ID stored in Identity. Card reset, Bundle replacement/clearing, Monoid
+Hello returns the ID stored in Identity. Card reset, `0xFF Reset`, Bundle creation/joining, Monoid
 replacement and PIN changes preserve it; reinstalling Identity generates a new ID.
 The four-byte random value
 is a display identifier, not a peer authentication fingerprint or a guarantee of

@@ -899,6 +899,10 @@ public class MonoidItemTransferTest {
     }
 
     void installMonoid() {
+      installMonoid(true);
+    }
+
+    void installMonoid(boolean initializePINs) {
       resetAppletState();
       if (monoidLoaded) {
         simulator.createApplet(MONOID_AID, new byte[0], (short) 0, (byte) 0);
@@ -907,7 +911,11 @@ public class MonoidItemTransferTest {
         monoidLoaded = true;
       }
       monoidInstalled = true;
-      initializePINs();
+      if (initializePINs) {
+        initializePINs();
+      } else {
+        Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
+      }
     }
 
     private void initializePINs() {

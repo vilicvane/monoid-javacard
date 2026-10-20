@@ -16,13 +16,13 @@ public interface IdentityShareable extends Shareable {
   /** SHA-256 of the installed Bundle key, or null when no Bundle is installed. */
   public byte[] getBundle();
 
-  /** Monoid only: replaces the Bundle and prepares member packets, excluding this Identity. */
+  /** Monoid only: creates a Bundle when none exists and prepares packets for the other members. */
   public CommunicationDataShareable createBundle(byte[] publicKeys);
 
-  /** Monoid only: authenticates and installs a Bundle, returning the SHA-256 hash of its key. */
-  public byte[] importBundle(byte[] senderPublicKey, byte[] data);
+  /** Monoid only: joins a Bundle, returning its key hash; identical enrollment is idempotent. */
+  public byte[] joinBundle(byte[] senderPublicKey, byte[] data);
 
-  /** Monoid only: removes this Identity's Bundle without changing its identity key pair. */
+  /** Clears the Bundle within Monoid's transaction that also removes its items and cache. */
   public void resetBundle();
 
   /** Encrypts for the same caller AID, using the Bundle when present or the recipient otherwise. */

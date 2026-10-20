@@ -21,6 +21,32 @@ public class KeyDerivationTest {
   }
 
   @Test
+  public void clearingTheCacheDropsAllSeedsAndDerivedResultsAndAllowsReuse() {
+    CountingDerivation derivation = new CountingDerivation();
+    byte[] seed = new byte[64];
+
+    for (int i = 0; i < 32; i++) {
+      derivation.deriveFromSeed(seed, new byte[] { (byte) i });
+    }
+
+    KeyDerivation.clearCache();
+
+    for (int i = 0; i < 32; i++) {
+      derivation.deriveFromSeed(seed, new byte[] { (byte) i });
+    }
+
+    Assertions.assertEquals(64, derivation.calls);
+    Assertions.assertEquals(64, derivation.masterCalls);
+
+    for (int i = 0; i < 32; i++) {
+      derivation.deriveFromSeed(seed, new byte[] { (byte) i });
+    }
+
+    Assertions.assertEquals(64, derivation.calls);
+    Assertions.assertEquals(64, derivation.masterCalls);
+  }
+
+  @Test
   public void matchingBytesReuseTheResultAsIndependentTransientCopies() {
     CountingDerivation derivation = new CountingDerivation();
     byte[] master = new byte[64];

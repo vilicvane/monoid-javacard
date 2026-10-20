@@ -37,8 +37,7 @@ public abstract class Command {
   public static Command authenticate;
   public static Command setPIN;
   public static Command createBundle;
-  public static Command importBundle;
-  public static Command resetBundle;
+  public static Command joinBundle;
   public static Command systemInformation;
 
   public static Command list;
@@ -53,6 +52,7 @@ public abstract class Command {
 
   public static Command viewKey;
   public static Command sign;
+  public static Command reset;
 
   public static void init() {
     reader = new CBORApduReader();
@@ -95,8 +95,7 @@ public abstract class Command {
     authenticate = new CommandAuthenticate();
     setPIN = new CommandSetPIN();
     createBundle = new CommandCreateBundle();
-    importBundle = new CommandImportBundle();
-    resetBundle = new CommandResetBundle();
+    joinBundle = new CommandJoinBundle();
     systemInformation = new CommandSystemInformation();
 
     list = new CommandList();
@@ -111,6 +110,7 @@ public abstract class Command {
 
     viewKey = new CommandViewKey();
     sign = new CommandSign();
+    reset = new CommandReset();
   }
 
   public static void dispose() {
@@ -129,8 +129,7 @@ public abstract class Command {
     authenticate = null;
     setPIN = null;
     createBundle = null;
-    importBundle = null;
-    resetBundle = null;
+    joinBundle = null;
     systemInformation = null;
 
     list = null;
@@ -145,6 +144,7 @@ public abstract class Command {
 
     viewKey = null;
     sign = null;
+    reset = null;
   }
 
   public static Command get(byte ins) {
@@ -158,9 +158,7 @@ public abstract class Command {
       case 0x23:
         return createBundle;
       case 0x24:
-        return importBundle;
-      case 0x25:
-        return resetBundle;
+        return joinBundle;
       case 0x2F:
         return systemInformation;
       case 0x30:
@@ -185,6 +183,8 @@ public abstract class Command {
         return viewKey;
       case 0x41:
         return sign;
+      case (byte) 0xFF:
+        return reset;
       default:
         return null;
     }

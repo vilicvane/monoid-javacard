@@ -149,6 +149,7 @@ public class BundleTest {
         byte[] encrypted = cipher.encrypt(
           sender,
           bundle,
+          Constants.SAFE_FALSE,
           CALLER_AID,
           INDEX,
           KEY,
@@ -213,6 +214,7 @@ public class BundleTest {
     byte[] encrypted = cipher.encrypt(
       sender,
       bundle,
+      Constants.SAFE_FALSE,
       CALLER_AID,
       INDEX,
       KEY,
@@ -274,6 +276,7 @@ public class BundleTest {
     byte[] encrypted = cipher.encrypt(
       sender,
       bundle,
+      Constants.SAFE_FALSE,
       CALLER_AID,
       INDEX,
       KEY,
@@ -319,6 +322,7 @@ public class BundleTest {
     byte[] encrypted = cipher.encrypt(
       sender,
       null,
+      Constants.SAFE_TRUE,
       CALLER_AID,
       INDEX,
       KEY,
@@ -361,6 +365,7 @@ public class BundleTest {
     byte[] bundled = cipher.encrypt(
       receiver,
       imported,
+      Constants.SAFE_FALSE,
       CALLER_AID,
       INDEX,
       KEY,
@@ -410,6 +415,7 @@ public class BundleTest {
     byte[] encrypted = cipher.encrypt(
       sender,
       null,
+      Constants.SAFE_TRUE,
       CALLER_AID,
       index,
       key,

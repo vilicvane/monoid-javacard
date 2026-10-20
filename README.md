@@ -102,7 +102,7 @@ npx prettier --write .
 The _Monoid Applet_ owns Safe items, Access PIN, Safe PIN, key derivation and signing.
 The separate _Monoid Identity Applet_ retains the card's identity across Monoid reinstallation.
 
-See [architecture](doc/architecture.md) for more details.
+See [architecture](doc/architecture.md) and [security boundaries](doc/security.md).
 
 ## Roadmap
 
@@ -223,7 +223,7 @@ type Response = {};
 
 ```ts
 type Request = {
-  /** Generates a new key, replacing any Bundle; at least two 65-byte public keys, including self. */
+  /** Requires no existing Bundle; at least two 65-byte public keys, including self. */
   publicKeys: byte[][];
 };
 ```
@@ -240,7 +240,7 @@ type Response = {
 };
 ```
 
-#### `0x24` Import Bundle
+#### `0x24` Join Bundle
 
 > Requires authentication with safe PIN.
 
@@ -255,21 +255,6 @@ type Request = {
 type Response = {
   /** Identical key and membership succeed unchanged; differences conflict. */
   bundle: byte[];
-};
-```
-
-#### `0x25` Reset Bundle
-
-> Requires authentication with safe PIN.
-
-```ts
-/** Preserves Identity, items and both PINs. */
-type Request = {};
-```
-
-```ts
-type Response = {
-  bundle: false;
 };
 ```
 
@@ -609,6 +594,18 @@ type Response = {
   /** 64 bytes; ECDSA/BIP340: r || s, each a 32-byte big-endian integer; ECDSA uses low-S. */
   signature: byte[];
 };
+```
+
+### `0xFF` Reset
+
+> No authentication required. Clears all items, derivation cache and Bundle; preserves both PINs and Identity.
+
+```ts
+type Request = {};
+```
+
+```ts
+type Response = {};
 ```
 
 ## Index

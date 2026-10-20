@@ -19,6 +19,14 @@ public abstract class KeyDerivation {
     nextCacheIndex = 0;
   }
 
+  public static void clearCache() {
+    for (short i = 0; i < CACHE_SIZE; i++) {
+      cache[i] = null;
+    }
+
+    nextCacheIndex = 0;
+  }
+
   public final DerivedKey derive(byte[] master, byte[] input) {
     return derive(master, input, false);
   }
