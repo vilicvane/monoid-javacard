@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 
 public class SafeTest {
 
+  private CardSimulator simulator;
+
   private static final AID IDENTITY_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
     "f06d6f6e6f69640001"
@@ -161,7 +163,7 @@ public class SafeTest {
         super.read(dataOffset, buffer, offset, length);
 
         if (dataOffset == 0) {
-          Assertions.assertFalse(safe.checkPIN(new byte[6], (short) 0, (byte) 6));
+          Assertions.assertFalse(safe.checkPIN(new byte[6]));
         }
       }
     };
@@ -169,7 +171,7 @@ public class SafeTest {
       item.setData(source, true)
     );
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
-    Assertions.assertTrue(safe.checkPIN(PIN, (short) 0, (byte) PIN.length));
+    authenticateStorage(safe);
     Assertions.assertArrayEquals(new byte[] { 1 }, read(item.getData()));
     Assertions.assertFalse(item.isSecret());
   }
@@ -181,7 +183,7 @@ public class SafeTest {
     SafeItem item = safe.get(index);
     SafeDataSource data = item.getData();
     SafeDataSource encrypted = item.exportData(safe.getPublicKey());
-    Assertions.assertFalse(safe.checkPIN(new byte[6], (short) 0, (byte) 6));
+    Assertions.assertFalse(safe.checkPIN(new byte[6]));
 
     for (SafeDataSource retained : new SafeDataSource[] { data, encrypted }) {
       ISOException exception = Assertions.assertThrows(ISOException.class, retained::getLength);
@@ -222,6 +224,7 @@ public class SafeTest {
     Assertions.assertArrayEquals(new byte[] { 1, 2 }, imported.getKey());
     Assertions.assertArrayEquals(new byte[] { 3, 4 }, imported.getAlias());
     Assertions.assertArrayEquals(new byte[] { 5 }, read(imported.getData()));
+    Assertions.assertEquals(Constants.SAFE_TRUE, imported.getSecretValue());
     Assertions.assertTrue(imported.isSecret());
   }
 
@@ -419,15 +422,19 @@ public class SafeTest {
     Safe safe = initializeSafe();
     byte[] index = createItem(safe, (short) 0x1001, 1, null, new byte[] { 1, 2 });
     SafeItem item = safe.get(index);
+    byte[] originalData = item.getStoredData();
     Assertions.assertFalse(item.isSecret());
     item.setSecret(true);
     Assertions.assertTrue(item.isSecret());
+    Assertions.assertSame(originalData, item.getStoredData());
 
     ISOException exception = Assertions.assertThrows(ISOException.class, () ->
       item.setSecret(false)
     );
     Assertions.assertEquals(ISO7816.SW_CONDITIONS_NOT_SATISFIED, exception.getReason());
     Assertions.assertTrue(item.isSecret());
+    Assertions.assertEquals(Constants.SAFE_TRUE, item.getSecretValue());
+    Assertions.assertSame(originalData, item.getStoredData());
     Assertions.assertArrayEquals(new byte[] { 1, 2 }, read(item.getData()));
 
     item.setData(new TestData(new byte[] { 3 }));
@@ -463,7 +470,7 @@ public class SafeTest {
     Assertions.assertArrayEquals(data, read(item.getData()));
 
     byte[] wrongPIN = { 6, 5, 4, 3, 2, 1 };
-    Assertions.assertFalse(safe.checkPIN(wrongPIN, (short) 0, (byte) wrongPIN.length));
+    Assertions.assertFalse(safe.checkPIN(wrongPIN));
 
     for (byte[] query : new byte[][] { null, new byte[0], key, new byte[] { 1 } }) {
       ISOException exception = Assertions.assertThrows(ISOException.class, () ->
@@ -515,18 +522,33 @@ public class SafeTest {
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
   }
 
+  private void authenticateStorage(Safe safe) {
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 2);
+    writer.text(Text.secret);
+    writer.bool(true);
+    writer.text(Text.pin);
+    writer.text(PIN);
+    javax.smartcardio.ResponseAPDU response = simulator.transmitCommand(
+      new javax.smartcardio.CommandAPDU(0, 0x21, 0, 0, writer.getDataBuffer())
+    );
+    Assertions.assertEquals(0x9000, response.getSW());
+    Assertions.assertEquals(Command.AUTH_SECRET, Command.getAuth());
+    safe.checkAccess();
+  }
+
   private Safe initializeSafe() {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
 
     ShareableSimulatorRuntime runtime = new ShareableSimulatorRuntime();
-    CardSimulator simulator = new CardSimulator(runtime);
+    simulator = new CardSimulator(runtime);
     simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
     simulator.installApplet(MONOID_AID, MonoidApplet.class);
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
     Safe safe = new Safe();
     safe.initializeIdentity();
-    safe.updatePIN(PIN, (short) 0, (byte) PIN.length);
-    Assertions.assertTrue(safe.checkPIN(PIN, (short) 0, (byte) PIN.length));
+    safe.updatePIN(PIN);
+    authenticateStorage(safe);
 
     return safe;
   }

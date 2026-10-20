@@ -10,10 +10,10 @@ public final class CommandSetPIN extends Command {
 
     byte[] pin = reader.requireKey(Text.pin).text();
 
-    boolean safePIN = reader.key(Text.safe) && reader.boolTrue();
+    boolean secretPIN = reader.key(Text.secret) && reader.boolTrue();
 
-    if (safePIN) {
-      MonoidApplet.updateSafePIN(pin);
+    if (secretPIN) {
+      MonoidApplet.updateSecretPIN(pin);
     } else {
       MonoidApplet.updatePIN(pin);
     }

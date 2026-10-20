@@ -30,13 +30,13 @@ final class Bundle {
   }
 
   static Bundle create(byte[] publicKeys, byte[] ownPublicKey, CommunicationCipher cipher) {
-    requirePublicKeysLength((short) publicKeys.length);
+    assertPublicKeysLength((short) publicKeys.length);
     byte[] members = new byte[publicKeys.length];
     byte[] member = new byte[PUBLIC_KEY_LENGTH];
     Util.arrayCopyNonAtomic(publicKeys, (short) 0, members, (short) 0, (short) members.length);
 
     for (short offset = 0; offset < members.length; offset += PUBLIC_KEY_LENGTH) {
-      CommunicationCipher.requirePublicKey(members, offset, PUBLIC_KEY_LENGTH);
+      CommunicationCipher.assertPublicKey(members, offset, PUBLIC_KEY_LENGTH);
       Util.arrayCopyNonAtomic(members, offset, member, (short) 0, PUBLIC_KEY_LENGTH);
       short position = offset;
 
@@ -64,8 +64,8 @@ final class Bundle {
       Util.arrayCopyNonAtomic(member, (short) 0, members, position, PUBLIC_KEY_LENGTH);
     }
 
-    requireCanonicalMembers(members);
-    requireMember(members, ownPublicKey);
+    assertCanonicalMembers(members);
+    assertMember(members, ownPublicKey);
     byte[] key = new byte[KEY_LENGTH];
     RandomData.getInstance(RandomData.ALG_KEYGENERATION).nextBytes(key, (short) 0, KEY_LENGTH);
 
@@ -89,7 +89,7 @@ final class Bundle {
     short length = (short) (data.length -
       PUBLIC_KEYS_OFFSET -
       CommunicationCipher.ENCRYPTED_KEY_LENGTH);
-    requirePublicKeysLength(length);
+    assertPublicKeysLength(length);
 
     if (Util.getShort(data, (short) 1) != (short) (length / PUBLIC_KEY_LENGTH)) {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
@@ -97,9 +97,9 @@ final class Bundle {
 
     byte[] members = new byte[length];
     Util.arrayCopyNonAtomic(data, PUBLIC_KEYS_OFFSET, members, (short) 0, length);
-    requireCanonicalMembers(members);
-    requireMember(members, ownPublicKey);
-    requireMember(members, senderPublicKey);
+    assertCanonicalMembers(members);
+    assertMember(members, ownPublicKey);
+    assertMember(members, senderPublicKey);
 
     byte[] encryptedKey = CommunicationData.makePrivateByteArray(
       CommunicationCipher.ENCRYPTED_KEY_LENGTH
@@ -194,6 +194,24 @@ final class Bundle {
     );
   }
 
+  boolean contains(byte[] publicKey) {
+    if (publicKey != null && publicKey.length == PUBLIC_KEY_LENGTH) {
+      for (short offset = 0; offset < publicKeys.length; offset += PUBLIC_KEY_LENGTH) {
+        if (Util.arrayCompare(publicKeys, offset, publicKey, (short) 0, PUBLIC_KEY_LENGTH) == 0) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  void assertMember(byte[] publicKey) {
+    if (!contains(publicKey)) {
+      ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+    }
+  }
+
   private static byte[] context(byte[] publicKeys, CommunicationCipher cipher) {
     byte[] context = new byte[(short) (CONTEXT.length + 1 + publicKeys.length)];
     Util.arrayCopyNonAtomic(CONTEXT, (short) 0, context, (short) 0, (short) CONTEXT.length);
@@ -209,7 +227,7 @@ final class Bundle {
     return cipher.hash(context);
   }
 
-  private static void requirePublicKeysLength(short length) {
+  private static void assertPublicKeysLength(short length) {
     if (
       length < PUBLIC_KEY_LENGTH * 2 ||
       length % PUBLIC_KEY_LENGTH != 0 ||
@@ -219,9 +237,9 @@ final class Bundle {
     }
   }
 
-  private static void requireCanonicalMembers(byte[] publicKeys) {
+  private static void assertCanonicalMembers(byte[] publicKeys) {
     for (short offset = 0; offset < publicKeys.length; offset += PUBLIC_KEY_LENGTH) {
-      CommunicationCipher.requirePublicKey(publicKeys, offset, PUBLIC_KEY_LENGTH);
+      CommunicationCipher.assertPublicKey(publicKeys, offset, PUBLIC_KEY_LENGTH);
 
       if (
         offset > 0 &&
@@ -239,7 +257,7 @@ final class Bundle {
     }
   }
 
-  private static void requireMember(byte[] publicKeys, byte[] publicKey) {
+  private static void assertMember(byte[] publicKeys, byte[] publicKey) {
     if (publicKey != null && publicKey.length == PUBLIC_KEY_LENGTH) {
       for (short offset = 0; offset < publicKeys.length; offset += PUBLIC_KEY_LENGTH) {
         if (Util.arrayCompare(publicKeys, offset, publicKey, (short) 0, PUBLIC_KEY_LENGTH) == 0) {

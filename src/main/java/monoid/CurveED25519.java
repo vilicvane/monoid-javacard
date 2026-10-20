@@ -130,13 +130,13 @@ public class CurveED25519 extends EdwardsCurve {
 
   @Override
   public short derivePublicKey(ED25519Key privateKey, byte[] out, short outOffset) {
-    requirePrivateKey(privateKey);
+    assertPrivateKey(privateKey);
     Util.arrayCopyNonAtomic(privateKey.publicKey, (short) 0, out, outOffset, PUBLIC_KEY_LENGTH);
 
     return PUBLIC_KEY_LENGTH;
   }
 
-  void requirePrivateKey(ED25519Key privateKey) {
+  void assertPrivateKey(ED25519Key privateKey) {
     if (privateKey == null || privateKey != sharedPrivateKey || !privateKey.isValid()) {
       ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
     }

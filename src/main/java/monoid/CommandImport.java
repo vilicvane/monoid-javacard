@@ -8,7 +8,7 @@ public class CommandImport extends Command {
 
   @Override
   protected void run() {
-    requireAuth();
+    requireAuth(AUTH_SECRET);
 
     MonoidApplet.safe.checkAccess();
 

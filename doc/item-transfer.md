@@ -2,6 +2,7 @@
 
 Export and Import transfer one authenticated Safe item. The commands and their
 authorization requirements are defined in [README](../README.md#iso-7816-commands).
+Both operations require the executing card's Secret PIN, verified by Identity.
 The `data` field carries the binary envelope below; `index`, `key` and `alias`
 remain public and are authenticated with it. Keep the Export request's original
 index with its response for Import.
@@ -29,30 +30,37 @@ public keys are uncompressed 65-byte SEC 1 points. The sender public key is supp
 separately to Import; `enc` is the ephemeral public key, not the sender identity.
 
 This format is exported only when the card has no Bundle. The recipient public
-key is required. An enrolled card can still import version `01` artifacts addressed
-to its Identity.
+key is required. Without a Bundle, sender and recipient may be the same Identity.
+An enrolled card can still import version `01` artifacts from another Identity,
+but rejects self-addressed asymmetric artifacts, including those exported before
+it joined the Bundle.
 
 ## Bundle envelope (`02`)
 
 For an item containing `n` data bytes:
 
-| Offset | Length  | Value                              |
-| ------ | ------- | ---------------------------------- |
-| 0      | 1       | Version: `02`                      |
-| 1      | 32      | Bundle hash: `SHA-256(bundleKey)`  |
-| 33     | 32      | HKDF salt                          |
-| 65     | 12      | Payload AES-GCM nonce              |
-| 77     | `n + 2` | Payload ciphertext                 |
-| `79+n` | 16      | Payload AES-GCM authentication tag |
+| Offset  | Length  | Value                              |
+| ------- | ------- | ---------------------------------- |
+| 0       | 1       | Version: `02`                      |
+| 1       | 32      | Bundle hash: `SHA-256(bundleKey)`  |
+| 33      | 65      | Sending Identity public key        |
+| 98      | 32      | HKDF salt                          |
+| 130     | 12      | Payload AES-GCM nonce              |
+| 142     | `n + 2` | Payload ciphertext                 |
+| `144+n` | 16      | Payload AES-GCM authentication tag |
 
-The total length is `n + 95` bytes. Identity generates a fresh salt and nonce for
-each Export. Import requires a local Bundle with the same hash and validates the
-payload using its stored Bundle key. Unknown versions and version `02` envelopes
-shorter than 95 bytes are rejected.
+The total length is `n + 160` bytes. Identity generates a fresh salt and nonce for
+each Export and writes its own 65-byte public key into the envelope. Import requires
+a local Bundle with the same hash and a sender in its fixed membership other than
+the local Identity. Unknown versions and version `02` envelopes shorter than
+160 bytes are rejected. This format replaces the earlier prototype using the same
+version byte; earlier Bundle artifacts are not compatible.
 
 Enrolled cards always export this format, even when `recipientPublicKey` is
-supplied. Import does not need `senderPublicKey`: the artifact authenticates the
-Bundle, not an individual member. See [Bundle](bundle.md) for enrollment and reinitialization.
+supplied. Import does not need a separate `senderPublicKey`: the full sender key
+is inside the envelope and bound to payload-key derivation. Changing that field
+without recomputing a valid authentication tag cannot impersonate another sender.
+See [Bundle](bundle.md) for enrollment and reinitialization.
 
 ## Metadata context
 
@@ -104,14 +112,15 @@ An empty salt is equivalent to 32 zero bytes. For this one-block expansion:
 K = HMAC-SHA256(PRK, "Monoid Item Key" || context || 01)[0:16]
 ```
 
-Version `02` first derives a caller-specific key from the persistent Bundle root,
-then uses the envelope's 32-byte random salt:
+Version `02` first derives a sender-specific key in the runtime caller's domain
+from the persistent Bundle root, then uses the envelope's 32-byte random salt:
 
 ```text
-callerKey = HMAC-SHA256(
-  bundleKey, "Monoid Bundle Caller Key" || u8(length(callerAID)) || callerAID
+senderKey = HMAC-SHA256(
+  bundleKey, "Monoid Bundle Sender Key"
+  || u8(length(callerAID)) || callerAID || senderPublicKey
 )
-PRK = HKDF-Extract(salt = envelope.salt, IKM = callerKey)
+PRK = HKDF-Extract(salt = envelope.salt, IKM = senderKey)
 K   = HKDF-Expand(PRK, info = "Monoid Bundle Item Key" || context, L = 16)
 ```
 
@@ -145,16 +154,25 @@ transfer, that decision applies when establishing the fixed membership. Neither
 envelope establishes that an unverified public key belongs to the intended
 physical card. The four-byte display ID is not a cryptographic identity fingerprint.
 
-An asymmetric artifact targets one Identity, which may be the sender itself;
-a different recipient requires a new Export. A Bundle artifact can be imported
-by the same applet AID on any member holding the shared key. Retaining Identity and its Bundle state
-permits importing the corresponding artifacts after Monoid replacement.
+An asymmetric artifact targets one Identity; a different recipient requires a
+new Export. Self-addressed asymmetric artifacts decrypt only while the recipient
+has no Bundle. A Bundle artifact can be imported by the same applet AID on another
+member, after that member's Secret PIN is verified. The sending Identity cannot
+decrypt its own Bundle artifact. This policy is enforced by trusted Identity code;
+a symmetric key has no inherent encryption-only property. A software holder of
+the root could derive every member key, so peer trust remains necessary.
+
+Retaining Identity, Secret PIN and Bundle permits recovery of other members'
+artifacts after Monoid replacement. Previously exported artifacts need no new
+source PIN check; decryption still requires the receiving Identity's Secret PIN.
 
 `0xFF Reset` clears local items, both PINs, authorization and the Bundle together,
-preserving the Identity. New PINs must be initialized before importing artifacts.
-It does not revoke copies on other cards or exported artifacts. Old asymmetric
-artifacts remain addressed to the retained Identity; old Bundle artifacts require
-rejoining their original Bundle before they can be imported.
+and generates a new Identity key pair, ID and binding secret. Old asymmetric
+artifacts and enrollment packets no longer decrypt on the reset Identity, and
+its old Bundle key is gone. Initialize new PINs and use the new public key for
+subsequent transfers or enrollment. Reset does not revoke copies on other cards
+or plaintext already delivered elsewhere. Ordinary card power resets and Monoid
+reinstallation preserve Identity, Secret PIN and its Bundle.
 
 Retrying an existing artifact does not re-encrypt it. Re-exporting generates a new
 communication key or Bundle salt, nonce and envelope. Import succeeds without

@@ -22,7 +22,9 @@ final class ItemCipher {
   private static final short ENCRYPTED_KEY_OFFSET = 1;
   private static final short ENCRYPTED_KEY_LENGTH = CommunicationCipher.ENCRYPTED_KEY_LENGTH;
   private static final short BUNDLE_HASH_OFFSET = 1;
-  private static final short BUNDLE_SALT_OFFSET = 33;
+  private static final short BUNDLE_SENDER_PUBLIC_KEY_OFFSET = 33;
+  private static final short BUNDLE_SALT_OFFSET = 98;
+  private static final short PUBLIC_KEY_LENGTH = CommunicationCipher.PUBLIC_KEY_LENGTH;
   private static final short NONCE_LENGTH = 12;
   private static final short TAG_LENGTH = 16;
   private static final short KEY_LENGTH = 32;
@@ -33,7 +35,7 @@ final class ItemCipher {
   private static final byte[] EMPTY = {};
   private static final byte[] CONTEXT = {'M','o','n','o','i','d',' ','I','t','e','m'};
   private static final byte[] KEY_CONTEXT = {'M','o','n','o','i','d',' ','I','t','e','m',' ','K','e','y'};
-  private static final byte[] BUNDLE_CALLER_CONTEXT = {'M','o','n','o','i','d',' ','B','u','n','d','l','e',' ','C','a','l','l','e','r',' ','K','e','y'};
+  private static final byte[] BUNDLE_SENDER_CONTEXT = {'M','o','n','o','i','d',' ','B','u','n','d','l','e',' ','S','e','n','d','e','r',' ','K','e','y'};
   private static final byte[] BUNDLE_KEY_CONTEXT = {'M','o','n','o','i','d',' ','B','u','n','d','l','e',' ','I','t','e','m',' ','K','e','y'};
   // @formatter:on
 
@@ -76,6 +78,7 @@ final class ItemCipher {
     Bundle bundle,
     short bundleAbsent,
     AID caller,
+    byte[] ownPublicKey,
     byte[] index,
     byte[] key,
     byte[] alias,
@@ -126,8 +129,15 @@ final class ItemCipher {
         BUNDLE_HASH_OFFSET,
         HASH_LENGTH
       );
+      Util.arrayCopyNonAtomic(
+        ownPublicKey,
+        (short) 0,
+        encryptedData,
+        BUNDLE_SENDER_PUBLIC_KEY_OFFSET,
+        PUBLIC_KEY_LENGTH
+      );
       random.nextBytes(encryptedData, BUNDLE_SALT_OFFSET, KEY_LENGTH);
-      deriveBundleCallerKey(bundle.key, callerBytes, callerLength);
+      deriveBundleSenderKey(bundle.key, callerBytes, callerLength, ownPublicKey);
       deriveKey(
         keyBytes,
         context,
@@ -166,6 +176,7 @@ final class ItemCipher {
     CommunicationCipher communication,
     Bundle bundle,
     AID caller,
+    byte[] ownPublicKey,
     byte[] index,
     byte[] key,
     byte[] alias,
@@ -197,6 +208,10 @@ final class ItemCipher {
     byte[] context = createContext(version, callerBytes, callerLength, index, key, alias);
 
     if (version == VERSION_IDENTITY) {
+      if (bundle != null) {
+        assertOtherSender(ownPublicKey, senderPublicKey);
+      }
+
       byte[] encryptedKey = CommunicationData.makePrivateByteArray(ENCRYPTED_KEY_LENGTH);
       CommunicationData.copy(
         encryptedData,
@@ -213,14 +228,26 @@ final class ItemCipher {
         ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
       }
 
-      encryptedData.read(BUNDLE_HASH_OFFSET, buffer, (short) 0, (short) (HASH_LENGTH + KEY_LENGTH));
+      encryptedData.read(BUNDLE_HASH_OFFSET, buffer, (short) 0, HASH_LENGTH);
 
       if (Util.arrayCompare(bundle.hash, (short) 0, buffer, (short) 0, HASH_LENGTH) != 0) {
         ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
       }
 
-      deriveBundleCallerKey(bundle.key, callerBytes, callerLength);
-      deriveKey(keyBytes, context, buffer, HASH_LENGTH, KEY_LENGTH, BUNDLE_KEY_CONTEXT);
+      senderPublicKey = CommunicationData.makePrivateByteArray(PUBLIC_KEY_LENGTH);
+      CommunicationData.copy(
+        encryptedData,
+        BUNDLE_SENDER_PUBLIC_KEY_OFFSET,
+        senderPublicKey,
+        (short) 0,
+        PUBLIC_KEY_LENGTH,
+        buffer
+      );
+      bundle.assertMember(senderPublicKey);
+      assertOtherSender(ownPublicKey, senderPublicKey);
+      encryptedData.read(BUNDLE_SALT_OFFSET, buffer, (short) 0, KEY_LENGTH);
+      deriveBundleSenderKey(bundle.key, callerBytes, callerLength, senderPublicKey);
+      deriveKey(keyBytes, context, buffer, (short) 0, KEY_LENGTH, BUNDLE_KEY_CONTEXT);
     }
 
     short length = (short) (encryptedLength - dataOffset - TAG_LENGTH);
@@ -237,6 +264,18 @@ final class ItemCipher {
     }
 
     return plaintext;
+  }
+
+  private void assertOtherSender(byte[] ownPublicKey, byte[] senderPublicKey) {
+    if (senderPublicKey == null || senderPublicKey.length != PUBLIC_KEY_LENGTH) {
+      return;
+    }
+
+    if (
+      LibSecurity.check(ownPublicKey, senderPublicKey, Constants.SAFE_TRUE) != Constants.SAFE_FALSE
+    ) {
+      ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+    }
   }
 
   private short nonceOffset(byte version) {
@@ -309,12 +348,18 @@ final class ItemCipher {
     encryptionKey.setKey(keyBytes, (short) 0);
   }
 
-  private void deriveBundleCallerKey(byte[] key, byte[] caller, byte callerLength) {
+  private void deriveBundleSenderKey(
+    byte[] key,
+    byte[] caller,
+    byte callerLength,
+    byte[] senderPublicKey
+  ) {
     LibHMACSha256.begin(digest, hmacBlock, key, (short) 0, KEY_LENGTH);
-    digest.update(BUNDLE_CALLER_CONTEXT, (short) 0, (short) BUNDLE_CALLER_CONTEXT.length);
+    digest.update(BUNDLE_SENDER_CONTEXT, (short) 0, (short) BUNDLE_SENDER_CONTEXT.length);
     suffix[0] = callerLength;
     digest.update(suffix, (short) 0, (short) 1);
-    digest.doFinal(caller, (short) 0, callerLength, keyBytes, (short) 0);
+    digest.update(caller, (short) 0, callerLength);
+    digest.doFinal(senderPublicKey, (short) 0, PUBLIC_KEY_LENGTH, keyBytes, (short) 0);
     LibHMACSha256.finish(digest, hmacBlock, keyBytes, (short) 0);
   }
 }

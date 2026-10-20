@@ -312,3 +312,19 @@
 ## 0686ab4
 
 157. [user] 纠正Reset本意为恢复刚安装的未初始化状态：无需PIN，同时清条目/缓存/Bundle、两PIN及错误次数/锁死/认证，保留Identity；Hello nonce先不做。[agent] 将154的保留PIN实现与测试保留为历史，当前文档同步Hello双PIN false及重新初始化流程，新增持久状态原子发布/成功后清认证的约束；纠正版335项JUnit、5项JS、两CAP及Inplate通过；卡55690320隔离274次操作、12次独立验签及满32缓存/FIFO/两PIN4/4/认证/Bundle真实回滚通过，成功后双PINfalse/原始tries5/认证0，双PIN锁死后可重设并验签。6次Reset含一次abort，日志峰值3072/5120B；临时包全清、264源哈希与原卡基线不变，未正式部署或推送，详见 [Reset恢复未初始化状态](./157.md)。
+
+## a415033
+
+158. [user] 卡片自更新希望复用Identity通信P-256密钥进行同卡加密备份恢复，并询问已有Bundle时是否也允许自收件非对称传输。[agent] 纠正此前GP Token签名解读，相关签名接口未获批准。当前Bundle密文本已能同卡解开，保留Identity/Bundle重装Monoid可恢复；新增self-HPKE例外会使157旧Reset后也能恢复。用户随后在159选择并批准实现Identity重置，截断跨Reset恢复；源Bundle hash约束仅为未采纳的agent建议。self-HPKE具体API/协议未定未实现，无新实卡验证；156用途不变，详见 [同卡加密恢复方向](./158.md)。
+
+159. [user] 要求并批准实现Reset同时重置Identity。[agent] prepareReset在事务外准备新密钥对/ID/tokenSecret/空缓存并返回新token，reset在Monoid事务内发布并清Bundle及旧通信key引用，与Monoid绑定/条目/PIN/缓存同步；其他Applet旧token失效、不自动重绑。实现/文档及337项JUnit、5项JS、两CAP零警告转换校验、全仓格式/模板/diff检查通过，模拟器不证明持久字段回滚；未实卡、未提交。用户重新审视同AID替换恢复：Reset仅在执行后使旧本卡密文失效，不能阻止跳过Reset的GP替换，不撤回他卡/明文，尚不满足160新边界；具体协议/API未批准，实卡harness尚未冻结构建。157旧验证仅为历史，self-HPKE未实现，详见 [Reset同时重置Identity](./159.md)。
+
+160. [user] 明确有Bundle时明文恢复需要Safe PIN加第二张卡，无Bundle时Safe PIN即可；认为交叉GP管理过于复杂，倾向按成员派生发送密钥、本卡只能加密其他卡可解密；进一步提出Safe PIN归Identity所有、解密须验本卡Safe PIN，实现双卡双PIN，成员可设不同PIN，并提出双卡允许新卡入组。考虑回刷A的nonce方案后，选择先取C公钥再A批准、B核验并加密、C入组的较简流程；后续建议Safe PIN改名Secret PIN。[agent] 两张不同既有成员分别验PIN，批准绑定Bundle/C身份；A无需持久pending nonce，保留root授予历史密文读取能力且需认证同步名单，具体协议/API未批准未实现。PIN改名不隐式放宽secret:false或明文Get权限。159的Reset尚不达新边界；建议发送端加密也由Identity验PIN，PIN变更/重置不能绕过旧解密授权，Import将收紧为接收卡Secret PIN。详见 [Bundle明文恢复边界](./160.md)。
+
+161. [user] 要求暂留两卡临时探针，继续Android测试。[agent] ACR1552 R FW1.01.01上Test1/56050420与Test2/56038920用已知UID、不同CID并行激活，两种顺序40次交替及4次空闲后读取均保留双RAM标记/SELECT计数；协议停用和RF循环全清，FWTI12绕过旧Timer提前超时。OPPO PKB110/Android16的独立ReaderMode APK记录130events：两组10读hold保留，close/connect全清；缓存A两次connect虽成功却实际读TES2。JDI确认两个独立Tag、不同cookie但handle同为1，不能用旧Tag UID判实际卡；OEM内部差异未定位，公开API未复现同时双CID，不推广为硬件不支持。两卡E8/E801及临时APK保留，APK已force-stop、NFC仍on，未改生产APP/正式卡数据，详见 [ACR1552与Android双卡及RAM实测](./161.md)。
+
+162. [user] 批准Secret PIN归Identity及按成员发送密钥恢复边界的实现，随后明确暂不做Extend Bundle、保留固定名单；实测期间明确允许删除Test1/Test2旧Monoid/Identity及测试数据。[agent] Hello改pins.secret，Authenticate/SetPIN改secret?:true，Import须接收卡Secret PIN；Identity独立验PIN并按caller门禁，Monoid重装留Secret PIN，0xFF无PIN轮换Identity并清两PIN/数据/Bundle。Bundle仍02原型，增加65B sender，总开销160B，以root+runtime AID+sender派生；拒绝同卡Bundle及入组后旧self-HPKE。双卡双PIN指完整新导出/解密链路，历史密文不再要求源PIN，GP替换其他成员后的授权恢复仍为明确边界。0x25暂缓未批准不实施。353项JUnit、5项JS、两正式CAP及格式/模板/diff通过；Test1/Test2隔离267事件/27次独立P256验签，双向Bundle、不同PIN、Monoid重装恢复、5次Reset及2次跨SIO回滚通过；另55690320单卡41事件/6签名。共存RAM不足已定位为256B复制缓冲分配失败，获准删旧应用后同请求通过；采样RAM最低160/175B，非保证余量。三卡E0/E2全清，Test1/Test2留E8、无正式Monoid，55690320原有应用基线保留；268源哈希一致，未提交，见 [Secret PIN与成员发送密钥](./162.md)。
+
+163. [user] 明确命名语义：assertXxx失败抛异常且返回void，requireXxx失败抛异常且成功返回所需值。[agent] 将9个生产void require声明及调用改assert，将4个返回值的本地测试assert helper改require；保持有返回值的requireAuth/Identity/Key/SharedCurve等，APDU/CBOR/Shareable签名不变。353项JUnit、两CAP零警告转换校验及格式/模板/diff通过；两包22个CAP组件与重命名前逐字节一致，162实卡结果仍适用，不重复刷卡；保留旧268源manifest，见 [断言与取值命名](./163.md)。
+
+164. [user] 要求审查monoid-javacard未处理的单点翻转、记录临时报告并修复非低风险项；随后要求复核问题及修复是否属实、符合惯例，并授权处置、实卡通过后提交。[agent] F-01在指令/写入跳过模型下成立，SafeItem以不可变ItemState共同发布data与exact short secret；F-03按既有LibSecurity循环检查caller，补未授权caller一次假匹配仍拒绝的测试；F-04改用数组LibSecurity.check与保守SAFE_TRUE，删除专用SenderComparison；F-05保留。纠正F-02：新增两项PIN结果不一致测试在旧版也通过，SensitiveResult仅核对native保存结果，不能修复两者一致错误。卡55690320新Identity LOAD6985；最小E4 control成功运行5AC39000并卸载，仅增加SensitiveResult.reset()的同AID变体首块LOAD6985，未执行assertion。该额外依赖已撤回，保留原有冗余回归。最终358项JUnit/44套件及两CAP通过；卡55690320加独立host peers通过100事件/12次P256验签，覆盖secret更新、PIN、重装恢复、Bundle自收件拒绝/他成员导入、Reset；非新双实卡测试。268源哈希一致，E0/E2/E4全清，原卡registry/SELECT/Hello保留。区分单bit数据损坏、比较结果翻转、指令跳过，不宣称完整抗故障；未推送。详见 [单点故障审计与数据保护修复](./164.md)。

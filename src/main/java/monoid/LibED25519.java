@@ -25,7 +25,7 @@ public final class LibED25519 {
     byte[] response = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
 
     try {
-      curve.requirePrivateKey(privateKey);
+      curve.assertPrivateKey(privateKey);
       curve.hash.reset();
       curve.hash.update(privateKey.prefix, (short) 0, (short) 32);
       digestMessage(curve, message, messageOffset, messageLength);

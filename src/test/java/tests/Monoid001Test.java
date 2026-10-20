@@ -63,7 +63,7 @@ public class Monoid001Test extends AppletTest {
     writer.map((short) 2);
     writer.text("pin".getBytes());
     writer.text(PIN);
-    writer.text("safe".getBytes());
+    writer.text("secret".getBytes());
     writer.bool(true);
     assertNoError(transmit(0x22, writer.getDataBuffer()));
     authenticate(false);
@@ -448,7 +448,7 @@ public class Monoid001Test extends AppletTest {
     writer.text(PIN);
 
     if (safe) {
-      writer.text("safe".getBytes());
+      writer.text("secret".getBytes());
       writer.bool(true);
     }
 

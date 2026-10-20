@@ -25,7 +25,6 @@ import javax.crypto.Cipher;
 import javax.crypto.Mac;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import monoid.SafeItem;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -55,6 +54,7 @@ public class ItemCipherTest {
             null,
             invalid,
             CALLER_AID,
+            null,
             INDEX,
             KEY,
             ALIAS,
@@ -76,7 +76,7 @@ public class ItemCipherTest {
 
     for (boolean secret : new boolean[] { false, true }) {
       for (int length : new int[] { 0, 14, 15, 30, 31, 32, 128, 368, 369, 1024, 4096 }) {
-        SafeItem item = item(bytes(length), secret);
+        TestItem item = item(bytes(length), secret);
         byte[] encrypted = encrypt(cipher, sender, item, recipient.getPublicKey());
 
         Assertions.assertEquals(length + 144, encrypted.length);
@@ -122,7 +122,7 @@ public class ItemCipherTest {
         1024,
         4096,
       }) {
-        SafeItem item = item(bytes(length), secret);
+        TestItem item = item(bytes(length), secret);
         byte[] encrypted = encryptOnHost(sender, recipient, item);
         byte[] original = encrypted.clone();
         byte[] decrypted = decrypt(cipher, recipient, sender, item, encrypted);
@@ -139,13 +139,12 @@ public class ItemCipherTest {
     TestIdentity sender = new TestIdentity(1, sharedCipher);
     TestIdentity recipient = new TestIdentity(2, sharedCipher);
     ItemCipher cipher = new ItemCipher(sharedCipher);
-    SafeItem item = new SafeItem(
-      null,
+    TestItem item = new TestItem(
       INDEX,
       new byte[] { 1 },
       new byte[] { 2, 3 },
       bytes(32),
-      true
+      Constants.SAFE_TRUE
     );
     byte[] encrypted = encryptOnHost(sender, recipient, item);
 
@@ -157,6 +156,7 @@ public class ItemCipherTest {
           recipient.cipher,
           null,
           CALLER_AID,
+          recipient.getPublicKey(),
           changed,
           item.key,
           item.alias,
@@ -171,6 +171,7 @@ public class ItemCipherTest {
         recipient.cipher,
         null,
         CALLER_AID,
+        recipient.getPublicKey(),
         INDEX,
         new byte[] { 1, 2 },
         new byte[] { 3 },
@@ -185,6 +186,7 @@ public class ItemCipherTest {
           recipient.cipher,
           null,
           CALLER_AID,
+          recipient.getPublicKey(),
           new byte[indexLength],
           item.key,
           item.alias,
@@ -196,7 +198,7 @@ public class ItemCipherTest {
 
     for (byte[] key : new byte[][] { null, new byte[0] }) {
       for (byte[] alias : new byte[][] { null, new byte[0] }) {
-        SafeItem nullable = new SafeItem(null, INDEX, key, alias, bytes(32), false);
+        TestItem nullable = new TestItem(INDEX, key, alias, bytes(32), Constants.SAFE_FALSE);
         byte[] envelope = encryptOnHost(sender, recipient, nullable);
         byte[] changedKey = key == null ? new byte[0] : null;
         byte[] changedAlias = alias == null ? new byte[0] : null;
@@ -206,6 +208,7 @@ public class ItemCipherTest {
             recipient.cipher,
             null,
             CALLER_AID,
+            recipient.getPublicKey(),
             INDEX,
             changedKey,
             alias,
@@ -218,6 +221,7 @@ public class ItemCipherTest {
             recipient.cipher,
             null,
             CALLER_AID,
+            recipient.getPublicKey(),
             INDEX,
             key,
             changedAlias,
@@ -243,7 +247,7 @@ public class ItemCipherTest {
     TestIdentity sender = new TestIdentity(1, sharedCipher);
     TestIdentity recipient = new TestIdentity(2, sharedCipher);
     ItemCipher cipher = new ItemCipher(sharedCipher);
-    SafeItem item = item(bytes(32), true);
+    TestItem item = item(bytes(32), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
     byte[] caller = aidBytes(CALLER_AID);
     byte[] changed = caller.clone();
@@ -257,6 +261,7 @@ public class ItemCipherTest {
           recipient.cipher,
           null,
           otherCaller,
+          recipient.getPublicKey(),
           item.index,
           item.key,
           item.alias,
@@ -272,6 +277,7 @@ public class ItemCipherTest {
         recipient.cipher,
         null,
         new AID(caller, (short) 0, (byte) caller.length),
+        recipient.getPublicKey(),
         item.index,
         item.key,
         item.alias,
@@ -286,7 +292,7 @@ public class ItemCipherTest {
     TestIdentity sender = new TestIdentity(1, sharedCipher);
     TestIdentity recipient = new TestIdentity(2, sharedCipher);
     ItemCipher cipher = new ItemCipher(sharedCipher);
-    SafeItem item = item(bytes(32), true);
+    TestItem item = item(bytes(32), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
 
     for (int length = 0; length < 144; length++) {
@@ -333,7 +339,7 @@ public class ItemCipherTest {
     TestIdentity sender = new TestIdentity(1, sharedCipher);
     TestIdentity recipient = new TestIdentity(2, sharedCipher);
     TestIdentity other = new TestIdentity(3, sharedCipher);
-    SafeItem item = item(bytes(32), true);
+    TestItem item = item(bytes(32), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
     ItemCipher cipher = new ItemCipher(sharedCipher);
 
@@ -354,7 +360,7 @@ public class ItemCipherTest {
     TestIdentity sender = new TestIdentity(1, sharedCipher);
     TestIdentity recipient = new TestIdentity(2, sharedCipher);
     ItemCipher cipher = new ItemCipher(sharedCipher);
-    SafeItem item = item(bytes(4096), true);
+    TestItem item = item(bytes(4096), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
     byte[] changed = encrypted.clone();
     changed[changed.length - 1] ^= 1;
@@ -373,7 +379,7 @@ public class ItemCipherTest {
   public void repeatedExportsUseFreshKeysAndNonces() {
     TestIdentity identity = new TestIdentity(1, sharedCipher);
     ItemCipher cipher = new ItemCipher(sharedCipher);
-    SafeItem item = item(bytes(32), true);
+    TestItem item = item(bytes(32), true);
     byte[] first = encrypt(cipher, identity, item, identity.getPublicKey());
     byte[] firstKey = identity.lastKey.clone();
     byte[] second = encrypt(cipher, identity, item, identity.getPublicKey());
@@ -397,7 +403,7 @@ public class ItemCipherTest {
     TestIdentity sender = new TestIdentity(1, sharedCipher);
     TestIdentity recipient = new TestIdentity(2, sharedCipher);
     ItemCipher cipher = new ItemCipher(sharedCipher);
-    SafeItem item = item(bytes(32), true);
+    TestItem item = item(bytes(32), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
     Field field = ItemCipher.class.getDeclaredField("tagValidation");
     field.setAccessible(true);
@@ -437,11 +443,17 @@ public class ItemCipherTest {
     );
   }
 
-  private static SafeItem item(byte[] data, boolean secret) {
-    return new SafeItem(null, INDEX, KEY, ALIAS, data, secret);
+  private static TestItem item(byte[] data, boolean secret) {
+    return new TestItem(
+      INDEX,
+      KEY,
+      ALIAS,
+      data,
+      secret ? Constants.SAFE_TRUE : Constants.SAFE_FALSE
+    );
   }
 
-  private static byte[] plaintext(SafeItem item) {
+  private static byte[] plaintext(TestItem item) {
     byte[] result = new byte[item.data.length + 2];
     Util.setShort(result, (short) 0, item.secret);
     System.arraycopy(item.data, 0, result, 2, item.data.length);
@@ -452,7 +464,7 @@ public class ItemCipherTest {
   private static byte[] encrypt(
     ItemCipher cipher,
     TestIdentity sender,
-    SafeItem item,
+    TestItem item,
     byte[] recipientPublicKey
   ) {
     return cipher.encrypt(
@@ -460,6 +472,7 @@ public class ItemCipherTest {
       null,
       Constants.SAFE_TRUE,
       CALLER_AID,
+      sender.getPublicKey(),
       item.index,
       item.key,
       item.alias,
@@ -473,13 +486,14 @@ public class ItemCipherTest {
     ItemCipher cipher,
     TestIdentity recipient,
     TestIdentity sender,
-    SafeItem item,
+    TestItem item,
     byte[] encrypted
   ) {
     return cipher.decrypt(
       recipient.cipher,
       null,
       CALLER_AID,
+      recipient.getPublicKey(),
       item.index,
       item.key,
       item.alias,
@@ -488,7 +502,7 @@ public class ItemCipherTest {
     );
   }
 
-  private static byte[] encryptOnHost(TestIdentity sender, TestIdentity recipient, SafeItem item)
+  private static byte[] encryptOnHost(TestIdentity sender, TestIdentity recipient, TestItem item)
     throws Exception {
     byte[] communicationKey = bytes(32);
     byte[] context = context(item);
@@ -515,7 +529,7 @@ public class ItemCipherTest {
   }
 
   /** Independent encoding, RFC 5869 HMAC and JCE AES-GCM, not the card helpers. */
-  private static byte[] context(SafeItem item) throws Exception {
+  private static byte[] context(TestItem item) throws Exception {
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     DataOutputStream output = new DataOutputStream(bytes);
     output.write("Monoid Item".getBytes(StandardCharsets.US_ASCII));
@@ -534,6 +548,23 @@ public class ItemCipherTest {
     }
 
     return MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray());
+  }
+
+  private static final class TestItem {
+
+    private final byte[] index;
+    private final byte[] key;
+    private final byte[] alias;
+    private final byte[] data;
+    private final short secret;
+
+    TestItem(byte[] index, byte[] key, byte[] alias, byte[] data, short secret) {
+      this.index = index;
+      this.key = key;
+      this.alias = alias;
+      this.data = data;
+      this.secret = secret;
+    }
   }
 
   private static byte[] cryptOnHost(

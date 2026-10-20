@@ -109,7 +109,7 @@ public class CommunicationCipher {
     byte[] encryptedKey,
     short offset
   ) {
-    requirePublicKey(
+    assertPublicKey(
       recipientPublicKey,
       (short) 0,
       recipientPublicKey == null ? (short) 0 : (short) recipientPublicKey.length
@@ -139,7 +139,7 @@ public class CommunicationCipher {
 
   /** Releases the recovered key only after authenticating the complete envelope. */
   public byte[] decrypt(byte[] senderPublicKey, byte[] context, byte[] encryptedKey) {
-    requirePublicKey(
+    assertPublicKey(
       senderPublicKey,
       (short) 0,
       senderPublicKey == null ? (short) 0 : (short) senderPublicKey.length
@@ -149,7 +149,7 @@ public class CommunicationCipher {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
     }
 
-    requirePublicKey(encryptedKey, (short) 0, PUBLIC_KEY_LENGTH);
+    assertPublicKey(encryptedKey, (short) 0, PUBLIC_KEY_LENGTH);
 
     agree((ECPrivateKey) identity.getPrivate(), encryptedKey, (short) 0);
     Util.arrayCopyNonAtomic(workspace, (short) 1, dh, (short) 0, KEY_LENGTH);
@@ -194,7 +194,7 @@ public class CommunicationCipher {
     ephemeralPrivateKey.setS(keyBytes, (short) 0, KEY_LENGTH);
   }
 
-  static void requirePublicKey(byte[] publicKey, short offset, short length) {
+  static void assertPublicKey(byte[] publicKey, short offset, short length) {
     if (
       publicKey == null ||
       length != PUBLIC_KEY_LENGTH ||

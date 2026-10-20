@@ -26,7 +26,7 @@ switch ($Mode) {
 		Invoke-GlobalPlatform --install build\javacard\monoid.cap;
 	}
 	'ReinstallMonoid' {
-		Write-Host 'Reinstalling Monoid clears all stored Safe items and PINs. Monoid Identity is preserved.';
+		Write-Host 'Reinstalling Monoid clears all stored Safe items and the Access PIN. Monoid Identity and its Secret PIN are preserved.';
 		Invoke-GlobalPlatform --uninstall build\javacard\monoid.cap;
 		Invoke-GlobalPlatform --install build\javacard\monoid.cap;
 	}

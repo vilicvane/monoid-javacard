@@ -11,10 +11,17 @@ public final class CommunicationData implements CommunicationDataShareable {
 
   private final byte[] data;
   private final AID caller;
+  private final LibSecurity.Condition callerValidation;
 
-  CommunicationData(byte[] data, AID caller) {
+  CommunicationData(byte[] data, AID expectedCaller) {
     this.data = data;
-    this.caller = caller;
+    this.caller = expectedCaller;
+    callerValidation = new LibSecurity.Condition() {
+      @Override
+      public boolean check() {
+        return caller == JCSystem.getPreviousContextAID();
+      }
+    };
   }
 
   @Override
@@ -32,7 +39,7 @@ public final class CommunicationData implements CommunicationDataShareable {
   }
 
   private void assertCaller() {
-    if (caller != JCSystem.getPreviousContextAID()) {
+    if (LibSecurity.check(callerValidation, Constants.SAFE_FALSE) != Constants.SAFE_TRUE) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
     }
   }

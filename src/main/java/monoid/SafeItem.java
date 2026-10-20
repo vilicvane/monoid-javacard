@@ -12,16 +12,30 @@ public class SafeItem {
   public byte[] index;
   public byte[] key;
   public byte[] alias;
-  public byte[] data;
-  public short secret;
 
-  public SafeItem(Safe safe, byte[] index, byte[] key, byte[] alias, byte[] data, boolean secret) {
+  private ItemState state;
+
+  private static final class ItemState {
+
+    private final byte[] data;
+    private final short secret;
+
+    ItemState(byte[] data, short secret) {
+      if (secret != Constants.SAFE_TRUE && secret != Constants.SAFE_FALSE) {
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+      }
+
+      this.data = data;
+      this.secret = secret;
+    }
+  }
+
+  SafeItem(Safe safe, byte[] index, byte[] key, byte[] alias, byte[] data, short secret) {
     this.safe = safe;
     this.index = index;
     this.key = key;
     this.alias = alias;
-    this.data = data;
-    this.secret = secret ? Constants.SAFE_TRUE : Constants.SAFE_FALSE;
+    this.state = new ItemState(data, secret);
   }
 
   public boolean matches(byte[] index) {
@@ -105,17 +119,18 @@ public class SafeItem {
 
   public SafeDataSource getData() {
     safe.assertAccess();
-    return new SafeStoredData(safe, data);
+    return new SafeStoredData(safe, state.data);
   }
 
   public boolean isSecret() {
     safe.assertAccess();
+    short secret = state.secret;
 
-    if (this.secret != Constants.SAFE_TRUE && this.secret != Constants.SAFE_FALSE) {
+    if (secret != Constants.SAFE_TRUE && secret != Constants.SAFE_FALSE) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
     }
 
-    return this.secret == Constants.SAFE_TRUE;
+    return secret == Constants.SAFE_TRUE;
   }
 
   public void setAlias(byte[] alias) {
@@ -136,7 +151,7 @@ public class SafeItem {
     safe.checkStorage(length);
     byte[] replacement = Utils.duplicateAsPersistent(data, length);
     safe.assertAccess();
-    this.data = replacement;
+    publish(replacement, state.secret);
   }
 
   public void setData(SafeDataSource data, boolean secret) {
@@ -146,28 +161,26 @@ public class SafeItem {
     safe.checkStorage(length);
     byte[] replacement = Utils.duplicateAsPersistent(data, length);
     safe.assertAccess();
-
-    JCSystem.beginTransaction();
-
-    try {
-      this.data = replacement;
-      this.secret = secret ? Constants.SAFE_TRUE : Constants.SAFE_FALSE;
-      JCSystem.commitTransaction();
-    } finally {
-      if (JCSystem.getTransactionDepth() != 0) {
-        JCSystem.abortTransaction();
-      }
-    }
+    publish(replacement, secret ? Constants.SAFE_TRUE : Constants.SAFE_FALSE);
   }
 
   public void setSecret(boolean secret) {
     safe.assertAccess();
+    short current = state.secret;
 
-    if (!secret && this.secret != Constants.SAFE_FALSE) {
+    if (!secret) {
+      if (current == Constants.SAFE_FALSE) {
+        return;
+      }
+
+      if (current != Constants.SAFE_TRUE) {
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+      }
+
       ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
     }
 
-    this.secret = secret ? Constants.SAFE_TRUE : Constants.SAFE_FALSE;
+    publish(state.data, Constants.SAFE_TRUE);
   }
 
   public SafeDataSource exportData(byte[] recipientPublicKey) {
@@ -177,5 +190,28 @@ public class SafeItem {
   public void remove() {
     safe.assertAccess();
     safe.remove(this);
+  }
+
+  byte[] getStoredData() {
+    return state.data;
+  }
+
+  short getSecretValue() {
+    return state.secret;
+  }
+
+  private void publish(byte[] data, short secret) {
+    ItemState replacement = new ItemState(data, secret);
+
+    JCSystem.beginTransaction();
+
+    try {
+      state = replacement;
+      JCSystem.commitTransaction();
+    } finally {
+      if (JCSystem.getTransactionDepth() != 0) {
+        JCSystem.abortTransaction();
+      }
+    }
   }
 }

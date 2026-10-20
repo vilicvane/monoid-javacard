@@ -10,12 +10,12 @@ public class MonoidException extends CardRuntimeException {
   public static final byte[] CODE_INVALID_PIN = {'I','N','V','A','L','I','D','_','P','I','N'};
   public static final byte[] CODE_NOT_FOUND = {'N','O','T','_','F','O','U','N','D'};
   public static final byte[] CODE_PIN_NOT_SET = {'P','I','N','_','N','O','T','_','S','E','T'};
-  public static final byte[] CODE_SAFE_BLOCKED = {'S','A','F','E','_','B','L','O','C','K','E','D'};
+  public static final byte[] CODE_SECRET_PIN_BLOCKED = {'S','E','C','R','E','T','_','P','I','N','_','B','L','O','C','K','E','D'};
   /**
-   * Note this error suggests that safe PIN needs to be set first, it's not a
+   * Note this error suggests that Secret PIN needs to be set first, it's not a
    * more specific version of PIN_NOT_SET.
    */
-  public static final byte[] CODE_SAFE_PIN_NOT_SET = {'S','A','F','E','_','P','I','N','_','N','O','T','_','S','E','T'};
+  public static final byte[] CODE_SECRET_PIN_NOT_SET = {'S','E','C','R','E','T','_','P','I','N','_','N','O','T','_','S','E','T'};
   public static final byte[] CODE_SAFE_LOCKED = {'S','A','F','E','_','L','O','C','K','E','D'};
   public static final byte[] CODE_UNAUTHORIZED = {'U','N','A','U','T','H','O','R','I','Z','E','D'};
   // @formatter:on

@@ -64,7 +64,7 @@ public class MonoidTaprootTest extends AppletTest {
     writer.map((short) 2);
     writer.text("pin".getBytes());
     writer.text(PIN);
-    writer.text("safe".getBytes());
+    writer.text("secret".getBytes());
     writer.bool(true);
     assertNoError(transmit(0x22, writer.getDataBuffer()));
     authenticate();
@@ -101,12 +101,12 @@ public class MonoidTaprootTest extends AppletTest {
       Assertions.assertArrayEquals(outputKey, field(response, "publicKey"), vector[0]);
       Assertions.assertArrayEquals(chainCode, field(response, "chainCode"), vector[0]);
 
-      assertSignature(
+      requireSignature(
         transmit(0x41, keyRequest(seedIndex, path, "bip340", DIGEST, new byte[0])),
         DIGEST,
         outputKey
       );
-      assertSignature(
+      requireSignature(
         transmit(0x41, keyRequest(seedIndex, path, "bip340", DIGEST, null)),
         DIGEST,
         Arrays.copyOfRange(compressedKey, 1, 33)
@@ -133,7 +133,7 @@ public class MonoidTaprootTest extends AppletTest {
         response = transmit(0x40, keyRequest(index, null, null, null, root));
         Assertions.assertArrayEquals(expected, field(response, "publicKey"));
 
-        byte[] signature = assertSignature(
+        byte[] signature = requireSignature(
           transmit(0x41, keyRequest(index, null, "bip340", DIGEST, root)),
           DIGEST,
           expected
@@ -142,7 +142,7 @@ public class MonoidTaprootTest extends AppletTest {
         assertVerification(signature, DIGEST, Arrays.copyOfRange(compressedKey, 1, 33), false);
       }
 
-      assertSignature(
+      requireSignature(
         transmit(0x41, keyRequest(index, null, "bip340", DIGEST, null)),
         DIGEST,
         Arrays.copyOfRange(compressedKey, 1, 33)
@@ -160,7 +160,7 @@ public class MonoidTaprootTest extends AppletTest {
     ResponseAPDU response = transmit(0x40, keyRequest(index, path, null, null, MERKLE_ROOT));
     Assertions.assertArrayEquals(outputKey, field(response, "publicKey"));
     Assertions.assertArrayEquals(Hex.decode(vector[6]), field(response, "chainCode"));
-    assertSignature(
+    requireSignature(
       transmit(0x41, keyRequest(index, path, "bip340", DIGEST, MERKLE_ROOT)),
       DIGEST,
       outputKey
@@ -187,7 +187,7 @@ public class MonoidTaprootTest extends AppletTest {
           Assertions.assertArrayEquals(Hex.decode(vector[6]), field(response, "chainCode"));
         }
 
-        assertSignature(
+        requireSignature(
           transmit(0x41, keyRequest(indices[item], path, "bip340", DIGEST, taproot)),
           DIGEST,
           taproot ? publicKey : Arrays.copyOfRange(publicKey, 1, 33)
@@ -241,8 +241,8 @@ public class MonoidTaprootTest extends AppletTest {
     byte[] index = create("secp256k1", Hex.decode(vector[2]));
     byte[] publicKey = Hex.decode(vector[4]);
     byte[] request = keyRequest(index, null, "bip340", DIGEST, new byte[0]);
-    byte[] first = assertSignature(transmit(0x41, request), DIGEST, publicKey);
-    byte[] second = assertSignature(transmit(0x41, request), DIGEST, publicKey);
+    byte[] first = requireSignature(transmit(0x41, request), DIGEST, publicKey);
+    byte[] second = requireSignature(transmit(0x41, request), DIGEST, publicKey);
     Assertions.assertFalse(
       Arrays.equals(first, second),
       "Fresh auxiliary randomness per signature"
@@ -260,7 +260,7 @@ public class MonoidTaprootTest extends AppletTest {
     );
 
     authenticate();
-    assertSignature(transmit(0x41, request), DIGEST, publicKey);
+    requireSignature(transmit(0x41, request), DIGEST, publicKey);
   }
 
   @Test
@@ -305,7 +305,7 @@ public class MonoidTaprootTest extends AppletTest {
           Assertions.assertArrayEquals(outputKey, field(response, "publicKey"));
           Assertions.assertArrayEquals(Hex.decode(vector[6]), field(response, "chainCode"));
         } else {
-          assertSignature(
+          requireSignature(
             response,
             DIGEST,
             taproot == Boolean.FALSE ? Arrays.copyOfRange(outputKey, 1, 33) : outputKey
@@ -390,7 +390,7 @@ public class MonoidTaprootTest extends AppletTest {
     writer.text(DIGEST);
     Assertions.assertEquals(0x6A80, transmit(0x41, writer.getDataBuffer()).getSW());
 
-    assertSignature(
+    requireSignature(
       transmit(0x41, keyRequest(index, null, "bip340", DIGEST, new byte[0])),
       DIGEST,
       Hex.decode(vector[4])
@@ -458,7 +458,7 @@ public class MonoidTaprootTest extends AppletTest {
       );
     }
 
-    assertSignature(
+    requireSignature(
       transmit(0x41, keyRequest(secpIndex, null, "bip340", DIGEST, null)),
       DIGEST,
       Arrays.copyOfRange(Hex.decode(vector[3]), 1, 33)
@@ -754,7 +754,7 @@ public class MonoidTaprootTest extends AppletTest {
     Assertions.assertArrayEquals(code, reader.requireKey("code".getBytes()).text());
   }
 
-  private byte[] assertSignature(ResponseAPDU response, byte[] digest, byte[] publicKey)
+  private byte[] requireSignature(ResponseAPDU response, byte[] digest, byte[] publicKey)
     throws Exception {
     byte[] signature = field(response, "signature");
     Assertions.assertEquals(64, signature.length);

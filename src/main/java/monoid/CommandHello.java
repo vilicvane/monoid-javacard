@@ -38,7 +38,7 @@ public final class CommandHello extends Command {
           writer.bool(false);
         }
 
-        writer.text(Text.safe);
+        writer.text(Text.secret);
         if (MonoidApplet.safe.getPINSetResult(SAFE_FALSE) == SAFE_TRUE) {
           writer.integer(MonoidApplet.safe.getPINTriesRemaining());
         } else {

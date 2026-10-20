@@ -27,9 +27,9 @@ public class ItemCipher {
         global(item.index),
         global(item.key),
         global(item.alias),
-        item.secret,
+        item.getSecretValue(),
         global(recipientPublicKey),
-        new Source(new SafeData(item.data))
+        new Source(new SafeData(item.getStoredData()))
       )
     );
   }

@@ -52,7 +52,7 @@ Build and install with PowerShell:
 
 ```powershell
 .\scripts\build-install.ps1                       # Install (default)
-.\scripts\build-install.ps1 -Mode ReinstallMonoid # Clears Safe data and both PINs; preserves Identity
+.\scripts\build-install.ps1 -Mode ReinstallMonoid # Clears Safe data and Access PIN; preserves Identity and Secret PIN
 .\scripts\uninstall.ps1                          # Removes Monoid and Identity, including their data
 ```
 
@@ -99,8 +99,8 @@ npx prettier --write .
 
 ## Architecture
 
-The _Monoid Applet_ owns Safe items, Access PIN, Safe PIN, key derivation and signing.
-The separate _Monoid Identity Applet_ retains the card's identity across Monoid reinstallation.
+The _Monoid Applet_ owns Safe items, Access PIN, key derivation and signing.
+The separate _Monoid Identity Applet_ retains the card's identity and Secret PIN across Monoid reinstallation.
 
 See [architecture](doc/architecture.md) and [security boundaries](doc/security.md).
 
@@ -148,7 +148,7 @@ See [APDU transport](doc/apdu.md).
 The authentication is done within a session, using `0x21` command.
 
 - Access PIN: for commands marked "Requires authentication".
-- Safe PIN: for commands requiring safe PIN, or any command available with access PIN.
+- Secret PIN: for commands requiring Secret PIN, or any command available with access PIN.
 
 ### `0x20` ~ `0x2F` System management
 
@@ -181,7 +181,7 @@ type Response = {
   /** Tries remaining, or false when the PIN is not set. */
   pins: {
     access: number | false;
-    safe: number | false;
+    secret: number | false;
   };
 };
 ```
@@ -191,7 +191,7 @@ type Response = {
 ```ts
 type Request = {
   pin: string;
-  safe?: true;
+  secret?: true;
 };
 ```
 
@@ -201,13 +201,13 @@ type Response = {};
 
 #### `0x22` Set PIN
 
-> Requires authentication with safe PIN if it is set.
+> Requires authentication with Secret PIN if it is set.
 
 ```ts
 type Request = {
   pin: string;
-  /** Sets the Safe PIN instead of the Access PIN. */
-  safe?: true;
+  /** Sets the Secret PIN instead of the Access PIN. */
+  secret?: true;
 };
 ```
 
@@ -219,7 +219,7 @@ type Response = {};
 
 [Bundle initialization and format](doc/bundle.md).
 
-> Requires authentication with safe PIN.
+> Requires authentication with Secret PIN.
 
 ```ts
 type Request = {
@@ -242,7 +242,7 @@ type Response = {
 
 #### `0x24` Join Bundle
 
-> Requires authentication with safe PIN.
+> Requires authentication with Secret PIN.
 
 ```ts
 type Request = {
@@ -417,7 +417,7 @@ type Response = {};
 
 [Encrypted payload format](doc/item-transfer.md).
 
-> Requires authentication with safe PIN.
+> Requires authentication with Secret PIN.
 
 ```ts
 type Request = {
@@ -438,7 +438,7 @@ type Response = {
 
 #### `0x37` Import item
 
-> Requires authentication.
+> Requires authentication with Secret PIN.
 
 ```ts
 /** Creates an item; identical existing items succeed unchanged, differing items conflict. */
@@ -598,7 +598,7 @@ type Response = {
 
 ### `0xFF` Reset
 
-> No authentication required. Clears all items, derivation cache, Bundle, both PINs and authorization; preserves Identity.
+> No authentication required. Clears all items, derivation cache, Bundle, both PINs and authorization; generates a new Identity.
 
 ```ts
 type Request = {};

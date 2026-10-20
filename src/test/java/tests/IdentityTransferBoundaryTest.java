@@ -100,11 +100,17 @@ public class IdentityTransferBoundaryTest {
       try {
         byte[] request = payload(index, key, aliasBytes, exported);
         Assertions.assertEquals(0x6982, transmit(target, CLIENT_AID, 2, request).getSW());
+        Assertions.assertEquals(0x6982, transmit(target, MONOID_AID, 2, request).getSW());
+        authenticate(target, MONOID_AID);
         Assertions.assertArrayEquals(plaintext(secret), success(target, MONOID_AID, 2, request));
+        Assertions.assertEquals(0x6982, transmit(target, CLIENT_AID, 2, request).getSW());
+        authenticate(target, CLIENT_AID);
+        Assertions.assertEquals(0x6982, transmit(target, CLIENT_AID, 2, request).getSW());
 
         // Ordinary applets share the Bundle transport, but each complete AID has its own domain.
         installClient(source, CLIENT_AID, CLIENT_AID);
         try {
+          authenticate(source, CLIENT_AID);
           byte[] clientData = sequence(48);
           byte[] clientEnvelope = success(
             source,
@@ -119,6 +125,8 @@ public class IdentityTransferBoundaryTest {
             plaintext(clientData),
             success(target, CLIENT_AID, 2, clientRequest)
           );
+          Assertions.assertEquals(0x6982, transmit(target, MONOID_AID, 2, clientRequest).getSW());
+          authenticate(target, MONOID_AID);
           Assertions.assertEquals(0x6982, transmit(target, MONOID_AID, 2, clientRequest).getSW());
           Assertions.assertArrayEquals(plaintext(secret), success(target, MONOID_AID, 2, request));
         } finally {
@@ -149,6 +157,10 @@ public class IdentityTransferBoundaryTest {
     return response.getData();
   }
 
+  private static void authenticate(Card card, AID caller) {
+    success(card, caller, 3, ascii("888888"));
+  }
+
   private static byte[] payload(byte[] index, byte[] key, byte[] alias, byte[] data) {
     ByteArrayOutputStream output = new ByteArrayOutputStream();
     output.write(index, 0, index.length);
@@ -172,7 +184,7 @@ public class IdentityTransferBoundaryTest {
     return value.getBytes(StandardCharsets.US_ASCII);
   }
 
-  /** A test-only applet exposing its own Identity transfer domain, without any PIN interface. */
+  /** A test-only applet exposing its own transfer domain and explicit Identity PIN verification. */
   public static class TransferApplet extends Applet {
 
     public static void install(byte[] buffer, short offset, byte length) {
@@ -196,6 +208,18 @@ public class IdentityTransferBoundaryTest {
         received = copied < length ? apdu.receiveBytes(apdu.getOffsetCdata()) : 0;
       }
 
+      byte[] identityAID = aidBytes(IDENTITY_AID);
+      IdentityShareable identity = (IdentityShareable) JCSystem.getAppletShareableInterfaceObject(
+        JCSystem.lookupAID(identityAID, (short) 0, (byte) identityAID.length),
+        (byte) 0
+      );
+      if (buffer[ISO7816.OFFSET_INS] == 3) {
+        if (!identity.checkSecretPIN(copyGlobal(request, (short) 0, length))) {
+          ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+        }
+        return;
+      }
+
       byte[] index = copyGlobal(request, (short) 0, (short) 10);
       short keyLength = (short) (request[10] & 0xFF);
       byte[] key = copyGlobal(request, (short) 11, keyLength);
@@ -204,12 +228,6 @@ public class IdentityTransferBoundaryTest {
       byte[] alias = copyGlobal(request, aliasOffset, aliasLength);
       short dataOffset = (short) (aliasOffset + aliasLength);
       byte[] data = copyGlobal(request, dataOffset, (short) (length - dataOffset));
-      byte[] identityAID = aidBytes(IDENTITY_AID);
-      IdentityShareable identity = (IdentityShareable) JCSystem.getAppletShareableInterfaceObject(
-        JCSystem.lookupAID(identityAID, (short) 0, (byte) identityAID.length),
-        (byte) 0
-      );
-
       try {
         CommunicationDataShareable result;
         IdentityCallerApplet.Data source = new IdentityCallerApplet.Data(data);

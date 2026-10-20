@@ -48,18 +48,10 @@ public final class Safe {
   public static final byte[] TYPE_TEXT_ED25519 = {'e','d','2','5','5','1','9'};
   // @formatter:on
 
-  public static final byte PIN_TRY_LIMIT = 5;
-  public static final byte MAX_PIN_LENGTH = 16;
-
-  private static final short AUTH_SAFE = (short) 0x5AFE;
-
-  private static final short PIN_UNSET = (short) 0xA501;
-  private static final short PIN_SET = (short) 0x5AFE;
+  private static final short AUTH_ACCESS = (short) 0x5AFE;
 
   private static final short ITEM_LENGTH_EXTENSION = 8;
   private static final short MIN_AVAILABLE_PERSISTENT_MEMORY = 4096;
-
-  private OwnerPIN pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_LENGTH);
 
   private final short[] auth = JCSystem.makeTransientShortArray((short) 2, JCSystem.CLEAR_ON_RESET);
 
@@ -70,7 +62,7 @@ public final class Safe {
         return false;
       }
 
-      if (auth[0] != AUTH_SAFE || auth[1] != (short) ~AUTH_SAFE) {
+      if (auth[0] != AUTH_ACCESS || auth[1] != (short) ~AUTH_ACCESS) {
         ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
       }
 
@@ -78,33 +70,17 @@ public final class Safe {
     }
   };
 
-  private LibSecurity.Condition pinValidation = new LibSecurity.Condition() {
-    @Override
-    public boolean check() {
-      return pin.isValidated();
-    }
-  };
-
-  private short pinState = PIN_UNSET;
-  private short pinStateInverse = (short) ~PIN_UNSET;
-
   private final LibSecurity.Condition pinSetValidation = new LibSecurity.Condition() {
     @Override
     public boolean check() {
-      short state = pinState;
-
-      if ((state != PIN_UNSET && state != PIN_SET) || pinStateInverse != (short) ~state) {
-        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
-      }
-
-      return state == PIN_SET;
+      return requireIdentity().isSecretPINSet();
     }
   };
 
   private final LibSecurity.Condition pinBlockedValidation = new LibSecurity.Condition() {
     @Override
     public boolean check() {
-      return pin.getTriesRemaining() == 0;
+      return requireIdentity().getSecretPINTriesRemaining() == 0;
     }
   };
 
@@ -140,7 +116,7 @@ public final class Safe {
   }
 
   public SafeDataSource createBundle(byte[] publicKeys) {
-    Command.requireAuth(Command.AUTH_SAFE);
+    Command.requireAuth(Command.AUTH_SECRET);
     checkAccess();
 
     return new ItemCipher.Result(
@@ -151,7 +127,7 @@ public final class Safe {
 
   /** Both inputs must be global arrays for the Identity call. */
   public byte[] joinBundle(byte[] senderPublicKey, byte[] data) {
-    Command.requireAuth(Command.AUTH_SAFE);
+    Command.requireAuth(Command.AUTH_SECRET);
     checkAccess();
 
     return requireIdentity().joinBundle(senderPublicKey, data);
@@ -160,19 +136,17 @@ public final class Safe {
   public void reset() {
     IdentityShareable identity = requireIdentity();
     SafeItem[] emptyItems = new SafeItem[ITEM_LENGTH_EXTENSION];
-    OwnerPIN safePIN = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_LENGTH);
     OwnerPIN accessPIN = new OwnerPIN(MonoidApplet.PIN_TRY_LIMIT, MonoidApplet.MAX_PIN_LENGTH);
+    byte[] token = Utils.duplicateAsPrivate(identity.prepareReset());
     JCSystem.beginTransaction();
 
     try {
       items = emptyItems;
       itemsLength = 0;
-      pin = safePIN;
-      pinState = PIN_UNSET;
-      pinStateInverse = (short) ~PIN_UNSET;
       MonoidApplet.resetPIN(accessPIN);
       KeyDerivation.clearCache();
-      identity.resetBundle();
+      identity.reset();
+      identityToken = token;
       JCSystem.commitTransaction();
     } finally {
       if (JCSystem.getTransactionDepth() != 0) {
@@ -234,70 +208,17 @@ public final class Safe {
   }
 
   public short getPINTriesRemaining() {
-    return pin.getTriesRemaining();
+    return requireIdentity().getSecretPINTriesRemaining();
   }
 
   public boolean checkPIN(byte[] pin) {
-    return checkPIN(pin, (short) 0, (byte) pin.length);
-  }
-
-  public boolean checkPIN(byte[] buffer, short offset, byte length) {
     clearAuth();
-
-    try {
-      if (LibSecurity.check(pinSetValidation, SAFE_FALSE) != SAFE_TRUE) {
-        return false;
-      }
-
-      if (!pin.check(buffer, offset, length)) {
-        return false;
-      }
-
-      if (LibSecurity.check(pinValidation, SAFE_FALSE) != SAFE_TRUE) {
-        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
-      }
-
-      auth[0] = 0;
-      auth[1] = (short) ~AUTH_SAFE;
-      auth[0] = AUTH_SAFE;
-
-      return true;
-    } finally {
-      if (LibSecurity.check(pinBlockedValidation, SAFE_TRUE) != SAFE_FALSE) {
-        clearAuth();
-      }
-    }
+    return requireIdentity().checkSecretPIN(Utils.duplicateAsGlobal(pin));
   }
 
   public void updatePIN(byte[] pin) {
-    updatePIN(pin, (short) 0, (byte) pin.length);
-  }
-
-  public void updatePIN(byte[] buffer, short offset, byte length) {
-    checkPINUpdate();
-
-    JCSystem.beginTransaction();
-
-    try {
-      checkPINUpdate();
-      clearAuth();
-
-      pin.update(buffer, offset, length);
-      pinState = PIN_SET;
-      pinStateInverse = (short) ~PIN_SET;
-
-      JCSystem.commitTransaction();
-    } finally {
-      if (JCSystem.getTransactionDepth() != 0) {
-        JCSystem.abortTransaction();
-      }
-    }
-  }
-
-  private void checkPINUpdate() {
-    if (LibSecurity.check(pinSetValidation, SAFE_TRUE) != SAFE_FALSE) {
-      assertAccess();
-    }
+    clearAuth();
+    requireIdentity().updateSecretPIN(Utils.duplicateAsGlobal(pin));
   }
 
   public boolean isPINValidated() {
@@ -305,15 +226,7 @@ public final class Safe {
   }
 
   short getPINValidationResult() {
-    if (getPINSetResult(SAFE_FALSE) != SAFE_TRUE) {
-      return SAFE_FALSE;
-    }
-
-    if (LibSecurity.check(authorizationValidation, SAFE_FALSE) != SAFE_TRUE) {
-      return SAFE_FALSE;
-    }
-
-    return getPINBlockedResult() == SAFE_FALSE ? SAFE_TRUE : SAFE_FALSE;
+    return requireIdentity().getSecretPINValidationResult();
   }
 
   public SafeItemIterator list(short type) {
@@ -385,7 +298,7 @@ public final class Safe {
     SafeData source = new SafeData(data);
     byte[] index = buildDigestIndex(refinedType, source);
 
-    return createItem(index, null, null, source, true);
+    return createItem(index, null, null, source, SAFE_TRUE);
   }
 
   private SafeItem createRandomScalar(short refinedType, byte[] order) {
@@ -398,7 +311,7 @@ public final class Safe {
     SafeData source = new SafeData(data);
     byte[] index = buildDigestIndex(refinedType, source);
 
-    return createItem(index, null, null, source, true);
+    return createItem(index, null, null, source, SAFE_TRUE);
   }
 
   public SafeItem require(byte[] index) {
@@ -421,7 +334,7 @@ public final class Safe {
 
     byte[] index = buildDigestIndex(type, data);
 
-    return createItem(index, key, alias, data, secret);
+    return createItem(index, key, alias, data, secret ? SAFE_TRUE : SAFE_FALSE);
   }
 
   public SafeItem create(
@@ -463,7 +376,7 @@ public final class Safe {
       builtIndex = index;
     }
 
-    return createItem(builtIndex, key, alias, data, secret);
+    return createItem(builtIndex, key, alias, data, secret ? SAFE_TRUE : SAFE_FALSE);
   }
 
   private SafeItem createItem(
@@ -471,7 +384,7 @@ public final class Safe {
     byte[] key,
     byte[] alias,
     SafeDataSource data,
-    boolean secret
+    short secret
   ) {
     assertAccess();
 
@@ -524,13 +437,7 @@ public final class Safe {
       : 0;
   }
 
-  private SafeItem publishItem(
-    byte[] index,
-    byte[] key,
-    byte[] alias,
-    byte[] data,
-    boolean secret
-  ) {
+  private SafeItem publishItem(byte[] index, byte[] key, byte[] alias, byte[] data, short secret) {
     SafeItem item = new SafeItem(this, index, key, alias, data, secret);
     SafeItem[] updatedItems = items;
 
@@ -607,11 +514,13 @@ public final class Safe {
     SafeItem item = getItem(index);
 
     if (item != null) {
+      byte[] itemData = item.getStoredData();
+
       if (
-        item.secret != secret ||
+        item.getSecretValue() != secret ||
         !equal(item.key, key) ||
         !equal(item.alias, alias) ||
-        item.data.length != dataLength
+        itemData.length != dataLength
       ) {
         ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
       }
@@ -621,7 +530,7 @@ public final class Safe {
         plaintext.read((short) (ItemCipher.SECRET_LENGTH + offset), buffer, (short) 0, length);
         assertAccess();
 
-        if (Util.arrayCompare(item.data, offset, buffer, (short) 0, length) != 0) {
+        if (Util.arrayCompare(itemData, offset, buffer, (short) 0, length) != 0) {
           ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
 
@@ -645,7 +554,7 @@ public final class Safe {
     }
 
     assertAccess();
-    publishItem(index, key, alias, storedData, secret == SAFE_TRUE);
+    publishItem(index, key, alias, storedData, secret);
   }
 
   private static boolean equal(byte[] left, byte[] right) {
@@ -688,33 +597,27 @@ public final class Safe {
   }
 
   public void checkAccess() {
+    clearAuth();
     Command.requireAuth();
 
     if (getPINSetResult(SAFE_FALSE) != SAFE_TRUE) {
-      MonoidException.throwIt(MonoidException.CODE_SAFE_PIN_NOT_SET);
+      MonoidException.throwIt(MonoidException.CODE_SECRET_PIN_NOT_SET);
     }
 
     if (getPINBlockedResult() != SAFE_FALSE) {
-      MonoidException.throwIt(MonoidException.CODE_SAFE_BLOCKED);
+      MonoidException.throwIt(MonoidException.CODE_SECRET_PIN_BLOCKED);
     }
 
     auth[0] = 0;
-    auth[1] = (short) ~AUTH_SAFE;
-    auth[0] = AUTH_SAFE;
+    auth[1] = (short) ~AUTH_ACCESS;
+    auth[0] = AUTH_ACCESS;
 
     assertAccess();
   }
 
   public void assertAccess() {
-    if (LibSecurity.check(pinSetValidation, SAFE_FALSE) != SAFE_TRUE) {
-      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
-    }
-
+    // Identity encryption calls back into storage; this guard must remain local.
     if (LibSecurity.check(authorizationValidation, SAFE_FALSE) != SAFE_TRUE) {
-      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
-    }
-
-    if (LibSecurity.check(pinBlockedValidation, SAFE_TRUE) != SAFE_FALSE) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
     }
   }
@@ -736,7 +639,6 @@ public final class Safe {
   private void clearAuth() {
     auth[0] = 0;
     auth[1] = 0;
-    pin.reset();
   }
 
   public static short type(byte[] buffer, short offset, short length) throws MonoidException {

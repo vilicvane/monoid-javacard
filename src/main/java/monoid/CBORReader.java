@@ -47,23 +47,23 @@ public abstract class CBORReader implements ByteSource {
     state[OFFSET] = offset;
   }
 
-  private void requireRange(short offset, short length) {
+  private void assertRange(short offset, short length) {
     if (offset < 0 || length < 0 || offset > (short) (getLength() - length)) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
   }
 
-  private void requireLength(short length) {
-    requireRange(state[OFFSET], length);
+  private void assertLength(short length) {
+    assertRange(state[OFFSET], length);
   }
 
   private byte read(short offset) {
-    requireRange(offset, (short) 1);
+    assertRange(offset, (short) 1);
     return getChunk(offset)[getChunkOffset(offset)];
   }
 
   private void read(short offset, byte[] out, short outOffset, short length) {
-    requireRange(offset, length);
+    assertRange(offset, length);
 
     while (length > 0) {
       short chunkLength = getChunkLength(offset);
@@ -210,7 +210,7 @@ public abstract class CBORReader implements ByteSource {
 
     short length = metadataUnsignedInteger();
 
-    requireLength(length);
+    assertLength(length);
 
     return length;
   }
@@ -326,7 +326,7 @@ public abstract class CBORReader implements ByteSource {
 
       short entryKeyLength = metadataUnsignedInteger();
 
-      requireLength(entryKeyLength);
+      assertLength(entryKeyLength);
 
       boolean matched = entryKeyLength == keyLength;
 
@@ -430,14 +430,14 @@ public abstract class CBORReader implements ByteSource {
       case CBOR.TYPE_UNSIGNED_INT:
       case CBOR.TYPE_NEGATIVE_INT: {
         short length = metadataBytesLength();
-        requireLength(length);
+        assertLength(length);
         state[OFFSET] += length;
         break;
       }
       case CBOR.TYPE_BYTES:
       case CBOR.TYPE_TEXT: {
         short length = metadataUnsignedInteger();
-        requireLength(length);
+        assertLength(length);
         state[OFFSET] += length;
         break;
       }

@@ -43,7 +43,7 @@ public class MonoidItemTransferTest {
     "f06d6f6e6f69647f11"
   );
 
-  private static final String SAFE_PIN = "888888";
+  private static final String SECRET_PIN = "888888";
   private static final String ACCESS_PIN = "123456";
 
   private static final byte[] SEED = Hex.decode(
@@ -249,6 +249,8 @@ public class MonoidItemTransferTest {
 
       target.installMonoid();
       Assertions.assertArrayEquals(recipient, target.publicKey());
+      assertError(target.transmit(0x37, transfers.get(0).request(sender)), "ACCESS_DENIED");
+      target.authenticate(true);
 
       for (Transfer transfer : transfers) {
         Assertions.assertEquals(0, target.success(0x37, transfer.request(sender)).size());
@@ -281,7 +283,7 @@ public class MonoidItemTransferTest {
       card.authenticate(true);
       Transfer transfer = card.export(index, sender);
       card.success(0x35, fields("index", index));
-      card.authenticate(false);
+      card.authenticate(true);
 
       for (int difference = 0; difference < 4; difference++) {
         byte[] existingKey = difference == 0 ? new byte[] { 5 } : key;
@@ -320,7 +322,7 @@ public class MonoidItemTransferTest {
       byte[] otherPublicKey = SECNamedCurves.getByName("secp256r1").getG().getEncoded(false);
       Transfer otherRecipient = card.export(index, otherPublicKey);
       card.success(0x35, fields("index", index));
-      card.authenticate(false);
+      card.authenticate(true);
 
       List<Map<String, Object>> invalidRequests = new ArrayList<>();
       for (int offset : new int[] { 0, Safe.INDEX_LENGTH - 1 }) {
@@ -369,6 +371,8 @@ public class MonoidItemTransferTest {
       card.reset();
       assertError(card.transmit(0x37, transfer.request(sender)), "UNAUTHORIZED");
       card.authenticate(false);
+      assertError(card.transmit(0x37, transfer.request(sender)), "ACCESS_DENIED");
+      card.authenticate(true);
       card.success(0x37, transfer.request(sender));
       assertData(card, index, data);
     }
@@ -389,7 +393,7 @@ public class MonoidItemTransferTest {
         Assertions.assertEquals(present, transfer.key != null);
         Assertions.assertEquals(present, transfer.alias != null);
         card.success(0x35, fields("index", index));
-        card.authenticate(false);
+        card.authenticate(true);
 
         for (String field : new String[] { "key", "alias" }) {
           Map<String, Object> altered = transfer.request(sender);
@@ -432,7 +436,7 @@ public class MonoidItemTransferTest {
         card.success(0x35, fields("index", index));
 
         card.reset();
-        card.authenticate(false);
+        card.authenticate(true);
         byte[] request = encode(transfer.request(sender));
         ResponseAPDU first = card.simulator.transmitCommand(
           new CommandAPDU(0x90, 0x37, 0, 0, Arrays.copyOf(request, 128))
@@ -553,7 +557,7 @@ public class MonoidItemTransferTest {
       Transfer transfer = card.export(index, sender);
       Assertions.assertTrue(transfer.responseFrames > 1);
       card.success(0x35, fields("index", index));
-      card.authenticate(false);
+      card.authenticate(true);
 
       byte[] changed = transfer.data.clone();
       changed[2048] ^= 1;
@@ -617,6 +621,8 @@ public class MonoidItemTransferTest {
       Assertions.assertArrayEquals(sender, card.publicKey());
       Assertions.assertArrayEquals(identityId, card.safeId());
       Assertions.assertEquals(0, itemCount(card));
+      assertError(card.transmit(0x37, plain.request(sender)), "ACCESS_DENIED");
+      card.authenticate(true);
       card.success(0x37, plain.request(sender));
       card.success(0x37, secret.request(sender));
       assertData(card, plainIndex, sequence(64));
@@ -646,7 +652,7 @@ public class MonoidItemTransferTest {
     );
   }
 
-  private static void verifyED25519(Card card, byte[] index) throws Exception {
+  static void verifyED25519(Card card, byte[] index) throws Exception {
     byte[] message = { 0x72 };
     byte[] publicKey = card
       .success(0x40, fields("index", index, "type", "ed25519"))
@@ -920,7 +926,13 @@ public class MonoidItemTransferTest {
 
     private void initializePINs() {
       Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
-      success(0x22, fields("pin", SAFE_PIN, "safe", true));
+      CBORBufferReader hello = success(0x20, fields()).reader();
+      hello.requireKey(bytes("pins")).map();
+      hello.requireKey(bytes("secret"));
+      if (hello.is(monoid.CBOR.TYPE_SIMPLE_FLOAT)) {
+        Assertions.assertFalse(hello.bool());
+        success(0x22, fields("pin", SECRET_PIN, "secret", true));
+      }
       authenticate(true);
       success(0x22, fields("pin", ACCESS_PIN));
       authenticate(false);
@@ -960,7 +972,7 @@ public class MonoidItemTransferTest {
     }
 
     void authenticate(boolean safe) {
-      success(0x21, safe ? fields("pin", SAFE_PIN, "safe", true) : fields("pin", ACCESS_PIN));
+      success(0x21, safe ? fields("pin", SECRET_PIN, "secret", true) : fields("pin", ACCESS_PIN));
     }
 
     void reset() {

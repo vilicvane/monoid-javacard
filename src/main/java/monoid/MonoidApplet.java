@@ -133,7 +133,11 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   public static void checkPINUpdate() throws MonoidException {
     if (LibSecurity.check(pinUpdateAuthorizationRequired, SAFE_TRUE) != SAFE_FALSE) {
-      Command.requireAuth(Command.AUTH_SAFE);
+      Command.requireAuth(Command.AUTH_SECRET);
+
+      if (safe.getPINValidationResult() != SAFE_TRUE) {
+        MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
+      }
     } else {
       Command.getAuth();
     }
@@ -153,13 +157,13 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     checkPINUpdate();
 
     if (safe.getPINSetResult(SAFE_FALSE) != SAFE_TRUE) {
-      MonoidException.throwIt(MonoidException.CODE_SAFE_PIN_NOT_SET);
+      MonoidException.throwIt(MonoidException.CODE_SECRET_PIN_NOT_SET);
     }
 
     setPIN(pinBytes);
   }
 
-  public static void updateSafePIN(byte[] pin) {
+  public static void updateSecretPIN(byte[] pin) {
     checkPINUpdate();
 
     safe.updatePIN(pin);

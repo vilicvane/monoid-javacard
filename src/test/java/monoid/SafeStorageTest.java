@@ -44,8 +44,23 @@ public class SafeStorageTest {
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
     safe = new Safe();
     safe.initializeIdentity();
-    safe.updatePIN(PIN, (short) 0, (byte) PIN.length);
-    Assertions.assertTrue(safe.checkPIN(PIN, (short) 0, (byte) PIN.length));
+    safe.updatePIN(PIN);
+    authenticateStorage(safe);
+  }
+
+  private void authenticateStorage(Safe safe) {
+    CBORBufferWriter writer = new CBORBufferWriter();
+    writer.map((short) 2);
+    writer.text(Text.secret);
+    writer.bool(true);
+    writer.text(Text.pin);
+    writer.text(PIN);
+    javax.smartcardio.ResponseAPDU response = simulator.transmitCommand(
+      new javax.smartcardio.CommandAPDU(0, 0x21, 0, 0, writer.getDataBuffer())
+    );
+    Assertions.assertEquals(0x9000, response.getSW());
+    Assertions.assertEquals(Command.AUTH_SECRET, Command.getAuth());
+    safe.checkAccess();
   }
 
   @AfterEach
@@ -200,6 +215,7 @@ public class SafeStorageTest {
     safe.importItem(index(1), null, new byte[] { 7 }, publicKey, envelope);
     Assertions.assertEquals(1, runtime.memoryChecks);
     Assertions.assertArrayEquals(new byte[] { 1 }, read(safe.get(index(1)).getData()));
+    Assertions.assertEquals(Constants.SAFE_FALSE, safe.get(index(1)).getSecretValue());
 
     runtime.report(0);
     safe.importItem(index(1), null, new byte[] { 7 }, publicKey, envelope);
@@ -210,7 +226,7 @@ public class SafeStorageTest {
   @Test
   public void authorizationIsCheckedBeforeStorage() {
     runtime.report(0);
-    Assertions.assertFalse(safe.checkPIN(new byte[6], (short) 0, (byte) 6));
+    Assertions.assertFalse(safe.checkPIN(new byte[6]));
     ISOException exception = Assertions.assertThrows(ISOException.class, () -> create(1));
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
     Assertions.assertEquals(0, runtime.memoryChecks);

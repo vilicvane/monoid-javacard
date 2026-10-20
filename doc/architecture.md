@@ -29,16 +29,18 @@ Applet AIDs append a one-byte applet number; software versions are independent o
 <!-- @end -->
 
 Identity and Monoid use separate CAP files. Install Identity before Monoid.
-Monoid owns Safe item storage, both PINs, derivation and signing in one applet
-context. Monoid Identity keeps its key pair, random ID and optional Bundle across
-Monoid replacement; it has no PIN or authorization session. It performs complete
-item encryption and decryption, enforcing Bundle export policy internally. See
+Monoid owns Safe item storage, Access PIN, derivation and signing in one applet
+context. Monoid Identity keeps its key pair, random ID, Secret PIN and optional
+Bundle across Monoid replacement. It verifies Secret PIN and performs complete
+item encryption and decryption, enforcing caller authorization and Bundle policy
+internally. See
 [Monoid Identity](identity.md) for its card-local interface and [Bundle](bundle.md)
 for fixed membership and enrollment.
 
 The installation script defaults to `Install`, which does not delete installed
-applets. Explicit `ReinstallMonoid` clears all Safe items and both PINs while
-preserving Identity. Export items before reinstallation and import them afterward.
+applets. Explicit `ReinstallMonoid` clears all Safe items and Access PIN while
+preserving Identity and Secret PIN. Bundle exports must be recovered through
+another member; the originating Identity cannot decrypt its own Bundle artifact.
 
 ```mermaid
 sequenceDiagram
@@ -47,7 +49,12 @@ sequenceDiagram
     participant MonoidIdentityApplet
 
     MonoidApp ->> MonoidApplet: authenticate
-    MonoidApplet -->> MonoidApplet: verify Access or Safe PIN
+    alt Access PIN
+        MonoidApplet -->> MonoidApplet: verify Access PIN
+    else Secret PIN
+        MonoidApplet ->> MonoidIdentityApplet: verify Secret PIN for Monoid caller
+        MonoidIdentityApplet -->> MonoidApplet: validation result
+    end
 
     note over MonoidApp, MonoidApplet: Safe Management
 
@@ -64,7 +71,7 @@ sequenceDiagram
     note over MonoidApplet, MonoidIdentityApplet: Item Transfer
 
     MonoidApp ->> MonoidApplet: export or import
-    MonoidApplet <<->> MonoidIdentityApplet: encrypt or decrypt complete item
+    MonoidApplet <<->> MonoidIdentityApplet: check Secret authorization and encrypt or decrypt
     MonoidApplet -->> MonoidApplet: store authenticated imported data
     MonoidApplet -->> MonoidApp: response
 ```
@@ -140,36 +147,47 @@ Taproot operations still compute the public keys needed for their adjustments.
 
 ## Authorization
 
-Access PIN and Safe PIN retain their separate command permissions. Commands
-validate their current authorization before opening internal Safe access; the
-Safe PIN must be set and unblocked. Sensitive commands additionally require Safe
-PIN authorization. Monoid does not persist a copy of the Safe PIN or automatically
-reverify it during ordinary storage access.
+Access PIN and Secret PIN retain separate command permissions. Commands validate
+authorization before opening internal Safe access; Secret PIN must be set and
+unblocked. Identity owns Secret PIN, retries and caller-bound authorization.
+Encryption, decryption and Bundle management verify that authorization inside
+Identity. An Access-authorized storage operation does not establish Secret
+authorization. Monoid does not retain a copy of Secret PIN.
 
-Ordinary APDU authorization clears on deselection, card reset and successful `0xFF Reset`. Verifying a PIN checks both
+Ordinary APDU authorization clears on deselection, card reset and successful
+`0xFF Reset`. Identity Secret authorization is caller-bound and reset-scoped, so
+ordinary SELECT switches do not clear it or authorize a different caller. A new
+Secret PIN check or update clears its previous authorization. Verifying a PIN checks both
 the native `OwnerPIN` result and validation flag before publishing redundant
 authorization state; subsequent access checks repeat three times. Only successful
-Safe PIN authentication resets its failed-attempt counter during normal use. Access-authenticated
+Secret PIN authentication resets its failed-attempt counter during normal use. Access-authenticated
 storage operations do not reset that counter.
 
 `0xFF Reset` requires no PIN. It clears all items, derivation cache, Bundle, both
-PINs and current authorization, returning Monoid to an uninitialized state while
-preserving Identity. This also clears blocked-PIN state; new PIN initialization is
-required before ordinary storage use. It does not replace the installed applet.
+PINs and current authorization, returning Monoid to an uninitialized state. It
+generates a new Identity key pair, ID and binding secret, clears the token cache
+and atomically updates Monoid's binding with these changes. This also clears
+blocked-PIN state; new PIN initialization is required before ordinary storage use.
+It does not replace either installed applet instance or its code. A card power
+reset and Monoid reinstallation preserve Identity instead.
 
 Safe storage, item objects and derivation caches belong to Monoid's applet
 context. They no longer expose a separate Safe Shareable interface. Replacing
-Monoid removes those objects together with both PINs; a replacement applet cannot
-use the old Safe PIN to access a surviving standalone Safe.
+Monoid removes those objects and Access PIN. Identity retains Secret PIN and its
+retry state; replacement Monoid code cannot initialize a different Secret PIN
+without first authenticating the configured one or resetting the entire Identity.
 
 Identity remains a separate applet. It provides caller-specific binding tokens
 and encrypted transfer to other applets, with full runtime caller AIDs separating
 their cryptographic domains. Only the exact Monoid AID can manage Bundle membership.
 Monoid privately binds its Identity token before processing its first command;
 later Identity calls must match that token. Replacing Identity cannot automatically
-rebind a Monoid that retains its data. AIDs identify applications, not their code.
-Preserving Identity and its Bundle state permits recovery of the corresponding
-exported items after Monoid reinstallation, including the accepted
+rebind a Monoid that retains its data. Only `0xFF Reset` explicitly synchronizes a
+new binding while removing the protected data; other applets' old binding tokens
+remain invalid until they perform their own explicit reinitialization.
+AIDs identify applications, not their code.
+Preserving Identity, Secret PIN and Bundle permits recovery of other members'
+exported items after Monoid reinstallation, subject to Secret authentication and the
 [two-card data migration boundary](bundle.md#recovery-and-data-migration).
 Hello exposes the stable Identity ID and public key,
 the Bundle key hash or `false`, and both PIN try counters. Cryptographic capability

@@ -59,8 +59,8 @@ public class CommandAuthenticationTest {
   public void initializesBothPINsFromClearedAuthorization() throws Exception {
     Assertions.assertArrayEquals(new short[2], authorization());
     Assertions.assertEquals(0, Command.getAuth());
-    assertError(setPIN(PIN, false), MonoidException.CODE_SAFE_PIN_NOT_SET);
-    assertException(() -> MonoidApplet.updatePIN(PIN), MonoidException.CODE_SAFE_PIN_NOT_SET);
+    requireError(setPIN(PIN, false), MonoidException.CODE_SECRET_PIN_NOT_SET);
+    assertException(() -> MonoidApplet.updatePIN(PIN), MonoidException.CODE_SECRET_PIN_NOT_SET);
     Assertions.assertEquals(SAFE_FALSE, MonoidApplet.getPINSetResult(SAFE_TRUE));
     Assertions.assertFalse(MonoidApplet.safe.isPINSet());
 
@@ -77,22 +77,22 @@ public class CommandAuthenticationTest {
     assertSuccess(authenticate(PIN, false));
     Assertions.assertEquals(Command.AUTH_ACCESS, Command.requireAuth(Command.AUTH_ACCESS));
     assertException(
-      () -> Command.requireAuth(Command.AUTH_SAFE),
+      () -> Command.requireAuth(Command.AUTH_SECRET),
       MonoidException.CODE_ACCESS_DENIED
     );
     assertUnknownPermissionsDenied();
 
-    assertError(setPIN(NEW_PIN, false), MonoidException.CODE_ACCESS_DENIED);
-    assertError(setPIN(NEW_PIN, true), MonoidException.CODE_ACCESS_DENIED);
+    requireError(setPIN(NEW_PIN, false), MonoidException.CODE_ACCESS_DENIED);
+    requireError(setPIN(NEW_PIN, true), MonoidException.CODE_ACCESS_DENIED);
     assertPINs(PIN, PIN);
   }
 
   @Test
-  public void safeAuthorizationCanChangeBothPINs() {
+  public void secretAuthorizationCanChangeBothPINs() {
     initializePINs();
     assertSuccess(authenticate(PIN, true));
-    Assertions.assertEquals(Command.AUTH_SAFE, Command.requireAuth(Command.AUTH_ACCESS));
-    Assertions.assertEquals(Command.AUTH_SAFE, Command.requireAuth(Command.AUTH_SAFE));
+    Assertions.assertEquals(Command.AUTH_SECRET, Command.requireAuth(Command.AUTH_ACCESS));
+    Assertions.assertEquals(Command.AUTH_SECRET, Command.requireAuth(Command.AUTH_SECRET));
     assertUnknownPermissionsDenied();
 
     assertSuccess(setPIN(NEW_PIN, false));
@@ -101,17 +101,20 @@ public class CommandAuthenticationTest {
   }
 
   @Test
-  public void directPINUpdatesRequireUserSafeAuthorization() {
+  public void directPINUpdatesRequireUserSecretAuthorization() {
     initializePINs();
 
     assertException(MonoidApplet.safe::checkAccess, MonoidException.CODE_UNAUTHORIZED);
     assertException(() -> MonoidApplet.updatePIN(NEW_PIN), MonoidException.CODE_UNAUTHORIZED);
-    assertException(() -> MonoidApplet.updateSafePIN(NEW_PIN), MonoidException.CODE_UNAUTHORIZED);
+    assertException(() -> MonoidApplet.updateSecretPIN(NEW_PIN), MonoidException.CODE_UNAUTHORIZED);
 
     assertSuccess(authenticate(PIN, false));
     MonoidApplet.safe.checkAccess();
     assertException(() -> MonoidApplet.updatePIN(NEW_PIN), MonoidException.CODE_ACCESS_DENIED);
-    assertException(() -> MonoidApplet.updateSafePIN(NEW_PIN), MonoidException.CODE_ACCESS_DENIED);
+    assertException(
+      () -> MonoidApplet.updateSecretPIN(NEW_PIN),
+      MonoidException.CODE_ACCESS_DENIED
+    );
     assertPINs(PIN, PIN);
   }
 
@@ -120,7 +123,7 @@ public class CommandAuthenticationTest {
     initializePINs();
     short[] auth = authorization();
 
-    for (boolean safePIN : new boolean[] { false, true }) {
+    for (boolean secretPIN : new boolean[] { false, true }) {
       for (boolean corrupt : new boolean[] { false, true }) {
         assertSuccess(authenticate(PIN, true));
         MonoidApplet.checkPINUpdate();
@@ -133,8 +136,8 @@ public class CommandAuthenticationTest {
 
         assertException(
           () -> {
-            if (safePIN) {
-              MonoidApplet.updateSafePIN(NEW_PIN);
+            if (secretPIN) {
+              MonoidApplet.updateSecretPIN(NEW_PIN);
             } else {
               MonoidApplet.updatePIN(NEW_PIN);
             }
@@ -152,11 +155,11 @@ public class CommandAuthenticationTest {
     initializePINs();
     short[] auth = authorization();
 
-    for (short state : new short[] { 0, Command.AUTH_ACCESS, Command.AUTH_SAFE }) {
+    for (short state : new short[] { 0, Command.AUTH_ACCESS, Command.AUTH_SECRET }) {
       resetAndSelect();
 
       if (state != 0) {
-        assertSuccess(authenticate(PIN, state == Command.AUTH_SAFE));
+        assertSuccess(authenticate(PIN, state == Command.AUTH_SECRET));
       }
 
       short[] valid = auth.clone();
@@ -172,7 +175,7 @@ public class CommandAuthenticationTest {
             MonoidException.CODE_UNAUTHORIZED
           );
           assertException(
-            () -> Command.requireAuth(Command.AUTH_SAFE),
+            () -> Command.requireAuth(Command.AUTH_SECRET),
             MonoidException.CODE_UNAUTHORIZED
           );
         }
@@ -189,7 +192,7 @@ public class CommandAuthenticationTest {
       auth[1] = (short) ~invalid;
 
       assertException(Command::getAuth, MonoidException.CODE_UNAUTHORIZED);
-      assertError(setPIN(PIN, true), MonoidException.CODE_UNAUTHORIZED);
+      requireError(setPIN(PIN, true), MonoidException.CODE_UNAUTHORIZED);
       Assertions.assertEquals(SAFE_FALSE, MonoidApplet.getPINSetResult(SAFE_TRUE));
       Assertions.assertFalse(MonoidApplet.safe.isPINSet());
     }
@@ -277,7 +280,7 @@ public class CommandAuthenticationTest {
         MonoidException.CODE_UNAUTHORIZED
       );
       assertException(MonoidApplet.safe::checkAccess, MonoidException.CODE_UNAUTHORIZED);
-      assertError(setPIN(NEW_PIN, false), MonoidException.CODE_UNAUTHORIZED);
+      requireError(setPIN(NEW_PIN, false), MonoidException.CODE_UNAUTHORIZED);
     }
   }
 
@@ -285,20 +288,22 @@ public class CommandAuthenticationTest {
   public void incorrectPINConsumesOneAttemptAndPreservesExistingAuthorization() {
     initializePINs();
 
-    for (boolean safePIN : new boolean[] { false, true }) {
+    for (boolean secretPIN : new boolean[] { false, true }) {
       assertSuccess(authenticate(PIN, true));
 
       for (short remaining = 4; remaining >= 3; remaining--) {
-        CBORBufferReader reader = assertError(
-          authenticate(WRONG_PIN, safePIN),
+        CBORBufferReader reader = requireError(
+          authenticate(WRONG_PIN, secretPIN),
           MonoidException.CODE_INVALID_PIN
         );
         Assertions.assertEquals(remaining, reader.requireKey(Text.tries).integer());
         Assertions.assertEquals(
           remaining,
-          safePIN ? MonoidApplet.safe.getPINTriesRemaining() : MonoidApplet.pin.getTriesRemaining()
+          secretPIN
+            ? MonoidApplet.safe.getPINTriesRemaining()
+            : MonoidApplet.pin.getTriesRemaining()
         );
-        Assertions.assertEquals(Command.AUTH_SAFE, Command.getAuth());
+        Assertions.assertEquals(Command.AUTH_SECRET, Command.getAuth());
       }
     }
   }
@@ -339,89 +344,50 @@ public class CommandAuthenticationTest {
         assertSuccess(response);
         Assertions.assertEquals(Command.AUTH_ACCESS, Command.getAuth());
       } else {
-        assertError(response, MonoidException.CODE_UNAUTHORIZED);
+        requireError(response, MonoidException.CODE_UNAUTHORIZED);
         Assertions.assertEquals(0, Command.getAuth());
       }
     }
   }
 
   @Test
-  public void safeValidationIsRecheckedWithoutRepeatingPINComparison() throws Exception {
-    initializePINs();
-    Safe safe = MonoidApplet.safe;
-    Field pinField = Safe.class.getDeclaredField("pin");
-    pinField.setAccessible(true);
-    Field validation = Safe.class.getDeclaredField("authorizationValidation");
-    validation.setAccessible(true);
-    LibSecurity.Condition original = (LibSecurity.Condition) validation.get(MonoidApplet.safe);
-
-    for (int failedRead = 0; failedRead <= 3; failedRead++) {
-      resetAndSelect();
-      final int failure = failedRead;
-      int[] calls = new int[2];
-      OwnerPIN observed = new OwnerPIN(Safe.PIN_TRY_LIMIT, Safe.MAX_PIN_LENGTH) {
-        @Override
-        public boolean check(byte[] buffer, short offset, byte length) {
-          calls[0]++;
-          return super.check(buffer, offset, length);
-        }
-      };
-      observed.update(PIN, (short) 0, (byte) PIN.length);
-      pinField.set(safe, observed);
-      validation.set(
-        safe,
-        (LibSecurity.Condition) () -> {
-          calls[1]++;
-          return calls[1] != failure && original.check();
-        }
-      );
-
-      ResponseAPDU response = authenticate(PIN, true);
-
-      if (failedRead == 0) {
-        assertSuccess(response);
-        Assertions.assertEquals(Command.AUTH_SAFE, Command.getAuth());
-      } else {
-        assertError(response, MonoidException.CODE_UNAUTHORIZED);
-        Assertions.assertEquals(0, Command.getAuth());
-      }
-
-      Assertions.assertEquals(1, calls[0]);
-      Assertions.assertEquals(failedRead == 0 ? 3 : failedRead, calls[1]);
-      validation.set(safe, original);
-    }
-  }
-
-  @Test
-  public void accessAuthorizationOpensSafeWithoutPINComparison() throws Exception {
+  public void accessAuthorizationOpensStorageWithoutGrantingSecretAuthorization() {
     initializePINs();
     resetAndSelect();
-
     Safe safe = MonoidApplet.safe;
-    int[] comparisons = new int[1];
-    OwnerPIN observed = new OwnerPIN(Safe.PIN_TRY_LIMIT, Safe.MAX_PIN_LENGTH) {
-      @Override
-      public boolean check(byte[] buffer, short offset, byte length) {
-        comparisons[0]++;
-        return super.check(buffer, offset, length);
-      }
-    };
-    observed.update(NEW_PIN, (short) 0, (byte) NEW_PIN.length);
-    Field pinField = Safe.class.getDeclaredField("pin");
-    pinField.setAccessible(true);
-    pinField.set(safe, observed);
-
-    assertException(safe::checkAccess, MonoidException.CODE_UNAUTHORIZED);
     assertSuccess(authenticate(PIN, false));
-    Assertions.assertFalse(safe.isPINValidated());
 
     for (int operation = 0; operation < 2; operation++) {
       safe.checkAccess();
-      Assertions.assertTrue(safe.isPINValidated());
-      Assertions.assertEquals(0, comparisons[0]);
-      Assertions.assertEquals(Safe.PIN_TRY_LIMIT, safe.getPINTriesRemaining());
+      Assertions.assertEquals(0, safe.list((short) 0).getCount());
+      Assertions.assertFalse(safe.isPINValidated());
+      Assertions.assertEquals(5, safe.getPINTriesRemaining());
       Assertions.assertEquals(Command.AUTH_ACCESS, Command.getAuth());
     }
+  }
+
+  @Test
+  public void encodedSecretAuthorizationCannotReplaceIdentityPINVerification() throws Exception {
+    initializePINs();
+    resetAndSelect();
+    short[] auth = authorization();
+    auth[0] = Command.AUTH_SECRET;
+    auth[1] = (short) ~Command.AUTH_SECRET;
+    Assertions.assertFalse(MonoidApplet.safe.isPINValidated());
+    requireError(setPIN(NEW_PIN, false), MonoidException.CODE_UNAUTHORIZED);
+    requireError(setPIN(NEW_PIN, true), MonoidException.CODE_UNAUTHORIZED);
+    assertPINs(PIN, PIN);
+  }
+
+  @Test
+  public void changingSecretPINRequiresVerificationBeforeFurtherPINChanges() {
+    initializePINs();
+    assertSuccess(authenticate(PIN, true));
+    assertSuccess(setPIN(NEW_PIN, true));
+    requireError(setPIN(NEW_PIN, false), MonoidException.CODE_UNAUTHORIZED);
+    assertSuccess(authenticate(NEW_PIN, true));
+    assertSuccess(setPIN(NEW_PIN, false));
+    assertPINs(NEW_PIN, NEW_PIN);
   }
 
   @Test
@@ -429,18 +395,18 @@ public class CommandAuthenticationTest {
     short[] auth = authorization();
     auth[0] = Command.AUTH_ACCESS;
     auth[1] = (short) ~Command.AUTH_ACCESS;
-    assertException(MonoidApplet.safe::checkAccess, MonoidException.CODE_SAFE_PIN_NOT_SET);
+    assertException(MonoidApplet.safe::checkAccess, MonoidException.CODE_SECRET_PIN_NOT_SET);
 
     resetAndSelect();
     initializePINs();
     assertSuccess(authenticate(PIN, false));
 
-    for (int attempt = 0; attempt < Safe.PIN_TRY_LIMIT; attempt++) {
+    for (int attempt = 0; attempt < monoididentity.SecretPIN.PIN_TRY_LIMIT; attempt++) {
       Assertions.assertFalse(MonoidApplet.safe.checkPIN(WRONG_PIN));
     }
 
     Assertions.assertEquals(0, MonoidApplet.safe.getPINTriesRemaining());
-    assertException(MonoidApplet.safe::checkAccess, MonoidException.CODE_SAFE_BLOCKED);
+    assertException(MonoidApplet.safe::checkAccess, MonoidException.CODE_SECRET_PIN_BLOCKED);
     Assertions.assertFalse(MonoidApplet.safe.isPINValidated());
   }
 
@@ -471,7 +437,9 @@ public class CommandAuthenticationTest {
         try {
           assertException(
             safe::checkAccess,
-            blocked ? MonoidException.CODE_SAFE_BLOCKED : MonoidException.CODE_SAFE_PIN_NOT_SET
+            blocked
+              ? MonoidException.CODE_SECRET_PIN_BLOCKED
+              : MonoidException.CODE_SECRET_PIN_NOT_SET
           );
           Assertions.assertEquals(failedRead, calls[0]);
         } finally {
@@ -491,7 +459,7 @@ public class CommandAuthenticationTest {
     for (String name : new String[] {
       "clearedAuthorization",
       "accessAuthorization",
-      "safeAuthorization",
+      "secretAuthorization",
       "accessPermission",
     }) {
       Field field = Command.class.getDeclaredField(name);
@@ -499,7 +467,7 @@ public class CommandAuthenticationTest {
       LibSecurity.Condition original = (LibSecurity.Condition) field.get(null);
       short expected = name.equals("clearedAuthorization")
         ? 0
-        : name.equals("safeAuthorization") ? Command.AUTH_SAFE : Command.AUTH_ACCESS;
+        : name.equals("secretAuthorization") ? Command.AUTH_SECRET : Command.AUTH_ACCESS;
 
       for (int failedRead = 0; failedRead <= 3; failedRead++) {
         final int failure = failedRead;
@@ -538,7 +506,7 @@ public class CommandAuthenticationTest {
   }
 
   @Test
-  public void reinstallClearsBothPINsWhilePreservingIdentity() {
+  public void reinstallClearsAccessPINWhilePreservingIdentitySecretPIN() {
     initializePINs();
     byte[] safeId = MonoidApplet.safe.getId().clone();
     Assertions.assertTrue(simulator.selectApplet(MONOID_IDENTITY_AID));
@@ -550,14 +518,14 @@ public class CommandAuthenticationTest {
 
     Assertions.assertArrayEquals(safeId, MonoidApplet.safe.getId());
     Assertions.assertEquals(SAFE_FALSE, MonoidApplet.getPINSetResult(SAFE_TRUE));
-    Assertions.assertFalse(MonoidApplet.safe.isPINSet());
+    Assertions.assertTrue(MonoidApplet.safe.isPINSet());
+    Assertions.assertFalse(MonoidApplet.safe.isPINValidated());
     Assertions.assertEquals(0, Command.getAuth());
-    assertError(authenticate(PIN, false), MonoidException.CODE_PIN_NOT_SET);
-    assertError(authenticate(PIN, true), MonoidException.CODE_PIN_NOT_SET);
-    assertError(setPIN(NEW_PIN, false), MonoidException.CODE_SAFE_PIN_NOT_SET);
-
-    assertSuccess(setPIN(NEW_PIN, true));
-    assertPINs(NEW_PIN, NEW_PIN);
+    requireError(authenticate(PIN, false), MonoidException.CODE_PIN_NOT_SET);
+    requireError(setPIN(NEW_PIN, false), MonoidException.CODE_UNAUTHORIZED);
+    assertSuccess(authenticate(PIN, true));
+    assertSuccess(setPIN(NEW_PIN, false));
+    assertPINs(NEW_PIN, PIN);
   }
 
   private void resetAppletState() {
@@ -579,12 +547,12 @@ public class CommandAuthenticationTest {
       );
     }
 
-    assertError(transmit(0x20, new byte[] { (byte) 0xA0 }), MonoidException.CODE_UNAUTHORIZED);
-    assertError(authenticate(PIN, false), MonoidException.CODE_UNAUTHORIZED);
-    assertError(setPIN(NEW_PIN, false), MonoidException.CODE_UNAUTHORIZED);
-    assertError(setPIN(NEW_PIN, true), MonoidException.CODE_UNAUTHORIZED);
+    requireError(transmit(0x20, new byte[] { (byte) 0xA0 }), MonoidException.CODE_UNAUTHORIZED);
+    requireError(authenticate(PIN, false), MonoidException.CODE_UNAUTHORIZED);
+    requireError(setPIN(NEW_PIN, false), MonoidException.CODE_UNAUTHORIZED);
+    requireError(setPIN(NEW_PIN, true), MonoidException.CODE_UNAUTHORIZED);
     assertException(() -> MonoidApplet.updatePIN(NEW_PIN), MonoidException.CODE_UNAUTHORIZED);
-    assertException(() -> MonoidApplet.updateSafePIN(NEW_PIN), MonoidException.CODE_UNAUTHORIZED);
+    assertException(() -> MonoidApplet.updateSecretPIN(NEW_PIN), MonoidException.CODE_UNAUTHORIZED);
   }
 
   private void resetAndSelect() {
@@ -596,10 +564,10 @@ public class CommandAuthenticationTest {
     assertSuccess(setPIN(PIN, true));
   }
 
-  private void assertPINs(byte[] accessPIN, byte[] safePIN) {
+  private void assertPINs(byte[] accessPIN, byte[] secretPIN) {
     resetAndSelect();
     assertSuccess(authenticate(accessPIN, false));
-    assertSuccess(authenticate(safePIN, true));
+    assertSuccess(authenticate(secretPIN, true));
   }
 
   private void assertUnknownPermissionsDenied() {
@@ -614,22 +582,22 @@ public class CommandAuthenticationTest {
     return (short[]) field.get(null);
   }
 
-  private ResponseAPDU setPIN(byte[] pin, boolean safePIN) {
-    return transmit(0x22, pinRequest(pin, safePIN));
+  private ResponseAPDU setPIN(byte[] pin, boolean secretPIN) {
+    return transmit(0x22, pinRequest(pin, secretPIN));
   }
 
-  private ResponseAPDU authenticate(byte[] pin, boolean safePIN) {
-    return transmit(0x21, pinRequest(pin, safePIN));
+  private ResponseAPDU authenticate(byte[] pin, boolean secretPIN) {
+    return transmit(0x21, pinRequest(pin, secretPIN));
   }
 
-  private byte[] pinRequest(byte[] pin, boolean safePIN) {
+  private byte[] pinRequest(byte[] pin, boolean secretPIN) {
     CBORBufferWriter writer = new CBORBufferWriter();
-    writer.map((short) (safePIN ? 2 : 1));
+    writer.map((short) (secretPIN ? 2 : 1));
     writer.text(Text.pin);
     writer.text(pin);
 
-    if (safePIN) {
-      writer.text(Text.safe);
+    if (secretPIN) {
+      writer.text(Text.secret);
       writer.bool(true);
     }
 
@@ -651,7 +619,7 @@ public class CommandAuthenticationTest {
     }
   }
 
-  private CBORBufferReader assertError(ResponseAPDU response, byte[] code) {
+  private CBORBufferReader requireError(ResponseAPDU response, byte[] code) {
     Assertions.assertEquals(0x9000, response.getSW());
     CBORBufferReader reader = new CBORBufferReader(response.getData());
     reader.map();

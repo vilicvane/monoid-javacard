@@ -42,6 +42,8 @@ public class MonoidIdentityAppletTest {
   private static final AID UNRELATED_AID = AIDUtil.create("f06d6f6e6f69647f13");
 
   private static final byte[] CONTEXT = "card transfer".getBytes(StandardCharsets.US_ASCII);
+  private static final byte[] PIN = "888888".getBytes(StandardCharsets.US_ASCII);
+  private static final byte[] NEW_PIN = "123456".getBytes(StandardCharsets.US_ASCII);
   private static final byte[] KEY = "0123456789ABCDEF0123456789ABCDEF".getBytes(
     StandardCharsets.US_ASCII
   );
@@ -75,7 +77,7 @@ public class MonoidIdentityAppletTest {
   }
 
   @Test
-  public void repeatedAcquisitionAndResetKeepTheIdentity() {
+  public void repeatedAcquisitionAndCardResetKeepTheIdentity() {
     acquire(IDENTITY_AID);
     byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     byte[] id = success(transmit(IdentityCallerApplet.GET_IDENTITY_ID));
@@ -102,8 +104,165 @@ public class MonoidIdentityAppletTest {
   }
 
   @Test
-  public void forwardedIdentityUsesTheActualCallerForTokenAndDecryption() {
+  public void secretPINRequiresExplicitVerificationAndUpdatesRevokeAuthorization() {
+    initializeManager();
     acquire(IDENTITY_AID);
+    byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    assertSecretPINSet(false);
+    assertSecretPINTries(5);
+    checkSecretPIN(PIN, false);
+    assertSecretPINTries(5);
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
+    assertDenied(transmit(IdentityCallerApplet.CREATE_BUNDLE, publicKey));
+    assertDenied(transmit(IdentityCallerApplet.JOIN_BUNDLE, publicKey));
+
+    success(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, PIN));
+    assertSecretPINSet(true);
+    assertSecretValidation(false);
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
+    assertDenied(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, NEW_PIN));
+    checkSecretPIN(PIN, true);
+    byte[] encrypted = success(
+      transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY))
+    );
+
+    checkSecretPIN(NEW_PIN, false);
+    assertSecretPINTries(4);
+    assertDenied(
+      transmit(IdentityCallerApplet.DECRYPT_DATA, payload(publicKey, CONTEXT, encrypted))
+    );
+    assertDenied(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, NEW_PIN));
+    checkSecretPIN(PIN, true);
+    assertSecretPINTries(5);
+    success(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, NEW_PIN));
+    assertSecretValidation(false);
+    assertDenied(
+      transmit(IdentityCallerApplet.DECRYPT_DATA, payload(publicKey, CONTEXT, encrypted))
+    );
+    checkSecretPIN(PIN, false);
+    assertSecretPINTries(4);
+    checkSecretPIN(NEW_PIN, true);
+    assertSecretPINTries(5);
+    Assertions.assertArrayEquals(
+      KEY,
+      success(transmit(IdentityCallerApplet.DECRYPT_DATA, payload(publicKey, CONTEXT, encrypted)))
+    );
+
+    success(transmit(IdentityCallerApplet.CLEAR_SECRET_AUTH));
+    assertSecretValidation(false);
+    assertSecretPINSet(true);
+    assertSecretPINTries(5);
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
+    checkSecretPIN(NEW_PIN, true);
+  }
+
+  @Test
+  public void secretAuthorizationBelongsToTheVerifiedCallerAndCannotAuthorizePinUpdates() {
+    initializeManager();
+    acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    select(UNRELATED_AID);
+    acquire(IDENTITY_AID);
+    assertSecretValidation(false);
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
+    assertDenied(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, NEW_PIN));
+
+    select(MONOID_AID);
+    assertSecretValidation(true);
+    acquire(IDENTITY_AID);
+    assertSecretValidation(true);
+    select(UNRELATED_AID);
+    checkSecretPIN(PIN, true);
+    success(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
+    assertDenied(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, NEW_PIN));
+    assertDenied(transmit(IdentityCallerApplet.CREATE_BUNDLE, publicKey));
+    assertDenied(transmit(IdentityCallerApplet.JOIN_BUNDLE, publicKey));
+
+    select(MONOID_AID);
+    assertSecretValidation(false);
+    assertDenied(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, NEW_PIN));
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
+    checkSecretPIN(NEW_PIN, false);
+    select(UNRELATED_AID);
+    assertSecretValidation(false);
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
+    select(MONOID_AID);
+    checkSecretPIN(PIN, true);
+  }
+
+  @Test
+  public void replacingMonoidRetainsTheSecretPINAndRequiresItsVerification() {
+    initializeManager();
+    acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    byte[] token = success(transmit(IdentityCallerApplet.GET_TOKEN));
+    byte[] encrypted = success(
+      transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY))
+    );
+
+    select(IDENTITY_AID);
+    simulator.deleteApplet(MONOID_AID);
+    AID replacement = AIDUtil.create(AppletTest.aidBytes(MONOID_AID));
+    simulator.createApplet(replacement, new byte[0], (short) 0, (byte) 0);
+    select(replacement);
+    acquire(IDENTITY_AID);
+    Assertions.assertArrayEquals(token, success(transmit(IdentityCallerApplet.GET_TOKEN)));
+    Assertions.assertArrayEquals(publicKey, success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY)));
+    assertSecretPINSet(true);
+    assertSecretValidation(false);
+    assertDenied(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, NEW_PIN));
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
+    assertDenied(
+      transmit(IdentityCallerApplet.DECRYPT_DATA, payload(publicKey, CONTEXT, encrypted))
+    );
+    checkSecretPIN(NEW_PIN, false);
+    checkSecretPIN(PIN, true);
+    Assertions.assertArrayEquals(
+      KEY,
+      success(transmit(IdentityCallerApplet.DECRYPT_DATA, payload(publicKey, CONTEXT, encrypted)))
+    );
+  }
+
+  @Test
+  public void identityResetClearsBlockedSecretPINAndRequiresNewInitialization() {
+    initializeManager();
+    acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    for (int remaining = 4; remaining >= 0; remaining--) {
+      checkSecretPIN(NEW_PIN, false);
+      assertSecretPINTries(remaining);
+    }
+    checkSecretPIN(PIN, false);
+    assertSecretPINTries(0);
+    assertDenied(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, NEW_PIN));
+
+    success(transmit(IdentityCallerApplet.PREPARE_RESET));
+    success(transmit(IdentityCallerApplet.RESET_IDENTITY));
+    assertSecretPINSet(false);
+    assertSecretValidation(false);
+    assertSecretPINTries(5);
+    checkSecretPIN(PIN, false);
+    assertSecretPINTries(5);
+    byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
+
+    success(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, NEW_PIN));
+    assertSecretValidation(false);
+    checkSecretPIN(PIN, false);
+    checkSecretPIN(NEW_PIN, true);
+    success(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
+  }
+
+  @Test
+  public void forwardedIdentityUsesTheActualCallerForTokenAndDecryption() {
+    initializeManager();
+    acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    select(MONOID_CALLER_AID);
+    acquire(IDENTITY_AID);
+    checkSecretPIN(PIN, true);
     byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     byte[] token = success(transmit(IdentityCallerApplet.GET_TOKEN));
     byte[] encrypted = success(
@@ -114,6 +273,12 @@ public class MonoidIdentityAppletTest {
 
     Assertions.assertArrayEquals(publicKey, success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY)));
     Assertions.assertFalse(Arrays.equals(token, success(transmit(IdentityCallerApplet.GET_TOKEN))));
+    assertSecretValidation(false);
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
+    assertDenied(
+      transmit(IdentityCallerApplet.DECRYPT_DATA, payload(publicKey, CONTEXT, encrypted))
+    );
+    checkSecretPIN(PIN, true);
     ResponseAPDU denied = transmit(
       IdentityCallerApplet.DECRYPT_DATA,
       payload(publicKey, CONTEXT, encrypted)
@@ -315,7 +480,7 @@ public class MonoidIdentityAppletTest {
   }
 
   @Test
-  public void unrelatedAndPrefixCallersCannotManageBundle() {
+  public void unrelatedAndPrefixCallersCannotManageBundleOrResetIdentity() {
     AID prefixCaller = AIDUtil.create(concat(AppletTest.aidBytes(MONOID_AID), new byte[] { 1 }));
     simulator.installApplet(prefixCaller, IdentityCallerApplet.class);
 
@@ -325,7 +490,9 @@ public class MonoidIdentityAppletTest {
       byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
       assertDenied(transmit(IdentityCallerApplet.CREATE_BUNDLE, publicKey));
       assertDenied(transmit(IdentityCallerApplet.JOIN_BUNDLE, concat(publicKey, new byte[0])));
-      assertDenied(transmit(IdentityCallerApplet.RESET_BUNDLE));
+      assertDenied(transmit(IdentityCallerApplet.PREPARE_RESET));
+      assertDenied(transmit(IdentityCallerApplet.RESET_IDENTITY));
+      assertDenied(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, PIN));
       Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
     }
   }
@@ -376,8 +543,13 @@ public class MonoidIdentityAppletTest {
   }
 
   @Test
-  public void communicationDataCanBeRecoveredByTheSameIdentityAfterReset() {
+  public void communicationDataCanBeRecoveredByTheSameIdentityAfterCardReset() {
+    initializeManager();
     acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    select(MONOID_CALLER_AID);
+    acquire(IDENTITY_AID);
+    checkSecretPIN(PIN, true);
     byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     byte[] encryptedKey = success(
       transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY))
@@ -387,6 +559,12 @@ public class MonoidIdentityAppletTest {
     simulator.reset();
     select(MONOID_CALLER_AID);
     acquire(IDENTITY_AID);
+    assertSecretPINSet(true);
+    assertSecretValidation(false);
+    assertDenied(
+      transmit(IdentityCallerApplet.DECRYPT_DATA, payload(publicKey, CONTEXT, encryptedKey))
+    );
+    checkSecretPIN(PIN, true);
     Assertions.assertArrayEquals(
       KEY,
       success(
@@ -397,11 +575,14 @@ public class MonoidIdentityAppletTest {
 
   @Test
   public void communicationDataCanBeRecoveredByAnotherIdentity() {
+    initializeManager();
     simulator.installApplet(OTHER_IDENTITY_AID, MonoidIdentityApplet.class);
-    select(MONOID_CALLER_AID);
+    select(MONOID_AID);
     acquire(IDENTITY_AID);
+    initializeSecretPIN();
     byte[] senderPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     acquire(OTHER_IDENTITY_AID);
+    initializeSecretPIN();
     byte[] recipientPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     acquire(IDENTITY_AID);
     byte[] encryptedKey = success(
@@ -418,8 +599,82 @@ public class MonoidIdentityAppletTest {
   }
 
   @Test
-  public void completedDataCannotBeForwardedToAnotherCaller() {
+  public void bundledTransfersRequireEachIdentitysPINAndCannotBeDecryptedByTheirSender() {
+    initializeManager();
     acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    byte[] sourcePublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    byte[] oldSelfTransfer = success(
+      transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(sourcePublicKey, CONTEXT, KEY))
+    );
+
+    simulator.installApplet(OTHER_IDENTITY_AID, MonoidIdentityApplet.class);
+    select(MONOID_AID);
+    acquire(OTHER_IDENTITY_AID);
+    success(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, NEW_PIN));
+    byte[] targetPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    acquire(IDENTITY_AID);
+    success(transmit(IdentityCallerApplet.CLEAR_SECRET_AUTH));
+    byte[] members = concat(sourcePublicKey, targetPublicKey);
+    assertDenied(transmit(IdentityCallerApplet.CREATE_BUNDLE, members));
+    checkSecretPIN(PIN, true);
+    byte[] enrollment = success(transmit(IdentityCallerApplet.CREATE_BUNDLE, members));
+    byte[] bundle = success(transmit(IdentityCallerApplet.GET_BUNDLE));
+    byte[] encrypted = success(
+      transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(sourcePublicKey, CONTEXT, KEY))
+    );
+    Assertions.assertEquals(2, encrypted[0]);
+    Assertions.assertArrayEquals(sourcePublicKey, Arrays.copyOfRange(encrypted, 33, 98));
+    for (byte[] ciphertext : new byte[][] { oldSelfTransfer, encrypted }) {
+      Assertions.assertEquals(
+        0x6985,
+        transmit(
+          IdentityCallerApplet.DECRYPT_DATA,
+          payload(sourcePublicKey, CONTEXT, ciphertext)
+        ).getSW()
+      );
+    }
+
+    acquire(OTHER_IDENTITY_AID);
+    byte[] join = concat(sourcePublicKey, enrollment);
+    assertDenied(transmit(IdentityCallerApplet.JOIN_BUNDLE, join));
+    checkSecretPIN(NEW_PIN, true);
+    Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.JOIN_BUNDLE, join)));
+    success(transmit(IdentityCallerApplet.CLEAR_SECRET_AUTH));
+    assertDenied(
+      transmit(IdentityCallerApplet.DECRYPT_DATA, payload(sourcePublicKey, CONTEXT, encrypted))
+    );
+    checkSecretPIN(PIN, false);
+    checkSecretPIN(NEW_PIN, true);
+    Assertions.assertArrayEquals(
+      KEY,
+      success(
+        transmit(IdentityCallerApplet.DECRYPT_DATA, payload(sourcePublicKey, CONTEXT, encrypted))
+      )
+    );
+    byte[] reply = success(
+      transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(sourcePublicKey, CONTEXT, KEY))
+    );
+    Assertions.assertArrayEquals(targetPublicKey, Arrays.copyOfRange(reply, 33, 98));
+    Assertions.assertEquals(
+      0x6985,
+      transmit(IdentityCallerApplet.DECRYPT_DATA, payload(sourcePublicKey, CONTEXT, reply)).getSW()
+    );
+    acquire(IDENTITY_AID);
+    Assertions.assertArrayEquals(
+      KEY,
+      success(transmit(IdentityCallerApplet.DECRYPT_DATA, payload(targetPublicKey, CONTEXT, reply)))
+    );
+  }
+
+  @Test
+  public void completedDataCannotBeForwardedToAnotherCaller() {
+    initializeManager();
+    acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    select(MONOID_CALLER_AID);
+    acquire(IDENTITY_AID);
+    checkSecretPIN(PIN, true);
     byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     success(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
     select(UNRELATED_AID);
@@ -431,6 +686,7 @@ public class MonoidIdentityAppletTest {
   public void reentrantBundleChangesAreRejectedWithoutBlockingLaterCommunication() {
     initializeManager();
     acquire(IDENTITY_AID);
+    initializeSecretPIN();
     byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     Assertions.assertEquals(
       0x6985,
@@ -446,57 +702,230 @@ public class MonoidIdentityAppletTest {
   }
 
   @Test
-  public void resetBundleRequiresCallerTransactionAndPreservesIdentity() {
+  public void reentrantPINChangesPreserveAuthorizationAndRetries() {
     initializeManager();
-    simulator.installApplet(OTHER_IDENTITY_AID, MonoidIdentityApplet.class);
-    select(MONOID_AID);
-    acquire(OTHER_IDENTITY_AID);
-    byte[] recipientPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    byte[] encrypted = success(
+      transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY))
+    );
+
+    for (int[] instructions : new int[][] {
+      {
+        IdentityCallerApplet.ENCRYPT_CHECK_SECRET_PIN_REENTRANT,
+        IdentityCallerApplet.ENCRYPT_UPDATE_SECRET_PIN_REENTRANT,
+        IdentityCallerApplet.ENCRYPT_CLEAR_SECRET_AUTH_REENTRANT,
+      },
+      {
+        IdentityCallerApplet.DECRYPT_CHECK_SECRET_PIN_REENTRANT,
+        IdentityCallerApplet.DECRYPT_UPDATE_SECRET_PIN_REENTRANT,
+        IdentityCallerApplet.DECRYPT_CLEAR_SECRET_AUTH_REENTRANT,
+      },
+    }) {
+      boolean decrypt = instructions[0] == IdentityCallerApplet.DECRYPT_CHECK_SECRET_PIN_REENTRANT;
+
+      for (int instruction : instructions) {
+        Assertions.assertEquals(
+          0x6985,
+          transmit(instruction, payload(publicKey, CONTEXT, decrypt ? encrypted : KEY)).getSW()
+        );
+        assertSecretPINTries(5);
+        assertSecretValidation(true);
+        Assertions.assertEquals(0, JCSystem.getTransactionDepth());
+        byte[] recovered = success(
+          transmit(IdentityCallerApplet.DECRYPT_DATA, payload(publicKey, CONTEXT, encrypted))
+        );
+        Assertions.assertArrayEquals(KEY, recovered);
+      }
+    }
+
+    checkSecretPIN(PIN, true);
+  }
+
+  @Test
+  public void identityResetPublishesOnlyAPreparedIdentityWithinTheCallerTransaction() {
+    initializeManager();
     acquire(IDENTITY_AID);
     byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     byte[] id = success(transmit(IdentityCallerApplet.GET_IDENTITY_ID));
     byte[] token = success(transmit(IdentityCallerApplet.GET_TOKEN));
-    byte[] members = concat(publicKey, recipientPublicKey);
-    success(transmit(IdentityCallerApplet.CREATE_BUNDLE, members));
-    byte[] bundle = success(transmit(IdentityCallerApplet.GET_BUNDLE));
 
+    Assertions.assertEquals(0x6985, transmit(IdentityCallerApplet.RESET_IDENTITY).getSW());
     Assertions.assertEquals(
       0x6985,
-      transmit(IdentityCallerApplet.RESET_BUNDLE_WITHOUT_TRANSACTION).getSW()
+      transmit(IdentityCallerApplet.PREPARE_RESET_IN_TRANSACTION).getSW()
     );
-    Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
-    Assertions.assertEquals(
-      0x6985,
-      transmit(
+    Assertions.assertEquals(0, JCSystem.getTransactionDepth());
+
+    for (int round = 0; round < 2; round++) {
+      initializeSecretPIN();
+      byte[] preparedToken = success(transmit(IdentityCallerApplet.PREPARE_RESET));
+      Assertions.assertEquals(32, preparedToken.length);
+      Assertions.assertFalse(Arrays.equals(token, preparedToken));
+      Assertions.assertArrayEquals(
+        publicKey,
+        success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY))
+      );
+      Assertions.assertArrayEquals(id, success(transmit(IdentityCallerApplet.GET_IDENTITY_ID)));
+      Assertions.assertArrayEquals(token, success(transmit(IdentityCallerApplet.GET_TOKEN)));
+      Assertions.assertEquals(
+        0x6985,
+        transmit(IdentityCallerApplet.RESET_IDENTITY_WITHOUT_TRANSACTION).getSW()
+      );
+
+      for (int instruction : new int[] {
         IdentityCallerApplet.ENCRYPT_RESET_REENTRANT,
-        payload(publicKey, CONTEXT, KEY)
-      ).getSW()
+        IdentityCallerApplet.ENCRYPT_PREPARE_RESET_REENTRANT,
+      }) {
+        Assertions.assertEquals(
+          0x6985,
+          transmit(instruction, payload(publicKey, CONTEXT, KEY)).getSW()
+        );
+        Assertions.assertEquals(0, JCSystem.getTransactionDepth());
+        Assertions.assertArrayEquals(
+          publicKey,
+          success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY))
+        );
+      }
+
+      // Identity leaves the transaction open for Monoid to commit with its item changes.
+      // jCardSim tracks transaction depth but does not emulate persistent-field rollback.
+      Assertions.assertArrayEquals(
+        new byte[] { 1 },
+        success(transmit(IdentityCallerApplet.RESET_IDENTITY))
+      );
+      Assertions.assertEquals(0, JCSystem.getTransactionDepth());
+      Assertions.assertArrayEquals(
+        preparedToken,
+        success(transmit(IdentityCallerApplet.GET_TOKEN))
+      );
+      byte[] newPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+      byte[] newId = success(transmit(IdentityCallerApplet.GET_IDENTITY_ID));
+      Assertions.assertFalse(Arrays.equals(publicKey, newPublicKey));
+      Assertions.assertFalse(Arrays.equals(id, newId));
+      assertSecretPINSet(false);
+      assertSecretValidation(false);
+      assertDenied(
+        transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(newPublicKey, CONTEXT, KEY))
+      );
+      Assertions.assertEquals(0x6985, transmit(IdentityCallerApplet.RESET_IDENTITY).getSW());
+      publicKey = newPublicKey;
+      id = newId;
+      token = preparedToken;
+    }
+  }
+
+  @Test
+  public void identityResetPreparationIsReplacedAndDiscardedByCardReset() {
+    initializeManager();
+    acquire(IDENTITY_AID);
+    byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    byte[] token = success(transmit(IdentityCallerApplet.GET_TOKEN));
+    byte[] preparedToken = success(transmit(IdentityCallerApplet.PREPARE_RESET));
+    byte[] replacementToken = success(transmit(IdentityCallerApplet.PREPARE_RESET));
+    Assertions.assertFalse(Arrays.equals(preparedToken, replacementToken));
+    success(transmit(IdentityCallerApplet.RESET_IDENTITY));
+    Assertions.assertArrayEquals(
+      replacementToken,
+      success(transmit(IdentityCallerApplet.GET_TOKEN))
     );
-    Assertions.assertEquals(0, JCSystem.getTransactionDepth());
-    Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
-    Assertions.assertEquals(
-      2,
-      success(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)))[0]
+    Assertions.assertFalse(
+      Arrays.equals(publicKey, success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY)))
+    );
+    Assertions.assertFalse(Arrays.equals(token, replacementToken));
+
+    publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    success(transmit(IdentityCallerApplet.PREPARE_RESET));
+    simulator.reset();
+    select(MONOID_AID);
+    acquire(IDENTITY_AID);
+    Assertions.assertEquals(0x6985, transmit(IdentityCallerApplet.RESET_IDENTITY).getSW());
+    Assertions.assertArrayEquals(publicKey, success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY)));
+    Assertions.assertArrayEquals(
+      replacementToken,
+      success(transmit(IdentityCallerApplet.GET_TOKEN))
+    );
+  }
+
+  @Test
+  public void identityResetInvalidatesArtifactsAndEveryCallersToken() {
+    initializeManager();
+    simulator.installApplet(OTHER_IDENTITY_AID, MonoidIdentityApplet.class);
+    select(UNRELATED_AID);
+    acquire(IDENTITY_AID);
+    byte[] unrelatedToken = success(transmit(IdentityCallerApplet.GET_TOKEN));
+    select(MONOID_AID);
+    acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    byte[] encrypted = success(
+      transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY))
+    );
+    Assertions.assertArrayEquals(
+      KEY,
+      success(transmit(IdentityCallerApplet.DECRYPT_DATA, payload(publicKey, CONTEXT, encrypted)))
     );
 
-    // Identity leaves the transaction open for Monoid to commit with its item changes.
-    // jCardSim tracks transaction depth but does not emulate persistent-field rollback.
-    Assertions.assertArrayEquals(
-      new byte[] { 1 },
-      success(transmit(IdentityCallerApplet.RESET_BUNDLE))
+    acquire(OTHER_IDENTITY_AID);
+    initializeSecretPIN();
+    byte[] senderPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    byte[] packet = success(
+      transmit(IdentityCallerApplet.CREATE_BUNDLE, concat(senderPublicKey, publicKey))
     );
-    Assertions.assertEquals(0, JCSystem.getTransactionDepth());
-    Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
-    Assertions.assertArrayEquals(publicKey, success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY)));
-    Assertions.assertArrayEquals(id, success(transmit(IdentityCallerApplet.GET_IDENTITY_ID)));
+    byte[] bundle = success(transmit(IdentityCallerApplet.GET_BUNDLE));
+    acquire(IDENTITY_AID);
+    Assertions.assertArrayEquals(
+      bundle,
+      success(transmit(IdentityCallerApplet.JOIN_BUNDLE, concat(senderPublicKey, packet)))
+    );
+    byte[] bundled = success(
+      transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY))
+    );
+    Assertions.assertEquals(2, bundled[0]);
+    byte[] token = success(transmit(IdentityCallerApplet.PREPARE_RESET));
+    success(transmit(IdentityCallerApplet.RESET_IDENTITY));
     Assertions.assertArrayEquals(token, success(transmit(IdentityCallerApplet.GET_TOKEN)));
-    Assertions.assertArrayEquals(
-      new byte[] { 1 },
-      success(transmit(IdentityCallerApplet.RESET_BUNDLE))
+    Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
+    assertSecretPINSet(false);
+    assertSecretValidation(false);
+    assertDenied(
+      transmit(IdentityCallerApplet.DECRYPT_DATA, payload(publicKey, CONTEXT, encrypted))
     );
-    success(transmit(IdentityCallerApplet.CREATE_BUNDLE, members));
-    Assertions.assertFalse(
-      Arrays.equals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)))
+    initializeSecretPIN();
+
+    for (byte[] data : new byte[][] { encrypted, bundled }) {
+      ResponseAPDU rejected = transmit(
+        IdentityCallerApplet.DECRYPT_DATA,
+        payload(publicKey, CONTEXT, data)
+      );
+      Assertions.assertNotEquals(0x9000, rejected.getSW());
+      Assertions.assertEquals(0, rejected.getData().length);
+    }
+    Assertions.assertEquals(
+      0x6985,
+      transmit(IdentityCallerApplet.JOIN_BUNDLE, concat(senderPublicKey, packet)).getSW()
+    );
+    Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
+
+    byte[] newPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    byte[] newEncrypted = success(
+      transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(newPublicKey, CONTEXT, KEY))
+    );
+    Assertions.assertEquals(1, newEncrypted[0]);
+    Assertions.assertArrayEquals(
+      KEY,
+      success(
+        transmit(IdentityCallerApplet.DECRYPT_DATA, payload(newPublicKey, CONTEXT, newEncrypted))
+      )
+    );
+    select(UNRELATED_AID);
+    byte[] newUnrelatedToken = success(transmit(IdentityCallerApplet.GET_TOKEN));
+    Assertions.assertFalse(Arrays.equals(unrelatedToken, newUnrelatedToken));
+    Assertions.assertFalse(Arrays.equals(token, newUnrelatedToken));
+    Assertions.assertArrayEquals(
+      newUnrelatedToken,
+      success(transmit(IdentityCallerApplet.GET_TOKEN))
     );
   }
 
@@ -506,8 +935,10 @@ public class MonoidIdentityAppletTest {
     simulator.installApplet(OTHER_IDENTITY_AID, MonoidIdentityApplet.class);
     select(MONOID_AID);
     acquire(IDENTITY_AID);
+    initializeSecretPIN();
     byte[] senderPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     acquire(OTHER_IDENTITY_AID);
+    initializeSecretPIN();
     byte[] recipientPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     acquire(IDENTITY_AID);
     Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
@@ -558,6 +989,7 @@ public class MonoidIdentityAppletTest {
     simulator.installApplet(otherSenderAID, MonoidIdentityApplet.class);
     select(MONOID_AID);
     acquire(otherSenderAID);
+    initializeSecretPIN();
     byte[] otherSenderPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     byte[] conflictingEnvelope = success(
       transmit(IdentityCallerApplet.CREATE_BUNDLE, concat(otherSenderPublicKey, recipientPublicKey))
@@ -615,6 +1047,10 @@ public class MonoidIdentityAppletTest {
     select(MONOID_AID);
     acquire(OTHER_IDENTITY_AID);
     Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
+    assertSecretPINSet(true);
+    assertSecretValidation(false);
+    assertDenied(transmit(IdentityCallerApplet.JOIN_BUNDLE, concat(senderPublicKey, envelope)));
+    checkSecretPIN(PIN, true);
 
     Assertions.assertArrayEquals(
       recipientPublicKey,
@@ -632,7 +1068,46 @@ public class MonoidIdentityAppletTest {
     simulator = new CardSimulator(runtime);
     simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
     simulator.installApplet(MONOID_AID, IdentityCallerApplet.class);
+    simulator.installApplet(MONOID_CALLER_AID, IdentityCallerApplet.class);
+    simulator.installApplet(UNRELATED_AID, IdentityCallerApplet.class);
     select(MONOID_AID);
+  }
+
+  private void initializeSecretPIN() {
+    success(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, PIN));
+    assertSecretPINSet(true);
+    assertSecretValidation(false);
+    checkSecretPIN(PIN, true);
+  }
+
+  private void checkSecretPIN(byte[] pin, boolean expected) {
+    Assertions.assertArrayEquals(
+      new byte[] { expected ? (byte) 1 : 0 },
+      success(transmit(IdentityCallerApplet.CHECK_SECRET_PIN, pin))
+    );
+    assertSecretValidation(expected);
+  }
+
+  private void assertSecretPINSet(boolean expected) {
+    Assertions.assertArrayEquals(
+      new byte[] { expected ? (byte) 1 : 0 },
+      success(transmit(IdentityCallerApplet.IS_SECRET_PIN_SET))
+    );
+  }
+
+  private void assertSecretValidation(boolean expected) {
+    short value = expected ? Constants.SAFE_TRUE : Constants.SAFE_FALSE;
+    Assertions.assertArrayEquals(
+      new byte[] { (byte) (value >> 8), (byte) value },
+      success(transmit(IdentityCallerApplet.GET_SECRET_PIN_VALIDATION_RESULT))
+    );
+  }
+
+  private void assertSecretPINTries(int expected) {
+    Assertions.assertArrayEquals(
+      new byte[] { 0, (byte) expected },
+      success(transmit(IdentityCallerApplet.GET_SECRET_PIN_TRIES_REMAINING))
+    );
   }
 
   private byte[] concat(byte[] left, byte[] right) {

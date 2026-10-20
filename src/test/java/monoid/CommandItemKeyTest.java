@@ -40,8 +40,8 @@ public class CommandItemKeyTest {
     simulator.installApplet(MONOID_AID, MonoidApplet.class);
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
 
-    assertSuccess(transmit(0x22, pinRequest(true)));
-    assertSuccess(transmit(0x21, pinRequest(false)));
+    requireSuccess(transmit(0x22, pinRequest(true)));
+    requireSuccess(transmit(0x21, pinRequest(false)));
   }
 
   @AfterEach
@@ -77,7 +77,7 @@ public class CommandItemKeyTest {
     assertMetadata(first, firstKey);
     assertMetadata(second, secondKey);
     assertMetadata(absent, null);
-    CBORBufferReader reader = assertSuccess(transmit(0x32, indexRequest(second)));
+    CBORBufferReader reader = requireSuccess(transmit(0x32, indexRequest(second)));
     Assertions.assertArrayEquals(scalar, reader.requireKey(Text.data).bytes());
   }
 
@@ -96,8 +96,8 @@ public class CommandItemKeyTest {
     set(index, null, replacementData);
     assertMetadata(index, key);
 
-    assertSuccess(transmit(0x21, pinRequest(true)));
-    CBORBufferReader reader = assertSuccess(transmit(0x32, indexRequest(index)));
+    requireSuccess(transmit(0x21, pinRequest(true)));
+    CBORBufferReader reader = requireSuccess(transmit(0x32, indexRequest(index)));
     Assertions.assertFalse(reader.key(Text.key));
     Assertions.assertArrayEquals(replacementData, reader.requireKey(Text.data).bytes());
   }
@@ -108,15 +108,15 @@ public class CommandItemKeyTest {
     byte[] index = create(null, customIndex(1), null, data);
     assertMetadata(index, null);
     assertListedItems((short) 0, new byte[0], index);
-    CBORBufferReader reader = assertSuccess(transmit(0x30, new byte[] { (byte) 0xA0 }));
+    CBORBufferReader reader = requireSuccess(transmit(0x30, new byte[] { (byte) 0xA0 }));
     Assertions.assertEquals(1, reader.requireKey(Text.items).array());
     Assertions.assertTrue(reader.index((short) 0));
     reader.map();
     Assertions.assertFalse(reader.key(Text.key));
     Assertions.assertFalse(reader.key(Text.data));
 
-    assertSuccess(transmit(0x21, pinRequest(true)));
-    reader = assertSuccess(transmit(0x32, indexRequest(index)));
+    requireSuccess(transmit(0x21, pinRequest(true)));
+    reader = requireSuccess(transmit(0x32, indexRequest(index)));
     Assertions.assertFalse(reader.key(Text.key));
     Assertions.assertArrayEquals(data, reader.requireKey(Text.data).bytes());
 
@@ -160,7 +160,7 @@ public class CommandItemKeyTest {
       Assertions.assertNull(chunk);
     }
 
-    CBORBufferReader reader = assertSuccess(response);
+    CBORBufferReader reader = requireSuccess(response);
     Assertions.assertEquals(indexes.length, reader.requireKey(Text.items).array());
 
     for (short position = 0; position < indexes.length; position++) {
@@ -196,7 +196,7 @@ public class CommandItemKeyTest {
     );
     byte[] absent = create(null, customIndex(2), null, new byte[] { 2 });
     byte[] empty = create(null, customIndex(3), new byte[0], new byte[0], new byte[] { 3 });
-    CBORBufferReader reader = assertSuccess(transmit(0x30, listRequest((short) 0, null)));
+    CBORBufferReader reader = requireSuccess(transmit(0x30, listRequest((short) 0, null)));
     Assertions.assertEquals(3, reader.requireKey(Text.items).array());
     Assertions.assertTrue(reader.index((short) 0));
     reader.map();
@@ -226,7 +226,7 @@ public class CommandItemKeyTest {
 
     Arrays.fill(alias, (byte) 'a');
     byte[] index = create(null, customIndex(1), key, alias, new byte[] { 1 });
-    CBORBufferReader reader = assertSuccess(transmit(0x30, listRequest((short) 0, null)));
+    CBORBufferReader reader = requireSuccess(transmit(0x30, listRequest((short) 0, null)));
     Assertions.assertEquals(1, reader.requireKey(Text.items).array());
     Assertions.assertTrue(reader.index((short) 0));
     reader.map();
@@ -267,7 +267,7 @@ public class CommandItemKeyTest {
     writer.text(PIN);
 
     if (safePIN) {
-      writer.text(Text.safe);
+      writer.text(Text.secret);
       writer.bool(true);
     }
 
@@ -309,7 +309,7 @@ public class CommandItemKeyTest {
 
     writer.text(Text.data);
     writer.bytes(data);
-    return assertSuccess(transmit(0x34, writer.getDataBuffer())).requireKey(Text.index).bytes();
+    return requireSuccess(transmit(0x34, writer.getDataBuffer())).requireKey(Text.index).bytes();
   }
 
   private void set(byte[] index, byte[] key, byte[] data) {
@@ -328,7 +328,7 @@ public class CommandItemKeyTest {
       writer.bytes(data);
     }
 
-    assertSuccess(transmit(0x33, writer.getDataBuffer()));
+    requireSuccess(transmit(0x33, writer.getDataBuffer()));
   }
 
   private byte[] indexRequest(byte[] index) {
@@ -354,7 +354,7 @@ public class CommandItemKeyTest {
   }
 
   private void assertListedItems(short type, byte[] keyPrefix, byte[]... indexes) {
-    CBORBufferReader reader = assertSuccess(transmit(0x30, listRequest(type, keyPrefix)));
+    CBORBufferReader reader = requireSuccess(transmit(0x30, listRequest(type, keyPrefix)));
     Assertions.assertEquals(indexes.length, reader.requireKey(Text.items).array());
 
     for (short position = 0; position < indexes.length; position++) {
@@ -374,7 +374,7 @@ public class CommandItemKeyTest {
   }
 
   private void assertMetadata(byte[] index, byte[] key) {
-    CBORBufferReader reader = assertSuccess(transmit(0x31, indexRequest(index)));
+    CBORBufferReader reader = requireSuccess(transmit(0x31, indexRequest(index)));
     Assertions.assertFalse(reader.key(Text.data));
 
     if (key != null) {
@@ -410,7 +410,7 @@ public class CommandItemKeyTest {
     );
   }
 
-  private CBORBufferReader assertSuccess(ResponseAPDU response) {
+  private CBORBufferReader requireSuccess(ResponseAPDU response) {
     ByteArrayOutputStream output = new ByteArrayOutputStream();
 
     while (true) {

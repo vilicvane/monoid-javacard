@@ -27,15 +27,30 @@ public class IdentityCallerApplet
   public static final byte GET_BUNDLE = 9;
   public static final byte CREATE_BUNDLE = 10;
   public static final byte JOIN_BUNDLE = 12;
-  public static final byte RESET_BUNDLE = 13;
+  public static final byte RESET_IDENTITY = 13;
   public static final byte BORROW_RESULT = 14;
   public static final byte READ_RESULT = 15;
   public static final byte ENCRYPT_REENTRANT = 16;
   public static final byte GET_TOKEN = 17;
   public static final byte MUTATE_TOKEN_COPY = 18;
   public static final byte GET_TOKEN_ABORT_TRANSACTION = 19;
-  public static final byte RESET_BUNDLE_WITHOUT_TRANSACTION = 20;
+  public static final byte RESET_IDENTITY_WITHOUT_TRANSACTION = 20;
   public static final byte ENCRYPT_RESET_REENTRANT = 21;
+  public static final byte PREPARE_RESET = 22;
+  public static final byte PREPARE_RESET_IN_TRANSACTION = 23;
+  public static final byte ENCRYPT_PREPARE_RESET_REENTRANT = 24;
+  public static final byte IS_SECRET_PIN_SET = 25;
+  public static final byte GET_SECRET_PIN_TRIES_REMAINING = 26;
+  public static final byte CHECK_SECRET_PIN = 27;
+  public static final byte UPDATE_SECRET_PIN = 28;
+  public static final byte GET_SECRET_PIN_VALIDATION_RESULT = 29;
+  public static final byte CLEAR_SECRET_AUTH = 30;
+  public static final byte ENCRYPT_CHECK_SECRET_PIN_REENTRANT = 31;
+  public static final byte ENCRYPT_UPDATE_SECRET_PIN_REENTRANT = 32;
+  public static final byte ENCRYPT_CLEAR_SECRET_AUTH_REENTRANT = 33;
+  public static final byte DECRYPT_CHECK_SECRET_PIN_REENTRANT = 34;
+  public static final byte DECRYPT_UPDATE_SECRET_PIN_REENTRANT = 35;
+  public static final byte DECRYPT_CLEAR_SECRET_AUTH_REENTRANT = 36;
 
   private IdentityShareable identity;
   private CommunicationDataShareable result;
@@ -81,6 +96,24 @@ public class IdentityCallerApplet
       case GET_PUBLIC_KEY:
         send(apdu, identity.getPublicKey());
         return;
+      case IS_SECRET_PIN_SET:
+        send(apdu, new byte[] { identity.isSecretPINSet() ? (byte) 1 : 0 });
+        return;
+      case GET_SECRET_PIN_TRIES_REMAINING:
+        sendShort(apdu, identity.getSecretPINTriesRemaining());
+        return;
+      case CHECK_SECRET_PIN:
+        send(apdu, new byte[] { identity.checkSecretPIN(buffer) ? (byte) 1 : 0 });
+        return;
+      case UPDATE_SECRET_PIN:
+        identity.updateSecretPIN(buffer);
+        return;
+      case GET_SECRET_PIN_VALIDATION_RESULT:
+        sendShort(apdu, identity.getSecretPINValidationResult());
+        return;
+      case CLEAR_SECRET_AUTH:
+        identity.clearSecretAuth();
+        return;
       case GET_TOKEN:
         send(apdu, identity.getToken());
         return;
@@ -122,6 +155,13 @@ public class IdentityCallerApplet
       case DECRYPT_DATA:
       case ENCRYPT_REENTRANT:
       case ENCRYPT_RESET_REENTRANT:
+      case ENCRYPT_PREPARE_RESET_REENTRANT:
+      case ENCRYPT_CHECK_SECRET_PIN_REENTRANT:
+      case ENCRYPT_UPDATE_SECRET_PIN_REENTRANT:
+      case ENCRYPT_CLEAR_SECRET_AUTH_REENTRANT:
+      case DECRYPT_CHECK_SECRET_PIN_REENTRANT:
+      case DECRYPT_UPDATE_SECRET_PIN_REENTRANT:
+      case DECRYPT_CLEAR_SECRET_AUTH_REENTRANT:
         byte[] publicKey = duplicate(buffer, (short) 0, (short) 65);
         short contextLength = (short) (buffer[65] & 0xFF);
         short contextOffset = 66;
@@ -133,19 +173,53 @@ public class IdentityCallerApplet
         );
 
         byte[] index = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) 10);
-        Data source = instruction == ENCRYPT_REENTRANT || instruction == ENCRYPT_RESET_REENTRANT
+        boolean decrypt =
+          instruction == DECRYPT_DATA ||
+          instruction == DECRYPT_CHECK_SECRET_PIN_REENTRANT ||
+          instruction == DECRYPT_UPDATE_SECRET_PIN_REENTRANT ||
+          instruction == DECRYPT_CLEAR_SECRET_AUTH_REENTRANT;
+        Data source = instruction == ENCRYPT_REENTRANT ||
+          instruction == ENCRYPT_RESET_REENTRANT ||
+          instruction == ENCRYPT_PREPARE_RESET_REENTRANT ||
+          instruction == ENCRYPT_CHECK_SECRET_PIN_REENTRANT ||
+          instruction == ENCRYPT_UPDATE_SECRET_PIN_REENTRANT ||
+          instruction == ENCRYPT_CLEAR_SECRET_AUTH_REENTRANT ||
+          instruction == DECRYPT_CHECK_SECRET_PIN_REENTRANT ||
+          instruction == DECRYPT_UPDATE_SECRET_PIN_REENTRANT ||
+          instruction == DECRYPT_CLEAR_SECRET_AUTH_REENTRANT
           ? new Data(data) {
             @Override
             public void read(short dataOffset, byte[] buffer, short offset, short length) {
               if (instruction == ENCRYPT_RESET_REENTRANT) {
                 JCSystem.beginTransaction();
                 try {
-                  identity.resetBundle();
+                  identity.reset();
                 } finally {
                   if (JCSystem.getTransactionDepth() != 0) {
                     JCSystem.abortTransaction();
                   }
                 }
+              } else if (instruction == ENCRYPT_PREPARE_RESET_REENTRANT) {
+                identity.prepareReset();
+              } else if (
+                instruction == ENCRYPT_CHECK_SECRET_PIN_REENTRANT ||
+                instruction == DECRYPT_CHECK_SECRET_PIN_REENTRANT
+              ) {
+                identity.checkSecretPIN(
+                  (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) 6)
+                );
+              } else if (
+                instruction == ENCRYPT_UPDATE_SECRET_PIN_REENTRANT ||
+                instruction == DECRYPT_UPDATE_SECRET_PIN_REENTRANT
+              ) {
+                identity.updateSecretPIN(
+                  (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) 6)
+                );
+              } else if (
+                instruction == ENCRYPT_CLEAR_SECRET_AUTH_REENTRANT ||
+                instruction == DECRYPT_CLEAR_SECRET_AUTH_REENTRANT
+              ) {
+                identity.clearSecretAuth();
               } else {
                 identity.createBundle(identity.getPublicKey());
               }
@@ -153,10 +227,10 @@ public class IdentityCallerApplet
             }
           }
           : new Data(data);
-        result = instruction != DECRYPT_DATA
-          ? identity.encryptData(index, null, context, (short) 0x5AFE, publicKey, source)
-          : identity.decryptData(index, null, context, publicKey, new Data(data));
-        send(apdu, readResult(instruction != DECRYPT_DATA ? (short) 0 : (short) 2));
+        result = decrypt
+          ? identity.decryptData(index, null, context, publicKey, source)
+          : identity.encryptData(index, null, context, (short) 0x5AFE, publicKey, source);
+        send(apdu, readResult(decrypt ? (short) 2 : (short) 0));
         return;
       case BORROW_IDENTITY:
       case BORROW_RESULT:
@@ -189,11 +263,22 @@ public class IdentityCallerApplet
           )
         );
         return;
-      case RESET_BUNDLE:
+      case PREPARE_RESET:
+        send(apdu, identity.prepareReset());
+        return;
+      case PREPARE_RESET_IN_TRANSACTION:
+        JCSystem.beginTransaction();
+        try {
+          identity.prepareReset();
+        } finally {
+          JCSystem.abortTransaction();
+        }
+        return;
+      case RESET_IDENTITY:
         byte[] depth = new byte[1];
         JCSystem.beginTransaction();
         try {
-          identity.resetBundle();
+          identity.reset();
           depth[0] = JCSystem.getTransactionDepth();
           JCSystem.commitTransaction();
         } finally {
@@ -203,8 +288,8 @@ public class IdentityCallerApplet
         }
         send(apdu, depth);
         return;
-      case RESET_BUNDLE_WITHOUT_TRANSACTION:
-        identity.resetBundle();
+      case RESET_IDENTITY_WITHOUT_TRANSACTION:
+        identity.reset();
         return;
       default:
         ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
@@ -270,5 +355,11 @@ public class IdentityCallerApplet
     apdu.setOutgoing();
     apdu.setOutgoingLength((short) data.length);
     apdu.sendBytesLong(data, (short) 0, (short) data.length);
+  }
+
+  private void sendShort(APDU apdu, short value) {
+    byte[] data = new byte[2];
+    Util.setShort(data, (short) 0, value);
+    send(apdu, data);
   }
 }

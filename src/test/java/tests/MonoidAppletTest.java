@@ -50,7 +50,7 @@ public class MonoidAppletTest extends AppletTest {
     "f06d6f6e6f69640201"
   );
 
-  private static final byte[] SAFE_PIN = "888888".getBytes();
+  private static final byte[] SECRET_PIN = "888888".getBytes();
   private static final byte[] PIN = "123456".getBytes();
 
   private static final byte[] TEST_SEED = Hex.decode(
@@ -155,9 +155,9 @@ public class MonoidAppletTest extends AppletTest {
     writer.map((short) 2);
     {
       writer.text("pin".getBytes());
-      writer.text(SAFE_PIN);
+      writer.text(SECRET_PIN);
 
-      writer.text("safe".getBytes());
+      writer.text("secret".getBytes());
       writer.bool(true);
     }
 
@@ -240,9 +240,9 @@ public class MonoidAppletTest extends AppletTest {
     writer.map((short) 2);
     {
       writer.text("pin".getBytes());
-      writer.text(SAFE_PIN);
+      writer.text(SECRET_PIN);
 
-      writer.text("safe".getBytes());
+      writer.text("secret".getBytes());
       writer.bool(true);
     }
 
@@ -1975,7 +1975,7 @@ public class MonoidAppletTest extends AppletTest {
     Assertions.assertFalse(reader.requireKey("bundle".getBytes()).bool());
 
     Assertions.assertEquals(2, reader.requireKey("pins".getBytes()).map());
-    for (String pin : new String[] { "access", "safe" }) {
+    for (String pin : new String[] { "access", "secret" }) {
       reader.requireKey(pin.getBytes());
       if (pinsSet) {
         Assertions.assertTrue(reader.integer() > 0);
@@ -2041,10 +2041,10 @@ public class MonoidAppletTest extends AppletTest {
     writer.map((short) (safeAuth ? 2 : 1));
     {
       writer.text("pin".getBytes());
-      writer.text(safeAuth ? SAFE_PIN : PIN);
+      writer.text(safeAuth ? SECRET_PIN : PIN);
 
       if (safeAuth) {
-        writer.text("safe".getBytes());
+        writer.text("secret".getBytes());
         writer.bool(true);
       }
     }

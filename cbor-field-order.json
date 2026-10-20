@@ -3,10 +3,10 @@
     "$": []
   },
   "0x21": {
-    "$": ["safe", "pin"]
+    "$": ["secret", "pin"]
   },
   "0x22": {
-    "$": ["pin", "safe"]
+    "$": ["pin", "secret"]
   },
   "0x23": {
     "$": ["publicKeys"]

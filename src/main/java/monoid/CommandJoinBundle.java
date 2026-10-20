@@ -4,7 +4,7 @@ public final class CommandJoinBundle extends Command {
 
   @Override
   protected void run() {
-    requireAuth(AUTH_SAFE);
+    requireAuth(AUTH_SECRET);
 
     reader.map();
     byte[] senderPublicKey = reader.requireKey(Text.senderPublicKey).bytesGlobal((short) 65);

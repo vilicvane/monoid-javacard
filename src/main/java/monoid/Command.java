@@ -20,7 +20,7 @@ public abstract class Command {
   // @formatter:on
 
   public static final short AUTH_ACCESS = (short) 0xA501;
-  public static final short AUTH_SAFE = (short) 0x5AFE;
+  public static final short AUTH_SECRET = (short) 0x5AFE;
 
   protected static CBORApduReader reader;
   protected static CBORApduWriter writer;
@@ -29,7 +29,7 @@ public abstract class Command {
 
   private static LibSecurity.Condition clearedAuthorization;
   private static LibSecurity.Condition accessAuthorization;
-  private static LibSecurity.Condition safeAuthorization;
+  private static LibSecurity.Condition secretAuthorization;
   private static LibSecurity.Condition accessPermission;
   private static LibSecurity.Condition pinValidation;
 
@@ -72,16 +72,16 @@ public abstract class Command {
         return matchesAuth(AUTH_ACCESS);
       }
     };
-    safeAuthorization = new LibSecurity.Condition() {
+    secretAuthorization = new LibSecurity.Condition() {
       @Override
       public boolean check() {
-        return matchesAuth(AUTH_SAFE);
+        return matchesAuth(AUTH_SECRET);
       }
     };
     accessPermission = new LibSecurity.Condition() {
       @Override
       public boolean check() {
-        return matchesAuth(AUTH_ACCESS) || matchesAuth(AUTH_SAFE);
+        return matchesAuth(AUTH_ACCESS) || matchesAuth(AUTH_SECRET);
       }
     };
     pinValidation = new LibSecurity.Condition() {
@@ -121,7 +121,7 @@ public abstract class Command {
 
     clearedAuthorization = null;
     accessAuthorization = null;
-    safeAuthorization = null;
+    secretAuthorization = null;
     accessPermission = null;
     pinValidation = null;
 
@@ -351,7 +351,7 @@ public abstract class Command {
 
     reader.map();
 
-    boolean safeAuth = reader.key(Text.safe) && reader.boolTrue();
+    boolean secretAuth = reader.key(Text.secret) && reader.boolTrue();
 
     byte[] pin = reader.requireKey(Text.pin).text();
 
@@ -359,7 +359,7 @@ public abstract class Command {
 
     short tries;
 
-    if (safeAuth) {
+    if (secretAuth) {
       Safe safe = MonoidApplet.safe;
 
       if (safe.getPINSetResult(SAFE_FALSE) != SAFE_TRUE) {
@@ -372,7 +372,7 @@ public abstract class Command {
           MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
         }
 
-        setAuth(AUTH_SAFE);
+        setAuth(AUTH_SECRET);
         return;
       }
 
@@ -420,8 +420,8 @@ public abstract class Command {
       return AUTH_ACCESS;
     }
 
-    if (LibSecurity.check(safeAuthorization, SAFE_FALSE) == SAFE_TRUE) {
-      return AUTH_SAFE;
+    if (LibSecurity.check(secretAuthorization, SAFE_FALSE) == SAFE_TRUE) {
+      return AUTH_SECRET;
     }
 
     MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
@@ -441,8 +441,8 @@ public abstract class Command {
       case AUTH_ACCESS:
         permission = accessPermission;
         break;
-      case AUTH_SAFE:
-        permission = safeAuthorization;
+      case AUTH_SECRET:
+        permission = secretAuthorization;
         break;
       default:
         MonoidException.throwIt(

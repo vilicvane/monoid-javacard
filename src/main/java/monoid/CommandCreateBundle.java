@@ -21,7 +21,7 @@ public final class CommandCreateBundle extends Command implements CBORResponse {
 
   @Override
   protected void run() {
-    requireAuth(AUTH_SAFE);
+    requireAuth(AUTH_SECRET);
 
     reader.map();
     short count = reader.requireKey(Text.publicKeys).array();
