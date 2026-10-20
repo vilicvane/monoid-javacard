@@ -160,11 +160,17 @@ public final class Safe {
   public void reset() {
     IdentityShareable identity = requireIdentity();
     SafeItem[] emptyItems = new SafeItem[ITEM_LENGTH_EXTENSION];
+    OwnerPIN safePIN = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_LENGTH);
+    OwnerPIN accessPIN = new OwnerPIN(MonoidApplet.PIN_TRY_LIMIT, MonoidApplet.MAX_PIN_LENGTH);
     JCSystem.beginTransaction();
 
     try {
       items = emptyItems;
       itemsLength = 0;
+      pin = safePIN;
+      pinState = PIN_UNSET;
+      pinStateInverse = (short) ~PIN_UNSET;
+      MonoidApplet.resetPIN(accessPIN);
       KeyDerivation.clearCache();
       identity.resetBundle();
       JCSystem.commitTransaction();
@@ -174,6 +180,8 @@ public final class Safe {
       }
     }
 
+    clearAuth();
+    Command.clearAuth();
     JCSystem.requestObjectDeletion();
   }
 

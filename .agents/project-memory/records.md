@@ -303,8 +303,12 @@
 
 153. [user] 要求继续Applet授权。[agent] 按Monoid/Safe合并后的现状整理134草案，保留已确认的types/keys/seed模型；拟先接0x26/27/28管理、内部持久授权目录和monoidapi客户端身份接口，安装级随机token不复用Identity稳定token。新增接口尚待明确确认，未改生产或访问卡；见 [授权管理接入提案](./153.md)。
 
-154. [user] 批准0x23 Create Bundle和0x24 Join Bundle，Create拒绝覆盖已有Bundle；曾改为仅GP重建，随后明确恢复0xFF Reset并要求完全无需PIN，空请求/响应，清条目/派生缓存/Bundle而保留PIN和Identity。[agent] Import相关方法和类统一改Join；Safe.reset在同一事务中清本地条目/缓存并调用Identity.resetBundle，后者限固定Monoid调用方且要求已有事务；0x25不支持。任意APDU调用方可清本地数据但不能由此读取/导出，PIN次数与锁死状态不变；GC不保证物理擦除，既有密文和入组包不撤销。334项JUnit、5项JS与两正式CAP通过；隔离卡55690320完成161次操作及满32缓存跨SIO真实回滚，临时包清理、原registry/响应保留，详见 [Bundle创建/加入与原子Reset](./154.md)。
+154. [user] 批准0x23 Create Bundle和0x24 Join Bundle，Create拒绝覆盖已有Bundle；恢复0xFF Reset并要求无需PIN、空请求/响应。[agent] 0686ab4实现同事务清条目/派生缓存/Bundle，却误解为保留两PIN及锁死状态，已被157纠正。Import统一改Join，0x25不支持，Bundle安全分支三轮保守检查。该旧版334项JUnit、5项JS、两CAP及隔离卡55690320的161次操作/满32缓存跨SIO回滚均通过，临时包清理且原卡基线保留；这些证据不验证157的新语义，详见 [Bundle创建/加入与原子Reset历史](./154.md)。
 
-155. [user] 希望用专门文档集中安全边界及此前约定，供后续audit作基准。[agent] 新增doc/security.md并从README/架构链接，按当前合并架构核对PIN权限、Secret、Identity/AID隔离、Bundle固定成员和认可的同AID迁出路径，注明GP/host信任、持久内存、事务和物理验证边界，并同步154恢复的原子Reset；待审查的PIN输入转换与未实现能力不列为已验证保证。详见 [安全审计基线](./155.md)。
+155. [user] 希望用专门文档集中安全边界及此前约定，供后续audit作基准。[agent] 新增doc/security.md并从README/架构链接，按当前合并架构核对PIN权限、Secret、Identity/AID隔离、Bundle固定成员和认可的同AID迁出路径，注明GP/host信任、持久内存、事务和物理验证边界，并按157纠正Reset为清除两PIN/认证、恢复未初始化状态；待审查的PIN输入转换与未实现能力不列为已验证保证。详见 [安全审计基线](./155.md)。
 
-156. [user] 提议Hello nonce签名以检测Monoid Applet被替换，接受独立安装密钥方向，要求先记录、完成当前Reset需求后继续。[agent] 现有Hello公钥属于Identity且随Monoid重装保留，不能证明Monoid未换；建议安装生成P-256密钥、客户端首次信任后pinning，正常重装换key而Reset保留，未来明确升级同步。具体nonce/proof字段及签名编码尚未批准；无生产/README/实卡改动，详见 [Hello挑战与安装身份提案](./156.md)。
+156. [user] 提议Hello nonce签名以检测Monoid Applet被替换，接受独立安装密钥方向，要求先记录、完成当前Reset需求后继续。[agent] 现有Hello公钥属于Identity且随Monoid重装保留，不能证明Monoid未换；建议安装生成P-256密钥、客户端首次信任后pinning，正常重装换key，未来安装key的Reset行为待定，并需明确升级同步。具体nonce/proof字段及签名编码尚未批准；无生产/README/实卡改动，详见 [Hello挑战与安装身份提案](./156.md)。
+
+## 0686ab4
+
+157. [user] 纠正Reset本意为恢复刚安装的未初始化状态：无需PIN，同时清条目/缓存/Bundle、两PIN及错误次数/锁死/认证，保留Identity；Hello nonce先不做。[agent] 将154的保留PIN实现与测试保留为历史，当前文档同步Hello双PIN false及重新初始化流程，新增持久状态原子发布/成功后清认证的约束；纠正版335项JUnit、5项JS、两CAP及Inplate通过；卡55690320隔离274次操作、12次独立验签及满32缓存/FIFO/两PIN4/4/认证/Bundle真实回滚通过，成功后双PINfalse/原始tries5/认证0，双PIN锁死后可重设并验签。6次Reset含一次abort，日志峰值3072/5120B；临时包全清、264源哈希与原卡基线不变，未正式部署或推送，详见 [Reset恢复未初始化状态](./157.md)。

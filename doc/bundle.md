@@ -90,19 +90,23 @@ does not certify card hardware or installed applet code.
 
 ## Reinitialization
 
-`0xFF Reset` requires no PIN and clears all local Monoid items, the derivation
-cache and the local Bundle in one transaction. It preserves both PINs and their
-remaining-attempt/blocked state, Identity's key pair, ID and binding token.
-A failed transaction retains the previous state;
-success requests garbage collection. It is not a hardware-erasure guarantee.
+`0xFF Reset` requires no PIN and returns Monoid to an uninitialized state. It clears
+all local items, the derivation cache, both PINs and their failed-attempt/blocked
+state, and the local Bundle. The persistent changes commit in one transaction;
+success clears current authorization and requests garbage collection. A failed
+transaction retains the previous persistent state. Identity's key pair, ID and
+binding token are preserved. It is not a hardware-erasure guarantee.
 The request and response are both `{}`. The former `0x25` instruction is unsupported.
 
 Anyone able to send Monoid APDUs can clear these records. This is an intentional
 availability boundary, not permission to read or export them. Reset still verifies
-Monoid's binding to Identity and cannot unblock a PIN or replace GP reinstallation.
+Monoid's binding to Identity. Hello then reports `pins: {access: false, safe: false}`
+and `bundle: false`; the next user must initialize new PINs before ordinary storage
+or Bundle management. Reset recovers from blocked PINs by deleting the protected
+data and both PINs together, rather than unlocking access to the old records.
 
-After Reset, Create can establish a new Bundle or Join can accept another member's
-enrollment packet. Reset affects neither other cards nor previously exported
+After PIN initialization, Create can establish a new Bundle or Join can accept
+another member's enrollment packet. Reset affects neither other cards nor previously exported
 artifacts. The retained Identity can still import asymmetric artifacts addressed to
 it. Old Bundle artifacts require their original Bundle key; saved enrollment
 packets can rejoin that Bundle. Reset is local data removal, not artifact revocation.
@@ -112,6 +116,9 @@ their CAP packages can remain loaded. Delete dependent instances first and recre
 their providers first. For Monoid and Identity, delete Monoid before Identity, then
 create Identity before Monoid. Clients holding Shareable references must release
 them or be deleted first.
+
+Reset retains the installed Monoid code and instance. It does not perform a GP
+uninstall/reinstall or replace the Identity applet.
 
 Recreating Monoid clears its items, PINs and derivation cache but retains Identity's
 Bundle. Recreating Identity as well clears the local Bundle and generates a new key

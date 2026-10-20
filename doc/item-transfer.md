@@ -150,7 +150,8 @@ a different recipient requires a new Export. A Bundle artifact can be imported
 by the same applet AID on any member holding the shared key. Retaining Identity and its Bundle state
 permits importing the corresponding artifacts after Monoid replacement.
 
-`0xFF Reset` clears local items and the Bundle together, preserving the Identity.
+`0xFF Reset` clears local items, both PINs, authorization and the Bundle together,
+preserving the Identity. New PINs must be initialized before importing artifacts.
 It does not revoke copies on other cards or exported artifacts. Old asymmetric
 artifacts remain addressed to the retained Identity; old Bundle artifacts require
 rejoining their original Bundle before they can be imported.

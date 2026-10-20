@@ -127,14 +127,14 @@ complete path or context. A hit skips both seed-to-master and path derivation.
 Different paths have separate entries; intermediate path prefixes are not cached.
 
 Each entry holds the final derived key and lazily caches its public key.
-Ed25519 also retains the expanded scalar and signing prefix. Reset or deselection
+Ed25519 also retains the expanded scalar and signing prefix. Card reset or deselection
 invalidates transient working keys; subsequent operations restore them from the
 persistent result. Signature nonces are computed for every message.
 
 Commands still authorize access and read the current Safe item before lookup.
 Changed source bytes miss the cache, and removed items cannot use it. Taproot
 adjustments apply only to a working copy. Cached material remains until FIFO
-eviction or Monoid removal; hits do not refresh the eviction order.
+eviction, `0xFF Reset` or Monoid removal; hits do not refresh the eviction order.
 Weierstrass public-key reuse currently serves ordinary ViewKey; BIP340 and
 Taproot operations still compute the public keys needed for their adjustments.
 
@@ -146,11 +146,16 @@ Safe PIN must be set and unblocked. Sensitive commands additionally require Safe
 PIN authorization. Monoid does not persist a copy of the Safe PIN or automatically
 reverify it during ordinary storage access.
 
-Ordinary APDU authorization clears on deselection. Verifying a PIN checks both
+Ordinary APDU authorization clears on deselection, card reset and successful `0xFF Reset`. Verifying a PIN checks both
 the native `OwnerPIN` result and validation flag before publishing redundant
 authorization state; subsequent access checks repeat three times. Only successful
-Safe PIN authentication resets its failed-attempt counter. Access-authenticated
+Safe PIN authentication resets its failed-attempt counter during normal use. Access-authenticated
 storage operations do not reset that counter.
+
+`0xFF Reset` requires no PIN. It clears all items, derivation cache, Bundle, both
+PINs and current authorization, returning Monoid to an uninitialized state while
+preserving Identity. This also clears blocked-PIN state; new PIN initialization is
+required before ordinary storage use. It does not replace the installed applet.
 
 Safe storage, item objects and derivation caches belong to Monoid's applet
 context. They no longer expose a separate Safe Shareable interface. Replacing

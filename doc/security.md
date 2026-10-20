@@ -53,7 +53,7 @@ membership. None of those Identity secrets has a raw export interface.
 | Change either PIN                                                               | Safe authorization once a PIN is configured. Access authorization is insufficient.                                          |
 | List, View, Get, Set, Create, Remove, Create random key, Import, View Key, Sign | Access or Safe authorization. Safe storage additionally requires its PIN to be set and unblocked. Get also checks `secret`. |
 | Export, Create Bundle, Join Bundle                                              | Safe authorization. Bundle creation/joining also requires the fixed Monoid caller AID inside Identity.                      |
-| Reset                                                                           | No PIN. Verifies the Identity binding and fixed Monoid caller AID before atomically clearing local items/cache/Bundle.      |
+| Reset                                                                           | No PIN. Verifies Identity binding and the fixed Monoid caller AID; clears items/cache/Bundle, both PINs and authorization.  |
 | GP deletion/recreation                                                          | Card-management authorization; not authorized or prevented by Monoid PINs.                                                  |
 
 Access PIN is not a read-only permission: it permits signing and item mutations,
@@ -61,8 +61,8 @@ including replacement and deletion. Safe PIN includes ordinary access and adds
 PIN management and encrypted export/Bundle management. See the commands for exact
 inputs and error behavior.
 
-APDU authorization is scoped to Monoid selection and is cleared by deselection
-or card reset. It can cover multiple commands; it is not automatically revoked
+APDU authorization is scoped to Monoid selection and is cleared by deselection,
+card reset or successful `0xFF Reset`. It can cover multiple commands; it is not automatically revoked
 after each response. A failed authentication attempt is not a universal logout
 of an already authorized session. Safe PIN blocking prevents subsequent protected
 storage operations, including when command authorization was previously obtained.
@@ -104,7 +104,7 @@ another's artifacts; matching AIDs on different cards intentionally interoperate
 Forwarding a Shareable reference must not impersonate the original caller.
 Completed communication results are readable only by their original caller.
 Identity itself stores and verifies no PIN: Safe PIN authorization for Bundle
-management and Monoid item export is enforced by trusted Monoid code.
+creation/joining and Monoid item export is enforced by trusted Monoid code.
 
 Monoid binds privately to Identity before creating PINs/items. Later checks reject
 a different token and do not automatically rebind retained data. Public-key/ID
@@ -147,7 +147,7 @@ still accepted. Bundle artifacts authenticate the group, not an individual membe
 Membership is fixed at creation. Create rejects an existing Bundle even for the
 same roster. Join verifies the enrollment packet, accepts an identical key/roster
 idempotently and rejects a conflicting one. `0xFF Reset` clears local items,
-derivation cache and Bundle together; it cannot clear only the Bundle while
+derivation cache, both PINs, authorization and Bundle together; it cannot clear only the Bundle while
 retaining Monoid data. Bundle management is
 restricted to the exact Monoid AID, although other applets may use their own
 communication domains under the same shared root.
@@ -186,13 +186,17 @@ new identity key, ID and binding secret. Retaining the old Monoid does not silen
 bind it to the replacement. Old asymmetric artifacts and enrollment packets do not
 become decryptable by a new Identity with the same AID.
 
-`0xFF Reset` requires no PIN and clears all local items, the derivation cache and
-the Bundle while preserving both PINs and Identity's keys, ID and binding token.
+`0xFF Reset` requires no PIN and returns Monoid to its uninitialized state: it clears
+all local items, the derivation cache, both PINs and their failed-attempt/blocked
+state, current authorization and the Bundle. Identity's keys, ID and binding token
+are preserved. Hello reports both PINs and Bundle as `false`, and ordinary
+protected operations require new PIN initialization.
 Anyone able to send Monoid APDUs can cause this data loss; availability against
 that caller is deliberately not protected by PIN authentication. Reset gives no
 permission to read or export the removed data. Identity binding and the fixed
-Monoid caller check remain enforced. PIN attempts and blocked states are preserved,
-so Reset cannot recover a blocked PIN and is not equivalent to GP reinstallation.
+Monoid caller check remain enforced. A blocked card can be initialized again only
+after Reset has removed its old protected records. Reset does not replace installed
+code or the applet instance, unlike GP reinstallation.
 It does not remove data from other members or revoke previously exported artifacts.
 The retained Identity still accepts asymmetric artifacts addressed to it, and
 saved enrollment packets can rejoin the original Bundle. Reset is not a permanent
@@ -232,9 +236,10 @@ Do not assume an entire command is one transaction. For example, Set publishes
 data/secret together but updates alias separately; a later failure can leave the
 earlier update committed. Initial Safe and Access PIN setup also uses separate
 updates. These scopes differ from publishing a fully authenticated imported item
-or a completed Bundle. Reset publishes item removal, derivation-cache clearing
-and Identity's Bundle removal in one transaction across both applet contexts;
-an aborted transaction preserves all three. Successful Reset requests garbage
+or a completed Bundle. Reset publishes item removal, derivation-cache clearing,
+replacement of both PINs with unset state and Identity's Bundle removal in one
+transaction across both applet contexts. An aborted transaction preserves the
+previous persistent state. Successful Reset clears current authorization and requests garbage
 collection without promising physical erasure. Multi-command backup, GP deletion/installation and
 cross-card enrollment have no shared transaction.
 

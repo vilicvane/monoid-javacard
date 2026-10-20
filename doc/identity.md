@@ -162,7 +162,8 @@ Joining a Bundle is idempotent only for an identical key and membership. Bundle
 creation requires no existing Bundle. Neither method replaces an installed Bundle.
 `resetBundle` requires an active transaction owned by Monoid and no communication
 operation in progress. Monoid calls it while atomically clearing its items and
-derivation cache through `0xFF Reset`; it is not a standalone host operation.
+derivation cache and replacing both PINs with unset state through `0xFF Reset`;
+successful Reset also clears Monoid authorization. It is not a standalone host operation.
 See [reinitialization](bundle.md#reinitialization) for Reset and the GP lifecycle.
 
 ## Safe ID

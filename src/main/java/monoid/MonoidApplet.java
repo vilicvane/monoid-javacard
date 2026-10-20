@@ -143,6 +143,12 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     return LibSecurity.check(pinSetValidation, conservativeResult);
   }
 
+  static void resetPIN(OwnerPIN replacement) {
+    pin = replacement;
+    pinState = PIN_UNSET;
+    pinStateInverse = (short) ~PIN_UNSET;
+  }
+
   public static void updatePIN(byte[] pinBytes) {
     checkPINUpdate();
 

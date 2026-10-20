@@ -598,7 +598,7 @@ type Response = {
 
 ### `0xFF` Reset
 
-> No authentication required. Clears all items, derivation cache and Bundle; preserves both PINs and Identity.
+> No authentication required. Clears all items, derivation cache, Bundle, both PINs and authorization; preserves Identity.
 
 ```ts
 type Request = {};

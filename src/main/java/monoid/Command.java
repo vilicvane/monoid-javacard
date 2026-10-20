@@ -398,6 +398,11 @@ public abstract class Command {
     PINException.throwIt(tries);
   }
 
+  static void clearAuth() {
+    auth[0] = 0;
+    auth[1] = 0;
+  }
+
   private static void setAuth(short value) {
     // Invalidate the previous state before publishing the new state and its complement.
     auth[0] = 0;
