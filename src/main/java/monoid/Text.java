@@ -4,6 +4,7 @@ public class Text {
 
   // @formatter:off
   public static final byte[] access = {'a','c','c','e','s','s'};
+  public static final byte[] aid = {'a','i','d'};
   public static final byte[] alias = {'a','l','i','a','s'};
   public static final byte[] auth = {'a','u','t','h'};
   public static final byte[] available = {'a','v','a','i','l','a','b','l','e'};
@@ -19,9 +20,11 @@ public class Text {
   public static final byte[] derivation = {'d','e','r','i','v','a','t','i','o','n'};
   public static final byte[] digest = {'d','i','g','e','s','t'};
   public static final byte[] deselect = {'d','e','s','e','l','e','c','t'};
+  public static final byte[] domain = {'d','o','m','a','i','n'};
   public static final byte[] error = {'e','r','r','o','r'};
   public static final byte[] exception = {'e','x','c','e','p','t','i','o','n'};
   public static final byte[] features = {'f','e','a','t','u','r','e','s'};
+  public static final byte[] grants = {'g','r','a','n','t','s'};
   public static final byte[] id = {'i','d'};
   public static final byte[] index = {'i','n','d','e','x'};
   public static final byte[] indexes = {'i','n','d','e','x','e','s'};
@@ -29,6 +32,7 @@ public class Text {
   public static final byte[] javacard = {'j','a','v','a','c','a','r','d'};
   public static final byte[] key = {'k','e','y'};
   public static final byte[] keyPrefix = {'k','e','y','P','r','e','f','i','x'};
+  public static final byte[] keys = {'k','e','y','s'};
   public static final byte[] length = {'l','e','n','g','t','h'};
   public static final byte[] memories = {'m','e','m','o','r','i','e','s'};
   public static final byte[] merkleRoot = {'m','e','r','k','l','e','R','o','o','t'};
@@ -51,9 +55,11 @@ public class Text {
   public static final byte[] signature = {'s','i','g','n','a','t','u','r','e'};
   public static final byte[] system = {'s','y','s','t','e','m'};
   public static final byte[] taproot = {'t','a','p','r','o','o','t'};
+  public static final byte[] tokenHash = {'t','o','k','e','n','H','a','s','h'};
   public static final byte[] transient_ = {'t','r','a','n','s','i','e','n','t'};
   public static final byte[] tries = {'t','r','i','e','s'};
   public static final byte[] type = {'t','y','p','e'};
+  public static final byte[] types = {'t','y','p','e','s'};
   public static final byte[] version = {'v','e','r','s','i','o','n'};
   public static final byte[] versions = {'v','e','r','s','i','o','n','s'};
   // @formatter:on

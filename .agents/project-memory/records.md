@@ -301,7 +301,7 @@
 
 ## 5df1f5e
 
-153. [user] 要求继续Applet授权。[agent] 按Monoid/Safe合并后的现状整理134草案，保留已确认的types/keys/seed模型；拟先接0x26/27/28管理、内部持久授权目录和monoidapi客户端身份接口，安装级随机token不复用Identity稳定token。新增接口尚待明确确认，未改生产或访问卡；见 [授权管理接入提案](./153.md)。
+153. [user] 批准开始Applet授权管理，命令从0x50开始、接口与Monoid同包，不另拆API CAP。[agent] 实现0x50/51/52及客户端身份接口，types/keys/seed独立可选，Secret PIN管理、Set整份原子替换、Reset同事务清目录；客户端安装时随机token的hash通过SIO取得，回调后复核授权，不保留客户端对象。369 JUnit/6 JS/两份生产CAP通过；55690320实卡80个逻辑交互验证回调失效拒绝、客户端重装及Reset回滚/清空，临时E0/E2/E3已清，原registry和SELECT/Hello结果不变。四Key完整Set约2.06s、399B List约612ms；只修主机runner的secret:false，卡端源码不变。数据/签名服务SIO仍未实现，未正式部署或提交；见 [授权管理接入](./153.md)。
 
 154. [user] 批准0x23 Create Bundle和0x24 Join Bundle，Create拒绝覆盖已有Bundle；恢复0xFF Reset并要求无需PIN、空请求/响应。[agent] 0686ab4实现同事务清条目/派生缓存/Bundle，却误解为保留两PIN及锁死状态，已被157纠正。Import统一改Join，0x25不支持，Bundle安全分支三轮保守检查。该旧版334项JUnit、5项JS、两CAP及隔离卡55690320的161次操作/满32缓存跨SIO回滚均通过，临时包清理且原卡基线保留；这些证据不验证157的新语义，详见 [Bundle创建/加入与原子Reset历史](./154.md)。
 

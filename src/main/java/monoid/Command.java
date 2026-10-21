@@ -52,6 +52,9 @@ public abstract class Command {
 
   public static Command viewKey;
   public static Command sign;
+  public static Command listAppletGrants;
+  public static Command setAppletGrant;
+  public static Command removeAppletGrant;
   public static Command reset;
 
   public static void init() {
@@ -110,6 +113,9 @@ public abstract class Command {
 
     viewKey = new CommandViewKey();
     sign = new CommandSign();
+    listAppletGrants = new CommandListAppletGrants();
+    setAppletGrant = new CommandSetAppletGrant();
+    removeAppletGrant = new CommandRemoveAppletGrant();
     reset = new CommandReset();
   }
 
@@ -144,6 +150,9 @@ public abstract class Command {
 
     viewKey = null;
     sign = null;
+    listAppletGrants = null;
+    setAppletGrant = null;
+    removeAppletGrant = null;
     reset = null;
   }
 
@@ -183,6 +192,12 @@ public abstract class Command {
         return viewKey;
       case 0x41:
         return sign;
+      case 0x50:
+        return listAppletGrants;
+      case 0x51:
+        return setAppletGrant;
+      case 0x52:
+        return removeAppletGrant;
       case (byte) 0xFF:
         return reset;
       default:

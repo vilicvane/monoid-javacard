@@ -193,4 +193,12 @@ Hello exposes the stable Identity ID and public key,
 the Bundle key hash or `false`, and both PIN try counters. Cryptographic capability
 declarations are returned by System Information. Both commands report the software
 version from an independent build constant, not from the instance AID.
-Third-party authorization and signing interfaces are not yet implemented.
+Applet grants are managed by `0x50` List, `0x51` Set and `0x52` Remove, all under
+Secret PIN authorization. Monoid owns the grant directory separately from Safe
+items; replacement is atomic and Reset clears it with the other Monoid state.
+The optional exact-Type permissions, fixed Key descriptors and single seed/domain
+are independent. Clients expose `monoid.MonoidClientShareable` to supply their
+installation-token hash. Public interfaces live in `monoid.cap`, so client CAPs
+import that package and must be removed before replacing its code package.
+Third-party data and signing service methods remain separate from this management
+layer and are not yet implemented.

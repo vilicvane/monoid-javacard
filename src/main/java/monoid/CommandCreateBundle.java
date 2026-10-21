@@ -54,7 +54,8 @@ public final class CommandCreateBundle extends Command implements CBORResponse {
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
       }
 
-      reader.setOffset(offset);
+      // Work around CAP converter lookup failures by referencing setOffset's declaring class.
+      ((CBORReader) reader).setOffset(offset);
       reader.bytes(publicKeys, (short) (index * PUBLIC_KEY_LENGTH));
     }
 

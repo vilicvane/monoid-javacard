@@ -54,6 +54,18 @@
     "$.derivation": ["type", "curve", "path", "context"],
     "$.taproot": ["merkleRoot"]
   },
+  "0x50": {
+    "$": []
+  },
+  "0x51": {
+    "$": ["aid", "types", "keys", "seed"],
+    "$.keys[]": ["index", "type", "derivation"],
+    "$.keys[].derivation": ["type", "curve", "path", "context"],
+    "$.seed": ["index", "domain"]
+  },
+  "0x52": {
+    "$": ["aid"]
+  },
   "0xFF": {
     "$": []
   }

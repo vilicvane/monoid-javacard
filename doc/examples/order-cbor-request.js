@@ -6,6 +6,10 @@ export function orderCborRequest(ins, request, fieldOrders) {
 }
 
 function orderMap(value, path, orders) {
+  if (Array.isArray(value) && orders?.[`${path}[]`]) {
+    return value.map(item => orderMap(item, `${path}[]`, orders));
+  }
+
   const order = orders?.[path];
 
   if (!order || value === null || typeof value !== 'object') {

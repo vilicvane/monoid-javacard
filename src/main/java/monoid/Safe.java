@@ -86,6 +86,8 @@ public final class Safe {
 
   private SafeItem[] items = new SafeItem[ITEM_LENGTH_EXTENSION];
 
+  private final AppletGrants appletGrants = new AppletGrants(this);
+
   private short itemsLength = 0;
 
   private final short[] availableMemory = JCSystem.makeTransientShortArray(
@@ -143,6 +145,7 @@ public final class Safe {
     try {
       items = emptyItems;
       itemsLength = 0;
+      appletGrants.clear();
       MonoidApplet.resetPIN(accessPIN);
       KeyDerivation.clearCache();
       identity.reset();
@@ -231,6 +234,10 @@ public final class Safe {
 
   public SafeItemIterator list(short type) {
     return list(type, null);
+  }
+
+  AppletGrants getAppletGrants() {
+    return appletGrants;
   }
 
   public SafeItemIterator list(short type, byte[] keyPrefix) {

@@ -37,6 +37,7 @@ public class CommandImport extends Command {
     }
 
     byte[] data = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
+    // Work around CAP converter lookup failures by referencing setOffset's declaring class.
     ((CBORReader) reader).setOffset(offset);
     reader.bytes(data);
     return data;

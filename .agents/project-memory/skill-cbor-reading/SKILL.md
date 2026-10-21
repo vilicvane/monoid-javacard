@@ -5,20 +5,27 @@ description: Monoid Java Card CBOR payload assembly, field lookup order, cursor 
 
 # Monoid CBOR reading
 
-Source: `../records.md`, records [112](../112.md) and [113](../113.md). Treat those
+Source: `../records.md`, records [112](../112.md), [113](../113.md) and [153](../153.md). Treat those
 records as authoritative and keep them current when changing this snapshot.
 
+- Record153: document toolchain workarounds at every affected call site. The
+  explicit CBORReader casts on setOffset calls avoid a CAP converter failure
+  resolving the inherited method through CBORApduReader; explain that reason
+  locally rather than leaving an apparently redundant cast unexplained.
 - The user wants payload assembly and consumption considered together, aiming
   to read the complete request with as few backward scans as practical. After
   requesting a same-payload sequential probe, authorized implementation if the
   results were effective. Field order remains a recommendation, not a requirement.
 - `cbor-field-order.json` at the repository root is the machine-readable order
-  for future APP serializers, covering all thirteen current CBOR commands from
+  for APP serializers, covering the current CBOR commands from
   Command.get(). Empty-request commands have an empty root list; GET RESPONSE
   0xC0 is transport control and has no entry. Command INS keys select maps by `$` (request root),
-  `$.derivation` and `$.taproot`. Reorder existing fields only; append unlisted
-  fields in their original relative order and leave unconfigured maps, arrays
-  and scalars unchanged. The config is not a request schema or whitelist.
+  `$.derivation` and `$.taproot`. Explicit `[]` paths such as `$.keys[]` configure
+  array element maps and `$.keys[].derivation` their nested maps. Traverse arrays
+  only when that element-map path is configured. Reorder existing fields only;
+  append unlisted fields in their original relative order and leave unconfigured
+  maps, arrays, byte buffers and scalars unchanged. The config is not a request
+  schema or whitelist.
   Root `seed`, `curve` and `path` in Java's lookup arrays exist for rejection;
   do not export them as recommended input fields. Protocol documentation links
   to this configuration instead of duplicating its lists. APP integration is
@@ -28,9 +35,9 @@ records as authoritative and keep them current when changing this snapshot.
   CBOR encoding with insertion order preserved (no canonical key sorting).
   Its Node tests cover the configured commands and value/reference preservation.
 - Other commands' recommendations follow their current first-read order:
-  Authenticate reads safe before pin; SetPIN reads pin before safe; Create reads
+  Authenticate reads secret before pin; SetPIN reads pin before secret; Create reads
   data, key, alias before choosing type or index; CreateRandomKey reads type and
-  length (required for entropy/seed/master). Config coverage does not mean that
+  length (required for entropy/seed). Config coverage does not mean that
   these commands use CBORMap or have measured performance improvements.
 - Legacy CBORReader `key()`/`requireKey()` search from the active map's start;
   `index()` similarly restarts from the array start. Ordering calls like encoded

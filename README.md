@@ -109,7 +109,7 @@ See [architecture](doc/architecture.md) and [security boundaries](doc/security.m
 ### Core features
 
 - [x] _Monoid Applet_ basic commands
-- [ ] _Monoid Applet_ third-party management commands
+- [x] _Monoid Applet_ third-party management commands
 - [ ] _Monoid Applet_ `Shareable` interface
 - [ ] Monoid mobile app
   - [ ] Key management
@@ -596,9 +596,57 @@ type Response = {
 };
 ```
 
+### Applet grants
+
+```ts
+type AppletGrantOptions = {
+  aid: byte[];
+  /** Exact custom types, 0x1000–0xFFFE; encoded as signed 16-bit integers. */
+  types?: [type: number, writable: boolean][];
+  /** Fixed Key descriptions; independent of types and seed. */
+  keys?: Key[];
+  /** A stored 64-byte seed for domain-scoped Monoid-001 derivation. */
+  seed?: {index: byte[]; domain: byte[]};
+};
+
+type AppletGrant = AppletGrantOptions & {
+  /** SHA-256 of the installed client's private 32-byte token. */
+  tokenHash: byte[];
+};
+```
+
+#### `0x50` List applet grants
+
+> Requires Secret PIN authentication.
+
+```ts
+type Request = {};
+type Response = {grants: AppletGrant[]};
+```
+
+#### `0x51` Set applet grant
+
+> Requires Secret PIN authentication.
+
+```ts
+/** Replaces the entire grant for aid; omitted permissions are removed. */
+type Request = AppletGrantOptions;
+type Response = {};
+```
+
+#### `0x52` Remove applet grant
+
+> Requires Secret PIN authentication.
+
+```ts
+/** Succeeds when the grant is already absent. */
+type Request = {aid: byte[]};
+type Response = {};
+```
+
 ### `0xFF` Reset
 
-> No authentication required. Clears all items, derivation cache, Bundle, both PINs and authorization; generates a new Identity.
+> No authentication required. Clears all items, applet grants, derivation cache, Bundle, both PINs and authorization; generates a new Identity.
 
 ```ts
 type Request = {};
@@ -614,9 +662,6 @@ A safe item index is a 2 + 8 bytes array.
 
 The first 2 bytes are the type of the item (`0x0000` to `0x0FFF` and `0xFFFF` are reserved), and the remaining 8 bytes are unique per item, typically 8-byte digest of the data if immutable:
 
-- `0x00` Monoid applet data (draft, not implemented yet)
-  - `0x0001` Third-party applet permission data
-    - +8 bytes digest of third-party AID
 - `0x01` `"entropy"` Entropy
   - +1 byte entropy length
   - +8 bytes digest of entropy

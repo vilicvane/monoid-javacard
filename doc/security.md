@@ -59,7 +59,7 @@ secrets has a raw export interface.
 
 Access PIN is not a read-only permission: it permits signing and item mutations,
 including replacement and deletion. Secret PIN includes ordinary access and adds
-PIN management, encrypted export/import and Bundle management. See the commands for exact
+PIN management, encrypted export/import, Bundle management and applet-grant management. See the commands for exact
 inputs and error behavior.
 
 APDU authorization is scoped to Monoid selection and is cleared by deselection,
@@ -76,10 +76,24 @@ Each PIN has a configured five-attempt budget. An Authenticate request checks th
 PIN once; redundant checks inspect the result/state rather than consuming three
 attempts.
 
-The public `Monoid` Shareable interface currently has no service methods.
-Third-party signing grants, Type permissions and a Security Key applet are not
-implemented security controls in this baseline. Identity's communication
-interface does not grant access to Monoid's current item storage.
+The `0x50`–`0x52` commands manage applet grants under Secret PIN authorization.
+Grants belong to Monoid's private directory and cannot be addressed, exported or
+imported as ordinary Safe items. Set validates the source descriptors, reads the
+installed client's token hash through `MonoidClientShareable`, and rechecks
+command authorization and Identity PIN validation after each client callback.
+It publishes the entire replacement atomically. Remove is idempotent; factory
+Reset clears grants in the same transaction as the protected data.
+
+The client privately generates a random 32-byte installation token. Its public
+hash is an enrollment identifier, not code attestation or evidence of FIDO PIN
+verification. Monoid stores owned bytes and descriptors, not persistent client
+AID objects or Shareable references. Reinstalling a client does not update the
+stored grant automatically; enrolling its new token requires Secret PIN again.
+
+The public `Monoid` Shareable interface still has no data or signing methods.
+The grant directory does not yet provide third-party item access, signing or a
+Security Key applet. Identity's communication interface does not grant access
+to Monoid's current item storage.
 
 ## Meaning of `secret`
 

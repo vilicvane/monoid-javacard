@@ -86,3 +86,29 @@ test('preserves unconfigured requests and does not add absent fields', () => {
   assert.deepEqual(orderCborRequest(0x41, {}, fieldOrders), {});
   assert.deepEqual(orderCborRequest(0x20, request, fieldOrders), request);
 });
+
+test('orders granted key descriptors while preserving other arrays and byte values', () => {
+  const index = new Uint8Array(10);
+  const path = new Uint8Array(4);
+  const domain = new Uint8Array(3);
+  const types = [[0x1001, true]];
+  const key = Object.freeze({
+    derivation: Object.freeze({path, type: 'bip32'}),
+    type: 'seed',
+    index,
+  });
+  const keys = Object.freeze([key]);
+  const request = Object.freeze({seed: {domain, index}, keys, types, aid: new Uint8Array(8)});
+  const ordered = orderCborRequest(0x51, request, fieldOrders);
+
+  assert.deepEqual(Object.keys(ordered), ['aid', 'types', 'keys', 'seed']);
+  assert.deepEqual(Object.keys(ordered.keys[0]), ['index', 'type', 'derivation']);
+  assert.deepEqual(Object.keys(ordered.keys[0].derivation), ['type', 'path']);
+  assert.deepEqual(Object.keys(ordered.seed), ['index', 'domain']);
+  assert.deepEqual(ordered, request);
+  assert.equal(ordered.types, types);
+  assert.equal(ordered.keys[0].index, index);
+  assert.equal(ordered.keys[0].derivation.path, path);
+  assert.equal(ordered.seed.domain, domain);
+  assert.deepEqual(Object.keys(key), ['derivation', 'type', 'index']);
+});
