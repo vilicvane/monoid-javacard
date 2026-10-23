@@ -33,8 +33,11 @@ public class BundleExtensionTest {
   private static final byte[] DOMAIN = "Monoid Bundle Extension".getBytes(
     StandardCharsets.US_ASCII
   );
+
   private static final X9ECParameters CURVE = SECNamedCurves.getByName("secp256r1");
+
   private static final AID CALLER_AID = AIDUtil.create("F001020304");
+
   private static final byte[] INDEX = { 3, 0, 1, 2, 3, 4, 5, 6, 7, 8 };
 
   private final Member a = new Member(1);
@@ -51,15 +54,18 @@ public class BundleExtensionTest {
     Assertions.assertArrayEquals(bundle.hash, Arrays.copyOfRange(request, 1, 33));
     Assertions.assertArrayEquals(a.publicKey, Arrays.copyOfRange(request, 33, 98));
     Assertions.assertArrayEquals(c.publicKey, Arrays.copyOfRange(request, 98, 163));
+
     Assertions.assertArrayEquals(
       hostMac(bundle.key, request, DOMAIN),
       Arrays.copyOfRange(request, 163, 195)
     );
+
     Assertions.assertEquals(request.length - 196, request[195] & 0xFF);
     Assertions.assertTrue(hostVerify(request));
     Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(request));
 
     byte[] original = request.clone();
+
     Assertions.assertArrayEquals(
       c.publicKey,
       b.extension.requireRecipientPublicKey(bundle, request)
@@ -71,6 +77,7 @@ public class BundleExtensionTest {
     Assertions.assertArrayEquals(original, request);
 
     byte[] hostRequest = hostRequest(bundle.hash, bundle.key, a, c.publicKey, DOMAIN);
+
     Assertions.assertArrayEquals(
       c.publicKey,
       b.extension.requireRecipientPublicKey(bundle, hostRequest)
@@ -254,7 +261,13 @@ public class BundleExtensionTest {
   }
 
   private static Bundle join(Member recipient, Member sender, byte[] packet) {
-    return Bundle.decrypt(sender.publicKey, recipient.publicKey, packet, recipient.communication);
+    return Bundle.decrypt(
+      sender.publicKey,
+      recipient.publicKey,
+      packet,
+      recipient.communication,
+      null
+    );
   }
 
   private static void assertTransfer(

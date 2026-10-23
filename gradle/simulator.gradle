@@ -153,9 +153,15 @@ task prepareSimulatorIdentity {
 			throw new GradleException('Unexpected simulator Identity digest shared-access match count')
 		}
 
-		// The simulator rejects shared digest factories and does not model the firewall.
+		// The simulator lacks shared digests and the four-argument key factory.
 		adapted.parentFile.mkdirs()
-		adapted.text = source.replaceAll(pattern, 'MessageDigest.ALG_SHA_256, false')
+		source = source.replaceAll(pattern, 'MessageDigest.ALG_SHA_256, false')
+		pattern = /KeyBuilder\.ALG_TYPE_EC_FP_PUBLIC,\s*JCSystem\.MEMORY_TYPE_PERSISTENT,/
+		if ((source =~ pattern).count != 1) {
+			throw new GradleException('Unexpected simulator Identity key factory match count')
+		}
+
+		adapted.text = source.replaceAll(pattern, 'KeyBuilder.TYPE_EC_FP_PUBLIC,')
 	}
 }
 

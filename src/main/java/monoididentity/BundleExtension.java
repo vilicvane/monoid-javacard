@@ -18,6 +18,7 @@ final class BundleExtension {
 
   private static final short PUBLIC_KEY_LENGTH = CommunicationCipher.PUBLIC_KEY_LENGTH;
   private static final short HASH_LENGTH = MessageDigest.LENGTH_SHA_256;
+
   private static final short MIN_SIGNATURE_LENGTH = 8;
   private static final short MAX_SIGNATURE_LENGTH = 72;
 
@@ -34,12 +35,15 @@ final class BundleExtension {
 
   private final KeyPair identity;
   private final ECPublicKey initiatorKey;
+
   private final MessageDigest digest;
   private final Signature signature;
+
   private final byte[] hmacBlock;
 
   BundleExtension(KeyPair identity, byte[] hmacBlock) {
     this.identity = identity;
+
     this.hmacBlock = hmacBlock;
 
     initiatorKey = (ECPublicKey) KeyBuilder.buildKey(
@@ -53,10 +57,13 @@ final class BundleExtension {
 
     // Identity executes through a Shareable while Monoid is selected.
     digest = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, true);
+
     signature = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, true);
   }
 
   byte[] extend(Bundle bundle, byte[] publicKey) {
+    bundle.assertPeerExtension();
+
     CommunicationCipher.assertPublicKey(publicKey, (short) 0, (short) publicKey.length);
 
     byte[] request = new byte[SIGNATURE_OFFSET + MAX_SIGNATURE_LENGTH];
@@ -88,6 +95,8 @@ final class BundleExtension {
   }
 
   byte[] requireRecipientPublicKey(Bundle bundle, byte[] request) {
+    bundle.assertPeerExtension();
+
     if (
       request.length < SIGNATURE_OFFSET + MIN_SIGNATURE_LENGTH ||
       request.length > SIGNATURE_OFFSET + MAX_SIGNATURE_LENGTH ||

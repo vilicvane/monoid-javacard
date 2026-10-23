@@ -1,15 +1,40 @@
 # Monoid Identity
 
-Monoid Identity retains a P-256 key pair and a four-byte random ID generated on
-installation or `0xFF Reset`. Its private key has no export interface. Identity
+Monoid Identity retains a P-256 key pair generated on installation or `0xFF Reset`
+and a four-byte Card ID preserved by Reset. Its private key has no export interface. Identity
 also owns Secret PIN, its retry and caller authorization state, the optional Bundle
-key and enrollment snapshot. It performs complete item encryption and decryption
+key, extension policy and enrollment snapshot. It performs complete item encryption and decryption
 for applets in separate caller domains. Monoid owns Access PIN, Safe item storage
 and command authorization.
 
 Install Identity before Monoid. Monoid updates preserve its matching Identity.
 Deleting Identity removes its private key, binding secret, Secret PIN and local
 Bundle state.
+
+## Installation parameters
+
+Identity accepts the following application data in the GP installation parameters:
+
+```text
+flags:              1 byte
+id:                 4 bytes, present when flags & 0x01
+authorityPublicKey: 65 bytes, present when flags & 0x02
+```
+
+Fields appear in that order. Empty application data or `flags = 0` generates a random
+Card ID and leaves Authority unset. Other flag bits are invalid. The Authority key
+is an uncompressed P-256 public key (`04 || X || Y`), independent of the card's key pair.
+Both values are stored persistently and preserved by `0xFF Reset` and Monoid replacement.
+Identity reinstallation can restore a supplied Card ID, but generates a fresh card key pair
+and binding secret. No runtime setter is exposed.
+
+The installation authority chooses the trusted Authority public key. Identity uses
+it to authenticate [Authority-issued Bundle enrollment](authority.md); it cannot
+replace an existing Bundle or change its policy.
+
+`scripts/build-install.ps1 -Mode Install` accepts optional `-CardId` (8 hex digits)
+and `-AuthorityPublicKey` (130 hex digits beginning with `04`). Both apply only to
+Identity installation; `ReinstallMonoid` preserves the existing Identity configuration.
 
 ## Interface
 
@@ -43,13 +68,13 @@ public interface IdentityShareable extends Shareable {
   /** Requires Secret authentication and no Bundle; recipients exclude self, without duplicates. */
   CommunicationDataShareable createBundle(byte[] publicKeys);
 
-  /** Requires Secret authentication; the same Bundle key is idempotent. */
+  /** Requires Secret authentication; the same Bundle key and policy are idempotent. */
   byte[] joinBundle(byte[] senderPublicKey, byte[] data);
 
-  /** Monoid only, with Secret authentication: initiates extension for the specified target. */
+  /** Monoid only, with Secret authentication and allowPeerExtension: initiates extension. */
   CommunicationDataShareable extendBundle(byte[] publicKey);
 
-  /** Monoid only, with Secret authentication: approves another member's request and encrypts enrollment. */
+  /** Monoid only, with Secret authentication and allowPeerExtension: approves another member's request. */
   CommunicationDataShareable approveBundleExtension(byte[] request);
 
   /** Monoid only: prepares a new identity outside a transaction and returns its caller token. */
@@ -84,7 +109,7 @@ public interface CommunicationDataShareable extends Shareable {
 }
 ```
 
-- ID: four random bytes, regenerated at Identity installation or `0xFF Reset`.
+- ID: four bytes, supplied at Identity installation or randomly generated, and preserved by `0xFF Reset`.
 - Public keys: 65-byte SEC 1 uncompressed P-256 points (`04 || X || Y`).
 - Binding tokens: 32 bytes, distinct for each caller AID and current Identity secret.
 - Bundle keys and asymmetric item communication keys: 32 bytes, kept inside Identity.
@@ -218,40 +243,50 @@ public key, Bundle hash and target public key with both a Bundle-root HMAC and a
 Identity signature. `approveBundleExtension` checks both proofs, requires an initiator other
 than the local Identity and encrypts an enrollment packet only for that target.
 Both methods leave the existing Bundle configuration unchanged. The target joins
-with `joinBundle`; it can then exchange records and approve future extensions
+with `joinBundle`; it can then exchange records and, when its policy permits,
+approve future extensions
 without synchronizing member lists. The snapshot records enrollment rather than
 serving as an authorization list. See [Bundle extension](bundle.md#extension).
 
 The host commands expose these results as `data`. Approve Bundle Extension also
 returns the approving Identity's `publicKey`; the complete response is the Join
-Bundle request. Join's `publicKey` denotes the enrollment sender. Item Import's
+Bundle request. Join's `publicKey` denotes the enrollment sender: an Identity for
+peer packets, or the installed Authority for issued packets. Item Import's
 separate `senderPublicKey` field is unchanged.
+
+Authority enrollment uses the same `joinBundle` entry point and HPKE engine.
+Identity verifies the supplied sender against its installed Authority and uses
+that installed key to authenticate the packet. The authenticated policy is stored
+with the root; both extension entry points reject `allowPeerExtension: false`.
+Create enables this policy, and peer enrollment preserves it. Packet kind is not
+stored as root provenance. See [Authority issuance](authority.md).
 
 The caller must obtain the expected peer public key through its trust mechanism;
 the envelope does not establish that trust. Caller AIDs isolate transfer domains but
 do not authenticate installed code. Item transfer has no single-use restriction;
-joining the same Bundle key is idempotent and retains the local enrollment snapshot. Bundle
+joining the same Bundle key and policy is idempotent and retains the local enrollment snapshot. Bundle
 creation requires no existing Bundle. Neither method replaces an installed Bundle.
 `prepareReset` requires no active transaction and no communication operation in
-progress. It generates a candidate key pair, random ID, binding secret, unset
+progress. It generates a candidate key pair, binding secret, unset
 Secret PIN and empty token cache without changing the current identity, and returns the candidate
 Monoid token in a global array. `reset` requires an active Monoid transaction and
 publishes that candidate while clearing the Bundle and references to the old
 communication key state. In the same transaction, Monoid replaces its binding,
 clears items/derivation cache and replaces Access PIN with unset state; Identity
-publishes the new unset Secret PIN in that transaction.
+publishes the new unset Secret PIN in that transaction. The Card ID and installed
+Authority public key are preserved.
 A failed transaction retains the previous published identity and Monoid state;
 the candidate is discarded after the publication attempt or a card power reset.
 Successful Reset clears Monoid authorization. These methods implement `0xFF Reset`;
 they are not separate host commands.
 See [reinitialization](bundle.md#reinitialization) for Reset and the GP lifecycle.
 
-## Safe ID
+## Card ID
 
 Hello returns the ID stored in Identity. A card power reset, Bundle creation/joining/extension,
-Monoid replacement and PIN changes preserve it. `0xFF Reset` or reinstalling Identity
-generates a new ID, key pair and binding secret.
-The four-byte random value
+Monoid replacement, PIN changes and `0xFF Reset` preserve it. Reset generates a new
+key pair and binding secret. Reinstalling Identity restores a supplied ID or generates a new one.
+The four-byte value
 is a display identifier, not a peer authentication fingerprint or a guarantee of
 uniqueness. It is independent of the public key.
 

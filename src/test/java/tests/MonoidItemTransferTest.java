@@ -910,11 +910,27 @@ public class MonoidItemTransferTest {
     private boolean monoidInstalled;
 
     Card(boolean installMonoid) {
+      this(installMonoid, new byte[0]);
+    }
+
+    Card(boolean installMonoid, byte[] identityParameters) {
       System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
       System.setProperty("com.licel.jcardsim.sign.dsasigner.computedhash", "1");
       System.setProperty("com.licel.jcardsim.bouncycastle.rsa.allow_unsafe_mod", "true");
+
       simulator = new CardSimulator(new ShareableSimulatorRuntime());
-      simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
+
+      byte[] parameters = new byte[3 + identityParameters.length];
+      parameters[2] = (byte) identityParameters.length;
+      System.arraycopy(identityParameters, 0, parameters, 3, identityParameters.length);
+
+      simulator.installApplet(
+        IDENTITY_AID,
+        MonoidIdentityApplet.class,
+        parameters,
+        (short) 0,
+        (byte) parameters.length
+      );
 
       if (installMonoid) {
         installMonoid();

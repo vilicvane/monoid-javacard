@@ -1,16 +1,19 @@
 # Bundle
 
-A Bundle shares one random 32-byte key among enrolled card identities.
-Identity generates and retains the key; Monoid and the host receive only encrypted
+A Bundle shares one 32-byte root key among enrolled card identities.
+Create Bundle generates a random root inside Identity; an installed
+[Authority](authority.md) can instead issue it. Identity retains the root and its
+`allowPeerExtension` policy; Monoid and the host receive only encrypted
 enrollment packets and `SHA-256(key)`. The hash is the `bundle` value returned by
-Hello and Bundle management. It covers the key alone, not a protocol
-version or member list.
+Hello and Bundle management. It covers the key alone, not the policy, a protocol
+version or member list. An issuer must keep the policy fixed for every holder of
+the same root.
 
 Bundle management uses Secret PIN and `0x23 Create Bundle`, `0x24 Join Bundle`,
 `0x25 Extend Bundle` and `0x26 Approve Bundle Extension`, defined in
 [README](../README.md#0x23-create-bundle).
 Access PIN and item data remain in Monoid; Secret PIN, its retry state, the Bundle
-key and enrollment snapshot remain in Identity across Monoid reinstallation.
+key, policy and enrollment snapshot remain in Identity across Monoid reinstallation.
 Identity restricts Bundle creation, joining, extension and clearing
 to Monoid's exact fixed AID.
 Other applets can use encrypted transfer after their own Secret PIN verification,
@@ -37,23 +40,33 @@ Create requires at least one recipient, rejects duplicates and the local public
 key, and adds the local Identity internally. It sorts the full 65-byte keys
 lexicographically by unsigned bytes for the authenticated enrollment snapshot.
 The response packets retain request order; public keys are not echoed.
-Create rejects an existing Bundle, including when the same list is supplied.
-An enrollment packet must include both the receiving Identity and its
+Create rejects an existing Bundle, including when the same list is supplied,
+and sets `allowPeerExtension` to `true`.
+A peer enrollment packet must include both the receiving Identity and its
 authenticated sender in its member list.
 
 Identity finishes encrypting every recipient packet before publishing the new
 local Bundle. A failed packet preparation leaves the card without a Bundle.
 
-Join commits the key and enrollment snapshot together. Rejoining the same key
-succeeds unchanged, retaining the local snapshot; a different key conflicts. Interrupted recipient
-initialization can resume with the saved packets. Create cannot be replayed to
+Join commits the key, policy and enrollment snapshot together. Rejoining the same
+key and policy succeeds unchanged, retaining the local snapshot; a different key
+or policy conflicts. Interrupted recipient initialization can resume with the
+saved packets. Create cannot be replayed to
 recover lost packets once the Bundle exists. There is no atomic commit across all
 cards, and one unavailable member does not roll back other members.
+
+Authority-issued enrollment uses the same Join command, with the installed
+Authority's public key as `publicKey`. It targets one recipient and requires no
+existing member to participate. The Authority chooses `allowPeerExtension` when
+issuing the group's token; see [Authority issuance](authority.md). An Authority
+packet cannot replace an existing Bundle or change its policy.
 
 ## Extension
 
 Adding C requires two distinct existing members A and B, each verifying its own
-Secret PIN inside Identity. Read C's full Identity public key first, then:
+Secret PIN inside Identity and permitting `allowPeerExtension`. Identity rejects
+both Extend and Approve when this policy is false. The policy does not restrict
+Authority issuance. Read C's full Identity public key first, then:
 
 1. On A, call `0x25 Extend Bundle` with `{publicKey: C}`. Retain its `data`.
    Identity authenticates its own public key, the current Bundle hash
@@ -83,7 +96,8 @@ Identity. The HMAC alone cannot prove a second Identity participated; the signat
 alone cannot prove that its signer holds the Bundle key. Both bind the actual
 initiator and the specified target in a domain unavailable to ordinary item transfer.
 
-After Join, C can immediately exchange data and participate in further extensions.
+After Join, C inherits the root's policy and can immediately exchange data and,
+when allowed, participate in further extensions.
 No return visit to A, member-list synchronization or final proof installation is
 needed. Extend and Approve leave A's and B's persistent Bundle configuration unchanged.
 The stored member list records enrollment, not a live authorization roster.
@@ -126,22 +140,36 @@ Public keys are 65-byte uncompressed SEC 1 P-256 points. `u16` is unsigned
 big-endian; labels are ASCII without a terminator.
 
 ```text
-01 || u16(memberCount) || sortedPublicKeys || encryptedBundleKey
+header = 01 || flags || u16(memberCount) || sortedPublicKeys
+data = header || encryptedBundleKey
 
-info = SHA-256("Monoid Bundle Enrollment" || 01 || sortedPublicKeys)
+flags bit 0 = allowPeerExtension
+flags bit 1 = Authority-issued packet
+
+domain = "Monoid Bundle Enrollment"  when bit 1 is clear
+domain = "Monoid Authority Bundle"   when bit 1 is set
+info = SHA-256(domain || header)
 ```
 
 `encryptedBundleKey` is the 113-byte RFC 9180 Auth envelope described in
 [Monoid Identity](identity.md#hpke-profile): `enc[65] || ciphertext[32] || tag[16]`.
-The sender is the exporting Identity and the recipient is the selected member.
-The HPKE `info` binds the version and complete sorted membership. The total packet
-length is `116 + 65 * memberCount` bytes.
+The HPKE `info` binds the complete header, including policy, packet kind and member
+count. Unknown flag bits are rejected. The total packet length is
+`117 + 65 * memberCount` bytes.
+
+Peer packets contain at least two sorted, distinct keys, including sender and
+recipient. The sender is the exporting Identity and the recipient is the selected
+member. Authority packets contain exactly one key, the recipient, and authenticate
+the installed Authority as sender. The Authority flag selects packet validation;
+it is not persisted as the root's provenance. Peer extension of an Authority-issued
+root produces a peer packet with the same policy.
 
 The enrollment snapshot is public; the Bundle key is encrypted. Identity checks the list,
-recipient, sender and HPKE authentication before committing. Ordinary item
+recipient, sender, policy and HPKE authentication before committing. Ordinary item
 decryption cannot select this enrollment domain or return the Bundle key.
-Compatibility is determined by supported packet versions, independently of the
-key hash.
+This replaces the earlier prototype's enrollment layout while retaining version
+`01`. Old enrollment packets must be regenerated; no legacy parser is provided.
+Item ciphertext is unchanged.
 
 ## Item transfer
 
@@ -175,8 +203,9 @@ does not certify card hardware or installed applet code.
 
 `0xFF Reset` requires no PIN and returns Monoid to an uninitialized state. It clears
 all local items, the derivation cache, both PINs and their failed-attempt/blocked
-state, and the local Bundle. It generates a new Identity key pair, ID and binding
-secret, clears the token cache and updates Monoid's binding. These persistent
+state, and the local Bundle. It preserves the Card ID and installed Authority key,
+generates a new Identity key pair and binding secret, clears the token cache and
+updates Monoid's binding. These persistent
 changes commit in one transaction; success clears current authorization and
 requests garbage collection. A failed transaction retains the previous persistent
 state. It is not a hardware-erasure guarantee.
@@ -185,7 +214,7 @@ The request and response are both `{}`.
 Anyone able to send Monoid APDUs can clear these records. This is an intentional
 availability boundary, not permission to read or export them. Reset still verifies
 Monoid's existing binding to Identity before preparing its replacement. Hello then
-returns the new `id` and `publicKey`, `pins: {access: false, secret: false}`
+returns the same `id`, the new `publicKey`, `pins: {access: false, secret: false}`
 and `bundle: false`; the next user must initialize new PINs before ordinary storage
 or Bundle management. Reset recovers from blocked PINs by deleting the protected
 data and both PINs together, rather than unlocking access to the old records.
@@ -208,7 +237,8 @@ their identity and local data state. It does not perform a GP uninstall/reinstal
 
 Recreating Monoid clears its items, Access PIN and derivation cache but retains
 Identity's Secret PIN, retries and Bundle. Recreating Identity as well clears the local Bundle and generates a new key
-pair, ID and binding secret. Retaining the old Monoid across Identity replacement
+pair and binding secret; the Card ID can be supplied again in installation parameters.
+Retaining the old Monoid across Identity replacement
 does not bypass its identity binding. Reinitialization does not affect other cards
 or revoke existing artifacts. The new Identity cannot decrypt old asymmetric
 artifacts or use enrollment packets addressed to the previous public key; collect
@@ -216,7 +246,9 @@ the new public key before creating a new Bundle.
 
 ## Recovery and data migration
 
-The current interface permits using two Bundle members to recover plaintext.
+For a Bundle created on a card, the current interface permits using two members
+to recover plaintext. An Authority-issued root additionally trusts its issuer;
+see [Authority's trust boundary](authority.md#trust-and-lifecycle).
 For a fresh export and recovery, use both cards and authenticate each card's
 Secret PIN independently:
 

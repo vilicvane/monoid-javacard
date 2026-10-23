@@ -7,7 +7,7 @@ public interface IdentityShareable extends Shareable {
   /** A stable private 32-byte token derived for the runtime caller's complete AID. */
   public byte[] getToken();
 
-  /** The persistent four-byte random display ID generated at installation or factory reset. */
+  /** The persistent four-byte display ID selected at installation and retained by reset. */
   public byte[] getId();
 
   /** The stable P-256 public key, encoded as an uncompressed 65-byte SEC 1 point. */
@@ -35,7 +35,7 @@ public interface IdentityShareable extends Shareable {
   /** Monoid only: creates for self and these other recipients; requires no local Bundle. */
   public CommunicationDataShareable createBundle(byte[] publicKeys);
 
-  /** Monoid only: joins a Bundle, returning its key hash; the same root is idempotent. */
+  /** Monoid only: joins from a member or installed Authority; the same key and policy are idempotent. */
   public byte[] joinBundle(byte[] senderPublicKey, byte[] data);
 
   /** Monoid only: requests this recipient's admission using Bundle possession and this Identity. */

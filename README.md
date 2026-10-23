@@ -176,7 +176,7 @@ type Request = {};
 ```ts
 type Response = {
   version: number;
-  /** Persistent 4-byte random ID owned by Monoid Identity. */
+  /** Persistent 4-byte Card ID; preserved by Reset and configurable at Identity installation. */
   id: byte[];
   /** Monoid Identity P-256 public key, 65-byte uncompressed SEC 1. */
   publicKey: byte[];
@@ -245,9 +245,11 @@ type Response = {
 
 > Requires authentication with Secret PIN.
 
+[Authority issuance](doc/authority.md).
+
 ```ts
 type Request = {
-  /** The sender's Identity public key. */
+  /** The sending Identity's key, or the installed Authority key for Authority-issued data. */
   publicKey: byte[];
   data: byte[];
 };
@@ -255,14 +257,14 @@ type Request = {
 
 ```ts
 type Response = {
-  /** The same Bundle key succeeds unchanged; a different key conflicts. */
+  /** The same key and allowPeerExtension policy succeed unchanged; differences conflict. */
   bundle: byte[];
 };
 ```
 
 #### `0x25` Extend Bundle
 
-> Requires authentication with Secret PIN. [Extension workflow](doc/bundle.md#extension).
+> Requires authentication with Secret PIN and `allowPeerExtension`. [Extension workflow](doc/bundle.md#extension).
 
 ```ts
 type Request = {
@@ -280,7 +282,7 @@ type Response = {
 
 #### `0x26` Approve Bundle Extension
 
-> Requires authentication with Secret PIN.
+> Requires authentication with Secret PIN and `allowPeerExtension`.
 
 ```ts
 type Request = {
@@ -686,7 +688,7 @@ type Response = {};
 
 ### `0xFF` Reset
 
-> No authentication required. Clears all items, applet grants, derivation cache, Bundle, both PINs and authorization; generates a new Identity.
+> No authentication required. Clears all items, applet grants, derivation cache, Bundle, both PINs and authorization; regenerates Identity keys and preserves the Card ID.
 
 ```ts
 type Request = {};

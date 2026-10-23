@@ -379,3 +379,11 @@
 184. [user] 多卡同步暂不加入删除/活动标记，批准账户名称附加index与seed/domain隔离一起实现。[agent] 凭证新增scope32、key改为scope||rpHash；以固定78B用途context的派生公钥SHA256确定scope，每次Make/Get/Next重查，覆盖查询/替换/缓存，保持全局Reset。UV后名称带16位hex，保留存储原名；持久缓存320B。610测试/69套件与四CAP通过，未实卡或系统UI验证；旧记录需另迁移，见 [凭证隔离与使用记录](./184.md)。
 
 185. [user] 澄清Access PIN用于APP管理Security Key的key/seed授权，FIDO PIN始终独立。[agent] 0x50/51/52统一走Safe.checkAccess，保留回调后复核及token/grant/secret隔离；不增加AID特例或接口字段。611测试/69套件、四CAP及格式/模板检查通过，未实卡部署或修改APP；见 [Access管理授权与独立FIDO PIN](./185.md)。
+
+## b531981
+
+186. [user] 选择Monoid通用HMAC与独立OTP Applet；要求近期多组OTP，提出上电配额/跨断电不回退后重新审视必要性，并讨论预装证书、一次贴卡多轮验证可信时间。[agent] secret读取边界不放宽；签名时间凭据可约束未来窗口，单独主机时间/单调状态不能证明真实时间。具体接口/协议/配额未批准，未改生产代码或实卡；见 [OTP入口与职责划分](./186.md)。
+
+187. [user] Authority共用密钥，选择账户派生Bundle Token并批准allowPeerExtension控制成员双卡扩展，Authority独立签发不受限。[agent] 复用Join24和HPKE Auth，安装公钥认证单卡入组；策略随密文绑定并在Extend/Approve执行，相同root+策略才幂等，不覆盖既有Bundle。入组包增加flags且不兼容旧包，条目密文不变；无新APDU/SIO、APP或服务端实现；626测试/70套件与四CAP通过，未实卡/提交，见 [Authority职责与边界](./187.md)。
+
+188. [user] 要求Reset保留Card ID并允许安装恢复ID，批准flags+可选ID4/Authority65格式。[agent] Identity接入安装配置、持久公钥与指定实例AID，Reset保留两配置但轮换密钥/token并清数据/PIN/Bundle；脚本增加安装参数，无新业务SIO/APDU。65测试/4套件、四CAP及格式/模板检查通过，未实卡/提交；见 [Card ID与安装配置](./188.md)。

@@ -7,7 +7,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import javacard.framework.AID;
 import javacard.framework.ISO7816;
+import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
+import javacard.security.ECPublicKey;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import javax.smartcardio.CommandAPDU;
@@ -61,6 +63,149 @@ public class MonoidIdentityAppletTest {
     simulator.installApplet(MONOID_CALLER_AID, IdentityCallerApplet.class);
     simulator.installApplet(UNRELATED_AID, IdentityCallerApplet.class);
     select(MONOID_CALLER_AID);
+  }
+
+  @Test
+  public void installationAcceptsOptionalIdAndAuthorityIndependently() throws Exception {
+    Assertions.assertNull(authorityPublicKey(IDENTITY_AID));
+
+    byte[] id = { 0, (byte) 0x81, (byte) 0xFE, 0x44 };
+    byte[][] data = {
+      new byte[0],
+      new byte[] { 0 },
+      concat(new byte[] { 1 }, id),
+      concat(new byte[] { 2 }, LibSECP256r1.G),
+      concat(concat(new byte[] { 3 }, id), LibSECP256r1.G),
+    };
+
+    for (int index = 0; index < data.length; index++) {
+      initializeManager(installationParameters(new byte[0], new byte[0], data[index]));
+      acquire(IDENTITY_AID);
+
+      byte[] installedId = success(transmit(IdentityCallerApplet.GET_IDENTITY_ID));
+
+      if (index == 2 || index == 4) {
+        Assertions.assertArrayEquals(id, installedId);
+      } else {
+        Assertions.assertEquals(4, installedId.length);
+      }
+
+      if (index >= 3) {
+        Assertions.assertArrayEquals(LibSECP256r1.G, authorityPublicKey(IDENTITY_AID));
+      } else {
+        Assertions.assertNull(authorityPublicKey(IDENTITY_AID));
+      }
+    }
+  }
+
+  @Test
+  public void installationSkipsControlInformationAndRegistersTheRequestedInstance()
+    throws Exception {
+    byte[] id = { 0x12, 0x34, 0x56, 0x78 };
+    byte[] parameters = installationParameters(
+      AppletTest.aidBytes(OTHER_IDENTITY_AID),
+      new byte[] { 0x55, 0x66, 0x77 },
+      concat(concat(new byte[] { 3 }, id), LibSECP256r1.G)
+    );
+    byte[] buffer = concat(new byte[] { 0x11, 0x22, 0x33 }, parameters);
+
+    runtime = new TokenRuntime();
+    simulator = new CardSimulator(runtime);
+
+    simulator.installApplet(
+      IDENTITY_AID,
+      MonoidIdentityApplet.class,
+      buffer,
+      (short) 3,
+      (byte) parameters.length
+    );
+    simulator.installApplet(MONOID_CALLER_AID, IdentityCallerApplet.class);
+
+    Assertions.assertFalse(simulator.selectApplet(IDENTITY_AID));
+
+    select(MONOID_CALLER_AID);
+    acquire(OTHER_IDENTITY_AID);
+
+    Assertions.assertArrayEquals(id, success(transmit(IdentityCallerApplet.GET_IDENTITY_ID)));
+    Assertions.assertArrayEquals(LibSECP256r1.G, authorityPublicKey(OTHER_IDENTITY_AID));
+  }
+
+  @Test
+  public void installationCopiesConfigurationBeforeTheBufferIsReused() throws Exception {
+    byte[] id = { 0x12, 0x34, 0x56, 0x78 };
+    byte[] parameters = installationParameters(
+      new byte[0],
+      new byte[0],
+      concat(concat(new byte[] { 3 }, id), LibSECP256r1.G)
+    );
+
+    initializeManager(parameters);
+    Arrays.fill(parameters, (byte) 0);
+
+    simulator.reset();
+    select(MONOID_AID);
+    acquire(IDENTITY_AID);
+
+    Assertions.assertArrayEquals(id, success(transmit(IdentityCallerApplet.GET_IDENTITY_ID)));
+    Assertions.assertArrayEquals(LibSECP256r1.G, authorityPublicKey(IDENTITY_AID));
+  }
+
+  @Test
+  public void identityResetPreservesInstallationConfigurationAndRotatesPrivateIdentity()
+    throws Exception {
+    byte[] id = { 0x12, 0x34, 0x56, 0x78 };
+
+    initializeManager(
+      installationParameters(
+        new byte[0],
+        new byte[0],
+        concat(concat(new byte[] { 3 }, id), LibSECP256r1.G)
+      )
+    );
+    acquire(IDENTITY_AID);
+
+    byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    byte[] token = success(transmit(IdentityCallerApplet.GET_TOKEN));
+
+    byte[] preparedToken = success(transmit(IdentityCallerApplet.PREPARE_RESET));
+    success(transmit(IdentityCallerApplet.RESET_IDENTITY));
+
+    Assertions.assertArrayEquals(id, success(transmit(IdentityCallerApplet.GET_IDENTITY_ID)));
+    Assertions.assertArrayEquals(LibSECP256r1.G, authorityPublicKey(IDENTITY_AID));
+
+    Assertions.assertFalse(
+      Arrays.equals(publicKey, success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY)))
+    );
+    Assertions.assertFalse(Arrays.equals(token, preparedToken));
+    Assertions.assertArrayEquals(preparedToken, success(transmit(IdentityCallerApplet.GET_TOKEN)));
+  }
+
+  @Test
+  public void installationRejectsUnknownFlagsAndMalformedConfiguration() {
+    byte[] invalidPublicKey = LibSECP256r1.G.clone();
+    invalidPublicKey[0] = 0x03;
+
+    byte[][] data = {
+      new byte[] { 4 },
+      new byte[] { 1, 0x12, 0x34, 0x56 },
+      new byte[] { 0, 0 },
+      concat(new byte[] { 2 }, invalidPublicKey),
+    };
+    int[] status = { 0x6A80, 0x6700, 0x6700, 0x6A80 };
+
+    simulator.loadApplet(OTHER_IDENTITY_AID, MonoidIdentityApplet.class);
+
+    for (int index = 0; index < data.length; index++) {
+      byte[] parameters = installationParameters(new byte[0], new byte[0], data[index]);
+
+      // CardSimulator wraps installation errors; the runtime preserves their status words.
+      ISOException exception = Assertions.assertThrows(ISOException.class, () ->
+        runtime.installApplet(OTHER_IDENTITY_AID, parameters, (short) 0, (byte) parameters.length)
+      );
+
+      Assertions.assertEquals(status[index], exception.getReason() & 0xFFFF);
+      Assertions.assertFalse(simulator.selectApplet(OTHER_IDENTITY_AID));
+    }
   }
 
   @Test
@@ -806,7 +951,7 @@ public class MonoidIdentityAppletTest {
       byte[] newPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
       byte[] newId = success(transmit(IdentityCallerApplet.GET_IDENTITY_ID));
       Assertions.assertFalse(Arrays.equals(publicKey, newPublicKey));
-      Assertions.assertFalse(Arrays.equals(id, newId));
+      Assertions.assertArrayEquals(id, newId);
       assertSecretPINSet(false);
       assertSecretValidation(false);
       assertDenied(
@@ -814,7 +959,6 @@ public class MonoidIdentityAppletTest {
       );
       Assertions.assertEquals(0x6985, transmit(IdentityCallerApplet.RESET_IDENTITY).getSW());
       publicKey = newPublicKey;
-      id = newId;
       token = preparedToken;
     }
   }
@@ -1077,13 +1221,57 @@ public class MonoidIdentityAppletTest {
   }
 
   private void initializeManager() {
+    initializeManager(new byte[0]);
+  }
+
+  private void initializeManager(byte[] parameters) {
     runtime = new TokenRuntime();
     simulator = new CardSimulator(runtime);
-    simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
+
+    simulator.installApplet(
+      IDENTITY_AID,
+      MonoidIdentityApplet.class,
+      parameters,
+      (short) 0,
+      (byte) parameters.length
+    );
     simulator.installApplet(MONOID_AID, IdentityCallerApplet.class);
     simulator.installApplet(MONOID_CALLER_AID, IdentityCallerApplet.class);
     simulator.installApplet(UNRELATED_AID, IdentityCallerApplet.class);
+
     select(MONOID_AID);
+  }
+
+  private byte[] installationParameters(byte[] aid, byte[] control, byte[] data) {
+    byte[] parameters = new byte[3 + aid.length + control.length + data.length];
+    int offset = 0;
+
+    parameters[offset++] = (byte) aid.length;
+    System.arraycopy(aid, 0, parameters, offset, aid.length);
+    offset += aid.length;
+
+    parameters[offset++] = (byte) control.length;
+    System.arraycopy(control, 0, parameters, offset, control.length);
+    offset += control.length;
+
+    parameters[offset++] = (byte) data.length;
+    System.arraycopy(data, 0, parameters, offset, data.length);
+
+    return parameters;
+  }
+
+  private byte[] authorityPublicKey(AID aid) throws Exception {
+    Object identity = runtime.lookupApplet(aid).getApplet();
+    ECPublicKey publicKey = (ECPublicKey) privateField(identity, "authorityPublicKey");
+
+    if (publicKey == null) {
+      return null;
+    }
+
+    byte[] buffer = new byte[65];
+    Assertions.assertEquals(buffer.length, publicKey.getW(buffer, (short) 0));
+
+    return buffer;
   }
 
   private void initializeSecretPIN() {

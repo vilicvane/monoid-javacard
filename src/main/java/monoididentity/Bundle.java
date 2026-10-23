@@ -4,33 +4,52 @@ import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.Util;
 import javacard.security.CryptoException;
+import javacard.security.ECPublicKey;
 import javacard.security.RandomData;
 
 /** A Bundle root and its enrollment snapshot, published together by its Identity. */
 final class Bundle {
 
   private static final byte VERSION = 1;
-  private static final short PUBLIC_KEYS_OFFSET = 3;
+
+  private static final byte ALLOW_PEER_EXTENSION = 0x01;
+  private static final byte AUTHORITY = 0x02;
+
+  private static final short PUBLIC_KEYS_OFFSET = 4;
+
   private static final short PUBLIC_KEY_LENGTH = CommunicationCipher.PUBLIC_KEY_LENGTH;
   private static final short KEY_LENGTH = CommunicationCipher.KEY_LENGTH;
 
   // @formatter:off
   private static final byte[] CONTEXT = {'M','o','n','o','i','d',' ','B','u','n','d','l','e',' ','E','n','r','o','l','l','m','e','n','t'};
+  private static final byte[] AUTHORITY_CONTEXT = {'M','o','n','o','i','d',' ','A','u','t','h','o','r','i','t','y',' ','B','u','n','d','l','e'};
   // @formatter:on
 
   final byte[] key;
   final byte[] hash;
+
+  final boolean allowPeerExtension;
+
   private final byte[] publicKeys;
 
-  private Bundle(byte[] key, byte[] publicKeys, CommunicationCipher cipher) {
+  private Bundle(
+    byte[] key,
+    byte[] publicKeys,
+    boolean allowPeerExtension,
+    CommunicationCipher cipher
+  ) {
     this.key = new byte[KEY_LENGTH];
     Util.arrayCopyNonAtomic(key, (short) 0, this.key, (short) 0, KEY_LENGTH);
+
     this.publicKeys = publicKeys;
+    this.allowPeerExtension = allowPeerExtension;
+
     hash = cipher.hash(key);
   }
 
   static Bundle create(byte[] publicKeys, byte[] ownPublicKey, CommunicationCipher cipher) {
     short length = (short) (publicKeys.length + PUBLIC_KEY_LENGTH);
+
     assertPublicKeysLength(length);
 
     byte[] members = new byte[length];
@@ -47,7 +66,9 @@ final class Bundle {
 
     for (short offset = 0; offset < members.length; offset += PUBLIC_KEY_LENGTH) {
       CommunicationCipher.assertPublicKey(members, offset, PUBLIC_KEY_LENGTH);
+
       Util.arrayCopyNonAtomic(members, offset, member, (short) 0, PUBLIC_KEY_LENGTH);
+
       short position = offset;
 
       while (
@@ -68,6 +89,7 @@ final class Bundle {
           position,
           PUBLIC_KEY_LENGTH
         );
+
         position -= PUBLIC_KEY_LENGTH;
       }
 
@@ -79,19 +101,21 @@ final class Bundle {
     byte[] key = new byte[KEY_LENGTH];
     RandomData.getInstance(RandomData.ALG_KEYGENERATION).nextBytes(key, (short) 0, KEY_LENGTH);
 
-    return new Bundle(key, members, cipher);
+    return new Bundle(key, members, true, cipher);
   }
 
   static Bundle decrypt(
     byte[] senderPublicKey,
     byte[] ownPublicKey,
     byte[] data,
-    CommunicationCipher cipher
+    CommunicationCipher cipher,
+    ECPublicKey authorityPublicKey
   ) {
     if (
       data.length <
-        PUBLIC_KEYS_OFFSET + PUBLIC_KEY_LENGTH * 2 + CommunicationCipher.ENCRYPTED_KEY_LENGTH ||
-      data[0] != VERSION
+        PUBLIC_KEYS_OFFSET + PUBLIC_KEY_LENGTH + CommunicationCipher.ENCRYPTED_KEY_LENGTH ||
+      data[0] != VERSION ||
+      (data[1] & ~(ALLOW_PEER_EXTENSION | AUTHORITY)) != 0
     ) {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
     }
@@ -99,17 +123,44 @@ final class Bundle {
     short length = (short) (data.length -
       PUBLIC_KEYS_OFFSET -
       CommunicationCipher.ENCRYPTED_KEY_LENGTH);
-    assertPublicKeysLength(length);
 
-    if (Util.getShort(data, (short) 1) != (short) (length / PUBLIC_KEY_LENGTH)) {
+    byte flags = data[1];
+    boolean authority = (flags & AUTHORITY) != 0;
+
+    if (authority) {
+      if (authorityPublicKey == null || length != PUBLIC_KEY_LENGTH) {
+        ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+      }
+
+      byte[] trustedPublicKey = new byte[PUBLIC_KEY_LENGTH];
+      authorityPublicKey.getW(trustedPublicKey, (short) 0);
+
+      if (
+        LibSecurity.check(trustedPublicKey, senderPublicKey, Constants.SAFE_FALSE) !=
+        Constants.SAFE_TRUE
+      ) {
+        ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+      }
+
+      // HPKE authenticates the installed Authority, independently of the supplied key check.
+      senderPublicKey = trustedPublicKey;
+    } else {
+      assertPublicKeysLength(length);
+    }
+
+    if (Util.getShort(data, (short) 2) != (short) (length / PUBLIC_KEY_LENGTH)) {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
     }
 
     byte[] members = new byte[length];
     Util.arrayCopyNonAtomic(data, PUBLIC_KEYS_OFFSET, members, (short) 0, length);
+
     assertCanonicalMembers(members);
     assertMember(members, ownPublicKey);
-    assertMember(members, senderPublicKey);
+
+    if (!authority) {
+      assertMember(members, senderPublicKey);
+    }
 
     byte[] encryptedKey = CommunicationData.makePrivateByteArray(
       CommunicationCipher.ENCRYPTED_KEY_LENGTH
@@ -121,9 +172,10 @@ final class Bundle {
       (short) 0,
       CommunicationCipher.ENCRYPTED_KEY_LENGTH
     );
-    byte[] key = cipher.decrypt(senderPublicKey, context(members, cipher), encryptedKey);
 
-    return new Bundle(key, members, cipher);
+    byte[] key = cipher.decrypt(senderPublicKey, context(flags, members, cipher), encryptedKey);
+
+    return new Bundle(key, members, (flags & ALLOW_PEER_EXTENSION) != 0, cipher);
   }
 
   byte[] encryptPackets(byte[] recipients, CommunicationCipher cipher) {
@@ -136,7 +188,9 @@ final class Bundle {
 
     byte[] data = new byte[(short) (packetLength * count)];
     byte[] recipient = new byte[PUBLIC_KEY_LENGTH];
-    byte[] context = context(publicKeys, cipher);
+
+    byte[] context = context(peerFlags(), publicKeys, cipher);
+
     short offset = 0;
 
     for (
@@ -145,7 +199,9 @@ final class Bundle {
       memberOffset += PUBLIC_KEY_LENGTH
     ) {
       Util.arrayCopyNonAtomic(recipients, memberOffset, recipient, (short) 0, PUBLIC_KEY_LENGTH);
+
       encrypt(recipient, publicKeys, cipher, context, data, offset);
+
       offset += packetLength;
     }
 
@@ -159,9 +215,11 @@ final class Bundle {
 
     if (!contains(recipientPublicKey)) {
       short length = (short) (publicKeys.length + PUBLIC_KEY_LENGTH);
+
       assertPublicKeysLength(length);
 
       members = new byte[length];
+
       short position = 0;
 
       while (
@@ -191,7 +249,14 @@ final class Bundle {
 
     byte[] data = new byte[packetLength(members)];
 
-    encrypt(recipientPublicKey, members, cipher, context(members, cipher), data, (short) 0);
+    encrypt(
+      recipientPublicKey,
+      members,
+      cipher,
+      context(peerFlags(), members, cipher),
+      data,
+      (short) 0
+    );
 
     return data;
   }
@@ -211,7 +276,9 @@ final class Bundle {
     short offset
   ) {
     data[offset] = VERSION;
-    Util.setShort(data, (short) (offset + 1), (short) (publicKeys.length / PUBLIC_KEY_LENGTH));
+    data[(short) (offset + 1)] = peerFlags();
+    Util.setShort(data, (short) (offset + 2), (short) (publicKeys.length / PUBLIC_KEY_LENGTH));
+
     Util.arrayCopyNonAtomic(
       publicKeys,
       (short) 0,
@@ -219,6 +286,7 @@ final class Bundle {
       (short) (offset + PUBLIC_KEYS_OFFSET),
       (short) publicKeys.length
     );
+
     cipher.encrypt(
       recipientPublicKey,
       context,
@@ -229,7 +297,20 @@ final class Bundle {
   }
 
   boolean matches(Bundle other) {
-    return LibSecurity.check(key, other.key, Constants.SAFE_FALSE) == Constants.SAFE_TRUE;
+    return (
+      allowPeerExtension == other.allowPeerExtension &&
+      LibSecurity.check(key, other.key, Constants.SAFE_FALSE) == Constants.SAFE_TRUE
+    );
+  }
+
+  void assertPeerExtension() {
+    if (!allowPeerExtension) {
+      ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+    }
+  }
+
+  private byte peerFlags() {
+    return allowPeerExtension ? ALLOW_PEER_EXTENSION : (byte) 0;
   }
 
   boolean contains(byte[] publicKey) {
@@ -244,15 +325,22 @@ final class Bundle {
     return false;
   }
 
-  private static byte[] context(byte[] publicKeys, CommunicationCipher cipher) {
-    byte[] context = new byte[(short) (CONTEXT.length + 1 + publicKeys.length)];
-    Util.arrayCopyNonAtomic(CONTEXT, (short) 0, context, (short) 0, (short) CONTEXT.length);
-    context[CONTEXT.length] = VERSION;
+  private static byte[] context(byte flags, byte[] publicKeys, CommunicationCipher cipher) {
+    byte[] domain = (flags & AUTHORITY) != 0 ? AUTHORITY_CONTEXT : CONTEXT;
+    short offset = (short) domain.length;
+
+    byte[] context = new byte[(short) (offset + PUBLIC_KEYS_OFFSET + publicKeys.length)];
+    Util.arrayCopyNonAtomic(domain, (short) 0, context, (short) 0, offset);
+
+    context[offset] = VERSION;
+    context[(short) (offset + 1)] = flags;
+    Util.setShort(context, (short) (offset + 2), (short) (publicKeys.length / PUBLIC_KEY_LENGTH));
+
     Util.arrayCopyNonAtomic(
       publicKeys,
       (short) 0,
       context,
-      (short) (CONTEXT.length + 1),
+      (short) (offset + PUBLIC_KEYS_OFFSET),
       (short) publicKeys.length
     );
 

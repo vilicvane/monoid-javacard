@@ -8,7 +8,8 @@ historical tests do not establish the behavior of every later build.
 
 The [command definitions](../README.md#iso-7816-commands),
 [architecture](architecture.md), [Identity](identity.md), [item transfer](item-transfer.md)
-and [Bundle](bundle.md) specify the corresponding interfaces and formats. If an
+and [Bundle](bundle.md), including [Authority enrollment](authority.md), specify
+the corresponding interfaces and formats. If an
 implementation violates the boundaries below, report the discrepancy rather than
 reclassifying it as a trusted input or an accepted exception.
 
@@ -44,7 +45,7 @@ Possession of an authorized session is sufficient to request supported signature
 Monoid owns Safe items, Access PIN, derivation and signing. Safe is an internal
 class in the same applet, not a separately replaceable security authority.
 Identity owns Secret PIN and its retry/authorization state, the long-term P-256
-private key, binding secret, Bundle key and enrollment snapshot. None of those Identity
+private key, binding secret, Bundle key, extension policy and enrollment snapshot. None of those Identity
 secrets has a raw export interface.
 
 | Operation                                                                           | Required authorization and scope                                                                                                                         |
@@ -224,9 +225,10 @@ therefore be restricted to trusted identities. This is not a cryptographic proof
 of the sender against a malicious holder of the Bundle root.
 
 Create accepts only other recipients, rejects duplicate keys and the local key,
-and rejects an existing Bundle even for the same recipients. Join verifies the
-enrollment packet, accepts the same key idempotently while retaining the local
-snapshot, and rejects a different key. Extend and Approve require two distinct
+and rejects an existing Bundle even for the same recipients. It enables
+`allowPeerExtension`. Join verifies the enrollment packet, accepts the same key
+and policy idempotently while retaining the local snapshot, and rejects a different
+key or policy. Extend and Approve both require `allowPeerExtension`, two distinct
 existing Bundle identities and each executing card's Secret PIN. The initiating Identity produces
 a dedicated Bundle-root HMAC and Identity signature, both binding its actual
 public key, the Bundle hash and the target's complete public key. The second
@@ -235,12 +237,29 @@ for that target. Neither a
 root MAC alone nor an Identity signature alone satisfies this authorization.
 These operations expose neither generic signing nor a caller-selected MAC domain.
 
-The new card uses Join and may immediately exchange data and approve further
-extensions; no member-list synchronization is required. Enrollment snapshots do
+The new card uses Join, inherits the policy and may immediately exchange data and,
+when permitted, approve further extensions; no member-list synchronization is
+required. Enrollment snapshots do
 not confer approval authority. Extend and Approve do not change the existing cards'
 configuration. Saved requests can be replayed for the same target; this is not
 a fresh-presence or revocation protocol. Extension retains the root and permits
 historical data recovery, without revoking lost members.
+
+An optional Authority key is fixed at Identity installation. Authority enrollment
+authenticates that installed key through HPKE Auth and binds the recipient and
+`allowPeerExtension` in the authenticated packet header. It requires Secret PIN
+and the fixed Monoid caller, and cannot replace an existing root or change its
+policy. The policy governs peer extension only; it does not prevent the Authority
+from issuing the same root to another recipient without existing cards.
+
+The Authority knows roots it issues and can decrypt captured artifacts in those
+groups without either card or PIN. This is a different confidentiality boundary
+from a root generated and retained only by trusted card identities. The installed
+Authority does not learn or gain an override for card-created roots. Issuers must
+keep one policy per root; a Bundle hash covers only the root and does not prove
+policy agreement. Cards cannot detect conflicting policies distributed to other
+members. Enrollment packets are replayable for the same Identity and have no
+expiry or revocation check. See [Authority](authority.md) for issuance and lifecycle.
 
 `0xFF Reset` clears local items,
 derivation cache, both PINs, authorization and Bundle together, and generates a
@@ -258,7 +277,8 @@ restore must track and verify its selected item set separately.
 
 ## Recovery and reinitialization
 
-The current interface permits the following, including for secret records:
+For a card-created Bundle, the current interface permits the following, including
+for secret records:
 
 1. Obtain an encrypted export from a trusted source Bundle card using its Secret
    PIN, or possess an export obtained earlier.
@@ -286,15 +306,16 @@ Replacing Monoid removes live items, Access PIN and caches; Identity retains
 Secret PIN, its retries, the keys and Bundle, but not an item database. Replacement
 Monoid code must authenticate the retained Secret PIN before using Identity
 cryptography. Replacing Identity too removes that PIN and Bundle and generates a
-new identity key, ID and binding secret. Retained Monoid data never silently binds
+new identity key and binding secret, even if the Card ID is supplied again. Retained Monoid data never silently binds
 to this new Identity. Old asymmetric artifacts and enrollment packets do not
 become decryptable merely by using the same AID.
 
 `0xFF Reset` requires no PIN and returns Monoid to its uninitialized state: it clears
 all local items, the derivation cache, both PINs and their failed-attempt/blocked
-state, current authorization and the Bundle. It generates a new Identity key pair,
-random ID and binding secret, clears its token cache and updates Monoid's binding.
-Hello returns the new ID/public key and both PINs and Bundle as `false`; ordinary
+state, current authorization and the Bundle. It preserves the Card ID and installed
+Authority key, generates a new Identity key pair and binding secret, clears its
+token cache and updates Monoid's binding.
+Hello returns the same ID, the new public key and both PINs and Bundle as `false`; ordinary
 protected operations require new PIN initialization.
 Anyone able to send Monoid APDUs can cause this data loss; availability against
 that caller is deliberately not protected by PIN authentication. Reset gives no
@@ -345,9 +366,10 @@ earlier update committed. Initial Secret and Access PIN setup also uses separate
 updates in their respective applet contexts. These scopes differ from publishing a fully authenticated imported item
 or a completed Bundle. Reset prepares a new identity outside the transaction,
 then publishes item removal, derivation-cache clearing, both unset PINs, the new
-Identity key pair/ID/token secret/cache, Bundle removal and Monoid's new binding
+Identity key pair/token secret/cache, Bundle removal and Monoid's new binding
 in one transaction across both applet contexts. An aborted transaction preserves
-the previous published persistent state. Successful Reset clears current authorization and requests garbage
+the previous published persistent state. Card ID and Authority configuration remain
+unchanged. Successful Reset clears current authorization and requests garbage
 collection without promising physical erasure. Multi-command backup, GP deletion/installation and
 cross-card enrollment have no shared transaction.
 

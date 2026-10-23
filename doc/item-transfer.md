@@ -152,7 +152,8 @@ publish a plaintext result or modify an existing item.
 For asymmetric transfer, Export's recipient public key and Import's expected
 sender public key must come from the application's trust decision. For Bundle
 transfer, that decision applies when choosing the initial members or approving
-a new member through Extend Bundle and Approve Bundle Extension. Neither
+a new member through Extend Bundle and Approve Bundle Extension, or trusting the
+[Authority](authority.md) that issues the root. Neither
 envelope establishes that an unverified public key belongs to the intended
 physical card. The four-byte display ID is not a cryptographic identity fingerprint.
 
@@ -162,7 +163,9 @@ has no Bundle. A Bundle artifact can be imported by the same applet AID on anoth
 member, after that member's Secret PIN is verified. The sending Identity cannot
 decrypt its own Bundle artifact. This policy is enforced by trusted Identity code;
 a symmetric key has no inherent encryption-only property. A software holder of
-the root could derive every member key, so peer trust remains necessary.
+the root could derive every member key, so peer trust remains necessary. An
+Authority knows the roots it issues and can decrypt captured artifacts in those
+groups without contacting a card or verifying its PIN.
 
 Extension retains the root and sender-key derivation. A new member can immediately
 exchange data with existing members and decrypt their historical artifacts;
@@ -174,7 +177,8 @@ artifacts after Monoid replacement. Previously exported artifacts need no new
 source PIN check; decryption still requires the receiving Identity's Secret PIN.
 
 `0xFF Reset` clears local items, both PINs, authorization and the Bundle together,
-and generates a new Identity key pair, ID and binding secret. Old asymmetric
+preserves the Card ID and installed Authority key, and generates a new Identity key
+pair and binding secret. Old asymmetric
 artifacts and enrollment packets no longer decrypt on the reset Identity, and
 its old Bundle key is gone. Initialize new PINs and use the new public key for
 subsequent transfers or enrollment. Reset does not revoke copies on other cards

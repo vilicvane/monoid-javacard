@@ -19,6 +19,11 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   public static final byte ID_LENGTH = 4;
 
+  private static final byte INSTALL_ID = 0x01;
+  private static final byte INSTALL_AUTHORITY = 0x02;
+
+  private static final short AUTHORITY_PUBLIC_KEY_LENGTH = 65;
+
   private static final short TOKEN_LENGTH = 32;
   private static final short TOKEN_CACHE_SIZE = 32;
   private static final short TOKEN_AID_ROUNDS = 3;
@@ -27,8 +32,11 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   private static final byte[] TOKEN_CONTEXT = {'M','o','n','o','i','d',' ','I','d','e','n','t','i','t','y',' ','T','o','k','e','n'};
   // @formatter:on
 
-  private byte[] id = new byte[ID_LENGTH];
+  private final byte[] id = new byte[ID_LENGTH];
+  private final ECPublicKey authorityPublicKey;
+
   private byte[] tokenSecret = new byte[TOKEN_LENGTH];
+
   private TokenCacheEntry[] tokenCache = new TokenCacheEntry[TOKEN_CACHE_SIZE];
   private short nextTokenCacheIndex;
 
@@ -38,15 +46,21 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   );
 
   private KeyPair keyPair;
+
   private SecretPIN secretPIN = new SecretPIN();
+
   private MessageDigest tokenDigest;
   private byte[] tokenHmacBlock;
+
   private byte[] hmacBlock;
   private AESGcmCipher aesGcmCipher;
+
   private CommunicationCipher communicationCipher;
   private BundleExtension bundleExtension;
   private ItemCipher itemCipher;
+
   private Bundle bundle;
+
   private final byte[] communicationOperation = JCSystem.makeTransientByteArray(
     (short) 1,
     JCSystem.CLEAR_ON_RESET
@@ -84,12 +98,66 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   };
 
   public static void install(byte[] buffer, short offset, byte length) {
-    new MonoidIdentityApplet().register();
+    short aidOffset = offset;
+    byte aidLength = length == 0 ? 0 : buffer[offset];
+
+    if (length != 0) {
+      offset += (short) (aidLength + 1);
+      offset += (short) (buffer[offset] + 1);
+      length = buffer[offset++];
+    }
+
+    MonoidIdentityApplet applet = new MonoidIdentityApplet(buffer, offset, length);
+
+    if (aidLength == 0) {
+      applet.register();
+    } else {
+      applet.register(buffer, (short) (aidOffset + 1), aidLength);
+    }
   }
 
-  MonoidIdentityApplet() {
+  MonoidIdentityApplet(byte[] buffer, short offset, byte length) {
+    byte flags = length == 0 ? 0 : buffer[offset++];
+
+    if ((flags & ~(INSTALL_ID | INSTALL_AUTHORITY)) != 0) {
+      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+    }
+
+    short expectedLength = (short) (1 +
+      ((flags & INSTALL_ID) != 0 ? ID_LENGTH : 0) +
+      ((flags & INSTALL_AUTHORITY) != 0 ? AUTHORITY_PUBLIC_KEY_LENGTH : 0));
+
+    if (length != 0 && length != expectedLength) {
+      ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+    }
+
     RandomData random = RandomData.getInstance(RandomData.ALG_TRNG);
-    random.nextBytes(id, (short) 0, (short) id.length);
+
+    if ((flags & INSTALL_ID) != 0) {
+      Util.arrayCopyNonAtomic(buffer, offset, id, (short) 0, ID_LENGTH);
+      offset += ID_LENGTH;
+    } else {
+      random.nextBytes(id, (short) 0, ID_LENGTH);
+    }
+
+    if ((flags & INSTALL_AUTHORITY) != 0) {
+      if (buffer[offset] != 0x04) {
+        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+      }
+
+      authorityPublicKey = (ECPublicKey) KeyBuilder.buildKey(
+        KeyBuilder.ALG_TYPE_EC_FP_PUBLIC,
+        JCSystem.MEMORY_TYPE_PERSISTENT,
+        KeyBuilder.LENGTH_EC_FP_256,
+        false
+      );
+
+      LibSECP256r1.initialize(authorityPublicKey);
+      authorityPublicKey.setW(buffer, offset, AUTHORITY_PUBLIC_KEY_LENGTH);
+    } else {
+      authorityPublicKey = null;
+    }
+
     random.nextBytes(tokenSecret, (short) 0, TOKEN_LENGTH);
 
     keyPair = createKeyPair();
@@ -126,11 +194,13 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
     byte[] token = new byte[TOKEN_LENGTH];
     byte[] caller = new byte[16];
+
     byte callerLength = createToken(tokenSecret, caller, token);
 
     // A caller's transaction must not make an otherwise valid token request fail.
     if (JCSystem.getTransactionDepth() == 0) {
       TokenCacheEntry entry = new TokenCacheEntry(caller, callerLength, token);
+
       JCSystem.beginTransaction();
 
       try {
@@ -205,6 +275,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   public void updateSecretPIN(byte[] pin) {
     assertMonoidCaller();
     assertCommunicationAvailable();
+
     secretPIN.update(pin);
   }
 
@@ -219,6 +290,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   public void clearSecretAuth() {
     assertCaller();
     assertCommunicationAvailable();
+
     secretPIN.clearAuth();
   }
 
@@ -234,9 +306,12 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
     byte[] ownPublicKey = publicKey();
     CommunicationCipher cipher = requireCommunicationCipher();
+
     Bundle created = Bundle.create(publicKeys, ownPublicKey, cipher);
+
     byte[] packets = created.encryptPackets(publicKeys, cipher);
     CommunicationData result = new CommunicationData(packets, JCSystem.getPreviousContextAID());
+
     publishBundle(created);
 
     return result;
@@ -252,11 +327,13 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
       JCSystem.ARRAY_TYPE_BYTE,
       MessageDigest.LENGTH_SHA_256
     );
+
     Bundle joined = Bundle.decrypt(
       senderPublicKey,
       publicKey(),
       data,
-      requireCommunicationCipher()
+      requireCommunicationCipher(),
+      authorityPublicKey
     );
 
     if (LibSecurity.check(bundleAbsenceValidation, Constants.SAFE_FALSE) != Constants.SAFE_TRUE) {
@@ -309,10 +386,14 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
     preparedReset[0] = null;
     JCSystem.requestObjectDeletion();
+
     ResetState state = new ResetState();
+
     byte[] token = new byte[TOKEN_LENGTH];
     createToken(state.tokenSecret, new byte[16], token);
+
     byte[] result = duplicateAsGlobal(token);
+
     preparedReset[0] = state;
 
     return result;
@@ -328,16 +409,21 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     }
 
     ResetState state = (ResetState) preparedReset[0];
-    id = state.id;
+
     keyPair = state.keyPair;
     secretPIN = state.secretPIN;
+
     tokenSecret = state.tokenSecret;
     tokenCache = state.tokenCache;
     nextTokenCacheIndex = 0;
+
     bundle = null;
+
     communicationCipher = null;
     bundleExtension = null;
+
     preparedReset[0] = null;
+
     JCSystem.requestObjectDeletion();
   }
 
@@ -353,6 +439,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     assertCaller();
     assertCommunicationAvailable();
     assertSecretAuth();
+
     AID caller = JCSystem.getPreviousContextAID();
     communicationOperation[0] = 1;
 
@@ -388,6 +475,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     assertCaller();
     assertCommunicationAvailable();
     assertSecretAuth();
+
     AID caller = JCSystem.getPreviousContextAID();
     communicationOperation[0] = 1;
 
@@ -442,6 +530,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
     try {
       this.bundle = bundle;
+
       JCSystem.commitTransaction();
     } finally {
       if (JCSystem.getTransactionDepth() != 0) {
@@ -501,8 +590,10 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   private static KeyPair createKeyPair() {
     KeyPair keyPair = new KeyPair(KeyPair.ALG_EC_FP, KeyBuilder.LENGTH_EC_FP_256);
+
     LibSECP256r1.initialize((ECPrivateKey) keyPair.getPrivate());
     LibSECP256r1.initialize((ECPublicKey) keyPair.getPublic());
+
     keyPair.genKeyPair();
 
     return keyPair;
@@ -516,6 +607,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
     LibHMACSha256.begin(tokenDigest, tokenHmacBlock, secret, (short) 0, TOKEN_LENGTH);
     tokenDigest.update(TOKEN_CONTEXT, (short) 0, (short) TOKEN_CONTEXT.length);
+
     byte callerLength = 0;
 
     for (short round = 0; round < TOKEN_AID_ROUNDS; round++) {
@@ -569,16 +661,17 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   private static final class ResetState {
 
-    private final byte[] id = new byte[ID_LENGTH];
     private final byte[] tokenSecret = new byte[TOKEN_LENGTH];
     private final TokenCacheEntry[] tokenCache = new TokenCacheEntry[TOKEN_CACHE_SIZE];
+
     private final KeyPair keyPair;
+
     private final SecretPIN secretPIN = new SecretPIN();
 
     private ResetState() {
       RandomData random = RandomData.getInstance(RandomData.ALG_TRNG);
-      random.nextBytes(id, (short) 0, ID_LENGTH);
       random.nextBytes(tokenSecret, (short) 0, TOKEN_LENGTH);
+
       keyPair = createKeyPair();
     }
   }
@@ -587,11 +680,13 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
     private final byte[] caller;
     private final byte callerLength;
+
     private final byte[] token;
 
     private TokenCacheEntry(byte[] caller, byte callerLength, byte[] token) {
       this.caller = caller;
       this.callerLength = callerLength;
+
       this.token = token;
     }
 

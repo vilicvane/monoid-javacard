@@ -127,7 +127,7 @@ public class MonoidBundleTest {
 
         Assertions.assertEquals(0, card.success(0xFF, fields()).size());
         assertNoBundle(card);
-        Assertions.assertFalse(Arrays.equals(identity, card.safeId()));
+        Assertions.assertArrayEquals(identity, card.safeId());
         Assertions.assertFalse(Arrays.equals(publicKey, card.publicKey()));
         assertPINsUnset(card);
         assertError(card.transmit(0x30, fields()), "UNAUTHORIZED");
@@ -159,9 +159,8 @@ public class MonoidBundleTest {
         Assertions.assertEquals(0, card.success(0xFF, fields()).size());
         byte[] newIdentity = card.safeId();
         byte[] newPublicKey = card.publicKey();
-        Assertions.assertFalse(Arrays.equals(identity, newIdentity));
+        Assertions.assertArrayEquals(identity, newIdentity);
         Assertions.assertFalse(Arrays.equals(publicKey, newPublicKey));
-        identity = newIdentity;
         publicKey = newPublicKey;
         assertNoBundle(card);
         assertPINsUnset(card);
@@ -258,10 +257,9 @@ public class MonoidBundleTest {
           );
           byte[] newIdentity = card.safeId();
           byte[] newPublicKey = card.publicKey();
-          Assertions.assertFalse(Arrays.equals(identity, newIdentity));
+          Assertions.assertArrayEquals(identity, newIdentity);
           Assertions.assertFalse(Arrays.equals(publicKey, newPublicKey));
           Assertions.assertFalse(Arrays.equals(token, (byte[]) tokenField.get(MonoidApplet.safe)));
-          identity = newIdentity;
           publicKey = newPublicKey;
           card.reset();
           Assertions.assertArrayEquals(identity, card.safeId());
@@ -678,12 +676,14 @@ public class MonoidBundleTest {
   private static void assertMembers(byte[] data, byte[][] members) {
     byte[][] sorted = members.clone();
     Arrays.sort(sorted, (left, right) -> Hex.toHexString(left).compareTo(Hex.toHexString(right)));
+
     Assertions.assertEquals(1, data[0]);
-    Assertions.assertEquals(members.length, ((data[1] & 0xFF) << 8) | (data[2] & 0xFF));
+    Assertions.assertEquals(members.length, ((data[2] & 0xFF) << 8) | (data[3] & 0xFF));
+
     for (int index = 0; index < sorted.length; index++) {
       Assertions.assertArrayEquals(
         sorted[index],
-        Arrays.copyOfRange(data, 3 + index * 65, 3 + (index + 1) * 65)
+        Arrays.copyOfRange(data, 4 + index * 65, 4 + (index + 1) * 65)
       );
     }
   }

@@ -36,12 +36,15 @@ Security Key uses the standard FIDO NFC instance AID; its CAP module AID follows
 the Monoid package namespace. Install Identity, load Monoid Library, then install
 Monoid and Security Key. The library has no applet instance.
 Monoid owns Safe item storage, Access PIN, derivation and signing in one applet
-context. Monoid Identity keeps its key pair, random ID, Secret PIN and optional
+context. Monoid Identity keeps its key pair, Card ID, Secret PIN and optional
 Bundle across Monoid replacement. It verifies Secret PIN and performs complete
 item encryption and decryption, enforcing caller authorization and Bundle policy
 internally. See
 [Monoid Identity](identity.md) for its card-local interface and [Bundle](bundle.md)
-for enrollment and two-member extension.
+for enrollment and two-member extension. An optional Authority public key supplied
+at Identity installation authenticates [issued Bundle tokens](authority.md).
+Identity retains the token's `allowPeerExtension` policy and enforces it at both
+extension entry points.
 
 Monoid and Security Key share CBOR parsing, map indexing, APDU reception, response
 storage and segmented sending through the library. Command framing, chaining
@@ -192,7 +195,8 @@ storage operations do not reset that counter.
 
 `0xFF Reset` requires no PIN. It clears all items, derivation cache, Bundle, both
 PINs and current authorization, returning Monoid to an uninitialized state. It
-generates a new Identity key pair, ID and binding secret, clears the token cache
+preserves the Card ID and installed Authority key, generates a new Identity key pair
+and binding secret, clears the token cache
 and atomically updates Monoid's binding with these changes. This also clears
 blocked-PIN state; new PIN initialization is required before ordinary storage use.
 It does not replace either installed applet instance or its code. A card power
@@ -210,10 +214,11 @@ their cryptographic domains. Only the exact Monoid AID can create, join or exten
 a Bundle. A initiates with `0x25 Extend Bundle`, B confirms with
 `0x26 Approve Bundle Extension` and C joins with `0x24 Join Bundle`. B's response
 is C's complete Join request. Approval
-requires another Identity's signature together with a Bundle-root HMAC and local
-Secret authorization; it preserves the root. Stored
+requires another Identity's signature together with a Bundle-root HMAC, local
+Secret authorization and `allowPeerExtension`; it preserves the root and policy. Stored
 enrollment snapshots are not authorization lists, so new members can exchange
-records and participate in later extensions without synchronizing older cards.
+records and, when permitted, participate in later extensions without synchronizing
+older cards.
 Monoid privately binds its Identity token before processing its first command;
 later Identity calls must match that token. Replacing Identity cannot automatically
 rebind a Monoid that retains its data. Only `0xFF Reset` explicitly synchronizes a
