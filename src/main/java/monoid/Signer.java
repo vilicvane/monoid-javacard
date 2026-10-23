@@ -1,8 +1,8 @@
 package monoid;
 
-import javacard.framework.JCSystem;
 import javacard.security.Key;
 import javacard.security.Signature;
+import monoidlib.ByteSource;
 
 public final class Signer {
 
@@ -33,10 +33,7 @@ public final class Signer {
       return null;
     }
 
-    byte[] signature = JCSystem.makeTransientByteArray(
-      LibED25519.SIGNATURE_LENGTH,
-      JCSystem.CLEAR_ON_DESELECT
-    );
+    byte[] signature = new byte[LibED25519.SIGNATURE_LENGTH];
 
     LibED25519.sign(
       (CurveED25519) curve,
@@ -62,14 +59,8 @@ public final class Signer {
       return null;
     }
 
-    byte[] auxiliary = JCSystem.makeTransientByteArray(
-      CurveSECP256k1.KEY_LENGTH,
-      JCSystem.CLEAR_ON_DESELECT
-    );
-    byte[] signature = JCSystem.makeTransientByteArray(
-      LibBIP340.SIGNATURE_LENGTH,
-      JCSystem.CLEAR_ON_DESELECT
-    );
+    byte[] auxiliary = new byte[CurveSECP256k1.KEY_LENGTH];
+    byte[] signature = new byte[LibBIP340.SIGNATURE_LENGTH];
 
     OneShot.random(auxiliary, (short) 0, (short) auxiliary.length);
     LibBIP340.sign(

@@ -4,6 +4,7 @@ import com.licel.jcardsim.base.SimulatorSystem;
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import java.util.Arrays;
 import javacard.framework.ISOException;
+import javacard.framework.JCSystem;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,6 +92,9 @@ public class CurveED25519Test {
       "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"
     );
     ED25519Key key = curve.getSharedPrivateKey(seed, (short) 0);
+    Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(key.scalar));
+    Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(key.prefix));
+    Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(key.publicKey));
     byte[] signature = new byte[64];
 
     for (int iteration = 0; iteration < 3; iteration++) {
@@ -119,7 +123,7 @@ public class CurveED25519Test {
       )
     );
 
-    // Reset clears transient data, while the shared curve remains reachable.
+    // Reset invalidates the key even though its private payload remains persistent.
     SimulatorSystem.instance().reset();
 
     Assertions.assertThrows(ISOException.class, () -> curve.derivePublicKey(key));

@@ -9,6 +9,9 @@ import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
+import monoidlib.CBORBufferReader;
+import monoidlib.CBORResponse;
+import monoidlib.CBORWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -101,6 +104,102 @@ public class CommandResponseTest {
     Assertions.assertEquals(0x6985, next().getSW());
   }
 
+  @Test
+  public void executesOnlyTheCompleteRequestAndKeepsItsChainAfterGetResponse() {
+    for (int[] frame : new int[][] { { 0x90, 0x19 }, { 0xB0, 0 } }) {
+      ResponseAPDU response = simulator.transmitCommand(
+        new CommandAPDU(frame[0], 0x30, 0, 0, new byte[] { (byte) frame[1] })
+      );
+      Assertions.assertEquals(0x9000, response.getSW());
+      Assertions.assertEquals(0, response.getData().length);
+      Assertions.assertEquals(0, responseCommand.executions);
+    }
+
+    Assertions.assertEquals(0x6883, next().getSW());
+    Assertions.assertEquals(2, Command.reader.getReceivedLength());
+    Assertions.assertEquals(0, responseCommand.executions);
+
+    ResponseAPDU first = simulator.transmitCommand(
+      new CommandAPDU(0xA0, 0x30, 0, 0, new byte[] { 0 })
+    );
+    Assertions.assertEquals(0x6100, first.getSW());
+    Assertions.assertArrayEquals(new byte[] { (byte) 0x88, 0, 1, 2, 3 }, first.getData());
+    Assertions.assertEquals(1, responseCommand.executions);
+    Assertions.assertArrayEquals(new byte[] { 4, 5, 6, 7 }, next().getData());
+    assertReleased();
+  }
+
+  @Test
+  public void rejectsUnknownFirstInstructionAndDiscardsThePreviousRequest() {
+    Assertions.assertEquals(
+      0x9000,
+      simulator.transmitCommand(new CommandAPDU(0x90, 0x30, 0, 0, new byte[] { 0x19 })).getSW()
+    );
+    Assertions.assertEquals(
+      0x6D00,
+      simulator.transmitCommand(new CommandAPDU(0x90, 0x7F, 0, 0, new byte[] { 0 })).getSW()
+    );
+    Assertions.assertEquals(0, Command.reader.getReceivedLength());
+    Assertions.assertEquals(0, responseCommand.executions);
+    Assertions.assertEquals(
+      0x6883,
+      simulator.transmitCommand(new CommandAPDU(0xA0, 0x30, 0, 0, new byte[] { 0, 0 })).getSW()
+    );
+
+    Assertions.assertEquals(0x6100, start(0).getSW());
+    Assertions.assertEquals(1, responseCommand.executions);
+    Assertions.assertArrayEquals(new byte[] { 4, 5, 6, 7 }, next().getData());
+    assertReleased();
+  }
+
+  @Test
+  public void rejectsChangedParametersInMoreAndLastFrames() {
+    for (int cla : new int[] { 0xB0, 0xA0 }) {
+      for (int[] parameters : new int[][] { { 1, 0 }, { 0, 1 } }) {
+        Assertions.assertEquals(
+          0x9000,
+          simulator.transmitCommand(new CommandAPDU(0x90, 0x30, 0, 0, new byte[] { 0x19 })).getSW()
+        );
+        ResponseAPDU changed = simulator.transmitCommand(
+          new CommandAPDU(cla, 0x30, parameters[0], parameters[1], new byte[] { 0 })
+        );
+        Assertions.assertEquals(0x6883, changed.getSW());
+        Assertions.assertEquals(0, Command.reader.getReceivedLength());
+        Assertions.assertEquals(0, responseCommand.executions);
+        Assertions.assertEquals(
+          0x6883,
+          simulator.transmitCommand(new CommandAPDU(0xA0, 0x30, 0, 0, new byte[] { 0, 0 })).getSW()
+        );
+      }
+    }
+    Assertions.assertEquals(0x6100, start(0).getSW());
+    Assertions.assertArrayEquals(new byte[] { 4, 5, 6, 7 }, next().getData());
+    assertReleased();
+  }
+
+  @Test
+  public void preservesThePendingResponseAfterInvalidGetResponseHeaders() {
+    Assertions.assertEquals(0x6100, start(0).getSW());
+    for (int[] header : new int[][] {
+      { 0x80, 0, 0, 0x6E00 },
+      { 0, 1, 0, 0x6A86 },
+      { 0, 0, 1, 0x6A86 },
+    }) {
+      ResponseAPDU invalid = simulator.transmitCommand(
+        new CommandAPDU(header[0], 0xC0, header[1], header[2], 256)
+      );
+      Assertions.assertEquals(header[3], invalid.getSW());
+      Assertions.assertEquals(0, invalid.getData().length);
+      Assertions.assertTrue(Command.writer.hasPending());
+      Assertions.assertTrue(responseCommand.active);
+    }
+    ResponseAPDU last = next();
+    Assertions.assertEquals(0x9000, last.getSW());
+    Assertions.assertArrayEquals(new byte[] { 4, 5, 6, 7 }, last.getData());
+    Assertions.assertEquals(1, responseCommand.executions);
+    assertReleased();
+  }
+
   private ResponseAPDU start(int mode) {
     return simulator.transmitCommand(new CommandAPDU(0, 0x30, 0, 0, new byte[] { (byte) mode }));
   }
@@ -119,9 +218,11 @@ public class CommandResponseTest {
     private short mode;
     private short position;
     private boolean active;
+    private int executions;
 
     @Override
     protected void run() {
+      executions++;
       mode = reader.integer();
       writer.start(this, (short) 1);
       active = true;
@@ -155,6 +256,8 @@ public class CommandResponseTest {
 
   public static class ResponseApplet extends Applet {
 
+    private final ApduTransport transport = new ApduTransport(Command.reader, Command.writer);
+
     public static void install(byte[] data, short offset, byte length) {
       MonoidException.init();
       Command.init();
@@ -172,17 +275,17 @@ public class CommandResponseTest {
     @Override
     public void process(APDU apdu) {
       if (selectingApplet()) {
-        Command.clearTransport();
+        transport.clear();
         return;
       }
 
-      Command.process(apdu);
+      transport.process(apdu);
     }
 
     @Override
     public void deselect() {
       super.deselect();
-      Command.clearTransport();
+      transport.clear();
     }
   }
 

@@ -64,8 +64,17 @@ public class CommunicationCipher {
   };
 
   public CommunicationCipher(KeyPair identity, AESGcmCipher cipher) {
+    this(
+      identity,
+      cipher,
+      JCSystem.makeTransientByteArray(HMAC_BLOCK_LENGTH, JCSystem.CLEAR_ON_RESET)
+    );
+  }
+
+  CommunicationCipher(KeyPair identity, AESGcmCipher cipher, byte[] hmacBlock) {
     this.identity = identity;
     this.cipher = cipher;
+    this.hmacBlock = hmacBlock;
 
     ephemeralPrivateKey = (ECPrivateKey) KeyBuilder.buildKey(
       KeyBuilder.ALG_TYPE_EC_FP_PRIVATE,
@@ -75,9 +84,10 @@ public class CommunicationCipher {
     );
     LibSECP256r1.initialize(ephemeralPrivateKey);
 
+    // Each transfer derives and sets a fresh key before initializing GCM.
     encryptionKey = (AESKey) KeyBuilder.buildKey(
       KeyBuilder.ALG_TYPE_AES,
-      JCSystem.MEMORY_TYPE_TRANSIENT_RESET,
+      JCSystem.MEMORY_TYPE_PERSISTENT,
       KeyBuilder.LENGTH_AES_128,
       false
     );
@@ -90,7 +100,6 @@ public class CommunicationCipher {
     dh = new byte[KEY_LENGTH * 2];
     secret = new byte[HASH_LENGTH];
     keyBytes = new byte[KEY_LENGTH];
-    hmacBlock = JCSystem.makeTransientByteArray(HMAC_BLOCK_LENGTH, JCSystem.CLEAR_ON_RESET);
     hmacSuffix = new byte[2];
   }
 

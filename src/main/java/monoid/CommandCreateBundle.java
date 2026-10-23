@@ -4,6 +4,10 @@ import javacard.framework.APDU;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
+import monoidlib.CBORApduReader;
+import monoidlib.CBORReader;
+import monoidlib.CBORResponse;
+import monoidlib.CBORWriter;
 
 public final class CommandCreateBundle extends Command implements CBORResponse {
 

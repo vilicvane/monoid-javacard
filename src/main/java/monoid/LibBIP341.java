@@ -26,9 +26,9 @@ public final class LibBIP341 {
     short outOffset
   ) {
     byte[] scalar = JCSystem.makeTransientByteArray(KEY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-    byte[] publicKey = JCSystem.makeTransientByteArray((short) 33, JCSystem.CLEAR_ON_DESELECT);
+    byte[] publicKey = new byte[33];
     byte[] tweak = JCSystem.makeTransientByteArray(KEY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-    byte[] tagHash = JCSystem.makeTransientByteArray(KEY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+    byte[] tagHash = new byte[KEY_LENGTH];
 
     try {
       Util.arrayCopyNonAtomic(key, keyOffset, scalar, (short) 0, KEY_LENGTH);

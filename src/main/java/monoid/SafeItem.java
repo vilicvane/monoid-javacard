@@ -73,7 +73,7 @@ public class SafeItem {
 
   public byte[] getIndex() {
     safe.assertAccess();
-    return Utils.duplicateAsTransientReset(index);
+    return Utils.duplicateAsPrivate(index);
   }
 
   public short getIndex(byte[] dest, short offset) {
@@ -85,7 +85,7 @@ public class SafeItem {
 
   public byte[] getKey() {
     safe.assertAccess();
-    return key != null ? Utils.duplicateAsTransientReset(key) : null;
+    return key != null ? Utils.duplicateAsPrivate(key) : null;
   }
 
   public short getKey(byte[] dest, short offset) {
@@ -102,7 +102,7 @@ public class SafeItem {
 
   public byte[] getAlias() {
     safe.assertAccess();
-    return this.alias != null ? Utils.duplicateAsTransientReset(this.alias) : null;
+    return this.alias != null ? Utils.duplicateAsPrivate(this.alias) : null;
   }
 
   public short getAlias(byte[] dest, short offset) {
@@ -202,14 +202,19 @@ public class SafeItem {
 
   private void publish(byte[] data, short secret) {
     ItemState replacement = new ItemState(data, secret);
+    boolean transaction = JCSystem.getTransactionDepth() == 0;
 
-    JCSystem.beginTransaction();
+    if (transaction) {
+      JCSystem.beginTransaction();
+    }
 
     try {
       state = replacement;
-      JCSystem.commitTransaction();
+      if (transaction) {
+        JCSystem.commitTransaction();
+      }
     } finally {
-      if (JCSystem.getTransactionDepth() != 0) {
+      if (transaction && JCSystem.getTransactionDepth() != 0) {
         JCSystem.abortTransaction();
       }
     }

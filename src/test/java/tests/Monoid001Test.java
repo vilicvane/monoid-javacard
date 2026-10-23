@@ -2,6 +2,9 @@ package tests;
 
 import com.licel.jcardsim.bouncycastle.asn1.sec.SECNamedCurves;
 import com.licel.jcardsim.bouncycastle.asn1.x9.X9ECParameters;
+import com.licel.jcardsim.bouncycastle.crypto.params.ECDomainParameters;
+import com.licel.jcardsim.bouncycastle.crypto.params.ECPublicKeyParameters;
+import com.licel.jcardsim.bouncycastle.crypto.signers.ECDSASigner;
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.utils.AIDUtil;
 import cz.muni.fi.crocs.rcard.client.CardType;
@@ -12,15 +15,14 @@ import javacard.framework.AID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import javax.smartcardio.ResponseAPDU;
-import monoid.CBORBufferReader;
-import monoid.CBORBufferWriter;
-import monoid.Command;
 import monoid.DerivedKey;
 import monoid.Monoid001Derivation;
 import monoid.MonoidApplet;
 import monoid.MonoidException;
 import monoid.WeierstrassCurve;
 import monoididentity.MonoidIdentityApplet;
+import monoidlib.CBORBufferReader;
+import monoidlib.CBORBufferWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -109,7 +111,7 @@ public class Monoid001Test extends AppletTest {
   }
 
   @Test
-  public void derivedWorkingCopiesSurviveDeselectAndClearOnReset() throws Exception {
+  public void derivedWorkingCopiesSurviveDeselectAndReset() throws Exception {
     byte[] context = Hex.decode("007f80ff0001");
     byte[] master = hmac(SALT, SEED);
     byte[] expectedKey = privateKey(master, context);
@@ -138,11 +140,11 @@ public class Monoid001Test extends AppletTest {
     simulator.reset();
 
     for (byte[] key : workingKeys) {
-      Assertions.assertArrayEquals(new byte[key.length], key);
+      Assertions.assertArrayEquals(expectedKey, key);
     }
 
     for (byte[] key : workingPublicKeys) {
-      Assertions.assertArrayEquals(new byte[key.length], key);
+      Assertions.assertArrayEquals(expectedPublicKey, key);
     }
 
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
@@ -183,14 +185,13 @@ public class Monoid001Test extends AppletTest {
       if (instruction == 0x40) {
         assertPublicKey(response, publicKey(hmac(SALT, SEED), context));
       } else {
-        // jCardSim cannot sign an ECDSA precomputed hash; this only checks dispatch.
-        assertError(response, Command.CODE_INTERNAL);
+        assertSignature(response, publicKey(hmac(SALT, SEED), context));
       }
     }
   }
 
   @Test
-  public void derivedEcdsaUsesTheExistingSimulatorSigningPath() throws Exception {
+  public void derivedAndDirectECDSASignaturesUseTheSameKey() throws Exception {
     byte[] master = hmac(SALT, SEED);
     byte[] context = Hex.decode("0102030405060708");
     byte[] seedIndex = create("seed", SEED);
@@ -201,11 +202,11 @@ public class Monoid001Test extends AppletTest {
     writeKey(writer, directIndex, "secp256r1");
     writeSigning(writer, "ecdsa");
 
-    // Successful signature verification requires a physical card: jCardSim lacks this API.
-    assertError(transmit(0x41, writer.getDataBuffer()), Command.CODE_INTERNAL);
-    assertError(
+    byte[] expectedPublicKey = publicKey(master, context);
+    assertSignature(transmit(0x41, writer.getDataBuffer()), expectedPublicKey);
+    assertSignature(
       transmit(0x41, keyRequest(seedIndex, "seed", context, "ecdsa")),
-      Command.CODE_INTERNAL
+      expectedPublicKey
     );
 
     assertPublicKey(
@@ -538,6 +539,27 @@ public class Monoid001Test extends AppletTest {
     CBORBufferReader reader = new CBORBufferReader(response.getData());
     Assertions.assertEquals(1, reader.map());
     Assertions.assertFalse(reader.key("chainCode".getBytes()));
+  }
+
+  private void assertSignature(ResponseAPDU response, byte[] publicKey) {
+    byte[] signature = field(response, "signature");
+    Assertions.assertEquals(64, signature.length);
+    X9ECParameters curve = SECNamedCurves.getByName("secp256r1");
+    ECDSASigner verifier = new ECDSASigner();
+    verifier.init(
+      false,
+      new ECPublicKeyParameters(
+        curve.getCurve().decodePoint(publicKey),
+        new ECDomainParameters(curve.getCurve(), curve.getG(), curve.getN(), curve.getH())
+      )
+    );
+    BigInteger r = new BigInteger(1, Arrays.copyOfRange(signature, 0, 32));
+    BigInteger s = new BigInteger(1, Arrays.copyOfRange(signature, 32, 64));
+    Assertions.assertTrue(s.compareTo(curve.getN().shiftRight(1)) <= 0);
+    Assertions.assertTrue(verifier.verifySignature(DIGEST, r, s));
+    byte[] changed = DIGEST.clone();
+    changed[0] ^= 1;
+    Assertions.assertFalse(verifier.verifySignature(changed, r, s));
   }
 
   private byte[] field(ResponseAPDU response, String name) {

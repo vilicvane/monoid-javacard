@@ -1,6 +1,5 @@
 package monoid;
 
-import javacard.framework.JCSystem;
 import javacard.security.CryptoException;
 import javacard.security.Key;
 import javacard.security.MessageDigest;
@@ -30,7 +29,7 @@ public final class OneShot {
     try {
       signature.init(privateKey, Signature.MODE_SIGN);
 
-      byte[] out = JCSystem.makeTransientByteArray(signature.getLength(), JCSystem.CLEAR_ON_RESET);
+      byte[] out = new byte[signature.getLength()];
 
       short length = signature.signPreComputedHash(
         digest,
@@ -40,7 +39,7 @@ public final class OneShot {
         (short) 0
       );
 
-      return Utils.duplicateAsTransientReset(out, (short) 0, length);
+      return length == out.length ? out : Utils.duplicateAsPersistent(out, (short) 0, length);
     } finally {
       signature.close();
     }

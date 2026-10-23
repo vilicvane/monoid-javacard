@@ -20,9 +20,16 @@ const MONOID_NAMESPACE = Buffer.concat([Buffer.from([0xf0]), Buffer.from('monoid
 
 const MONOID_IDENTITY_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x00])]);
 const MONOID_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x02])]);
+const MONOID_SECURITY_KEY_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x03])]);
+const MONOID_LIB_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x04])]);
 
 const MONOID_IDENTITY_AID = Buffer.concat([MONOID_IDENTITY_PACKAGE_AID, Buffer.from([0x01])]);
 const MONOID_AID = Buffer.concat([MONOID_PACKAGE_AID, Buffer.from([0x01])]);
+const MONOID_SECURITY_KEY_APPLET_AID = Buffer.concat([
+  MONOID_SECURITY_KEY_PACKAGE_AID,
+  Buffer.from([0x01]),
+]);
+const MONOID_SECURITY_KEY_AID = Buffer.from('a0000006472f0001', 'hex');
 
 const data = {
   MONOID_VERSION,
@@ -31,7 +38,28 @@ const data = {
   MONOID_IDENTITY_AID,
   MONOID_PACKAGE_AID,
   MONOID_AID,
+  MONOID_SECURITY_KEY_PACKAGE_AID,
+  MONOID_SECURITY_KEY_APPLET_AID,
+  MONOID_SECURITY_KEY_AID,
+  MONOID_LIB_PACKAGE_AID,
 };
+
+const securityKeySources = Object.fromEntries(
+  ['monoid/LibSecurity', 'monoididentity/LibHMACSha256'].map(source => {
+    const name = source.split('/')[1];
+    const content = readFileSync(
+      new URL(`./src/main/java/${source}.java`, import.meta.url),
+      'utf8',
+    ).replace(/^package \w+;/m, 'package monoidsecuritykey;');
+    return [
+      `src/main/java/monoidsecuritykey/${name}.java`,
+      {
+        template: `// Generated from ${source}.java by Inplate.\n{{{content}}}`,
+        data: {content},
+      },
+    ];
+  }),
+);
 
 export default {
   'README.md': {data},
@@ -44,6 +72,8 @@ export default {
     data: {identityLibSecurity},
   },
   'src/main/java/monoididentity/LibSECP256r1.java': {data: {secp256r1Parameters}},
+  ...securityKeySources,
+  'src/main/java/monoidsecuritykey/LibSECP256r1.java': {data: {secp256r1Parameters}},
   'src/main/java/main/Run.java': {data},
   'src/test/java/**/*.java': {data},
 };

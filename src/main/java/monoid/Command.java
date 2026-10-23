@@ -3,11 +3,11 @@ package monoid;
 import static monoid.Constants.SAFE_FALSE;
 import static monoid.Constants.SAFE_TRUE;
 
-import javacard.framework.APDU;
-import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.security.CryptoException;
+import monoidlib.CBORApduReader;
+import monoidlib.CBORApduWriter;
 
 public abstract class Command {
 
@@ -231,96 +231,7 @@ public abstract class Command {
     return writer;
   }
 
-  public static void clearTransport() {
-    reader.clear();
-    writer.reset();
-    JCSystem.requestObjectDeletion();
-  }
-
-  public static void process(APDU apdu) {
-    byte[] header = apdu.getBuffer();
-    byte cla = header[ISO7816.OFFSET_CLA];
-    byte ins = header[ISO7816.OFFSET_INS];
-
-    if (ins == (byte) 0xC0) {
-      if (cla != CBORApduReader.CLA_SINGLE) {
-        ISOException.throwIt(ISO7816.SW_CLA_NOT_SUPPORTED);
-      }
-
-      if (header[ISO7816.OFFSET_P1] != 0 || header[ISO7816.OFFSET_P2] != 0) {
-        ISOException.throwIt(ISO7816.SW_INCORRECT_P1P2);
-      }
-
-      if (reader.isReceiving()) {
-        ISOException.throwIt(ISO7816.SW_LAST_COMMAND_EXPECTED);
-      }
-
-      if (!writer.hasPending()) {
-        ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
-      }
-
-      try {
-        writer.send();
-      } catch (ISOException e) {
-        short status = e.getReason();
-
-        if (
-          status != ISO7816.SW_NO_ERROR &&
-          (short) (status & (short) 0xFF00) != ISO7816.SW_BYTES_REMAINING_00
-        ) {
-          clearTransport();
-        }
-
-        throw e;
-      } catch (Exception e) {
-        // A response prefix has already been sent. Appending a CBOR error would
-        // leave a malformed success response, so terminate the transport instead.
-        clearTransport();
-        ISOException.throwIt(ISO7816.SW_UNKNOWN);
-      } finally {
-        JCSystem.requestObjectDeletion();
-      }
-
-      return;
-    }
-
-    writer.reset();
-    boolean pending = false;
-
-    try {
-      if (
-        cla != CBORApduReader.CLA_SINGLE &&
-        cla != CBORApduReader.CLA_FIRST &&
-        cla != CBORApduReader.CLA_MORE &&
-        cla != CBORApduReader.CLA_LAST
-      ) {
-        ISOException.throwIt(ISO7816.SW_CLA_NOT_SUPPORTED);
-      }
-
-      Command command = get(ins);
-
-      if (command == null) {
-        ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
-      }
-
-      pending = !reader.receive();
-
-      if (pending) {
-        return;
-      }
-
-      reader.reset();
-
-      command.executeCommand();
-    } finally {
-      if (!pending) {
-        reader.clear();
-        JCSystem.requestObjectDeletion();
-      }
-    }
-  }
-
-  private void executeCommand() {
+  void executeCommand() {
     writer.reset();
 
     try {

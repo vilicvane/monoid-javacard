@@ -23,6 +23,7 @@ if ($LASTEXITCODE -ne 0) {
 switch ($Mode) {
 	'Install' {
 		Invoke-GlobalPlatform --install build\javacard\monoididentity.cap;
+		Invoke-GlobalPlatform --load build\javacard\monoidlib.cap;
 		Invoke-GlobalPlatform --install build\javacard\monoid.cap;
 	}
 	'ReinstallMonoid' {

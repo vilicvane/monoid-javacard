@@ -1,7 +1,5 @@
 package monoid;
 
-import javacard.framework.JCSystem;
-
 public abstract class EdwardsCurve {
 
   // @formatter:off
@@ -49,10 +47,7 @@ public abstract class EdwardsCurve {
   public abstract short derivePublicKey(ED25519Key privateKey, byte[] out, short outOffset);
 
   public byte[] derivePublicKey(ED25519Key privateKey) {
-    byte[] publicKey = JCSystem.makeTransientByteArray(
-      getPublicKeyLength(),
-      JCSystem.CLEAR_ON_DESELECT
-    );
+    byte[] publicKey = new byte[getPublicKeyLength()];
 
     derivePublicKey(privateKey, publicKey, (short) 0);
 

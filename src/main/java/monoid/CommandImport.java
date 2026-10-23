@@ -2,7 +2,7 @@ package monoid;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
-import javacard.framework.JCSystem;
+import monoidlib.CBORReader;
 
 public class CommandImport extends Command {
 
@@ -36,7 +36,7 @@ public class CommandImport extends Command {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
-    byte[] data = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
+    byte[] data = new byte[length];
     // Work around CAP converter lookup failures by referencing setOffset's declaring class.
     ((CBORReader) reader).setOffset(offset);
     reader.bytes(data);

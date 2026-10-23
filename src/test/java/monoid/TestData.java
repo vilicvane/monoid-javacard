@@ -1,9 +1,21 @@
 package monoid;
 
+import com.licel.jcardsim.base.ApduCase;
 import javacard.framework.JCSystem;
+import main.ShareableSimulatorRuntime;
 import org.junit.jupiter.api.Assertions;
 
 class TestData implements SafeDataSource {
+
+  static class Runtime extends ShareableSimulatorRuntime {
+
+    void beginCommand() {
+      // Direct unit tests call internal methods outside process(); give those calls the
+      // APDU context available during a real command without bypassing SIO checks.
+      activateSimulatorRuntimeInstance();
+      resetAPDU(getCurrentAPDU(), ApduCase.Case1, new byte[] { 0, 0, 0, 0 });
+    }
+  }
 
   private final byte[] data;
   private byte[] readBuffer;
@@ -22,7 +34,8 @@ class TestData implements SafeDataSource {
   @Override
   public void read(short dataOffset, byte[] buffer, short offset, short length) {
     Assertions.assertEquals(0, JCSystem.getTransactionDepth());
-    Assertions.assertTrue(buffer.length <= 256);
+    // Reads stay bounded even when the destination is the complete persistent array.
+    Assertions.assertTrue(length <= 256);
 
     if (readBuffer == null) {
       readBuffer = buffer;

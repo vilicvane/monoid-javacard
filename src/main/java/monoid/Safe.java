@@ -12,6 +12,7 @@ import javacard.framework.Util;
 import javacard.security.MessageDigest;
 import monoididentity.CommunicationDataShareable;
 import monoididentity.IdentityShareable;
+import monoidlib.CBORReader;
 
 public final class Safe {
 
@@ -55,6 +56,11 @@ public final class Safe {
 
   private final short[] auth = JCSystem.makeTransientShortArray((short) 2, JCSystem.CLEAR_ON_RESET);
 
+  private final Object[] session = JCSystem.makeTransientObjectArray(
+    (short) 1,
+    JCSystem.CLEAR_ON_RESET
+  );
+
   private final LibSecurity.Condition authorizationValidation = new LibSecurity.Condition() {
     @Override
     public boolean check() {
@@ -89,6 +95,8 @@ public final class Safe {
   private final AppletGrants appletGrants = new AppletGrants(this);
 
   private short itemsLength = 0;
+
+  private Object itemsRevision = new Object();
 
   private final short[] availableMemory = JCSystem.makeTransientShortArray(
     (short) 2,
@@ -245,9 +253,64 @@ public final class Safe {
     return new SafeItemIterator(this, items, itemsLength, type, keyPrefix);
   }
 
+  SafeItemIterator list(short type, byte[] keyPrefix, AppletGrant grant) {
+    assertAccess();
+    return new SafeItemIterator(this, items, itemsLength, type, keyPrefix, grant);
+  }
+
+  Object getItemsRevision() {
+    return itemsRevision;
+  }
+
+  short listIndices(
+    short type,
+    byte[] keyPrefix,
+    short keyOffset,
+    short keyLength,
+    byte[] dest,
+    short offset,
+    short capacity,
+    AppletGrant grant
+  ) {
+    assertAccess();
+    short count = 0;
+    for (short index = 0; index < itemsLength; index++) {
+      SafeItem item = items[index];
+      if (
+        item.matches(type) &&
+        grant.allows(Util.getShort(item.index, INDEX_TYPE_OFFSET), false) &&
+        (keyLength == 0 ||
+          (item.key != null &&
+            keyLength <= item.key.length &&
+            Util.arrayCompare(item.key, (short) 0, keyPrefix, keyOffset, keyLength) == 0))
+      ) {
+        if (count < capacity) {
+          Util.arrayCopyNonAtomic(item.index, (short) 0, dest, offset, INDEX_LENGTH);
+          offset += INDEX_LENGTH;
+        }
+        count++;
+      }
+    }
+    return count;
+  }
+
   public SafeItem get(byte[] index) {
     assertAccess();
     return getItem(index);
+  }
+
+  SafeItem get(byte[] index, short offset) {
+    assertAccess();
+
+    for (short itemIndex = 0; itemIndex < itemsLength; itemIndex++) {
+      SafeItem item = items[itemIndex];
+
+      if (Util.arrayCompare(item.index, (short) 0, index, offset, INDEX_LENGTH) == 0) {
+        return item;
+      }
+    }
+
+    return null;
   }
 
   private SafeItem getItem(byte[] index) {
@@ -298,7 +361,7 @@ public final class Safe {
    * bit pattern is valid; expansion and clamping happen when importing it.
    */
   private SafeItem createRandomRandom(short refinedType, short length) {
-    byte[] data = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
+    byte[] data = new byte[length];
 
     OneShot.random(data, (short) 0, length);
 
@@ -309,7 +372,7 @@ public final class Safe {
   }
 
   private SafeItem createRandomScalar(short refinedType, byte[] order) {
-    byte[] data = JCSystem.makeTransientByteArray((short) order.length, JCSystem.CLEAR_ON_DESELECT);
+    byte[] data = new byte[order.length];
 
     do {
       OneShot.random(data, (short) 0, (short) data.length);
@@ -355,6 +418,11 @@ public final class Safe {
       SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     }
 
+    byte[] builtIndex = validateIndex(index, data);
+    return createItem(builtIndex, key, alias, data, secret ? SAFE_TRUE : SAFE_FALSE);
+  }
+
+  private byte[] validateIndex(byte[] index, SafeDataSource data) {
     short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     byte[] builtIndex;
@@ -383,7 +451,47 @@ public final class Safe {
       builtIndex = index;
     }
 
-    return createItem(builtIndex, key, alias, data, secret ? SAFE_TRUE : SAFE_FALSE);
+    return builtIndex;
+  }
+
+  boolean createData(
+    byte[] index,
+    short indexOffset,
+    byte[] key,
+    short keyOffset,
+    short keyLength,
+    byte[] alias,
+    byte[] data,
+    short dataOffset,
+    short dataLength,
+    boolean secret
+  ) {
+    if (get(index, indexOffset) != null) {
+      return false;
+    }
+
+    checkStorage(
+      (short) (INDEX_LENGTH +
+        keyLength +
+        (alias == null ? 0 : alias.length) +
+        getItemTableExtensionLength())
+    );
+    byte[] ownedIndex = Utils.duplicateAsPersistent(index, indexOffset, INDEX_LENGTH);
+    byte[] ownedKey = key == null ? null : Utils.duplicateAsPersistent(key, keyOffset, keyLength);
+    byte[] ownedAlias = alias == null ? null : Utils.duplicateAsPersistent(alias);
+    checkStorage((short) (dataLength + getItemTableExtensionLength()));
+    byte[] storedData = Utils.duplicateAsPersistent(data, dataOffset, dataLength);
+
+    if (isKnownDigestIndexedType(Util.getShort(ownedIndex, INDEX_TYPE_OFFSET))) {
+      // Only owned bytes enter an object field; the caller's global array is never retained.
+      validateIndex(ownedIndex, new SafeData(storedData));
+    }
+
+    assertAccess();
+    return (
+      finishCreate(ownedIndex, ownedKey, ownedAlias, storedData, secret ? SAFE_TRUE : SAFE_FALSE) !=
+      null
+    );
   }
 
   private SafeItem createItem(
@@ -410,6 +518,16 @@ public final class Safe {
     byte[] storedData = Utils.duplicateAsPersistent(data, dataLength);
     assertAccess();
 
+    return finishCreate(index, key, alias, storedData, secret);
+  }
+
+  private SafeItem finishCreate(
+    byte[] index,
+    byte[] key,
+    byte[] alias,
+    byte[] storedData,
+    short secret
+  ) {
     if (getItem(index) != null) {
       return null;
     }
@@ -457,15 +575,22 @@ public final class Safe {
     }
 
     boolean extended = updatedItems != items;
+    Object revision = new Object();
+    boolean transaction = JCSystem.getTransactionDepth() == 0;
 
-    JCSystem.beginTransaction();
+    if (transaction) {
+      JCSystem.beginTransaction();
+    }
 
     try {
       items = updatedItems;
       items[itemsLength++] = item;
-      JCSystem.commitTransaction();
+      itemsRevision = revision;
+      if (transaction) {
+        JCSystem.commitTransaction();
+      }
     } finally {
-      if (JCSystem.getTransactionDepth() != 0) {
+      if (transaction && JCSystem.getTransactionDepth() != 0) {
         JCSystem.abortTransaction();
       }
     }
@@ -590,17 +715,80 @@ public final class Safe {
       return;
     }
 
-    JCSystem.beginTransaction();
+    Object revision = new Object();
+    boolean transaction = JCSystem.getTransactionDepth() == 0;
 
-    for (short index = indexToDelete; index < (short) (itemsLength - 1); index++) {
-      items[index] = items[(short) (index + 1)];
+    if (transaction) {
+      JCSystem.beginTransaction();
     }
 
-    items[--itemsLength] = null;
+    try {
+      for (short index = indexToDelete; index < (short) (itemsLength - 1); index++) {
+        items[index] = items[(short) (index + 1)];
+      }
+
+      items[--itemsLength] = null;
+      itemsRevision = revision;
+
+      if (transaction) {
+        JCSystem.commitTransaction();
+      }
+    } finally {
+      if (transaction && JCSystem.getTransactionDepth() != 0) {
+        JCSystem.abortTransaction();
+      }
+    }
 
     JCSystem.requestObjectDeletion();
+  }
 
-    JCSystem.commitTransaction();
+  void removeAll(short type) {
+    assertAccess();
+    short count = 0;
+
+    for (short index = 0; index < itemsLength; index++) {
+      if (Util.getShort(items[index].index, INDEX_TYPE_OFFSET) != type) {
+        count++;
+      }
+    }
+
+    if (count == itemsLength) {
+      return;
+    }
+
+    SafeItem[] remaining = new SafeItem[count == 0 ? ITEM_LENGTH_EXTENSION : count];
+    short position = 0;
+
+    for (short index = 0; index < itemsLength; index++) {
+      SafeItem item = items[index];
+
+      if (Util.getShort(item.index, INDEX_TYPE_OFFSET) != type) {
+        remaining[position++] = item;
+      }
+    }
+
+    Object revision = new Object();
+    boolean transaction = JCSystem.getTransactionDepth() == 0;
+
+    if (transaction) {
+      JCSystem.beginTransaction();
+    }
+
+    try {
+      items = remaining;
+      itemsLength = count;
+      itemsRevision = revision;
+
+      if (transaction) {
+        JCSystem.commitTransaction();
+      }
+    } finally {
+      if (transaction && JCSystem.getTransactionDepth() != 0) {
+        JCSystem.abortTransaction();
+      }
+    }
+
+    JCSystem.requestObjectDeletion();
   }
 
   public void checkAccess() {
@@ -623,10 +811,30 @@ public final class Safe {
   }
 
   public void assertAccess() {
+    if (session[0] != null) {
+      ((MonoidSession) session[0]).assertActive();
+      return;
+    }
+
     // Identity encryption calls back into storage; this guard must remain local.
     if (LibSecurity.check(authorizationValidation, SAFE_FALSE) != SAFE_TRUE) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
     }
+  }
+
+  void beginSession(MonoidSession authorized) {
+    authorized.assertActive();
+
+    // A client data callback cannot start another storage operation inside this one.
+    if (session[0] != null) {
+      ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+    }
+
+    session[0] = authorized;
+  }
+
+  void endSession() {
+    session[0] = null;
   }
 
   void checkStorage(short length) {
@@ -727,20 +935,14 @@ public final class Safe {
   }
 
   private byte[] buildDigestIndex(short refinedType, SafeDataSource data) {
-    byte[] index = JCSystem.makeTransientByteArray(Safe.INDEX_LENGTH, JCSystem.CLEAR_ON_RESET);
+    byte[] index = new byte[Safe.INDEX_LENGTH];
 
     Util.setShort(index, Safe.INDEX_TYPE_OFFSET, refinedType);
 
-    byte[] digest = JCSystem.makeTransientByteArray(
-      MessageDigest.LENGTH_SHA_256,
-      JCSystem.CLEAR_ON_DESELECT
-    );
+    byte[] digest = new byte[MessageDigest.LENGTH_SHA_256];
 
     short length = data.getLength();
-    byte[] buffer = JCSystem.makeTransientByteArray(
-      Utils.min(length, (short) 256),
-      JCSystem.CLEAR_ON_RESET
-    );
+    byte[] buffer = new byte[Utils.min(length, (short) 256)];
 
     if (length <= buffer.length) {
       data.read((short) 0, buffer, (short) 0, length);
@@ -823,7 +1025,7 @@ public final class Safe {
   }
 
   public static byte[] readData(SafeDataSource data) {
-    byte[] buffer = JCSystem.makeTransientByteArray(data.getLength(), JCSystem.CLEAR_ON_RESET);
+    byte[] buffer = new byte[data.getLength()];
     data.read((short) 0, buffer, (short) 0, (short) buffer.length);
     return buffer;
   }

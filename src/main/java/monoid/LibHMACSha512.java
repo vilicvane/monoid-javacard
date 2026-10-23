@@ -18,13 +18,14 @@ public final class LibHMACSha512 {
   private static Signature sharedSignature;
   private static HMACKey sharedKey;
   private static MessageDigest sharedDigest;
+  private static byte[] sharedBlock;
 
   public static void init() {
     try {
       sharedSignature = Signature.getInstance(Signature.ALG_HMAC_SHA_512, true);
       sharedKey = (HMACKey) KeyBuilder.buildKey(
-        KeyBuilder.TYPE_HMAC_TRANSIENT_RESET,
-        KeyBuilder.LENGTH_AES_256,
+        KeyBuilder.TYPE_HMAC,
+        (short) (OUT_BYTES * 8),
         false
       );
     } catch (Exception e) {
@@ -38,6 +39,7 @@ public final class LibHMACSha512 {
     sharedSignature = null;
     sharedKey = null;
     sharedDigest = null;
+    sharedBlock = null;
   }
 
   public static short digest(
@@ -50,11 +52,8 @@ public final class LibHMACSha512 {
     byte[] out,
     short outOffset
   ) {
-    byte[] block = sharedSignature == null || sharedKey == null
-      ? JCSystem.makeTransientByteArray(BLOCK_BYTES, JCSystem.CLEAR_ON_RESET)
-      : null;
-
-    return digest(key, keyOffset, keyLength, data, dataOffset, dataLength, out, outOffset, block);
+    begin(key, keyOffset, keyLength);
+    return finish(data, dataOffset, dataLength, out, outOffset);
   }
 
   /** Reuses a separate BLOCK_BYTES workspace; key and data may overlap the output. */
@@ -69,21 +68,65 @@ public final class LibHMACSha512 {
     short outOffset,
     byte[] block
   ) {
-    if (sharedSignature != null && sharedKey != null) {
-      sharedKey.setKey(key, keyOffset, keyLength);
-      sharedSignature.init(sharedKey, Signature.MODE_SIGN);
+    begin(key, keyOffset, keyLength, block);
+    return finish(data, dataOffset, dataLength, out, outOffset, block);
+  }
 
+  /** A segmented operation must finish before another caller uses this shared engine. */
+  static void begin(byte[] key, short offset, short length) {
+    if ((sharedSignature == null || sharedKey == null) && sharedBlock == null) {
+      sharedBlock = JCSystem.makeTransientByteArray(BLOCK_BYTES, JCSystem.CLEAR_ON_RESET);
+    }
+
+    begin(key, offset, length, sharedBlock);
+  }
+
+  static void begin(byte[] key, short offset, short length, byte[] block) {
+    if (sharedSignature != null && sharedKey != null) {
+      sharedKey.setKey(key, offset, length);
+      sharedSignature.init(sharedKey, Signature.MODE_SIGN);
+    } else {
+      sharedDigest.reset();
+      Util.arrayFillNonAtomic(block, (short) 0, BLOCK_BYTES, IPAD);
+
+      for (short index = 0; index < length; index++) {
+        block[index] ^= key[(short) (offset + index)];
+      }
+
+      sharedDigest.update(block, (short) 0, BLOCK_BYTES);
+    }
+  }
+
+  static void update(byte[] data, short offset, short length) {
+    if (sharedSignature != null && sharedKey != null) {
+      sharedSignature.update(data, offset, length);
+    } else {
+      sharedDigest.update(data, offset, length);
+    }
+  }
+
+  static short finish(
+    byte[] data,
+    short dataOffset,
+    short dataLength,
+    byte[] out,
+    short outOffset
+  ) {
+    return finish(data, dataOffset, dataLength, out, outOffset, sharedBlock);
+  }
+
+  static short finish(
+    byte[] data,
+    short dataOffset,
+    short dataLength,
+    byte[] out,
+    short outOffset,
+    byte[] block
+  ) {
+    if (sharedSignature != null && sharedKey != null) {
       return sharedSignature.sign(data, dataOffset, dataLength, out, outOffset);
     } else {
       try {
-        sharedDigest.reset();
-        Util.arrayFillNonAtomic(block, (short) 0, BLOCK_BYTES, IPAD);
-
-        for (short keyIndex = 0; keyIndex < keyLength; keyIndex++) {
-          block[keyIndex] ^= key[(short) (keyOffset + keyIndex)];
-        }
-
-        sharedDigest.update(block, (short) 0, BLOCK_BYTES);
         sharedDigest.doFinal(data, dataOffset, dataLength, out, outOffset);
 
         // The inner digest may have overwritten key. Convert the saved pad in place.
@@ -101,7 +144,7 @@ public final class LibHMACSha512 {
   }
 
   public static byte[] digest(byte[] key, byte[] data) {
-    byte[] out = JCSystem.makeTransientByteArray(OUT_BYTES, JCSystem.CLEAR_ON_RESET);
+    byte[] out = Utils.makePrivateByteArray(OUT_BYTES);
 
     digest(
       key,

@@ -19,14 +19,13 @@ import java.util.HashMap;
 import javacard.framework.AID;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
-import monoid.CBORBufferReader;
-import monoid.CBORBufferWriter;
-import monoid.Command;
 import monoid.MonoidApplet;
 import monoid.MonoidException;
 import monoid.Safe;
 import monoid.SafeException;
 import monoididentity.MonoidIdentityApplet;
+import monoidlib.CBORBufferReader;
+import monoidlib.CBORBufferWriter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.MethodOrderer;
@@ -1725,11 +1724,6 @@ public class MonoidAppletTest extends AppletTest {
         apdu(0, 0x41, 0, 0, ecdsaRequest(index, TEST_DIGEST, explicitTaproot))
       );
 
-      if (simulator != null) {
-        assertError(response, Command.CODE_INTERNAL);
-        continue;
-      }
-
       assertNoError(response);
       reader = new CBORBufferReader(response.getBytes());
       Assertions.assertEquals(1, reader.map());
@@ -2014,24 +2008,18 @@ public class MonoidAppletTest extends AppletTest {
 
   private void assertSignature(ResponseAPDU response, byte[] digest, byte[] publicKey)
     throws IOException, InterruptedException {
-    {
-      if (simulator == null) {
-        assertNoError(response);
+    assertNoError(response);
 
-        CBORBufferReader reader = new CBORBufferReader(response.getBytes());
-        reader.map();
+    CBORBufferReader reader = new CBORBufferReader(response.getBytes());
+    reader.map();
 
-        byte[] signature = reader.requireKey("signature".getBytes()).bytes();
+    byte[] signature = reader.requireKey("signature".getBytes()).bytes();
 
-        System.out.println(String.format("Signature: %s", Hex.toHexString(signature)));
+    System.out.println(String.format("Signature: %s", Hex.toHexString(signature)));
 
-        Assertions.assertEquals(64, signature.length);
+    Assertions.assertEquals(64, signature.length);
 
-        crossVerifySignature(signature, digest, publicKey);
-      } else {
-        assertError(response, Command.CODE_INTERNAL);
-      }
-    }
+    crossVerifySignature(signature, digest, publicKey);
   }
 
   private void authenticate(CardManager manager, boolean safeAuth)

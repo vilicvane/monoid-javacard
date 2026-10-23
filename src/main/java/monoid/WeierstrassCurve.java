@@ -1,6 +1,5 @@
 package monoid;
 
-import javacard.framework.JCSystem;
 import javacard.security.ECPrivateKey;
 
 public abstract class WeierstrassCurve {
@@ -55,10 +54,7 @@ public abstract class WeierstrassCurve {
   public abstract short derivePublicKey(ECPrivateKey privateKey, byte[] out, short outOffset);
 
   public byte[] derivePublicKey(ECPrivateKey privateKey) {
-    byte[] publicKey = JCSystem.makeTransientByteArray(
-      getPublicKeyLength(),
-      JCSystem.CLEAR_ON_RESET
-    );
+    byte[] publicKey = new byte[getPublicKeyLength()];
 
     derivePublicKey(privateKey, publicKey, (short) 0);
 

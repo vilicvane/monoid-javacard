@@ -13,8 +13,8 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import main.ShareableSimulatorRuntime;
-import monoid.CBORBufferReader;
 import monoid.MonoidApplet;
+import monoidlib.CBORBufferReader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -849,7 +849,7 @@ public class MonoidIdentityAppletTest {
   }
 
   @Test
-  public void identityResetInvalidatesArtifactsAndEveryCallersToken() {
+  public void identityResetInvalidatesArtifactsAndEveryCallersToken() throws Exception {
     initializeManager();
     simulator.installApplet(OTHER_IDENTITY_AID, MonoidIdentityApplet.class);
     select(UNRELATED_AID);
@@ -862,6 +862,13 @@ public class MonoidIdentityAppletTest {
     byte[] encrypted = success(
       transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY))
     );
+    Object identity = runtime.lookupApplet(IDENTITY_AID).getApplet();
+    Object hmacBlock = privateField(identity, "hmacBlock");
+    Object communicationCipher = privateField(identity, "communicationCipher");
+    Object itemCipher = privateField(identity, "itemCipher");
+    Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(hmacBlock));
+    Assertions.assertSame(hmacBlock, privateField(communicationCipher, "hmacBlock"));
+    Assertions.assertSame(hmacBlock, privateField(itemCipher, "hmacBlock"));
     Assertions.assertArrayEquals(
       KEY,
       success(transmit(IdentityCallerApplet.DECRYPT_DATA, payload(publicKey, CONTEXT, encrypted)))
@@ -885,6 +892,9 @@ public class MonoidIdentityAppletTest {
     Assertions.assertEquals(2, bundled[0]);
     byte[] token = success(transmit(IdentityCallerApplet.PREPARE_RESET));
     success(transmit(IdentityCallerApplet.RESET_IDENTITY));
+    Assertions.assertNull(privateField(identity, "communicationCipher"));
+    Assertions.assertSame(itemCipher, privateField(identity, "itemCipher"));
+    Assertions.assertSame(hmacBlock, privateField(identity, "hmacBlock"));
     Assertions.assertArrayEquals(token, success(transmit(IdentityCallerApplet.GET_TOKEN)));
     Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
     assertSecretPINSet(false);
@@ -912,6 +922,10 @@ public class MonoidIdentityAppletTest {
     byte[] newEncrypted = success(
       transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(newPublicKey, CONTEXT, KEY))
     );
+    Object newCommunicationCipher = privateField(identity, "communicationCipher");
+    Assertions.assertNotSame(communicationCipher, newCommunicationCipher);
+    Assertions.assertSame(hmacBlock, privateField(newCommunicationCipher, "hmacBlock"));
+    Assertions.assertSame(hmacBlock, privateField(itemCipher, "hmacBlock"));
     Assertions.assertEquals(1, newEncrypted[0]);
     Assertions.assertArrayEquals(
       KEY,
@@ -1061,6 +1075,12 @@ public class MonoidIdentityAppletTest {
       success(transmit(IdentityCallerApplet.JOIN_BUNDLE, concat(senderPublicKey, envelope)))
     );
     Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
+  }
+
+  private static Object privateField(Object target, String name) throws Exception {
+    Field field = target.getClass().getDeclaredField(name);
+    field.setAccessible(true);
+    return field.get(target);
   }
 
   private void initializeManager() {

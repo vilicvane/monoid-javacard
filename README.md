@@ -11,7 +11,7 @@
 A JavaCard with Monoid applets installed is:
 
 - [x] A hardware crypto wallet.
-- [ ] A FIDO2 authenticator.
+- [x] A FIDO2 authenticator.
 - [ ] A One-Time Password (OTP) generator.
 - [ ] A Tesla key.
 
@@ -43,17 +43,20 @@ Then install applets to a card with [gp] command:
 
 ```sh
 gp --install build/javacard/monoididentity.cap
+gp --load build/javacard/monoidlib.cap
 gp --install build/javacard/monoid.cap
 ```
 
-Keep the matching Monoid Identity installed when replacing Monoid. See [Monoid Identity](doc/identity.md).
+Keep Monoid Identity and the matching library installed when replacing Monoid. See [architecture](doc/architecture.md).
+
+For FIDO2, install and authorize [Security Key](doc/security-key.md).
 
 Build and install with PowerShell:
 
 ```powershell
 .\scripts\build-install.ps1                       # Install (default)
 .\scripts\build-install.ps1 -Mode ReinstallMonoid # Clears Safe data and Access PIN; preserves Identity and Secret PIN
-.\scripts\uninstall.ps1                          # Removes Monoid and Identity, including their data
+.\scripts\uninstall.ps1                          # Removes all Monoid packages, including their data
 ```
 
 > The gradle plugin task `./gradlew installJavaCard` will try to append multiple `--install` options to `gp` command, which is not supported in my case. So we have to do it manually.
@@ -78,8 +81,9 @@ Run tests on physical cards:
 # requires a clean installation:
 # gp --uninstall build/javacard/monoid.cap
 
-# First installation only; preserve this applet across Monoid updates:
+# First installation only; preserve Identity and the matching library across Monoid updates:
 # gp --install build/javacard/monoididentity.cap
+# gp --load build/javacard/monoidlib.cap
 gp --install build/javacard/monoid.cap
 ```
 
@@ -110,7 +114,7 @@ See [architecture](doc/architecture.md) and [security boundaries](doc/security.m
 
 - [x] _Monoid Applet_ basic commands
 - [x] _Monoid Applet_ third-party management commands
-- [ ] _Monoid Applet_ `Shareable` interface
+- [x] _Monoid Applet_ `Shareable` interface
 - [ ] Monoid mobile app
   - [ ] Key management
   - [ ] Crypto transaction signing
@@ -123,7 +127,7 @@ See [architecture](doc/architecture.md) and [security boundaries](doc/security.m
 
 ### Applets for typical use cases
 
-- [ ] FIDO2
+- [x] FIDO2
 - [ ] One-time password (OTP)
 - [ ] Tesla key
 

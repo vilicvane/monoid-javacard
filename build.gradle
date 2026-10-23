@@ -93,6 +93,15 @@ test {
 
 apply from: 'gradle/simulator.gradle'
 
+compileJava {
+	// CAP dependencies also enter compileClasspath; source compilation must not use stale self exports.
+	classpath = classpath.filter {
+		it != file("${buildDir}/javacard/monoididentity.exp/monoididentity.jar") &&
+		it != file("${buildDir}/javacard/monoidlib.exp/monoidlib.jar") &&
+		it != file("${buildDir}/javacard/monoid.exp/monoid.jar")
+	}
+}
+
 test {
 	dependsOn compileSimulatorMath
 	classpath = files(compileSimulatorMath.destinationDir) + classpath
@@ -150,6 +159,17 @@ javacard {
 		}
 
 		cap {
+			packageName 'monoidlib'
+			version '0.0'
+			// @inplate-line aid '{{hex MONOID_LIB_PACKAGE_AID}}'
+			aid 'f06d6f6e6f696404'
+			output 'monoidlib.cap'
+
+			targetsdk JC305u3
+			sources 'src/main/java/monoidlib'
+		}
+
+		cap {
 			packageName 'monoid'
 			version '0.0'
 			// @inplate-line aid '{{hex MONOID_PACKAGE_AID}}'
@@ -168,8 +188,41 @@ javacard {
 
 			dependencies {
 				local {
+					exps "${buildDir}/javacard/monoidlib.exp"
+					jar "${buildDir}/javacard/monoidlib.exp/monoidlib.jar"
+				}
+				local {
 					exps "${buildDir}/javacard/monoididentity.exp"
 					jar "${buildDir}/javacard/monoididentity.exp/monoididentity.jar"
+				}
+			}
+		}
+
+		cap {
+			packageName 'monoidsecuritykey'
+			version '0.0'
+			// @inplate-line aid '{{hex MONOID_SECURITY_KEY_PACKAGE_AID}}'
+			aid 'f06d6f6e6f696403'
+			output 'monoidsecuritykey.cap'
+
+			targetsdk JC305u3
+			sources 'src/main/java/monoidsecuritykey'
+
+			applet {
+				className 'monoidsecuritykey.MonoidSecurityKeyApplet'
+				// GP installs this module using the standard FIDO instance AID.
+				// @inplate-line aid '{{hex MONOID_SECURITY_KEY_APPLET_AID}}'
+				aid 'f06d6f6e6f69640301'
+			}
+
+			dependencies {
+				local {
+					exps "${buildDir}/javacard/monoidlib.exp"
+					jar "${buildDir}/javacard/monoidlib.exp/monoidlib.jar"
+				}
+				local {
+					exps "${buildDir}/javacard/monoid.exp"
+					jar "${buildDir}/javacard/monoid.exp/monoid.jar"
 				}
 			}
 		}

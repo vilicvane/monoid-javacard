@@ -9,6 +9,8 @@ final class AppletGrants {
 
   private final Safe safe;
   private AppletGrant[] grants;
+  private MessageDigest tokenHash;
+  private byte[] tokenDigest;
 
   AppletGrants(Safe safe) {
     this.safe = safe;
@@ -25,6 +27,47 @@ final class AppletGrants {
   AppletGrant[] list() {
     assertManagement();
     return grants;
+  }
+
+  AppletGrant get(AID caller) {
+    if (grants != null && caller != null) {
+      for (short index = 0; index < grants.length; index++) {
+        AppletGrant grant = grants[index];
+
+        if (caller.equals(grant.aid, (short) 0, (byte) grant.aid.length)) {
+          return grant;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  boolean contains(AppletGrant grant) {
+    if (grants != null) {
+      for (short index = 0; index < grants.length; index++) {
+        if (grants[index] == grant) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  short getTokenValidationResult(AppletGrant grant, byte[] token, short offset) {
+    if (tokenHash == null) {
+      tokenHash = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, true);
+    }
+    if (tokenDigest == null) {
+      tokenDigest = new byte[MessageDigest.LENGTH_SHA_256];
+    }
+
+    // No SIO callback occurs between hashing and checking. Only working storage is shared;
+    // each session retains its own caller, grant and authentication state.
+    tokenHash.reset();
+    tokenHash.doFinal(token, offset, MessageDigest.LENGTH_SHA_256, tokenDigest, (short) 0);
+    return LibSecurity.check(grant.tokenHash, tokenDigest, Constants.SAFE_FALSE);
   }
 
   void set(
@@ -136,5 +179,7 @@ final class AppletGrants {
   /** Called inside Safe's factory-reset transaction. */
   void clear() {
     grants = null;
+    tokenHash = null;
+    tokenDigest = null;
   }
 }

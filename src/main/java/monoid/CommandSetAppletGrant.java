@@ -1,6 +1,8 @@
 package monoid;
 
 import javacard.framework.Util;
+import monoidlib.CBORMap;
+import monoidlib.CBORReader;
 
 public final class CommandSetAppletGrant extends Command {
 

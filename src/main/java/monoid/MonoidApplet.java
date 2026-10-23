@@ -11,7 +11,7 @@ import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javacard.framework.Shareable;
 
-public class MonoidApplet extends Applet implements Monoid, AppletEvent {
+public class MonoidApplet extends Applet implements AppletEvent {
 
   public static final byte PIN_TRY_LIMIT = 5;
   public static final byte MAX_PIN_LENGTH = 16;
@@ -28,8 +28,15 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   public static Keystore keystore;
 
+  private static ApduTransport transport;
+
   private static LibSecurity.Condition pinSetValidation;
   private static LibSecurity.Condition pinUpdateAuthorizationRequired;
+
+  private final Object[] reusableSession = JCSystem.makeTransientObjectArray(
+    (short) 1,
+    JCSystem.CLEAR_ON_RESET
+  );
 
   public static void install(byte[] bArray, short bOffset, byte bLength) {
     MonoidException.init();
@@ -46,6 +53,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     KeyDerivation.init();
 
     Command.init();
+    transport = new ApduTransport(Command.reader, Command.writer);
 
     pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_LENGTH);
     pinState = PIN_UNSET;
@@ -76,6 +84,8 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
   }
 
   public void uninstall() {
+    reusableSession[0] = null;
+
     MonoidException.dispose();
     PINException.dispose();
     SafeException.dispose();
@@ -90,6 +100,7 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
     KeyDerivation.dispose();
 
     Command.dispose();
+    transport = null;
 
     pin = null;
 
@@ -107,20 +118,20 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   public void process(APDU apdu) {
     if (selectingApplet()) {
-      Command.clearTransport();
+      transport.clear();
       return;
     }
 
     ensureInitialization();
 
-    Command.process(apdu);
+    transport.process(apdu);
   }
 
   @Override
   public void deselect() {
     super.deselect();
 
-    Command.clearTransport();
+    transport.clear();
   }
 
   private static void ensureInitialization() {
@@ -191,6 +202,40 @@ public class MonoidApplet extends Applet implements Monoid, AppletEvent {
 
   @Override
   public Shareable getShareableInterfaceObject(AID clientAID, byte parameter) {
-    return this;
+    AppletGrant grant = safe.getAppletGrants().get(clientAID);
+
+    if ((parameter != 0 && parameter != 1) || grant == null) {
+      return null;
+    }
+
+    ensureInitialization();
+
+    if (parameter == 0) {
+      return createSession(clientAID, grant);
+    }
+
+    // Parameter 1 opts into aliases of one caller/grant session. Each acquisition
+    // clears authentication; clients must authenticate again before using it.
+    MonoidSession session = (MonoidSession) reusableSession[0];
+
+    if (session == null || !session.matches(clientAID, grant)) {
+      session = createSession(clientAID, grant);
+      reusableSession[0] = session;
+    } else {
+      session.clearAuthentication();
+    }
+
+    return session;
+  }
+
+  private static MonoidSession createSession(AID caller, AppletGrant grant) {
+    MonoidSession session = new MonoidSession(safe, keystore, caller, grant);
+
+    // New sessions may replace a cached session whose caller skips collection on warm commands.
+    if (JCSystem.isObjectDeletionSupported()) {
+      JCSystem.requestObjectDeletion();
+    }
+
+    return session;
   }
 }

@@ -11,13 +11,12 @@ import java.util.Arrays;
 import java.util.List;
 import javacard.framework.AID;
 import javax.smartcardio.ResponseAPDU;
-import monoid.CBORBufferReader;
-import monoid.CBORBufferWriter;
-import monoid.Command;
 import monoid.CurveException;
 import monoid.MonoidApplet;
 import monoid.MonoidException;
 import monoididentity.MonoidIdentityApplet;
+import monoidlib.CBORBufferReader;
+import monoidlib.CBORBufferWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -207,11 +206,21 @@ public class MonoidTaprootTest extends AppletTest {
       field(transmit(0x40, keyRequest(secpIndex, null, null, null, false)), "publicKey")
     );
 
-    // jCardSim does not support the existing ECDSA precomputed-hash signing path.
-    assertError(
+    byte[] ecdsa = field(
       transmit(0x41, keyRequest(secpIndex, null, "ecdsa", DIGEST, null)),
-      Command.CODE_INTERNAL
+      "signature"
     );
+    Assertions.assertEquals(64, ecdsa.length);
+    Process verification = new ProcessBuilder(
+      "node",
+      "scripts/verify-signature.js",
+      Hex.toHexString(ecdsa),
+      Hex.toHexString(DIGEST),
+      vector[3]
+    )
+      .inheritIO()
+      .start();
+    Assertions.assertEquals(0, verification.waitFor());
     Assertions.assertEquals(
       64,
       field(transmit(0x41, keyRequest(edIndex, null, "ed25519", DIGEST, null)), "signature").length

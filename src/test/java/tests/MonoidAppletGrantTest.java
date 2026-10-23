@@ -20,11 +20,11 @@ import javacard.framework.AID;
 import javacard.framework.ISOException;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
-import monoid.CBOR;
-import monoid.CBORBufferReader;
-import monoid.CBORBufferWriter;
 import monoididentity.MonoidIdentityApplet;
 import monoididentity.SecretPIN;
+import monoidlib.CBOR;
+import monoidlib.CBORBufferReader;
+import monoidlib.CBORBufferWriter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import tests.MonoidItemTransferTest.Card;
@@ -468,7 +468,7 @@ public class MonoidAppletGrantTest {
     Assertions.assertEquals(0, response.size());
   }
 
-  private static Result success(Card card, int instruction, Map<String, Object> request) {
+  static Result success(Card card, int instruction, Map<String, Object> request) {
     Result result = transmit(card, instruction, request);
     result.assertSuccess();
     return result;

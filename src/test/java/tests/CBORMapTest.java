@@ -4,10 +4,10 @@ import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import java.util.Arrays;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
-import monoid.CBORBufferReader;
-import monoid.CBORBufferWriter;
-import monoid.CBORMap;
 import monoid.Text;
+import monoidlib.CBORBufferReader;
+import monoidlib.CBORBufferWriter;
+import monoidlib.CBORMap;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -63,13 +63,22 @@ public class CBORMapTest {
       CBORMap request = reader.map(keys);
       CBORMap derivation = request.requireKey(Text.derivation).map(derivationKeys);
 
-      Assertions.assertArrayEquals("bip32".getBytes(), derivation.requireKey(Text.type).text());
-      Assertions.assertArrayEquals(new byte[] { 5, 6 }, request.requireKey(Text.index).bytes());
+      Assertions.assertArrayEquals(
+        "bip32".getBytes(),
+        derivation.requireKey(Text.type).textTransient()
+      );
+      Assertions.assertArrayEquals(
+        new byte[] { 5, 6 },
+        request.requireKey(Text.index).bytesTransient()
+      );
       Assertions.assertArrayEquals(
         new byte[] { 1, 2, 3, 4 },
-        derivation.requireKey(Text.path).bytes()
+        derivation.requireKey(Text.path).bytesTransient()
       );
-      Assertions.assertArrayEquals("ecdsa".getBytes(), request.requireKey(Text.cipher).text());
+      Assertions.assertArrayEquals(
+        "ecdsa".getBytes(),
+        request.requireKey(Text.cipher).textTransient()
+      );
       Assertions.assertFalse(request.key(Text.message));
     }
   }
@@ -97,7 +106,10 @@ public class CBORMapTest {
     CBORMap request = reader.map(keys);
 
     Assertions.assertEquals(writer.getDataBuffer().length, reader.getOffset());
-    Assertions.assertArrayEquals(new byte[] { 4, 5 }, request.requireKey(Text.index).bytes());
+    Assertions.assertArrayEquals(
+      new byte[] { 4, 5 },
+      request.requireKey(Text.index).bytesTransient()
+    );
   }
 
   @Test
@@ -111,7 +123,10 @@ public class CBORMapTest {
 
     CBORMap request = new CBORBufferReader(writer.getDataBuffer()).map(keys);
 
-    Assertions.assertArrayEquals(new byte[] { 1, 2 }, request.requireKey(Text.index).bytes());
+    Assertions.assertArrayEquals(
+      new byte[] { 1, 2 },
+      request.requireKey(Text.index).bytesTransient()
+    );
   }
 
   @Test
@@ -125,7 +140,7 @@ public class CBORMapTest {
 
     Assertions.assertArrayEquals(
       new byte[] { 1, 2 },
-      request.requireKey("index".getBytes()).bytes()
+      request.requireKey("index".getBytes()).bytesTransient()
     );
     Assertions.assertFalse(request.key("unknown".getBytes()));
   }
@@ -141,10 +156,13 @@ public class CBORMapTest {
 
     CBORMap request = new CBORBufferReader(writer.getDataBuffer()).map(keys);
 
-    Assertions.assertArrayEquals("ecdsa".getBytes(), request.requireKey(Text.cipher).text());
+    Assertions.assertArrayEquals(
+      "ecdsa".getBytes(),
+      request.requireKey(Text.cipher).textTransient()
+    );
 
     ISOException exception = Assertions.assertThrows(ISOException.class, () ->
-      request.requireKey(Text.message).bytes()
+      request.requireKey(Text.message).bytesTransient()
     );
 
     Assertions.assertEquals(ISO7816.SW_WRONG_DATA, exception.getReason());
@@ -171,7 +189,10 @@ public class CBORMapTest {
       new byte[] { 1, 2, 3 },
       Arrays.copyOfRange(payload, offset, offset + length)
     );
-    Assertions.assertArrayEquals("ed25519".getBytes(), request.requireKey(Text.cipher).text());
+    Assertions.assertArrayEquals(
+      "ed25519".getBytes(),
+      request.requireKey(Text.cipher).textTransient()
+    );
     Assertions.assertArrayEquals(
       new byte[] { 1, 2, 3 },
       Arrays.copyOfRange(reader.getChunk(offset), offset, offset + length)

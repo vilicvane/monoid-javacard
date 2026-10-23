@@ -1,5 +1,7 @@
 package monoid;
 
+import monoidlib.CBORWriter;
+
 public class CommandExport extends Command {
 
   private final SafeDataResponse response = new SafeDataResponse();

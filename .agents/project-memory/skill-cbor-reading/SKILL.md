@@ -1,12 +1,125 @@
 ---
 name: project-memory-cbor-reading
-description: Monoid Java Card CBOR payload assembly, field lookup order, cursor and snapshot semantics, and parser performance measurements. Use when changing CBORReader or command request parsing.
+description: Shared monoidlib CBOR parsing and encoding, Monoid/CTAP profiles, storage and cursor variants, field order, and measured parser behavior. Use when changing CBOR readers, writers or request parsing.
 ---
 
 # Monoid CBOR reading
 
-Source: `../records.md`, records [112](../112.md), [113](../113.md) and [153](../153.md). Treat those
+Source: `../records.md`, records [112](../112.md), [113](../113.md), [153](../153.md), [166](../166.md), [175](../175.md), [176](../176.md), [178](../178.md), [179](../179.md) and [180](../180.md). Treat those
 records as authoritative and keep them current when changing this snapshot.
+
+- Record175 supersedes the separate Reader/Writer implementations described in
+  record166. `monoidlib.cap` is a library package without an Applet instance,
+  package AID `F06D6F6E6F696404`. Monoid and Security Key import its `CBOR`,
+  `CBORReader`, `CBORBufferReader`, `CBORMap`, `CBORWriter` and `ByteSource`.
+  Record176 also moves `CBORApduReader`, `CBORBufferWriter`, `CBORApduWriter`
+  and `CBORResponse` into the library. Both applets keep framing and status
+  mapping in their own `ApduTransport`, composing the shared reader and writer.
+  Monoid no longer subclasses the APDU reader to gate individual reads by READY;
+  the transport only executes a command after the complete request arrives.
+  Identity remains independent. Load the library before its clients; replacing it
+  requires removing dependent Security Key and Monoid packages first.
+- `CBORReader(buffer, offset, length)` selects `PROFILE_CTAP`; the four-argument
+  constructor explicitly selects `PROFILE_CTAP` or `PROFILE_MONOID`.
+  `CBORBufferReader(buffer)` selects Monoid's profile. The protected no-argument
+  constructor serves the library's chunk-based `CBORApduReader`; subclasses provide
+  logical bounds and ByteSource access, without assembling another full buffer.
+  Contiguous input uses direct array reads/copies. Do not replace it with virtual
+  per-byte chunk dispatch or flatten chunked input just to share parsing code.
+- The profiles preserve different protocol semantics. CTAP checks shortest
+  argument encodings, UTF-8 and nesting limits, rejects indefinite containers
+  and duplicate selected map fields, and reports CTAP status values. Monoid
+  retains its indefinite array/map support, first-selected-duplicate behavior and
+  `SW_WRONG_DATA` errors. Shared implementation does not make the profiles
+  interchangeable or make all unknown-field/type rules identical.
+- Reader cursor/end use a two-short CLEAR_ON_DESELECT array. Monoid navigation
+  uses six further shorts; snapshot storage is allocated only when used. CTAP's
+  ordinary forward/indexed reads do not allocate Monoid navigation or snapshots.
+  Map offsets also remain transient. Initialize command-start sentinels explicitly
+  and do not reintroduce persistent hot-path cursor writes.
+- Storage and cursor behavior are now explicit method variants:
+
+  | Read method                           | Result storage                          | Cursor after success |
+  | ------------------------------------- | --------------------------------------- | -------------------- |
+  | `bytes()`, `text()`                   | New private persistent array            | After the content    |
+  | `bytesTransient()`, `textTransient()` | CLEAR_ON_DESELECT array                 | At content start     |
+  | `bytesGlobal()`                       | Call-scoped global array                | At content start     |
+  | `bytes(out, ...)`, `text(out, ...)`   | Caller-provided array                   | After the content    |
+  | `bytesLength()`                       | No copy; returns length                 | At content start     |
+  | `bytesOffset()`, `textOffset()`       | No copy; returns logical content offset | After the content    |
+
+  Expected-length variants retain their base method's storage/cursor behavior.
+  Keep mostly read-only private data persistent; choose global arrays where an
+  immediate cross-Applet call requires them, rather than treating global as the
+  default. A logical offset is not necessarily an index in one contiguous array:
+  use ByteSource for chunked input. Do not add cursor increments based on the old
+  meaning of `bytes()`/`text()`; old Monoid callers now explicitly use the
+  non-advancing transient/global variants where needed.
+
+- Common APDU reception supports borrowed complete short input, on-demand
+  persistent 256B chunks, or a fixed persistent request buffer. Record178 removes
+  the former first512B transient tier. On J3R452/ACR39U, the same666B request's
+  first two fragments previously reduced available RESET RAM519→263→7B; the new
+  chunks keep519B available, consume544B persistent space, and let600B Create
+  complete. The following Get600 failed in178; record179 then moves the response
+  chunks/window to persistent storage, enabling600/1536B reads/writes and List in
+  the standalone layout. Record180 resolves the subsequent full-layout cold Hello
+  and Ed25519 allocation failures: one four-CAP installation passes initialization,
+  FIDO, direct/SLIP-0010 Ed25519 through1536B, reads/writes and communication.
+  These are boundary samples, not peaks. The reader
+  end offset also holds the received length; protocol layers decide first/last
+  frames, header matching and error status. Do not retain an APDU buffer reference.
+  Keep byte-level chunk access direct: record176 found that layered buffer/chunk
+  getters raised small Create overhead to111ms; direct inherited fields reduced
+  that to25ms. The final transport composition removes the Monoid read overrides
+  and keeps readiness checks at the command boundary; small Create then measured
+  about27ms faster than the original baseline, with the same parsing/storage policy.
+- The common writer owns encoding, buffers and segmented sending. Dynamic Monoid
+  output borrows APDU scratch then uses persistent chunks or a persistent streaming
+  window, emitting up to four units per APDU. Record179 removes its RAM tier:
+  the600B response keeps519/512B RESET/DESELECT available across three frames,
+  with548B total temporary persistent allocation recovered after the last frame.
+  Do not attribute all548B to the512B window itself. Short response borrowing and
+  fixed CTAP storage remain unchanged;
+  fixed CTAP output uses a 64B write window or direct APDU response. A fragmented
+  direct response is copied before GET RESPONSE overwrites the borrowed buffer.
+  Allocate only the structures needed by the selected mode. Buffers and callbacks
+  still belong to the calling applet context; library code is shared, not its data.
+  `bytesLength(n)` starts one byte string; `rawBytes(...)` supplies its body
+  without emitting additional headers. Keep CTAP's definite-container encoding
+  at its call sites; availability of indefinite writer methods is not permission
+  to change CTAP responses. APDU buffers remain borrowed locally and must not be
+  retained in a persistent/global reference.
+- Record180 applies the same storage policy to low-write private decoded inputs,
+  outputs and crypto metadata; authorization, session and parser cursor state keep
+  their transient lifecycle. When an Identity result's destination is already the
+  APDU buffer, copy directly through SIO instead of allocating another global
+  intermediate array. This does not retain the APDU reference or alter framing.
+  The final full layout passes600/1536B CRUD, small continuation reads, three-member
+  Bundle responses and signing after communication. Warm signing boundaries have
+  1164/1168B RESET/DESELECT available; initialized communication resources leave
+  771/784B, stable across later observed operations. Get600 retains548B temporary
+  persistent storage until its final frame while RAM remains unchanged. These
+  measurements do not establish peak memory or arbitrary payload-size support.
+- Record166's historical trial parsing short credential records directly from
+  APDU scratch was slower and was reverted. The shared library keeps ordinary
+  private-record reading; common source is not a reason to repeat that storage
+  change without new evidence. Record175's comparison uses the accepted uniform
+  CTAP tail-GC baseline from174, not the earlier selective-GC build. Use the
+  actual same-card/same-reader results recorded there; do not mix contact timings
+  with prior ACR1552/NFC results or claim command-boundary RAM as peak RAM.
+  Record176's final `unified-transport` shared-APDU comparison adds about6ms to
+  warm FIDO login and11ms to PIN negotiation, keeps FIDO RAM availability
+  unchanged, and adds422B of LOAD components versus its original baseline.
+  These replace the intermediate `unified-direct` figures of3/7ms and538B;
+  the final version saves96B of warm persistent space versus that intermediate.
+  Treat the small timing samples as descriptive results, not significance estimates.
+  Record175's complete-layout600B Ed25519 RAM limit is historical: record180
+  verifies direct and SLIP-0010 messages through1536B with Security Key installed
+  and warmed, including signing after Identity transfer/Bundle work. Keep those
+  results separate from175's standalone Ed test. Contact reset can change later
+  communication timings;180 records the ATR and probe evidence. Do not attribute
+  those whole-operation differences solely to CBOR or persistent storage.
 
 - Record153: document toolchain workarounds at every affected call site. The
   explicit CBORReader casts on setOffset calls avoid a CAP converter failure
@@ -49,11 +162,11 @@ records as authoritative and keep them current when changing this snapshot.
   Nested derivation handling adds further searches. This describes the baseline
   before Sign/ViewKey adopted CBORMap. Preserve approved validation
   semantics when considering one-pass parsing or a forward-search fast path.
-- Inspect cursor behavior before composing sequential reads. Allocating
-  `bytes()`/`text()` leave the cursor at the content start; their output-buffer
-  overloads advance past the content. `bytesLength()` intentionally leaves the
-  cursor at the message start for ByteSource signing. Do not make these uniform
-  blindly or remove `key()`'s rewind in isolation.
+- Inspect cursor behavior before composing sequential reads. Before175,
+  Monoid's allocating `bytes()`/`text()` left the cursor at the content start;
+  current explicit transient/global variants preserve that behavior, while the
+  persistent variants advance. `bytesLength()` still leaves the cursor at the
+  message start for ByteSource signing. Do not remove `key()`'s rewind in isolation.
 - Preserve nested-map/array bounds and snapshot/restore behavior. Snapshot map
   offsets intentionally capture the current offset. Missing optional fields,
   nested values and repeated lookups need explicit treatment in any sequential
@@ -69,9 +182,10 @@ records as authoritative and keep them current when changing this snapshot.
   snapshots to return to root fields. Keep the schema next to each command.
   Taproot's single-field map and commands without repeated searches retain the
   legacy reader. Do not introduce indexing allocations without useful reuse.
-- CBORMap records the first duplicate field, ignores unknown fields, and defers
-  value-type checks until a field is consumed. For example, ECDSA ignores an
-  irrelevant message value and BIP32 ignores context. Preserve those semantics.
+- In the Monoid profile, CBORMap records the first duplicate field, ignores
+  unknown fields, and defers value-type checks until a field is consumed. For
+  example, ECDSA ignores an irrelevant message value and BIP32 ignores context.
+  CTAP instead rejects duplicate selected fields. Preserve each profile's semantics.
   Indexing structurally scans the map, so malformed trailing CBOR can be rejected
   before an individual requested value is read. Do not promise identical error
   precedence for malformed encodings.
@@ -80,16 +194,17 @@ records as authoritative and keep them current when changing this snapshot.
   indexed separately, and consumed value headers are decoded again. Byte/text
   bodies are skipped by length. Ed25519 still borrows the Message through
   ByteSource; no full-message copy is introduced.
-- CBORMap's wrapper is an ordinary short-lived object with persistent reference
-  initialization; only its offsets use transient RAM. Do not retain a view in a
-  Command field or across operations. Include allocation and cleanup costs in
-  real-card performance comparisons instead of assuming the wrapper is free.
+- CBORMap's wrapper is an ordinary persistent object; only its offsets use
+  transient RAM. Monoid's operation-local indexed views remain short-lived.
+  CTAP may reuse a map created from a fixed `short[]` or `Object[]` schema by
+  calling `read(reader)`, which resets offsets and rescans the new input; do not
+  reuse previous offsets as valid across requests. Include allocation and cleanup
+  costs when comparing a new view with reuse, rather than assuming wrappers are free.
 - Distinguish scanning metadata from reading payload bodies. `skip()` jumps
   over byte/text bodies by length, while nested containers require traversal.
   Do not claim every failed lookup rereads an entire Message body.
-- Reader cursors and snapshots use CLEAR_ON_DESELECT RAM (record 112); explicit
-  command-start reset still initializes sentinels. No parser state needs to
-  survive an operation. Do not reintroduce persistent hot-path cursor writes.
+- Reader cursors and snapshots use CLEAR_ON_DESELECT RAM (record112, retained
+  in175); no previous request's parser positions are valid for a new operation.
 - Report Reader timing separately from complete Sign/ViewKey timing. A physical
   receive-only control with identical request bytes can estimate incremental
   parsing cost; label included allocation/cleanup work and measurement limits.

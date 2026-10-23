@@ -10,11 +10,24 @@ import javacard.framework.Applet;
 import javacard.framework.JCSystem;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
+import monoidlib.CBORApduReader;
+import monoidlib.CBORApduWriter;
+import monoidlib.CBORBufferWriter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class CBORApduWriterTest {
+
+  private static Object[] chunks(CBORBufferWriter writer) {
+    try {
+      java.lang.reflect.Field field = CBORBufferWriter.class.getDeclaredField("chunks");
+      field.setAccessible(true);
+      return (Object[]) field.get(writer);
+    } catch (ReflectiveOperationException exception) {
+      throw new AssertionError(exception);
+    }
+  }
 
   private CardSimulator simulator;
 
@@ -44,7 +57,7 @@ public class CBORApduWriterTest {
   public void promotesByteStringToOwnedBufferBeforeSendingFragments() {
     byte[] expected = byteString(255);
     ResponseAPDU first = transmit(0x20, 3);
-    Object firstChunk = Command.writer.chunks[0];
+    Object firstChunk = chunks(Command.writer)[0];
 
     Assertions.assertTrue(WriterApplet.ownedBufferBeforeSend);
     Assertions.assertNotNull(firstChunk);
@@ -98,13 +111,13 @@ public class CBORApduWriterTest {
     Assertions.assertNull(WriterApplet.firstChunks[2]);
     Assertions.assertNull(WriterApplet.secondChunks[3]);
     for (int index = 0; index < 2; index++) {
-      Assertions.assertSame(WriterApplet.firstChunks[index], Command.writer.chunks[index]);
+      Assertions.assertSame(WriterApplet.firstChunks[index], chunks(Command.writer)[index]);
     }
     for (int index = 0; index < 3; index++) {
-      Assertions.assertSame(WriterApplet.secondChunks[index], Command.writer.chunks[index]);
+      Assertions.assertSame(WriterApplet.secondChunks[index], chunks(Command.writer)[index]);
     }
     for (int index = 0; index < 4; index++) {
-      Assertions.assertSame(WriterApplet.thirdChunks[index], Command.writer.chunks[index]);
+      Assertions.assertSame(WriterApplet.thirdChunks[index], chunks(Command.writer)[index]);
     }
 
     assertResponse(expected, response);
@@ -119,10 +132,10 @@ public class CBORApduWriterTest {
   }
 
   @Test
-  public void allocatesPersistentChunksOnlyAboveTransientLimit() {
+  public void allocatesPersistentChunksOnDemand() {
     Assertions.assertEquals(
       JCSystem.NOT_A_TRANSIENT_OBJECT,
-      JCSystem.isTransient(Command.writer.chunks)
+      JCSystem.isTransient(chunks(Command.writer))
     );
 
     ResponseAPDU response = transmit(0x20, 9);
@@ -142,7 +155,7 @@ public class CBORApduWriterTest {
     for (int index = 0; index < 3; index++) {
       Assertions.assertEquals(
         JCSystem.CLEAR_ON_DESELECT,
-        JCSystem.isTransient(writer.chunks[index])
+        JCSystem.isTransient(chunks(writer)[index])
       );
     }
   }
@@ -213,7 +226,7 @@ public class CBORApduWriterTest {
   @Test
   public void releasesBufferAfterLastResponseChunk() {
     ResponseAPDU first = transmit(0x20);
-    Object firstChunk = Command.writer.chunks[0];
+    Object firstChunk = chunks(Command.writer)[0];
     byte[] expected = new byte[603];
     expected[0] = 0x59;
     expected[1] = 0x02;
@@ -228,7 +241,7 @@ public class CBORApduWriterTest {
 
     Assertions.assertEquals(0x615B, second.getSW());
     Assertions.assertArrayEquals(Arrays.copyOfRange(expected, 256, 512), second.getData());
-    Assertions.assertSame(firstChunk, Command.writer.chunks[0]);
+    Assertions.assertSame(firstChunk, chunks(Command.writer)[0]);
 
     ResponseAPDU last = transmit(0xC0);
 
@@ -238,7 +251,7 @@ public class CBORApduWriterTest {
     Assertions.assertEquals(0x6985, transmit(0xC0).getSW());
 
     Assertions.assertEquals(0x6100, transmit(0x20).getSW());
-    Assertions.assertNotSame(firstChunk, Command.writer.chunks[0]);
+    Assertions.assertNotSame(firstChunk, chunks(Command.writer)[0]);
   }
 
   @Test
@@ -267,11 +280,11 @@ public class CBORApduWriterTest {
   public void releasesPersistentChunksAfterReset() {
     Assertions.assertEquals(0x6100, transmit(0x20, 8).getSW());
     assertChunkCount(4);
-    Object persistentChunk = Command.writer.chunks[2];
+    Object[] persistentChunks = chunks(Command.writer).clone();
 
     simulator.reset();
 
-    Assertions.assertSame(persistentChunk, Command.writer.chunks[2]);
+    Assertions.assertArrayEquals(persistentChunks, chunks(Command.writer));
     Assertions.assertTrue(simulator.selectApplet(AIDUtil.create("f06d6f6e6f69647f01")));
 
     assertReleased();
@@ -320,16 +333,16 @@ public class CBORApduWriterTest {
   }
 
   private void assertChunkCount(int count) {
-    for (int index = 0; index < Command.writer.chunks.length; index++) {
+    for (int index = 0; index < chunks(Command.writer).length; index++) {
       if (index < count) {
-        Assertions.assertNotNull(Command.writer.chunks[index]);
-        Assertions.assertEquals(256, ((byte[]) Command.writer.chunks[index]).length);
+        Assertions.assertNotNull(chunks(Command.writer)[index]);
+        Assertions.assertEquals(256, ((byte[]) chunks(Command.writer)[index]).length);
         Assertions.assertEquals(
-          index < 2 ? JCSystem.CLEAR_ON_DESELECT : JCSystem.NOT_A_TRANSIENT_OBJECT,
-          JCSystem.isTransient(Command.writer.chunks[index])
+          JCSystem.NOT_A_TRANSIENT_OBJECT,
+          JCSystem.isTransient(chunks(Command.writer)[index])
         );
       } else {
-        Assertions.assertNull(Command.writer.chunks[index]);
+        Assertions.assertNull(chunks(Command.writer)[index]);
       }
     }
   }
@@ -350,7 +363,7 @@ public class CBORApduWriterTest {
     assertReleased();
   }
 
-  public static class WriterApplet extends MonoidApplet {
+  public static class WriterApplet extends Applet {
 
     static boolean ownedBufferBeforeSend;
     static boolean borrowedBeforeLastByte;
@@ -360,6 +373,8 @@ public class CBORApduWriterTest {
     static Object[] firstChunks;
     static Object[] secondChunks;
     static Object[] thirdChunks;
+
+    private final ApduTransport transport = new ApduTransport(Command.reader, Command.writer);
 
     public static void install(byte[] parameters, short offset, byte length) {
       ownedBufferBeforeSend = false;
@@ -382,20 +397,20 @@ public class CBORApduWriterTest {
             writer.array(length);
             for (short index = 0; index < length; index++) {
               if (mode == 4 && index == 254) {
-                borrowedBeforeLastByte = writer.chunks[0] == null;
+                borrowedBeforeLastByte = chunks(writer)[0] == null;
               }
               writer.bool(index % 2 != 0);
 
               if (mode == 7) {
                 switch (writer.getLength()) {
                   case 257:
-                    firstChunks = Arrays.copyOf(writer.chunks, 4);
+                    firstChunks = Arrays.copyOf(chunks(writer), 4);
                     break;
                   case 513:
-                    secondChunks = Arrays.copyOf(writer.chunks, 4);
+                    secondChunks = Arrays.copyOf(chunks(writer), 4);
                     break;
                   case 769:
-                    thirdChunks = Arrays.copyOf(writer.chunks, 4);
+                    thirdChunks = Arrays.copyOf(chunks(writer), 4);
                     break;
                 }
               }
@@ -442,7 +457,7 @@ public class CBORApduWriterTest {
             snapshot = writer.getDataBuffer();
           }
 
-          ownedBufferBeforeSend = writer.chunks[0] != null;
+          ownedBufferBeforeSend = chunks(writer)[0] != null;
         }
       };
 
@@ -452,7 +467,7 @@ public class CBORApduWriterTest {
     @Override
     public void process(APDU apdu) {
       if (selectingApplet()) {
-        Command.clearTransport();
+        transport.clear();
         return;
       }
 
@@ -470,7 +485,13 @@ public class CBORApduWriterTest {
         return;
       }
 
-      Command.process(apdu);
+      transport.process(apdu);
+    }
+
+    @Override
+    public void deselect() {
+      super.deselect();
+      transport.clear();
     }
   }
 

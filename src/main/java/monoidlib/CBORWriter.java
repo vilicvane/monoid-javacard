@@ -1,21 +1,28 @@
-package monoid;
+package monoidlib;
+
+import javacard.framework.JCSystem;
 
 public abstract class CBORWriter {
 
-  protected short initialOffset;
-  protected short offset;
+  private static final short INITIAL_OFFSET = 0;
+  protected static final short OFFSET = 1;
+
+  protected final short[] state = JCSystem.makeTransientShortArray(
+    (short) 2,
+    JCSystem.CLEAR_ON_DESELECT
+  );
 
   protected abstract void write(short offset, byte value);
 
   protected abstract void write(short offset, byte[] buffer, short bufferOffset, short length);
 
-  protected void reset(short offset) {
-    this.initialOffset = offset;
-    this.offset = offset;
+  public void reset(short offset) {
+    state[INITIAL_OFFSET] = offset;
+    state[OFFSET] = offset;
   }
 
   public short getLength() {
-    return (short) (offset - initialOffset);
+    return (short) (state[OFFSET] - state[INITIAL_OFFSET]);
   }
 
   public void integer(short value) {
@@ -40,9 +47,9 @@ public abstract class CBORWriter {
   }
 
   public void rawBytes(byte[] in, short valueOffset, short valueLength) {
-    write(offset, in, valueOffset, valueLength);
+    write(state[OFFSET], in, valueOffset, valueLength);
 
-    offset += valueLength;
+    state[OFFSET] += valueLength;
   }
 
   public void text(byte[] in, short valueOffset, short valueLength) {
@@ -75,31 +82,31 @@ public abstract class CBORWriter {
   }
 
   public void bool(boolean value) {
-    write(offset++, value ? CBOR.TRUE : CBOR.FALSE);
+    write(state[OFFSET]++, value ? CBOR.TRUE : CBOR.FALSE);
   }
 
   public void br() {
-    write(offset++, CBOR.BREAK);
+    write(state[OFFSET]++, CBOR.BREAK);
   }
 
-  static short metadataLength(short value) {
+  public static short metadataLength(short value) {
     return value <= CBOR.MAX_SIMPLE_UNSIGNED_INT ? (short) 1 : value <= 0xFF ? (short) 2 : 3;
   }
 
   private void metadataUnsignedInteger(byte type, short value) {
     if (value <= CBOR.MAX_SIMPLE_UNSIGNED_INT) {
-      write(offset++, (byte) (type | value));
+      write(state[OFFSET]++, (byte) (type | value));
     } else if (value <= 0xFF) {
-      write(offset++, (byte) (type | CBOR.VARIABLE_LENGTH_UNSIGNED_INT_MARK | 0b000));
-      write(offset++, (byte) value);
+      write(state[OFFSET]++, (byte) (type | CBOR.VARIABLE_LENGTH_UNSIGNED_INT_MARK | 0b000));
+      write(state[OFFSET]++, (byte) value);
     } else {
-      write(offset++, (byte) (type | CBOR.VARIABLE_LENGTH_UNSIGNED_INT_MARK | 0b001));
-      write(offset++, (byte) (value >> 8));
-      write(offset++, (byte) value);
+      write(state[OFFSET]++, (byte) (type | CBOR.VARIABLE_LENGTH_UNSIGNED_INT_MARK | 0b001));
+      write(state[OFFSET]++, (byte) (value >> 8));
+      write(state[OFFSET]++, (byte) value);
     }
   }
 
   private void metadataIndefinite(byte type) {
-    write(offset++, (byte) (type | CBOR.VARIABLE_LENGTH_INDEFINITE_MARK));
+    write(state[OFFSET]++, (byte) (type | CBOR.VARIABLE_LENGTH_INDEFINITE_MARK));
   }
 }

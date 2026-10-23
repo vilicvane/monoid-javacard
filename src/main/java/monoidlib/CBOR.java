@@ -1,4 +1,4 @@
-package monoid;
+package monoidlib;
 
 public final class CBOR {
 

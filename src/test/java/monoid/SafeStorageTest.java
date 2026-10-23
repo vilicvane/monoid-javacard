@@ -8,8 +8,8 @@ import javacard.framework.AID;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
-import main.ShareableSimulatorRuntime;
 import monoididentity.MonoidIdentityApplet;
+import monoidlib.CBORBufferWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +60,7 @@ public class SafeStorageTest {
     );
     Assertions.assertEquals(0x9000, response.getSW());
     Assertions.assertEquals(Command.AUTH_SECRET, Command.getAuth());
+    runtime.beginCommand();
     safe.checkAccess();
   }
 
@@ -257,7 +258,7 @@ public class SafeStorageTest {
     Assertions.assertTrue(runtime.deletionRequests > 0);
   }
 
-  private static class StorageRuntime extends ShareableSimulatorRuntime {
+  private static class StorageRuntime extends TestData.Runtime {
 
     private int[] reports = { 32767 };
     private int reportPosition;

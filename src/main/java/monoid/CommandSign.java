@@ -1,8 +1,9 @@
 package monoid;
 
-import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.MessageDigest;
+import monoidlib.CBOR;
+import monoidlib.CBORMap;
 
 public class CommandSign extends Command {
 
@@ -150,7 +151,7 @@ public class CommandSign extends Command {
         }
 
         if (merkleRoot == null) {
-          merkleRoot = JCSystem.makeTransientByteArray((short) 0, JCSystem.CLEAR_ON_DESELECT);
+          merkleRoot = new byte[0];
         }
       }
 

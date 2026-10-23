@@ -19,8 +19,12 @@ function Invoke-GlobalPlatform {
 }
 
 $packageAIDs = @(
+	# @inplate-line '{{hex MONOID_SECURITY_KEY_PACKAGE_AID uppercase=true}}',
+	'F06D6F6E6F696403',
 	# @inplate-line '{{hex MONOID_PACKAGE_AID uppercase=true}}',
 	'F06D6F6E6F696402',
+	# @inplate-line '{{hex MONOID_LIB_PACKAGE_AID uppercase=true}}',
+	'F06D6F6E6F696404',
 	# @inplate-line '{{hex MONOID_IDENTITY_PACKAGE_AID uppercase=true}}'
 	'F06D6F6E6F696400'
 );

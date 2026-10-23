@@ -3,6 +3,8 @@ package monoid;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.Util;
+import monoidlib.ByteSource;
+import monoidlib.CBORReader;
 
 public class SafeData implements SafeDataSource {
 

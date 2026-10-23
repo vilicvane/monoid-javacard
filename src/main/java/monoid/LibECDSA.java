@@ -1,18 +1,26 @@
 package monoid;
 
-import javacard.framework.JCSystem;
-
 public final class LibECDSA {
 
   public static void ensureLowS(byte[] order, byte[] signature, short offset) {
     short length = (short) order.length;
     short sOffset = (short) (offset + length);
-    byte[] halfOrder = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_RESET);
+    short carry = 0;
 
-    LibMath.shiftRight(order, (short) 0, halfOrder, (short) 0, length, (short) 1, (short) 0);
+    // Compare with floor(order / 2) without allocating and writing a temporary scalar.
+    for (short index = 0; index < length; index++) {
+      short current = (short) (order[index] & 0xFF);
+      short half = (short) ((current >> 1) | carry);
+      short s = (short) (signature[(short) (sOffset + index)] & 0xFF);
 
-    if (LibMath.compare(signature, sOffset, halfOrder, (short) 0, length) > 0) {
-      LibMath.sub(order, (short) 0, signature, sOffset, signature, sOffset, length);
+      if (s != half) {
+        if (s > half) {
+          LibMath.sub(order, (short) 0, signature, sOffset, signature, sOffset, length);
+        }
+        return;
+      }
+
+      carry = (short) ((current & 1) << 7);
     }
   }
 }

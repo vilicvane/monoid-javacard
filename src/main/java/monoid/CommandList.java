@@ -3,6 +3,9 @@ package monoid;
 import javacard.framework.APDU;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
+import monoidlib.CBOR;
+import monoidlib.CBORResponse;
+import monoidlib.CBORWriter;
 
 public class CommandList extends Command implements CBORResponse {
 
@@ -68,7 +71,7 @@ public class CommandList extends Command implements CBORResponse {
     byte[] metadata = APDU.getCurrentAPDUBuffer();
 
     if (state[1] > metadata.length) {
-      metadata = JCSystem.makeTransientByteArray(state[1], JCSystem.CLEAR_ON_DESELECT);
+      metadata = new byte[state[1]];
     }
 
     short indexLength = item.getIndex(metadata, (short) 0);

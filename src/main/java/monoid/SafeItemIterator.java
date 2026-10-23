@@ -12,6 +12,7 @@ public class SafeItemIterator {
   private final byte[] keyPrefix;
   private final short count;
   private final short maxMetadataLength;
+  private final AppletGrant grant;
 
   // Keep iteration state usable when Monoid is called by another applet.
   private final short[] position = JCSystem.makeTransientShortArray(
@@ -20,15 +21,25 @@ public class SafeItemIterator {
   );
 
   public SafeItemIterator(Safe safe, SafeItem[] items, short length, short type, byte[] keyPrefix) {
+    this(safe, items, length, type, keyPrefix, null);
+  }
+
+  SafeItemIterator(
+    Safe safe,
+    SafeItem[] items,
+    short length,
+    short type,
+    byte[] keyPrefix,
+    AppletGrant grant
+  ) {
     this.safe = safe;
     this.items = items;
     this.length = length;
     this.type = type;
+    this.grant = grant;
 
     // Snapshot the filter for the duration of this enumeration.
-    this.keyPrefix = keyPrefix != null && keyPrefix.length > 0
-      ? JCSystem.makeTransientByteArray((short) keyPrefix.length, JCSystem.CLEAR_ON_RESET)
-      : null;
+    this.keyPrefix = keyPrefix != null && keyPrefix.length > 0 ? new byte[keyPrefix.length] : null;
 
     if (this.keyPrefix != null) {
       Util.arrayCopyNonAtomic(
@@ -46,7 +57,7 @@ public class SafeItemIterator {
     for (short index = 0; index < length; index++) {
       SafeItem item = items[index];
 
-      if (item.matches(type, this.keyPrefix)) {
+      if (matches(item)) {
         count++;
 
         short metadataLength = Safe.INDEX_LENGTH;
@@ -85,11 +96,18 @@ public class SafeItemIterator {
     while (position[0] < length) {
       SafeItem item = items[position[0]++];
 
-      if (item.matches(type, keyPrefix)) {
+      if (matches(item)) {
         return item;
       }
     }
 
     return null;
+  }
+
+  private boolean matches(SafeItem item) {
+    return (
+      item.matches(type, keyPrefix) &&
+      (grant == null || grant.allows(Util.getShort(item.index, Safe.INDEX_TYPE_OFFSET), false))
+    );
   }
 }

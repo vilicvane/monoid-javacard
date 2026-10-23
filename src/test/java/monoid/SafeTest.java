@@ -11,13 +11,14 @@ import javacard.framework.AID;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
-import main.ShareableSimulatorRuntime;
 import monoididentity.MonoidIdentityApplet;
+import monoidlib.CBORBufferWriter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class SafeTest {
 
+  private TestData.Runtime runtime;
   private CardSimulator simulator;
 
   private static final AID IDENTITY_AID = AIDUtil.create(
@@ -30,6 +31,66 @@ public class SafeTest {
   );
 
   private static final byte[] PIN = { 1, 2, 3, 4, 5, 6 };
+
+  @Test
+  public void directCreationRetainsKnownTypeDigestLengthAndScalarValidation() throws Exception {
+    Safe safe = initializeSafe();
+    byte[] scalar = new byte[32];
+    scalar[31] = 1;
+    byte[][] invalid = { new byte[32], new byte[31], new byte[63], scalar };
+    short[] types = {
+      Safe.TYPE_WEIERSTRASS_SECP256R1,
+      Safe.TYPE_EDWARDS_ED25519,
+      (short) (Safe.TYPE_SEED | 64),
+      Safe.TYPE_WEIERSTRASS_SECP256R1,
+    };
+    byte[] index = new byte[Safe.INDEX_LENGTH];
+    for (int position = 0; position < invalid.length; position++) {
+      byte[] data = invalid[position];
+      byte[] digest = java.security.MessageDigest.getInstance("SHA-256").digest(data);
+      index[0] = (byte) (types[position] >>> 8);
+      index[1] = (byte) types[position];
+      System.arraycopy(digest, 0, index, 2, 8);
+      if (data == scalar) {
+        index[9] ^= 1;
+      }
+      Assertions.assertEquals(
+        SafeException.REASON_INVALID_PARAMETER,
+        Assertions.assertThrows(SafeException.class, () ->
+          safe.createData(
+            index,
+            (short) 0,
+            null,
+            (short) 0,
+            (short) 0,
+            null,
+            data,
+            (short) 0,
+            (short) data.length,
+            false
+          )
+        ).getReason()
+      );
+    }
+    Assertions.assertEquals(0, safe.list((short) 0).getCount());
+    index[9] ^= 1;
+    Assertions.assertTrue(
+      safe.createData(
+        index,
+        (short) 0,
+        null,
+        (short) 0,
+        (short) 0,
+        null,
+        scalar,
+        (short) 0,
+        (short) scalar.length,
+        false
+      )
+    );
+    Assertions.assertArrayEquals(scalar, read(safe.get(index).getData()));
+    Assertions.assertEquals(0, JCSystem.getTransactionDepth());
+  }
 
   @Test
   public void createsAndReplacesLargeDataThroughBoundedReads() {
@@ -534,13 +595,14 @@ public class SafeTest {
     );
     Assertions.assertEquals(0x9000, response.getSW());
     Assertions.assertEquals(Command.AUTH_SECRET, Command.getAuth());
+    runtime.beginCommand();
     safe.checkAccess();
   }
 
   private Safe initializeSafe() {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
 
-    ShareableSimulatorRuntime runtime = new ShareableSimulatorRuntime();
+    runtime = new TestData.Runtime();
     simulator = new CardSimulator(runtime);
     simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
     simulator.installApplet(MONOID_AID, MonoidApplet.class);

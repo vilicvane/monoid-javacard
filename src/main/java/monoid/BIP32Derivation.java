@@ -1,6 +1,5 @@
 package monoid;
 
-import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.ECPrivateKey;
 
@@ -41,24 +40,14 @@ public final class BIP32Derivation extends KeyDerivation {
   protected byte[] deriveKey(byte[] privateKeyAndChainCode, byte[] path) {
     WeierstrassCurve curve = WeierstrassCurve.secp256k1;
 
-    privateKeyAndChainCode = Utils.duplicateAsTransientDeselect(privateKeyAndChainCode);
+    privateKeyAndChainCode = Utils.duplicateAsPersistent(privateKeyAndChainCode);
 
     if (path.length == 0) {
       return privateKeyAndChainCode;
     }
 
-    byte[] data = JCSystem.makeTransientByteArray(
-      (short) (1 + COMPONENT_LENGTH + PATH_SEGMENT_LENGTH),
-      JCSystem.CLEAR_ON_DESELECT
-    );
-    byte[] currentPrivateKeyAndChainCode = JCSystem.makeTransientByteArray(
-      (short) privateKeyAndChainCode.length,
-      JCSystem.CLEAR_ON_DESELECT
-    );
-    byte[] block = JCSystem.makeTransientByteArray(
-      LibHMACSha512.BLOCK_BYTES,
-      JCSystem.CLEAR_ON_DESELECT
-    );
+    byte[] data = new byte[1 + COMPONENT_LENGTH + PATH_SEGMENT_LENGTH];
+    byte[] parentKey = new byte[COMPONENT_LENGTH];
 
     short pathOffset = 0;
 
@@ -69,8 +58,7 @@ public final class BIP32Derivation extends KeyDerivation {
         path,
         pathOffset,
         data,
-        currentPrivateKeyAndChainCode,
-        block
+        parentKey
       );
     }
 
@@ -83,17 +71,16 @@ public final class BIP32Derivation extends KeyDerivation {
     byte[] path,
     short pathSegmentOffset,
     byte[] data,
-    byte[] currentPrivateKeyAndChainCode,
-    byte[] block
+    byte[] parentKey
   ) {
     short dataOffset = 0;
 
     Util.arrayCopyNonAtomic(
       privateKeyAndChainCode,
       (short) 0,
-      currentPrivateKeyAndChainCode,
+      parentKey,
       (short) 0,
-      (short) privateKeyAndChainCode.length
+      COMPONENT_LENGTH
     );
 
     if (isHardened(path, pathSegmentOffset)) {
@@ -101,7 +88,7 @@ public final class BIP32Derivation extends KeyDerivation {
 
       data[dataOffset++] = 0;
       dataOffset = Util.arrayCopyNonAtomic(
-        currentPrivateKeyAndChainCode,
+        parentKey,
         (short) 0,
         data,
         dataOffset,
@@ -110,7 +97,7 @@ public final class BIP32Derivation extends KeyDerivation {
     } else {
       // compression flag byte || parent public key
 
-      ECPrivateKey privateKey = curve.getSharedPrivateKey(currentPrivateKeyAndChainCode, (short) 0);
+      ECPrivateKey privateKey = curve.getSharedPrivateKey(parentKey, (short) 0);
 
       dataOffset += curve.derivePublicKey(privateKey, data, dataOffset);
     }
@@ -119,22 +106,21 @@ public final class BIP32Derivation extends KeyDerivation {
 
     // left 32 bytes for private key & right 32 bytes as chain code
     LibHMACSha512.digest(
-      currentPrivateKeyAndChainCode,
+      privateKeyAndChainCode,
       COMPONENT_LENGTH,
       COMPONENT_LENGTH,
       data,
       (short) 0,
       (short) data.length,
       privateKeyAndChainCode,
-      (short) 0,
-      block
+      (short) 0
     );
 
     if (
       LibMath.add(
           privateKeyAndChainCode,
           (short) 0,
-          currentPrivateKeyAndChainCode,
+          parentKey,
           (short) 0,
           privateKeyAndChainCode,
           (short) 0,

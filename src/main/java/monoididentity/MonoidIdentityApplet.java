@@ -41,6 +41,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   private SecretPIN secretPIN = new SecretPIN();
   private MessageDigest tokenDigest;
   private byte[] tokenHmacBlock;
+  private byte[] hmacBlock;
   private AESGcmCipher aesGcmCipher;
   private CommunicationCipher communicationCipher;
   private ItemCipher itemCipher;
@@ -426,7 +427,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   private ItemCipher requireItemCipher() {
     if (itemCipher == null) {
-      itemCipher = new ItemCipher(requireAESGcmCipher());
+      itemCipher = new ItemCipher(requireAESGcmCipher(), requireHMACBlock());
     }
 
     return itemCipher;
@@ -434,10 +435,26 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   private CommunicationCipher requireCommunicationCipher() {
     if (communicationCipher == null) {
-      communicationCipher = new CommunicationCipher(keyPair, requireAESGcmCipher());
+      communicationCipher = new CommunicationCipher(
+        keyPair,
+        requireAESGcmCipher(),
+        requireHMACBlock()
+      );
     }
 
     return communicationCipher;
+  }
+
+  private byte[] requireHMACBlock() {
+    if (hmacBlock == null) {
+      // HPKE finishes before item-key derivation starts; every HMAC replaces the complete pad.
+      hmacBlock = JCSystem.makeTransientByteArray(
+        LibHMACSha256.BLOCK_LENGTH,
+        JCSystem.CLEAR_ON_RESET
+      );
+    }
+
+    return hmacBlock;
   }
 
   private static KeyPair createKeyPair() {
@@ -451,10 +468,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   private byte createToken(byte[] secret, byte[] caller, byte[] token) {
     if (tokenDigest == null) {
-      tokenHmacBlock = JCSystem.makeTransientByteArray(
-        LibHMACSha256.BLOCK_LENGTH,
-        JCSystem.CLEAR_ON_RESET
-      );
+      tokenHmacBlock = new byte[LibHMACSha256.BLOCK_LENGTH];
       tokenDigest = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, true);
     }
 

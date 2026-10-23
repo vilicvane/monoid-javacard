@@ -1,6 +1,6 @@
 package tests;
 
-import monoid.ByteSource;
+import monoidlib.ByteSource;
 
 public class ByteArraySource implements ByteSource {
 

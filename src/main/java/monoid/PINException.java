@@ -1,5 +1,7 @@
 package monoid;
 
+import monoidlib.CBORApduWriter;
+
 public class PINException extends MonoidException {
 
   // @formatter:off

@@ -10,6 +10,8 @@ import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import main.ShareableSimulatorRuntime;
 import monoididentity.MonoidIdentityApplet;
+import monoidlib.CBORBufferReader;
+import monoidlib.CBORBufferWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +29,16 @@ public class CommandItemKeyTest {
   );
 
   private static final byte[] PIN = "314159".getBytes(StandardCharsets.US_ASCII);
+
+  private static Object[] chunks(CBORBufferWriter writer) {
+    try {
+      java.lang.reflect.Field field = CBORBufferWriter.class.getDeclaredField("chunks");
+      field.setAccessible(true);
+      return (Object[]) field.get(writer);
+    } catch (ReflectiveOperationException exception) {
+      throw new AssertionError(exception);
+    }
+  }
 
   private CardSimulator simulator;
 
@@ -156,7 +168,7 @@ public class CommandItemKeyTest {
     Assertions.assertEquals(0x6100, response.getSW());
     Assertions.assertTrue(response.getData().length > 0 && response.getData().length <= 256);
 
-    for (Object chunk : Command.writer.chunks) {
+    for (Object chunk : chunks(Command.writer)) {
       Assertions.assertNull(chunk);
     }
 
@@ -252,6 +264,54 @@ public class CommandItemKeyTest {
     }
 
     assertListedItems((short) 0, null, indexes);
+  }
+
+  @Test
+  public void preservesBorrowedCreateRequestsWhenTheItemTableExpands() {
+    // The physical protocol workload starts with one seed and four credentials.
+    for (int position = 0; position < 5; position++) {
+      create(null, customIndex(position + 1), null, new byte[] { (byte) position });
+    }
+    requireSuccess(transmit(0x21, pinRequest(true)));
+    assertListedItems((short) 0xF203, null);
+
+    byte[] key = "apdu-stream".getBytes(StandardCharsets.US_ASCII);
+    byte[] data = "APDU fixture data".getBytes(StandardCharsets.US_ASCII);
+    byte[][] indexes = new byte[12][];
+    byte[][] aliases = new byte[12][];
+    for (int position = 0; position < indexes.length; position++) {
+      byte[] index = { (byte) 0xF2, 3, 'A', 'P', 'D', 'U', 0, 0, 0, (byte) position };
+      byte[] alias = String.format("APDU streaming fixture %02d", position).getBytes(
+        StandardCharsets.US_ASCII
+      );
+      CBORBufferWriter writer = new CBORBufferWriter();
+      writer.map((short) 4);
+      writer.text(Text.data);
+      writer.bytes(data);
+      writer.text(Text.key);
+      writer.bytes(key);
+      writer.text(Text.alias);
+      writer.text(alias);
+      writer.text(Text.index);
+      writer.bytes(index);
+      byte[] request = writer.getDataBuffer();
+      Assertions.assertEquals(90, request.length);
+      CBORBufferReader reader = requireSuccess(
+        simulator.transmitCommand(new CommandAPDU(0, 0x34, 0, 0, request, 256))
+      );
+      Assertions.assertArrayEquals(index, reader.requireKey(Text.index).bytes());
+      indexes[position] = index;
+      aliases[position] = alias;
+    }
+
+    assertListedItems((short) 0xF203, key, indexes);
+    for (int position = 0; position < indexes.length; position++) {
+      CBORBufferReader reader = requireSuccess(transmit(0x31, indexRequest(indexes[position])));
+      Assertions.assertArrayEquals(aliases[position], reader.requireKey(Text.alias).text());
+      Assertions.assertArrayEquals(key, reader.requireKey(Text.key).bytes());
+      reader = requireSuccess(transmit(0x32, indexRequest(indexes[position])));
+      Assertions.assertArrayEquals(data, reader.requireKey(Text.data).bytes());
+    }
   }
 
   private void resetAppletState() {

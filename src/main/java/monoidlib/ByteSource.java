@@ -1,4 +1,4 @@
-package monoid;
+package monoidlib;
 
 /** Read-only access to logical bytes that may span multiple arrays. */
 public interface ByteSource {

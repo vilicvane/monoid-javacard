@@ -1,6 +1,7 @@
 package monoid;
 
 import javacard.framework.JCSystem;
+import monoidlib.CBORWriter;
 
 public class CommandSystemInformation extends Command {
 

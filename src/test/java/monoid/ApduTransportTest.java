@@ -10,15 +10,19 @@ import javacard.framework.Applet;
 import javacard.framework.JCSystem;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
+import monoidlib.CBORApduReader;
+import monoidlib.CBORApduWriter;
+import monoidlib.CBORBufferWriter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class CBORApduReaderTest {
+public class ApduTransportTest {
 
   private static final AID READER_AID = AIDUtil.create("f06d6f6e6f69647f01");
 
   private static CBORApduReader installedReader;
+  private static ApduTransport installedTransport;
 
   private CardSimulator simulator;
 
@@ -55,12 +59,19 @@ public class CBORApduReaderTest {
   }
 
   @Test
-  public void allocatesPersistentChunksOnlyAboveTransientLimit() throws Exception {
+  public void allocatesPersistentChunksOnDemandFromTheFirstFrame() throws Exception {
     Object[] chunks = chunks();
     Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(chunks));
     assertReleased();
 
-    beginRequest(512);
+    beginRequest(1);
+    assertChunkTypes(1);
+
+    Assertions.assertEquals(0x9000, transmit(0xB0, 1, new byte[255]).getSW());
+    assertChunkTypes(1);
+
+    Assertions.assertEquals(0x9000, transmit(0xB0, 1, new byte[255]).getSW());
+    Assertions.assertEquals(0x9000, transmit(0xB0, 1, new byte[] { (byte) 0xA5 }).getSW());
     assertChunkTypes(2);
 
     Assertions.assertEquals(0x9000, transmit(0xB0, 1, new byte[] { (byte) 0xA5 }).getSW());
@@ -122,9 +133,9 @@ public class CBORApduReaderTest {
 
     simulator.reset();
 
-    Assertions.assertFalse(installedReader.isReceiving());
-    Assertions.assertEquals(0, installedReader.getLength());
-    Assertions.assertSame(allocated[2], chunks()[2]);
+    Assertions.assertFalse(installedTransport.isReceiving());
+    Assertions.assertEquals(0, installedReader.getReceivedLength());
+    Assertions.assertArrayEquals(allocated, chunks());
     Assertions.assertTrue(simulator.selectApplet(READER_AID));
 
     assertReleased();
@@ -136,6 +147,14 @@ public class CBORApduReaderTest {
   public void receivesManySmallFramesIntoReusableChunks() {
     assertEcho((short) 1167, 1);
     assertEcho((short) 8189, 17);
+  }
+
+  @Test
+  public void rejectsOverflowAcrossFramesAndReleasesTheRequest() throws Exception {
+    beginRequest(8192);
+    Assertions.assertEquals(0x6700, transmit(0xA0, 1, new byte[] { 0 }).getSW());
+    assertReleased();
+    assertEcho((short) 3);
   }
 
   @Test
@@ -208,6 +227,8 @@ public class CBORApduReaderTest {
       ResponseAPDU response = transmit(offset == 0 ? 0x90 : 0xB0, 1, data);
       Assertions.assertEquals(0x9000, response.getSW());
       Assertions.assertEquals(0, response.getData().length);
+      Assertions.assertTrue(installedTransport.isReceiving());
+      Assertions.assertEquals(Math.min(offset + 255, length), installedReader.getReceivedLength());
     }
   }
 
@@ -218,7 +239,7 @@ public class CBORApduReaderTest {
   }
 
   private Object[] chunks() throws Exception {
-    Field field = CBORApduReader.class.getDeclaredField("chunks");
+    Field field = monoidlib.CBORApduReader.class.getDeclaredField("chunks");
     field.setAccessible(true);
     return (Object[]) field.get(installedReader);
   }
@@ -233,16 +254,13 @@ public class CBORApduReaderTest {
       }
 
       Assertions.assertEquals(256, ((byte[]) chunks[index]).length);
-      Assertions.assertEquals(
-        index < 2 ? JCSystem.CLEAR_ON_DESELECT : JCSystem.NOT_A_TRANSIENT_OBJECT,
-        JCSystem.isTransient(chunks[index])
-      );
+      Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(chunks[index]));
     }
   }
 
   private void assertReleased() throws Exception {
-    Assertions.assertFalse(installedReader.isReceiving());
-    Assertions.assertEquals(0, installedReader.getLength());
+    Assertions.assertFalse(installedTransport.isReceiving());
+    Assertions.assertEquals(0, installedReader.getReceivedLength());
 
     for (Object chunk : chunks()) {
       Assertions.assertNull(chunk);
@@ -293,47 +311,51 @@ public class CBORApduReaderTest {
   public static class ReaderApplet extends Applet {
 
     private final CBORApduReader reader = new CBORApduReader();
+    private final ApduTransport transport = new ApduTransport(reader, new CBORApduWriter());
 
     public static void install(byte[] parameters, short offset, byte length) {
       ReaderApplet applet = new ReaderApplet();
       installedReader = applet.reader;
+      installedTransport = applet.transport;
       applet.register();
     }
 
     @Override
     public void deselect() {
       super.deselect();
-      reader.clear();
+      transport.clearRequest();
     }
 
     @Override
     public void process(APDU apdu) {
       if (selectingApplet()) {
-        reader.clear();
+        transport.clearRequest();
         return;
       }
 
       boolean pending = false;
 
       try {
-        pending = !reader.receive();
+        pending = !transport.receive(apdu);
 
         if (pending) {
           return;
         }
 
         Assertions.assertEquals(APDU.STATE_FULL_INCOMING, apdu.getCurrentState());
-        reader.reset();
+        Assertions.assertFalse(transport.isReceiving());
+        Assertions.assertEquals(0, reader.getOffset());
 
         if (apdu.getBuffer()[0] == 0) {
           Assertions.assertSame(apdu.getBuffer(), reader.getChunk((short) 0));
+          Assertions.assertFalse(reader.hasChunks());
         }
 
-        for (short position = 0; position < reader.getLength(); ) {
+        for (short position = 0; position < reader.getReceivedLength(); ) {
           byte[] chunk = reader.getChunk(position);
           short available = reader.getChunkLength(position);
           Assertions.assertTrue(available > 0);
-          Assertions.assertTrue(available <= reader.getLength() - position);
+          Assertions.assertTrue(available <= reader.getReceivedLength() - position);
           Assertions.assertTrue(reader.getChunkOffset(position) + available <= chunk.length);
           position += available;
         }
@@ -342,7 +364,7 @@ public class CBORApduReaderTest {
           Assertions.assertEquals(5, reader.map());
           Assertions.assertArrayEquals(
             "testing".getBytes(),
-            reader.requireKey("label".getBytes()).text()
+            reader.requireKey("label".getBytes()).textTransient()
           );
           Assertions.assertEquals(257, reader.requireKey("number".getBytes()).integer());
           Assertions.assertTrue(reader.requireKey("enabled".getBytes()).bool());
@@ -404,7 +426,7 @@ public class CBORApduReaderTest {
         apdu.sendBytesLong(response, (short) 0, responseLength);
       } finally {
         if (!pending) {
-          reader.clear();
+          transport.clearRequest();
         }
       }
     }

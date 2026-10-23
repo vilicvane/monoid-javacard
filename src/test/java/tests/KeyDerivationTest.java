@@ -36,18 +36,18 @@ public class KeyDerivationTest {
     }
 
     Assertions.assertEquals(64, derivation.calls);
-    Assertions.assertEquals(64, derivation.masterCalls);
+    Assertions.assertEquals(2, derivation.masterCalls);
 
     for (int i = 0; i < 32; i++) {
       derivation.deriveFromSeed(seed, new byte[] { (byte) i });
     }
 
     Assertions.assertEquals(64, derivation.calls);
-    Assertions.assertEquals(64, derivation.masterCalls);
+    Assertions.assertEquals(2, derivation.masterCalls);
   }
 
   @Test
-  public void matchingBytesReuseTheResultAsIndependentTransientCopies() {
+  public void matchingBytesReuseTheResultAsIndependentPersistentCopies() {
     CountingDerivation derivation = new CountingDerivation();
     byte[] master = new byte[64];
     byte[] input = { 1, 2 };
@@ -61,9 +61,9 @@ public class KeyDerivationTest {
     Assertions.assertArrayEquals(first, third);
     Assertions.assertNotSame(first, second);
     Assertions.assertNotSame(second, third);
-    Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(first));
-    Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(second));
-    Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(third));
+    Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(first));
+    Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(second));
+    Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(third));
   }
 
   @Test
@@ -157,13 +157,13 @@ public class KeyDerivationTest {
     path[1] = 3;
     derivation.deriveFromSeed(seed, path);
 
-    Assertions.assertEquals(3, derivation.masterCalls);
+    Assertions.assertEquals(2, derivation.masterCalls);
     Assertions.assertEquals(3, derivation.calls);
     Assertions.assertArrayEquals(
       first,
       derivation.deriveFromSeed(originalSeed, originalPath).getKey()
     );
-    Assertions.assertEquals(3, derivation.masterCalls);
+    Assertions.assertEquals(2, derivation.masterCalls);
     Assertions.assertEquals(3, derivation.calls);
   }
 
@@ -197,17 +197,39 @@ public class KeyDerivationTest {
     }
 
     Assertions.assertEquals(32, totalCalls(derivations));
-    Assertions.assertEquals(16, totalMasterCalls(derivations));
+    Assertions.assertEquals(3, totalMasterCalls(derivations));
     derivations[2].deriveFromSeed(source, new byte[] { 32 });
     Assertions.assertEquals(33, totalCalls(derivations));
-    Assertions.assertEquals(17, totalMasterCalls(derivations));
+    Assertions.assertEquals(3, totalMasterCalls(derivations));
     Assertions.assertArrayEquals(
       expected[1],
       derivations[1].derive(source, new byte[] { 1 }).getKey()
     );
     derivations[0].deriveFromSeed(source, new byte[] { 0 });
     Assertions.assertEquals(34, totalCalls(derivations));
-    Assertions.assertEquals(18, totalMasterCalls(derivations));
+    Assertions.assertEquals(3, totalMasterCalls(derivations));
+  }
+
+  @Test
+  public void seedMasterExpiresWithItsLastResultAndIsNotKeptOutsideTheFifo() {
+    CountingDerivation derivation = new CountingDerivation();
+    byte[] firstSeed = new byte[64];
+    byte[] secondSeed = firstSeed.clone();
+    secondSeed[63] = 1;
+    derivation.deriveFromSeed(firstSeed, new byte[] { 0 });
+
+    for (int index = 0; index < 32; index++) {
+      derivation.deriveFromSeed(secondSeed, new byte[] { (byte) index });
+    }
+    Assertions.assertEquals(2, derivation.masterCalls);
+    derivation.deriveFromSeed(firstSeed, new byte[] { 1 });
+    Assertions.assertEquals(3, derivation.masterCalls);
+    derivation.deriveFromSeed(secondSeed, new byte[] { 32 });
+    Assertions.assertEquals(3, derivation.masterCalls);
+
+    KeyDerivation.clearCache();
+    derivation.deriveFromSeed(secondSeed, new byte[] { 33 });
+    Assertions.assertEquals(4, derivation.masterCalls);
   }
 
   @Test

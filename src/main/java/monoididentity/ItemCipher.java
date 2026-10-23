@@ -55,21 +55,26 @@ final class ItemCipher {
   };
 
   ItemCipher(AESGcmCipher cipher) {
+    this(
+      cipher,
+      JCSystem.makeTransientByteArray(LibHMACSha256.BLOCK_LENGTH, JCSystem.CLEAR_ON_RESET)
+    );
+  }
+
+  ItemCipher(AESGcmCipher cipher, byte[] hmacBlock) {
     this.cipher = cipher;
+    this.hmacBlock = hmacBlock;
 
     random = RandomData.getInstance(RandomData.ALG_KEYGENERATION);
     digest = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, true);
+    // Both asymmetric and Bundle paths set their derived key before initializing GCM.
     encryptionKey = (AESKey) KeyBuilder.buildKey(
       KeyBuilder.ALG_TYPE_AES,
-      JCSystem.MEMORY_TYPE_TRANSIENT_RESET,
+      JCSystem.MEMORY_TYPE_PERSISTENT,
       KeyBuilder.LENGTH_AES_128,
       false
     );
     keyBytes = new byte[KEY_LENGTH];
-    hmacBlock = JCSystem.makeTransientByteArray(
-      LibHMACSha256.BLOCK_LENGTH,
-      JCSystem.CLEAR_ON_RESET
-    );
     suffix = new byte[2];
   }
 

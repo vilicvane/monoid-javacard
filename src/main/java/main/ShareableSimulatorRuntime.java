@@ -16,11 +16,26 @@ import javacard.framework.Shareable;
 public class ShareableSimulatorRuntime extends SimulatorRuntime {
 
   private final Map<Object, Shareable> proxies = new IdentityHashMap<>();
+  private final Map<Object, Object> targets = new IdentityHashMap<>();
+  private final Map<Object, AID> owners = new IdentityHashMap<>();
 
   public ShareableSimulatorRuntime() {}
 
   public ShareableSimulatorRuntime(TransientMemory memory) {
     super(memory);
+  }
+
+  @Override
+  public byte[] transmitCommand(byte[] command) {
+    try {
+      return super.transmitCommand(command);
+    } finally {
+      // jCardSim leaves transactions active after process exits. Model the JCRE's
+      // APDU boundary only; its abort still has no persistent-state rollback journal.
+      if (getTransactionDepth() != 0) {
+        abortTransaction();
+      }
+    }
   }
 
   @Override
@@ -87,6 +102,8 @@ public class ShareableSimulatorRuntime extends SimulatorRuntime {
 
     proxies.put(value, proxy);
     proxies.put(proxy, proxy);
+    targets.put(proxy, value);
+    owners.put(proxy, owner);
 
     return proxy;
   }
@@ -98,6 +115,15 @@ public class ShareableSimulatorRuntime extends SimulatorRuntime {
     AID caller = currentAID;
     AID previous = previousAID;
     arguments = (Object[]) wrap(arguments, caller);
+    if (arguments != null) {
+      for (int index = 0; index < arguments.length; index++) {
+        AID argumentOwner = owners.get(arguments[index]);
+        // Returning a SIO to its own context exposes the original object, not a new callback.
+        if (argumentOwner != null && sameContext(owner, argumentOwner)) {
+          arguments[index] = targets.get(arguments[index]);
+        }
+      }
+    }
 
     enterContext(owner);
 
@@ -113,16 +139,17 @@ public class ShareableSimulatorRuntime extends SimulatorRuntime {
 
   private void enterContext(AID owner) {
     // Applets in the same package share a context; their calls retain its caller.
-    if (
-      currentAID == null ||
-      !getApplet(currentAID)
-        .getClass()
-        .getPackage()
-        .equals(getApplet(owner).getClass().getPackage())
-    ) {
+    if (currentAID == null || !sameContext(currentAID, owner)) {
       previousAID = currentAID;
     }
 
     currentAID = owner;
+  }
+
+  private boolean sameContext(AID first, AID second) {
+    return getApplet(first)
+      .getClass()
+      .getPackage()
+      .equals(getApplet(second).getClass().getPackage());
   }
 }

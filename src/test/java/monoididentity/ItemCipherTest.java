@@ -40,10 +40,14 @@ public class ItemCipherTest {
   private static final byte[] ALIAS = "\u6d4b\u8bd5\u6761\u76ee".getBytes(StandardCharsets.UTF_8);
 
   private final AESGcmCipher sharedCipher = new AESGcmCipher();
+  private final byte[] sharedHmacBlock = JCSystem.makeTransientByteArray(
+    LibHMACSha256.BLOCK_LENGTH,
+    JCSystem.CLEAR_ON_RESET
+  );
 
   @Test
   public void invalidBundleStateCannotSelectAsymmetricEncryption() {
-    ItemCipher cipher = new ItemCipher(sharedCipher);
+    ItemCipher cipher = new ItemCipher(sharedCipher, sharedHmacBlock);
 
     for (short valid : new short[] { Constants.SAFE_TRUE, Constants.SAFE_FALSE }) {
       for (int bit = 0; bit < 16; bit++) {
@@ -70,9 +74,9 @@ public class ItemCipherTest {
 
   @Test
   public void exportMatchesIndependentHostKeyDerivationAndGcm() throws Exception {
-    TestIdentity sender = new TestIdentity(1, sharedCipher);
-    TestIdentity recipient = new TestIdentity(2, sharedCipher);
-    ItemCipher cipher = new ItemCipher(sharedCipher);
+    TestIdentity sender = new TestIdentity(1, sharedCipher, sharedHmacBlock);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher, sharedHmacBlock);
+    ItemCipher cipher = new ItemCipher(sharedCipher, sharedHmacBlock);
 
     for (boolean secret : new boolean[] { false, true }) {
       for (int length : new int[] { 0, 14, 15, 30, 31, 32, 128, 368, 369, 1024, 4096 }) {
@@ -101,9 +105,9 @@ public class ItemCipherTest {
 
   @Test
   public void importsIndependentHostCiphertext() throws Exception {
-    TestIdentity sender = new TestIdentity(1, sharedCipher);
-    TestIdentity recipient = new TestIdentity(2, sharedCipher);
-    ItemCipher cipher = new ItemCipher(sharedCipher);
+    TestIdentity sender = new TestIdentity(1, sharedCipher, sharedHmacBlock);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher, sharedHmacBlock);
+    ItemCipher cipher = new ItemCipher(sharedCipher, sharedHmacBlock);
 
     for (boolean secret : new boolean[] { false, true }) {
       for (int length : new int[] {
@@ -136,9 +140,9 @@ public class ItemCipherTest {
 
   @Test
   public void contextBindsTheCompleteIndexAndUnambiguousNullableMetadata() throws Exception {
-    TestIdentity sender = new TestIdentity(1, sharedCipher);
-    TestIdentity recipient = new TestIdentity(2, sharedCipher);
-    ItemCipher cipher = new ItemCipher(sharedCipher);
+    TestIdentity sender = new TestIdentity(1, sharedCipher, sharedHmacBlock);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher, sharedHmacBlock);
+    ItemCipher cipher = new ItemCipher(sharedCipher, sharedHmacBlock);
     TestItem item = new TestItem(
       INDEX,
       new byte[] { 1 },
@@ -244,9 +248,9 @@ public class ItemCipherTest {
 
   @Test
   public void bindsTheFullCallerAIDAndItsLength() throws Exception {
-    TestIdentity sender = new TestIdentity(1, sharedCipher);
-    TestIdentity recipient = new TestIdentity(2, sharedCipher);
-    ItemCipher cipher = new ItemCipher(sharedCipher);
+    TestIdentity sender = new TestIdentity(1, sharedCipher, sharedHmacBlock);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher, sharedHmacBlock);
+    ItemCipher cipher = new ItemCipher(sharedCipher, sharedHmacBlock);
     TestItem item = item(bytes(32), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
     byte[] caller = aidBytes(CALLER_AID);
@@ -289,9 +293,9 @@ public class ItemCipherTest {
 
   @Test
   public void rejectsMalformedContainersAndTamperingBeforeReturningPlaintext() throws Exception {
-    TestIdentity sender = new TestIdentity(1, sharedCipher);
-    TestIdentity recipient = new TestIdentity(2, sharedCipher);
-    ItemCipher cipher = new ItemCipher(sharedCipher);
+    TestIdentity sender = new TestIdentity(1, sharedCipher, sharedHmacBlock);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher, sharedHmacBlock);
+    ItemCipher cipher = new ItemCipher(sharedCipher, sharedHmacBlock);
     TestItem item = item(bytes(32), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
 
@@ -336,18 +340,18 @@ public class ItemCipherTest {
 
   @Test
   public void bindsExpectedSenderAndRecipient() throws Exception {
-    TestIdentity sender = new TestIdentity(1, sharedCipher);
-    TestIdentity recipient = new TestIdentity(2, sharedCipher);
-    TestIdentity other = new TestIdentity(3, sharedCipher);
+    TestIdentity sender = new TestIdentity(1, sharedCipher, sharedHmacBlock);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher, sharedHmacBlock);
+    TestIdentity other = new TestIdentity(3, sharedCipher, sharedHmacBlock);
     TestItem item = item(bytes(32), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
-    ItemCipher cipher = new ItemCipher(sharedCipher);
+    ItemCipher cipher = new ItemCipher(sharedCipher, sharedHmacBlock);
 
     Assertions.assertThrows(CryptoException.class, () ->
       decrypt(cipher, recipient, other, item, encrypted)
     );
     Assertions.assertThrows(CryptoException.class, () ->
-      decrypt(new ItemCipher(sharedCipher), other, sender, item, encrypted)
+      decrypt(new ItemCipher(sharedCipher, sharedHmacBlock), other, sender, item, encrypted)
     );
     Assertions.assertArrayEquals(
       plaintext(item),
@@ -357,9 +361,9 @@ public class ItemCipherTest {
 
   @Test
   public void authenticatesPersistentPlaintextBeforeReturningIt() throws Exception {
-    TestIdentity sender = new TestIdentity(1, sharedCipher);
-    TestIdentity recipient = new TestIdentity(2, sharedCipher);
-    ItemCipher cipher = new ItemCipher(sharedCipher);
+    TestIdentity sender = new TestIdentity(1, sharedCipher, sharedHmacBlock);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher, sharedHmacBlock);
+    ItemCipher cipher = new ItemCipher(sharedCipher, sharedHmacBlock);
     TestItem item = item(bytes(4096), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
     byte[] changed = encrypted.clone();
@@ -377,8 +381,8 @@ public class ItemCipherTest {
 
   @Test
   public void repeatedExportsUseFreshKeysAndNonces() {
-    TestIdentity identity = new TestIdentity(1, sharedCipher);
-    ItemCipher cipher = new ItemCipher(sharedCipher);
+    TestIdentity identity = new TestIdentity(1, sharedCipher, sharedHmacBlock);
+    ItemCipher cipher = new ItemCipher(sharedCipher, sharedHmacBlock);
     TestItem item = item(bytes(32), true);
     byte[] first = encrypt(cipher, identity, item, identity.getPublicKey());
     byte[] firstKey = identity.lastKey.clone();
@@ -400,9 +404,9 @@ public class ItemCipherTest {
 
   @Test
   public void verifiesTheCompleteTagAgainOnEachOfThreeSuccessfulRounds() throws Exception {
-    TestIdentity sender = new TestIdentity(1, sharedCipher);
-    TestIdentity recipient = new TestIdentity(2, sharedCipher);
-    ItemCipher cipher = new ItemCipher(sharedCipher);
+    TestIdentity sender = new TestIdentity(1, sharedCipher, sharedHmacBlock);
+    TestIdentity recipient = new TestIdentity(2, sharedCipher, sharedHmacBlock);
+    ItemCipher cipher = new ItemCipher(sharedCipher, sharedHmacBlock);
     TestItem item = item(bytes(32), true);
     byte[] encrypted = encryptOnHost(sender, recipient, item);
     Field field = ItemCipher.class.getDeclaredField("tagValidation");
@@ -605,7 +609,7 @@ public class ItemCipherTest {
     private byte[] lastKey;
     private byte[] lastContext;
 
-    public TestIdentity(int scalar, AESGcmCipher sharedCipher) {
+    public TestIdentity(int scalar, AESGcmCipher sharedCipher, byte[] sharedHmacBlock) {
       X9ECParameters curve = SECNamedCurves.getByName("secp256r1");
       publicKey = curve.getG().multiply(BigInteger.valueOf(scalar)).getEncoded(false);
       KeyPair identity = new KeyPair(KeyPair.ALG_EC_FP, (short) 256);
@@ -617,7 +621,7 @@ public class ItemCipherTest {
       privateKey[31] = (byte) scalar;
       privatePart.setS(privateKey, (short) 0, (short) privateKey.length);
       publicPart.setW(publicKey, (short) 0, (short) publicKey.length);
-      cipher = new CommunicationCipher(identity, sharedCipher) {
+      cipher = new CommunicationCipher(identity, sharedCipher, sharedHmacBlock) {
         @Override
         public byte[] encrypt(byte[] recipientPublicKey, byte[] context, byte[] key) {
           lastKey = key.clone();

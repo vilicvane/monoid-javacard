@@ -2,6 +2,7 @@ package monoid;
 
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
+import monoidlib.ByteSource;
 
 public final class LibED25519 {
 
@@ -20,7 +21,7 @@ public final class LibED25519 {
     byte[] out,
     short outOffset
   ) {
-    byte[] publicNonce = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
+    byte[] publicNonce = new byte[32];
     byte[] nonce = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
     byte[] response = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
 

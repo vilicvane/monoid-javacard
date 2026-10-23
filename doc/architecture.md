@@ -19,16 +19,22 @@ Applet AIDs append a one-byte applet number; software versions are independent o
 | --- | --- | --- |
 | Monoid Identity | `{{hex MONOID_IDENTITY_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_IDENTITY_AID uppercase=true}}` |
 | Monoid | `{{hex MONOID_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_AID uppercase=true}}` |
+| Monoid Security Key | `{{hex MONOID_SECURITY_KEY_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_SECURITY_KEY_AID uppercase=true}}` |
+| Monoid Library | `{{hex MONOID_LIB_PACKAGE_AID uppercase=true}}` | — |
 -->
 
-| Component       | Package AID        | Applet AID           |
-| --------------- | ------------------ | -------------------- |
-| Monoid Identity | `F06D6F6E6F696400` | `F06D6F6E6F69640001` |
-| Monoid          | `F06D6F6E6F696402` | `F06D6F6E6F69640201` |
+| Component           | Package AID        | Applet AID           |
+| ------------------- | ------------------ | -------------------- |
+| Monoid Identity     | `F06D6F6E6F696400` | `F06D6F6E6F69640001` |
+| Monoid              | `F06D6F6E6F696402` | `F06D6F6E6F69640201` |
+| Monoid Security Key | `F06D6F6E6F696403` | `A0000006472F0001`   |
+| Monoid Library      | `F06D6F6E6F696404` | —                    |
 
 <!-- @end -->
 
-Identity and Monoid use separate CAP files. Install Identity before Monoid.
+Security Key uses the standard FIDO NFC instance AID; its CAP module AID follows
+the Monoid package namespace. Install Identity, load Monoid Library, then install
+Monoid and Security Key. The library has no applet instance.
 Monoid owns Safe item storage, Access PIN, derivation and signing in one applet
 context. Monoid Identity keeps its key pair, random ID, Secret PIN and optional
 Bundle across Monoid replacement. It verifies Secret PIN and performs complete
@@ -36,6 +42,15 @@ item encryption and decryption, enforcing caller authorization and Bundle policy
 internally. See
 [Monoid Identity](identity.md) for its card-local interface and [Bundle](bundle.md)
 for fixed membership and enrollment.
+
+Monoid and Security Key share CBOR parsing, map indexing, APDU reception, response
+storage and segmented sending through the library. Command framing, chaining
+rules and protocol status mapping remain in each applet's `ApduTransport`, which
+uses the shared reader and writer directly. Commands run only after the complete
+request arrives; buffers belong to the applet that creates them. Identity does
+not import the library. Replacing the
+library requires first removing its dependent Security Key and Monoid packages;
+Identity can remain installed.
 
 The installation script defaults to `Install`, which does not delete installed
 applets. Explicit `ReinstallMonoid` clears all Safe items and Access PIN while
@@ -119,6 +134,9 @@ derivation operation needs them.
 Export and Import keep their complete cryptographic work buffer private to Identity.
 Input snapshots and complete results use temporary persistent arrays. Cryptographic
 working state and bounded cross-applet buffers remain in transient memory.
+Identity shares one AES-GCM engine and HMAC workspace between communication and
+item encryption. Native AES key containers use persistent storage and are
+set before each operation; authorization remains transient.
 `CommunicationDataShareable` transfers bounded ranges across the applet boundary;
 completed results admit only the original caller. Import verifies the complete
 artifact before publishing data. These operations
@@ -132,16 +150,22 @@ BIP32, SLIP-0010 Ed25519 and Monoid-001 share 32 persistent FIFO entries.
 Each entry matches the algorithm, source seed bytes and
 complete path or context. A hit skips both seed-to-master and path derivation.
 Different paths have separate entries; intermediate path prefixes are not cached.
+Entries for the same algorithm and seed share a private immutable seed snapshot
+and seed-derived master. A new path can reuse that master while any matching
+result remains among the same 32 slots. There is no separate master cache.
 
 Each entry holds the final derived key and lazily caches its public key.
-Ed25519 also retains the expanded scalar and signing prefix. Card reset or deselection
-invalidates transient working keys; subsequent operations restore them from the
-persistent result. Signature nonces are computed for every message.
+Ed25519 also retains the expanded scalar and signing prefix. Working key copies
+and native EC/HMAC key containers use persistent storage. Ed25519 validity still expires
+on reset or deselection; every native operation reloads its key through the current
+authorized request. Signature nonces are computed for every message.
 
 Commands still authorize access and read the current Safe item before lookup.
 Changed source bytes miss the cache, and removed items cannot use it. Taproot
 adjustments apply only to a working copy. Cached material remains until FIFO
 eviction, `0xFF Reset` or Monoid removal; hits do not refresh the eviction order.
+New result publication requests collection of derivation temporaries and evicted
+entries; warm hits do not request collection.
 Weierstrass public-key reuse currently serves ordinary ViewKey; BIP340 and
 Taproot operations still compute the public keys needed for their adjustments.
 
@@ -200,5 +224,21 @@ The optional exact-Type permissions, fixed Key descriptors and single seed/domai
 are independent. Clients expose `monoid.MonoidClientShareable` to supply their
 installation-token hash. Public interfaces live in `monoid.cap`, so client CAPs
 import that package and must be removed before replacing its code package.
-Third-party data and signing service methods remain separate from this management
-layer and are not yet implemented.
+Authenticated `Monoid` sessions expose the granted seed's Monoid-001/P-256 public
+key and digest signature, plus Type-restricted item handles. Session authorization
+is independent of APDU PIN state. Reset, grant replacement and revocation invalidate
+old sessions and handles. `removeAll(type)` requires the exact Type's writable
+grant and atomically replaces the item directory, including when no items match.
+SIO parameter `1` may reuse the same caller/current-grant session, clearing its
+authentication on every acquisition; parameter `0` keeps independent sessions.
+Range overloads and direct `readData`, `nextData`, `listIndices` and `createData`
+operations avoid intermediate handles where possible. Existing handles remain
+available for longer stable reads; [the interface contracts](security-key.md#monoid-interface)
+define filtering, capacities and overlapping-buffer rules.
+The Security Key client reduces duplicate resident records for the same RP/user
+to one retained old record, commits a new record, then removes the old record.
+Duplicate cleanup requests GC without guaranteeing immediate space reclamation.
+Its local Reset commits credential removal before clearing its own PIN. Both
+workflows converge on a successful retry rather than sharing an outer transaction;
+each registration retry uses a new random credential ID. See
+[Security Key](security-key.md) for the CTAP2.0 client.

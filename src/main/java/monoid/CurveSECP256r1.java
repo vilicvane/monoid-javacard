@@ -62,10 +62,10 @@ public class CurveSECP256r1 extends WeierstrassCurve {
   private KeyAgreement sharedECDH;
 
   public CurveSECP256r1() {
-    // SIO calls can use this curve while another applet is selected.
+    // Each operation replaces S; persistent storage also permits calls from another applet.
     sharedPrivateKey = (ECPrivateKey) KeyBuilder.buildKey(
       KeyBuilder.ALG_TYPE_EC_FP_PRIVATE,
-      JCSystem.MEMORY_TYPE_TRANSIENT_RESET,
+      JCSystem.MEMORY_TYPE_PERSISTENT,
       KeyBuilder.LENGTH_EC_FP_256,
       false
     );
@@ -115,16 +115,16 @@ public class CurveSECP256r1 extends WeierstrassCurve {
    */
   @Override
   public short derivePublicKey(ECPrivateKey privateKey, byte[] out, short outOffset) {
-    sharedECDH.init(privateKey);
+    byte[] publicKey = new byte[KEY_LENGTH * 2 + 1];
 
-    byte[] publicKey = JCSystem.makeTransientByteArray(
-      (short) (KEY_LENGTH * 2 + 1),
-      JCSystem.CLEAR_ON_RESET
-    );
-
-    sharedECDH.generateSecret(G, (short) 0, (short) G.length, publicKey, (short) 0);
+    deriveUncompressedPublicKey(privateKey, publicKey, (short) 0);
 
     return compressPublicKey(publicKey, (short) 0, out, outOffset);
+  }
+
+  short deriveUncompressedPublicKey(ECPrivateKey privateKey, byte[] out, short outOffset) {
+    sharedECDH.init(privateKey);
+    return sharedECDH.generateSecret(G, (short) 0, (short) G.length, out, outOffset);
   }
 
   /**

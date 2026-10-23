@@ -44,7 +44,7 @@ public class CurveED25519 extends EdwardsCurve {
   public CurveED25519() {
     sharedMultiplicationKey = (ECPrivateKey) KeyBuilder.buildKey(
       KeyBuilder.ALG_TYPE_EC_FP_PRIVATE,
-      JCSystem.MEMORY_TYPE_TRANSIENT_DESELECT,
+      JCSystem.MEMORY_TYPE_PERSISTENT,
       KEY_BITS,
       false
     );

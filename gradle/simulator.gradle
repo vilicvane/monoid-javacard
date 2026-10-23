@@ -25,8 +25,8 @@ task prepareSimulatorMath {
 		}
 
 		def curve = originals[0].text
-		// The simulator lacks transient EC allocation and a 255-bit key capacity.
-		curve = replace(curve, /KeyBuilder\.ALG_TYPE_EC_FP_PRIVATE,\s*JCSystem\.MEMORY_TYPE_TRANSIENT_DESELECT,/, 1,
+		// The simulator lacks the four-argument key factory and a 255-bit key capacity.
+		curve = replace(curve, /KeyBuilder\.ALG_TYPE_EC_FP_PRIVATE,\s*JCSystem\.MEMORY_TYPE_PERSISTENT,/, 1,
 			'KeyBuilder.TYPE_EC_FP_PRIVATE,')
 		curve = replace(curve, /KEY_BITS = 255;/, 1, 'KEY_BITS = 256;')
 
@@ -81,8 +81,8 @@ task prepareSimulatorCommunicationCipher {
 		// The four-argument KeyBuilder overload is an unimplemented simulator stub.
 		source = replace(source, /KeyBuilder\.ALG_TYPE_EC_FP_PRIVATE,\s*JCSystem\.MEMORY_TYPE_PERSISTENT,/, 1,
 			'KeyBuilder.TYPE_EC_FP_PRIVATE,')
-		source = replace(source, /KeyBuilder\.ALG_TYPE_AES,\s*JCSystem\.MEMORY_TYPE_TRANSIENT_RESET,/, 1,
-			'KeyBuilder.TYPE_AES_TRANSIENT_RESET,')
+		source = replace(source, /KeyBuilder\.ALG_TYPE_AES,\s*JCSystem\.MEMORY_TYPE_PERSISTENT,/, 1,
+			'KeyBuilder.TYPE_AES,')
 		// Its digest factory rejects shared access; the simulator has no firewall.
 		source = replace(source, /MessageDigest\.ALG_SHA_256, true/, 1,
 			'MessageDigest.ALG_SHA_256, false')
@@ -130,8 +130,8 @@ task prepareSimulatorItemCipher {
 		}
 
 		def source = original.text
-		source = replace(source, /KeyBuilder\.ALG_TYPE_AES,\s*JCSystem\.MEMORY_TYPE_TRANSIENT_RESET,/,
-			'KeyBuilder.TYPE_AES_TRANSIENT_RESET,')
+		source = replace(source, /KeyBuilder\.ALG_TYPE_AES,\s*JCSystem\.MEMORY_TYPE_PERSISTENT,/,
+			'KeyBuilder.TYPE_AES,')
 		source = replace(source, /MessageDigest\.ALG_SHA_256, true/,
 			'MessageDigest.ALG_SHA_256, false')
 
@@ -200,6 +200,104 @@ task prepareSimulatorStorage {
 	}
 }
 
+task prepareSimulatorOneShot {
+	def original = file('src/main/java/monoid/OneShot.java')
+	def adapted = file("${buildDir}/generated/simulator/monoid/OneShot.java")
+	inputs.file original
+	outputs.file adapted
+
+	doLast {
+		def source = original.text
+		def pattern = /CryptoException\.throwIt\(CryptoException.NO_SUCH_ALGORITHM\);\s*return null;/
+		if ((source =~ pattern).count != 1) {
+			throw new GradleException('Unexpected simulator OneShot ECDSA fallback match count')
+		}
+
+		// Only host tests substitute DER ECDSA plus conversion for the missing PLAIN OneShot.
+		adapted.parentFile.mkdirs()
+		adapted.text = source.replaceAll(pattern, 'return main.SimulatorECDSA.sign(cipher, privateKey, digest);')
+	}
+}
+
+task prepareSimulatorClientPIN {
+	def original = file('src/main/java/monoidsecuritykey/ClientPIN.java')
+	def adapted = file("${buildDir}/generated/simulator/monoidsecuritykey/ClientPIN.java")
+	inputs.file original
+	outputs.file adapted
+
+	doLast {
+		def source = original.text
+		def replacements = [
+			[/KeyBuilder\.ALG_TYPE_EC_FP_PRIVATE,\s*JCSystem\.MEMORY_TYPE_PERSISTENT,/, 'KeyBuilder.TYPE_EC_FP_PRIVATE,'],
+			[/KeyBuilder\.ALG_TYPE_AES,\s*JCSystem\.MEMORY_TYPE_TRANSIENT_DESELECT,/, 'KeyBuilder.TYPE_AES_TRANSIENT_DESELECT,']
+		]
+		// jCardSim does not implement the four-argument key factory.
+		replacements.each { replacement ->
+			if ((source =~ replacement[0]).count != 1) {
+				throw new GradleException('Unexpected simulator ClientPIN key-factory match count')
+			}
+			source = source.replaceAll(replacement[0], replacement[1])
+		}
+		// ByteContainer keeps stale trailing bytes when a generated EC scalar shrinks.
+		// Its getS returns the logical length, so write that value back at fixed width.
+		def generated = /keyAgreement\.genKeyPair\(\);/
+		if ((source =~ generated).count != 1) {
+			throw new GradleException('Unexpected simulator ClientPIN key-generation match count')
+		}
+		source = source.replaceAll(generated, '''keyAgreement.genKeyPair();
+    ECPrivateKey privateKey = (ECPrivateKey) keyAgreement.getPrivate();
+    byte[] scalar = new byte[32];
+    short length = privateKey.getS(scalar, (short) 0);
+    Util.arrayCopyNonAtomic(scalar, (short) 0, scalar, (short) (32 - length), length);
+    Util.arrayFillNonAtomic(scalar, (short) 0, (short) (32 - length), (byte) 0);
+    privateKey.setS(scalar, (short) 0, (short) scalar.length);''')
+		adapted.parentFile.mkdirs()
+		adapted.text = source
+	}
+}
+
+task prepareSimulatorKeystore {
+	def original = file('src/main/java/monoid/Keystore.java')
+	def adapted = file("${buildDir}/generated/simulator/monoid/Keystore.java")
+	inputs.file original
+	outputs.file adapted
+
+	doLast {
+		def source = original.text
+		def factory = /Signature\.getInstance\(\s*MessageDigest\.ALG_SHA_256,\s*Signature\.SIG_CIPHER_ECDSA_PLAIN,\s*Cipher\.PAD_NULL,\s*true\s*\)/
+		def signing = /monoid001Signer\.signPreComputedHash\(/
+		if ((source =~ factory).count != 1 || (source =~ signing).count != 1) {
+			throw new GradleException('Unexpected simulator Keystore ECDSA adaptation match count')
+		}
+
+		// The simulator has no shared PLAIN factory. Preserve engine reuse and init, adapting
+		// only the native format through the existing host-only DER-to-PLAIN helper.
+		source = source.replaceAll(factory, 'Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false)')
+		source = source.replaceAll(signing, 'main.SimulatorECDSA.signPreComputedHash(monoid001Signer,')
+		adapted.parentFile.mkdirs()
+		adapted.text = source
+	}
+}
+
+task prepareSimulatorAppletGrants {
+	def original = file('src/main/java/monoid/AppletGrants.java')
+	def adapted = file("${buildDir}/generated/simulator/monoid/AppletGrants.java")
+	inputs.file original
+	outputs.file adapted
+
+	doLast {
+		def source = original.text
+		def pattern = /MessageDigest\.ALG_SHA_256,\s*true/
+		if ((source =~ pattern).count != 1) {
+			throw new GradleException('Unexpected simulator grant digest shared-access match count')
+		}
+
+		// The simulator rejects shared digest factories and does not model the firewall.
+		adapted.parentFile.mkdirs()
+		adapted.text = source.replaceAll(pattern, 'MessageDigest.ALG_SHA_256, false')
+	}
+}
+
 compileSimulatorMath {
 	dependsOn prepareSimulatorCommunicationCipher, prepareSimulatorAESGcmCipher, prepareSimulatorItemCipher, prepareSimulatorIdentity, prepareSimulatorHMACSha512, prepareSimulatorStorage
 	source file("${buildDir}/generated/simulator/monoid/LibHMACSha512.java")
@@ -208,4 +306,12 @@ compileSimulatorMath {
 	source file("${buildDir}/generated/simulator/monoididentity/ItemCipher.java")
 	source file("${buildDir}/generated/simulator/monoididentity/MonoidIdentityApplet.java")
 	source file("${buildDir}/generated/simulator/monoid/Safe.java")
+	dependsOn prepareSimulatorClientPIN
+	source file("${buildDir}/generated/simulator/monoidsecuritykey/ClientPIN.java")
+	dependsOn prepareSimulatorOneShot
+	source file("${buildDir}/generated/simulator/monoid/OneShot.java")
+	dependsOn prepareSimulatorKeystore
+	source file("${buildDir}/generated/simulator/monoid/Keystore.java")
+	dependsOn prepareSimulatorAppletGrants
+	source file("${buildDir}/generated/simulator/monoid/AppletGrants.java")
 }

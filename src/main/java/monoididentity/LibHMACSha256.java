@@ -3,7 +3,7 @@ package monoididentity;
 import javacard.framework.Util;
 import javacard.security.MessageDigest;
 
-/** SHA-256 HMAC for the at-most-32-byte keys used by Identity. */
+/** SHA-256 HMAC for keys of at most 32 bytes. */
 final class LibHMACSha256 {
 
   static final short BLOCK_LENGTH = 64;

@@ -2,6 +2,9 @@ package tests;
 
 import com.licel.jcardsim.bouncycastle.asn1.sec.SECNamedCurves;
 import com.licel.jcardsim.bouncycastle.asn1.x9.X9ECParameters;
+import com.licel.jcardsim.bouncycastle.crypto.params.ECDomainParameters;
+import com.licel.jcardsim.bouncycastle.crypto.params.ECPublicKeyParameters;
+import com.licel.jcardsim.bouncycastle.crypto.signers.ECDSASigner;
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
@@ -19,11 +22,12 @@ import javacard.security.CryptoException;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import main.ShareableSimulatorRuntime;
-import monoid.CBORBufferReader;
-import monoid.CBORBufferWriter;
 import monoid.MonoidApplet;
 import monoid.Safe;
 import monoididentity.MonoidIdentityApplet;
+import monoidlib.CBOR;
+import monoidlib.CBORBufferReader;
+import monoidlib.CBORBufferWriter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -235,7 +239,7 @@ public class MonoidItemTransferTest {
         ecdsaIndex = source.create("secp256k1", null, "bitcoin", SECP256K1_KEY, true);
         ed25519Index = source.create("ed25519", null, "solana", ED25519_KEY, true);
         source.create(customIndex(11), null, "not selected", new byte[] { 42 }, false);
-        assertECDSAKeyAndSimulatorLimitation(source, ecdsaIndex);
+        assertECDSAKeyAndSignature(source, ecdsaIndex);
 
         assertError(
           source.transmit(0x36, fields("index", plainIndex, "recipientPublicKey", recipient)),
@@ -261,7 +265,7 @@ public class MonoidItemTransferTest {
       assertData(target, plainIndex, sequence(64));
       assertMetadata(target, seedIndex, sequence(16), "wallet", true);
       assertError(target.transmit(0x32, fields("index", seedIndex)), "ACCESS_DENIED");
-      assertECDSAKeyAndSimulatorLimitation(target, ecdsaIndex);
+      assertECDSAKeyAndSignature(target, ecdsaIndex);
       verifyED25519(target, ed25519Index);
 
       // No sender-registration step exists; the caller supplies the expected full public key.
@@ -612,7 +616,7 @@ public class MonoidItemTransferTest {
       byte[] plainIndex = customIndex(50);
       card.create(plainIndex, new byte[] { 4, 5 }, "restored", sequence(64), false);
       byte[] keyIndex = card.create("secp256k1", null, null, SECP256K1_KEY, true);
-      assertECDSAKeyAndSimulatorLimitation(card, keyIndex);
+      assertECDSAKeyAndSignature(card, keyIndex);
       card.authenticate(true);
       Transfer plain = card.export(plainIndex, sender);
       Transfer secret = card.export(keyIndex, sender);
@@ -628,11 +632,11 @@ public class MonoidItemTransferTest {
       assertData(card, plainIndex, sequence(64));
       assertMetadata(card, plainIndex, new byte[] { 4, 5 }, "restored", false);
       assertError(card.transmit(0x32, fields("index", keyIndex)), "ACCESS_DENIED");
-      assertECDSAKeyAndSimulatorLimitation(card, keyIndex);
+      assertECDSAKeyAndSignature(card, keyIndex);
     }
   }
 
-  private static void assertECDSAKeyAndSimulatorLimitation(Card card, byte[] index) {
+  private static void assertECDSAKeyAndSignature(Card card, byte[] index) {
     byte[] publicKey = card
       .success(0x40, fields("index", index, "type", "secp256k1"))
       .bytes("publicKey");
@@ -641,14 +645,27 @@ public class MonoidItemTransferTest {
       curve.getG().multiply(new BigInteger(1, SECP256K1_KEY)).getEncoded(true),
       publicKey
     );
-    // jCardSim returns null from Signature.OneShot.open for PLAIN ECDSA.
-    // This verifies the exact unsupported path, not a successful ECDSA signature.
-    assertCryptoError(
-      card.transmit(
+    byte[] signature = card
+      .success(
         0x41,
         fields("index", index, "type", "secp256k1", "cipher", "ecdsa", "digest", DIGEST)
-      ),
-      CryptoException.NO_SUCH_ALGORITHM
+      )
+      .bytes("signature");
+    ECDSASigner verifier = new ECDSASigner();
+    verifier.init(
+      false,
+      new ECPublicKeyParameters(
+        curve.getCurve().decodePoint(publicKey),
+        new ECDomainParameters(curve.getCurve(), curve.getG(), curve.getN(), curve.getH())
+      )
+    );
+    Assertions.assertEquals(64, signature.length);
+    Assertions.assertTrue(
+      verifier.verifySignature(
+        DIGEST,
+        new BigInteger(1, Arrays.copyOfRange(signature, 0, 32)),
+        new BigInteger(1, Arrays.copyOfRange(signature, 32, 64))
+      )
     );
   }
 
@@ -929,7 +946,7 @@ public class MonoidItemTransferTest {
       CBORBufferReader hello = success(0x20, fields()).reader();
       hello.requireKey(bytes("pins")).map();
       hello.requireKey(bytes("secret"));
-      if (hello.is(monoid.CBOR.TYPE_SIMPLE_FLOAT)) {
+      if (hello.is(CBOR.TYPE_SIMPLE_FLOAT)) {
         Assertions.assertFalse(hello.bool());
         success(0x22, fields("pin", SECRET_PIN, "secret", true));
       }

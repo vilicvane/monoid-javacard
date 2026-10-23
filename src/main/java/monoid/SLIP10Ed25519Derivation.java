@@ -2,7 +2,6 @@ package monoid;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
-import javacard.framework.JCSystem;
 import javacard.framework.Util;
 
 /** SLIP-0010 hardened Ed25519 derivation. Initialize LibHMACSha512 before use. */
@@ -30,19 +29,6 @@ public final class SLIP10Ed25519Derivation extends KeyDerivation {
    */
   @Override
   protected byte[] deriveKey(byte[] master, byte[] path) {
-    byte[] extendedKey = JCSystem.makeTransientByteArray(
-      EXTENDED_KEY_LENGTH,
-      JCSystem.CLEAR_ON_DESELECT
-    );
-    byte[] data = JCSystem.makeTransientByteArray(
-      (short) (1 + KEY_LENGTH + PATH_SEGMENT_LENGTH),
-      JCSystem.CLEAR_ON_DESELECT
-    );
-    byte[] block = JCSystem.makeTransientByteArray(
-      LibHMACSha512.BLOCK_BYTES,
-      JCSystem.CLEAR_ON_DESELECT
-    );
-
     if (master.length != EXTENDED_KEY_LENGTH || path.length % PATH_SEGMENT_LENGTH != 0) {
       ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
     }
@@ -53,10 +39,16 @@ public final class SLIP10Ed25519Derivation extends KeyDerivation {
       }
     }
 
-    Util.arrayCopyNonAtomic(master, (short) 0, extendedKey, (short) 0, EXTENDED_KEY_LENGTH);
+    byte[] extendedKey = Utils.duplicateAsPersistent(master);
+
+    if (path.length == 0) {
+      return extendedKey;
+    }
+
+    byte[] data = new byte[1 + KEY_LENGTH + PATH_SEGMENT_LENGTH];
 
     for (short offset = 0; offset < path.length; offset += PATH_SEGMENT_LENGTH) {
-      deriveChildKeyInPlace(extendedKey, path, offset, data, block);
+      deriveChildKeyInPlace(extendedKey, path, offset, data);
     }
 
     return extendedKey;
@@ -66,8 +58,7 @@ public final class SLIP10Ed25519Derivation extends KeyDerivation {
     byte[] extendedKey,
     byte[] path,
     short pathSegmentOffset,
-    byte[] data,
-    byte[] block
+    byte[] data
   ) {
     data[0] = 0;
     Util.arrayCopyNonAtomic(extendedKey, (short) 0, data, (short) 1, KEY_LENGTH);
@@ -87,8 +78,7 @@ public final class SLIP10Ed25519Derivation extends KeyDerivation {
       (short) 0,
       (short) data.length,
       extendedKey,
-      (short) 0,
-      block
+      (short) 0
     );
   }
 }

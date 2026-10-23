@@ -90,10 +90,48 @@ verification. Monoid stores owned bytes and descriptors, not persistent client
 AID objects or Shareable references. Reinstalling a client does not update the
 stored grant automatically; enrolling its new token requires Secret PIN again.
 
-The public `Monoid` Shareable interface still has no data or signing methods.
-The grant directory does not yet provide third-party item access, signing or a
-Security Key applet. Identity's communication interface does not grant access
-to Monoid's current item storage.
+The public `Monoid` Shareable interface authenticates the private token, binds
+the session to the runtime caller and rechecks the current immutable grant on
+every operation. Power reset, grant replacement/revocation and Monoid Reset
+invalidate existing sessions and item/data/iterator handles. Type grants cannot
+read secret data. Writable grants permit replacement and deletion, not revealing
+the previous secret bytes. `removeAll(type)` requires an exact writable Type,
+even for an empty result, and atomically publishes the filtered directory.
+Opt-in session reuse matches the exact caller and current grant, clears authentication
+on acquisition and never revives an expired session. Range and direct-data methods
+retain the same live authorization, Type and secret checks before copying output.
+Index enumeration exposes metadata only; it does not authorize reading secret data.
+Direct reads filter exact keys, including null, before returning data; a key miss
+is not evidence that the caller may read a different item. Direct creation owns
+the supplied bytes before normal storage publication and keeps the existing reserve
+and transaction boundaries. No global/APDU array reference is retained by these calls.
+Client data callbacks are checked before and after invocation; they do not inherit
+APDU PIN authorization. Fixed Key descriptors remain management data; the first
+signing service exposes only the granted seed/domain's Monoid-001/P-256 path.
+
+Security Key owns its FIDO PIN and protocol-1 PIN token. Its normal CTAP requests
+need no Monoid APDU PIN login: Monoid trusts the installed authorized client's
+FIDO checks, while enforcing its own token, caller and grant boundary. Private
+derived keys remain in Monoid. Credential metadata is non-secret Type `0xF101`
+data, with RP binding and complete random credential-ID checks. Generic Monoid
+management and backup remain permitted; this is not FIDO certification isolation.
+Software UP is enabled; UV is set only after valid FIDO PIN-token authentication.
+The counter is zero, and self attestation does not establish manufacturer identity.
+Local FIDO Reset requires no FIDO PIN but does require writable Type authorization;
+it commits removal of FIDO records before separately clearing the FIDO PIN, retaining
+Monoid/Identity data, their PINs, the seed and the grant. Revoking the grant prevents
+that Reset from removing records or clearing the FIDO PIN.
+An interruption between commits can leave the old PIN with no records; retrying
+Reset completes the remaining step. It does not clear the PIN before removing
+the records.
+
+Resident registration first reduces duplicate resident records for the same
+RP/user to one retained old record, then commits a new record before removing
+that old record. An interrupted replacement preserves an old or new credential; a successful
+retry leaves only its new record and uses a new random credential ID. Duplicate
+cleanup may commit without reclaiming enough space for creation in that command.
+These workflows do not promise atomicity across their steps; individual storage
+updates remain atomic.
 
 ## Meaning of `secret`
 

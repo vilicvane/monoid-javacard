@@ -1,7 +1,8 @@
 package monoid;
 
-import javacard.framework.JCSystem;
 import javacard.framework.Util;
+import monoidlib.CBOR;
+import monoidlib.CBORMap;
 
 public final class CommandViewKey extends Command {
 
@@ -160,6 +161,6 @@ public final class CommandViewKey extends Command {
       }
     }
 
-    return JCSystem.makeTransientByteArray((short) 0, JCSystem.CLEAR_ON_DESELECT);
+    return new byte[0];
   }
 }

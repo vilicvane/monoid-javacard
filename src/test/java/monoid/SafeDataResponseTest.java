@@ -9,6 +9,10 @@ import javacard.framework.Applet;
 import javacard.framework.Util;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
+import monoidlib.CBORApduReader;
+import monoidlib.CBORApduWriter;
+import monoidlib.CBORBufferReader;
+import monoidlib.CBORResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -189,6 +193,8 @@ public class SafeDataResponseTest {
 
   public static class ResponseApplet extends Applet {
 
+    private final ApduTransport transport = new ApduTransport(Command.reader, Command.writer);
+
     public static void install(byte[] parameters, short offset, byte length) {
       MonoidException.init();
       Command.reader = new CBORApduReader();
@@ -211,17 +217,17 @@ public class SafeDataResponseTest {
     @Override
     public void process(APDU apdu) {
       if (selectingApplet()) {
-        Command.clearTransport();
+        transport.clear();
         return;
       }
 
-      Command.process(apdu);
+      transport.process(apdu);
     }
 
     @Override
     public void deselect() {
       super.deselect();
-      Command.clearTransport();
+      transport.clear();
     }
   }
 }

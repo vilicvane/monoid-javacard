@@ -2,6 +2,9 @@ package monoid;
 
 import javacard.framework.APDU;
 import javacard.framework.JCSystem;
+import monoidlib.CBORApduWriter;
+import monoidlib.CBORResponse;
+import monoidlib.CBORWriter;
 
 public class SafeDataResponse implements CBORResponse {
 

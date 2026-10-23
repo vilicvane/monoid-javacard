@@ -2,10 +2,13 @@ package tests;
 
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.crypto.SymmetricSignatureImpl;
+import com.licel.jcardsim.smartcardio.CardSimulator;
+import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import javacard.framework.JCSystem;
 import javacard.security.CryptoException;
 import javacard.security.MessageDigest;
 import javacard.security.Signature;
@@ -29,9 +32,11 @@ public class Monoid001DerivationTest {
   private static final byte[] CONTEXT = Hex.decode("007f80ff0001");
 
   private Monoid001Derivation derivation;
+  private CardSimulator simulator;
 
   @BeforeEach
   public void initialize() {
+    simulator = new CardSimulator();
     LibHMACSha512.init();
     KeyDerivation.init();
     derivation = new Monoid001Derivation();
@@ -58,6 +63,60 @@ public class Monoid001DerivationTest {
     digest.setAccessible(true);
     digest.set(null, MessageDigest.getInstance(MessageDigest.ALG_SHA_512, false));
     checkVectors();
+  }
+
+  @Test
+  public void selectedBackendOverwritesPersistentScratchAcrossReset() throws Exception {
+    checkWorkspace();
+  }
+
+  @Test
+  public void softwareBackendOverwritesPersistentScratchAcrossReset() throws Exception {
+    LibHMACSha512.dispose();
+    Field digest = LibHMACSha512.class.getDeclaredField("sharedDigest");
+    digest.setAccessible(true);
+    digest.set(null, MessageDigest.getInstance(MessageDigest.ALG_SHA_512, false));
+    checkWorkspace();
+  }
+
+  private void checkWorkspace() throws Exception {
+    byte[] first = derivation.derive(MASTER, CONTEXT).getKey().clone();
+    Field field = Monoid001Derivation.class.getDeclaredField("workspace");
+    field.setAccessible(true);
+    byte[] workspace = (byte[]) field.get(derivation);
+    Assertions.assertEquals(64, workspace.length);
+    Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(workspace));
+    Field blockField = LibHMACSha512.class.getDeclaredField("sharedBlock");
+    blockField.setAccessible(true);
+    byte[] block = (byte[]) blockField.get(null);
+    if (block != null) {
+      Assertions.assertEquals(128, block.length);
+      Assertions.assertEquals(JCSystem.CLEAR_ON_RESET, JCSystem.isTransient(block));
+    }
+
+    for (int length : new int[] { 0, 127, 128, 513 }) {
+      byte[] context = new byte[length];
+      Arrays.fill(context, (byte) length);
+      byte[] originalContext = context.clone();
+      byte[] master = MASTER.clone();
+      master[63] ^= (byte) (length + 1);
+      byte[] originalMaster = master.clone();
+      byte[] previous = workspace.clone();
+      simulator.reset();
+      Assertions.assertArrayEquals(previous, workspace);
+      if (block != null) {
+        Assertions.assertArrayEquals(new byte[block.length], block);
+      }
+      Assertions.assertArrayEquals(
+        deriveReference(master, context),
+        derivation.derive(master, context).getKey()
+      );
+      Assertions.assertSame(workspace, field.get(derivation));
+      Assertions.assertSame(block, blockField.get(null));
+      Assertions.assertArrayEquals(originalMaster, master);
+      Assertions.assertArrayEquals(originalContext, context);
+      Assertions.assertArrayEquals(first, derivation.derive(MASTER, CONTEXT).getKey());
+    }
   }
 
   @Test
@@ -114,6 +173,10 @@ public class Monoid001DerivationTest {
     Assertions.assertEquals(256, signature.calls);
     Assertions.assertArrayEquals(MASTER, master);
     Assertions.assertArrayEquals(CONTEXT, context);
+    byte[] one = new byte[32];
+    one[31] = 1;
+    useCandidates(new byte[][] { one });
+    Assertions.assertArrayEquals(one, derivation.derive(master, context).getKey());
   }
 
   private void checkVectors() throws Exception {
@@ -201,6 +264,7 @@ public class Monoid001DerivationTest {
   private static class CandidateSignature extends SymmetricSignatureImpl {
 
     private final byte[][] candidates;
+    private final ByteArrayOutputStream input = new ByteArrayOutputStream();
     private int calls;
 
     CandidateSignature(byte[][] candidates) {
@@ -209,11 +273,18 @@ public class Monoid001DerivationTest {
     }
 
     @Override
+    public void update(byte[] data, short offset, short length) {
+      input.write(data, offset, length);
+    }
+
+    @Override
     public short sign(byte[] in, short inOffset, short inLength, byte[] out, short outOffset) {
       Assertions.assertTrue(calls < candidates.length, "Candidate counter wrapped or overran");
       byte[] expected = Hex.decode("4d6f6e6f69642d30303100007f80ff00010001");
       expected[expected.length - 2] = (byte) calls;
-      Assertions.assertArrayEquals(expected, Arrays.copyOfRange(in, inOffset, inOffset + inLength));
+      input.write(in, inOffset, inLength);
+      Assertions.assertArrayEquals(expected, input.toByteArray());
+      input.reset();
 
       Arrays.fill(out, outOffset, outOffset + 64, (byte) 0xA5);
       System.arraycopy(candidates[calls], 0, out, outOffset, 32);

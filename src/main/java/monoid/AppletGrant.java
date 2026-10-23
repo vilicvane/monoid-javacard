@@ -1,5 +1,7 @@
 package monoid;
 
+import monoidlib.CBORWriter;
+
 final class AppletGrant {
 
   final byte[] aid;
@@ -23,6 +25,18 @@ final class AppletGrant {
     this.writable = writable;
     this.keys = keys;
     this.seed = seed;
+  }
+
+  boolean allows(short type, boolean write) {
+    if (types != null) {
+      for (short index = 0; index < types.length; index++) {
+        if (types[index] == type) {
+          return !write || writable[index] == Constants.SAFE_TRUE;
+        }
+      }
+    }
+
+    return false;
   }
 
   short getMaxEncodedLength() {

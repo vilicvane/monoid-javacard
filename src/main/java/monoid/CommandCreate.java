@@ -1,5 +1,7 @@
 package monoid;
 
+import monoidlib.CBOR;
+
 public class CommandCreate extends Command {
 
   @Override

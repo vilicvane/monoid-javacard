@@ -3,9 +3,11 @@ package tests;
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
+import javacard.security.MessageDigest;
 import monoid.KeyDerivation;
 import monoid.LibHMACSha512;
 import monoid.SLIP10Ed25519Derivation;
@@ -23,6 +25,15 @@ public class SLIP10Ed25519DerivationTest {
     LibHMACSha512.init();
     KeyDerivation.init();
     derivation = new SLIP10Ed25519Derivation();
+  }
+
+  @Test
+  public void softwareBackendMatchesOfficialVectors() throws Exception {
+    LibHMACSha512.dispose();
+    Field digest = LibHMACSha512.class.getDeclaredField("sharedDigest");
+    digest.setAccessible(true);
+    digest.set(null, MessageDigest.getInstance(MessageDigest.ALG_SHA_512, false));
+    officialVectors();
   }
 
   @AfterEach

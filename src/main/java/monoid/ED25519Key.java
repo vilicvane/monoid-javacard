@@ -5,9 +5,9 @@ import javacard.framework.JCSystem;
 /** Expanded seed, valid only until deselection or explicit invalidation. */
 public final class ED25519Key {
 
-  final byte[] scalar = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
-  final byte[] prefix = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
-  final byte[] publicKey = JCSystem.makeTransientByteArray((short) 32, JCSystem.CLEAR_ON_DESELECT);
+  final byte[] scalar = new byte[32];
+  final byte[] prefix = new byte[32];
+  final byte[] publicKey = new byte[32];
   private final byte[] valid = JCSystem.makeTransientByteArray(
     (short) 1,
     JCSystem.CLEAR_ON_DESELECT

@@ -1,6 +1,8 @@
 package monoid;
 
 import javacard.framework.JCSystem;
+import monoidlib.CBORResponse;
+import monoidlib.CBORWriter;
 
 public final class CommandListAppletGrants extends Command implements CBORResponse {
 

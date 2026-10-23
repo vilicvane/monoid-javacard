@@ -1,16 +1,179 @@
 package tests;
 
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
-import monoid.CBOR;
-import monoid.CBORBufferReader;
-import monoid.CBORBufferWriter;
+import javacard.framework.JCSystem;
+import monoidlib.CBOR;
+import monoidlib.CBORBufferReader;
+import monoidlib.CBORBufferWriter;
+import monoidlib.CBORMap;
+import monoidlib.CBORReader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class CBORTest {
+
+  @Test
+  public void snapshotsAllocateOnlyWhenRequestedAndRetainTheInitialCursor() throws Exception {
+    byte[] bytes = Hex.decode("82a16161f500");
+    CBORBufferReader reader = new CBORBufferReader(bytes);
+    Field snapshots = CBORReader.class.getDeclaredField("snapshots");
+    snapshots.setAccessible(true);
+    Assertions.assertEquals(2, reader.array());
+    Assertions.assertNull(snapshots.get(reader));
+    reader.snapshot();
+    Object allocated = snapshots.get(reader);
+    Assertions.assertEquals(JCSystem.CLEAR_ON_DESELECT, JCSystem.isTransient(allocated));
+    Assertions.assertEquals(1, reader.map());
+    Assertions.assertTrue(reader.requireKey(new byte[] { 'a' }).bool());
+    reader.restore();
+    Assertions.assertEquals(1, reader.getOffset());
+    Assertions.assertEquals(1, reader.map());
+    reader.popSnapshot();
+    Assertions.assertEquals(0, reader.getOffset());
+    reader.reset((short) 0, (short) bytes.length);
+    Assertions.assertSame(allocated, snapshots.get(reader));
+    Assertions.assertEquals(2, reader.array());
+  }
+
+  @Test
+  public void copyMethodsKeepTheirStorageAndCursorContracts() {
+    byte[] encoded = Hex.decode("4301020363616263");
+    CBORBufferReader reader = new CBORBufferReader(encoded);
+    byte[] transientBytes = reader.bytesTransient();
+    Assertions.assertArrayEquals(new byte[] { 1, 2, 3 }, transientBytes);
+    Assertions.assertEquals(JCSystem.CLEAR_ON_DESELECT, JCSystem.isTransient(transientBytes));
+    Assertions.assertEquals(1, reader.getOffset());
+    reader.setOffset((short) 0);
+    byte[] persistentBytes = reader.bytes();
+    Assertions.assertArrayEquals(transientBytes, persistentBytes);
+    Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(persistentBytes));
+    Assertions.assertEquals(4, reader.getOffset());
+    Assertions.assertArrayEquals("abc".getBytes(), reader.textTransient());
+    Assertions.assertEquals(5, reader.getOffset());
+    reader.setOffset((short) 4);
+    Assertions.assertArrayEquals("abc".getBytes(), reader.text());
+    Assertions.assertTrue(reader.atEnd());
+    reader.setOffset((short) 0);
+    Assertions.assertArrayEquals(transientBytes, reader.bytesGlobal());
+    Assertions.assertEquals(1, reader.getOffset());
+    reader.setOffset((short) 0);
+    byte[] copied = new byte[5];
+    Assertions.assertEquals(3, reader.bytes(copied, (short) 1));
+    Assertions.assertArrayEquals(new byte[] { 0, 1, 2, 3, 0 }, copied);
+    Assertions.assertEquals(4, reader.getOffset());
+  }
+
+  @Test
+  public void parsingProfilesKeepNonminimalAndUTF8PoliciesSeparate() {
+    Assertions.assertEquals(1, new CBORBufferReader(Hex.decode("1801")).integer());
+    Assertions.assertArrayEquals(
+      Hex.decode("eda080"),
+      new CBORBufferReader(Hex.decode("63eda080")).textTransient()
+    );
+    for (String encoded : new String[] { "1801", "63eda080", "9f01ff" }) {
+      byte[] bytes = Hex.decode(encoded);
+      CBORReader reader = new CBORReader(bytes, (short) 0, (short) bytes.length);
+      Assertions.assertEquals(
+        0x12,
+        Assertions.assertThrows(ISOException.class, reader::skip).getReason()
+      );
+    }
+  }
+
+  @Test
+  public void rejectsReservedAdditionalInformationInBothProfiles() {
+    for (byte profile : new byte[] { CBORReader.PROFILE_MONOID, CBORReader.PROFILE_CTAP }) {
+      short error = profile == CBORReader.PROFILE_CTAP ? 0x12 : ISO7816.SW_WRONG_DATA;
+      for (String encoded : new String[] {
+        "1c01",
+        "1d0001",
+        "1e00000001",
+        "1f0000000000000001",
+        "5c01aa",
+        "5d0001aa",
+        "5e00000001aa",
+        "5f4101ff",
+      }) {
+        byte[] bytes = Hex.decode(encoded);
+        CBORReader reader = new CBORReader(bytes, (short) 0, (short) bytes.length, profile);
+        Assertions.assertEquals(
+          error,
+          Assertions.assertThrows(ISOException.class, reader::skip).getReason(),
+          encoded
+        );
+        reader.setOffset((short) 0);
+        Assertions.assertEquals(
+          error,
+          Assertions.assertThrows(ISOException.class, () -> {
+            if (encoded.startsWith("1")) {
+              reader.integer();
+            } else {
+              reader.bytesTransient();
+            }
+          }).getReason(),
+          encoded
+        );
+      }
+    }
+  }
+
+  @Test
+  public void sharedParsingCrossesChunksWithoutAssemblingTheInput() {
+    byte[] encoded = Hex.decode("a2616e190100617563e4b8ad");
+    Object[] keys = { new byte[] { 'n' }, new byte[] { 'u' } };
+    for (byte profile : new byte[] { CBORReader.PROFILE_MONOID, CBORReader.PROFILE_CTAP }) {
+      for (short chunkLength = 1; chunkLength <= 4; chunkLength++) {
+        ChunkReader reader = new ChunkReader(encoded, chunkLength, profile);
+        CBORMap fields = reader.map(keys);
+        Assertions.assertTrue(reader.atEnd());
+        Assertions.assertEquals(256, fields.requireKey((byte[]) keys[0]).integer());
+        Assertions.assertArrayEquals(
+          Hex.decode("e4b8ad"),
+          fields.requireKey((byte[]) keys[1]).text()
+        );
+        Assertions.assertNull(reader.getBuffer());
+        Assertions.assertSame(reader.chunks[0], reader.getChunk((short) 0));
+      }
+    }
+  }
+
+  private static final class ChunkReader extends CBORReader {
+
+    final byte[][] chunks;
+    private final short chunkLength;
+
+    ChunkReader(byte[] bytes, short chunkLength, byte profile) {
+      super(null, (short) 0, (short) bytes.length, profile);
+      this.chunkLength = chunkLength;
+      chunks = new byte[(bytes.length + chunkLength - 1) / chunkLength][];
+      for (short index = 0; index < chunks.length; index++) {
+        chunks[index] = Arrays.copyOfRange(
+          bytes,
+          index * chunkLength,
+          Math.min((index + 1) * chunkLength, bytes.length)
+        );
+      }
+    }
+
+    @Override
+    public byte[] getChunk(short offset) {
+      return chunks[offset / chunkLength];
+    }
+
+    @Override
+    public short getChunkOffset(short offset) {
+      return (short) (offset % chunkLength);
+    }
+
+    @Override
+    public short getChunkLength(short offset) {
+      return (short) (getChunk(offset).length - getChunkOffset(offset));
+    }
+  }
 
   @Test
   public void readEmptyWriterData() {
@@ -46,7 +209,9 @@ public class CBORTest {
   public void rejectTruncatedBytesBeforeAllocation() {
     CBORBufferReader reader = new CBORBufferReader(Hex.decode("597fff00"));
 
-    ISOException exception = Assertions.assertThrows(ISOException.class, () -> reader.bytes());
+    ISOException exception = Assertions.assertThrows(ISOException.class, () ->
+      reader.bytesTransient()
+    );
 
     Assertions.assertEquals(ISO7816.SW_WRONG_DATA, exception.getReason());
   }

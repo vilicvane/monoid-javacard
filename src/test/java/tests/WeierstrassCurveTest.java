@@ -1,5 +1,9 @@
 package tests;
 
+import com.licel.jcardsim.base.SimulatorSystem;
+import com.licel.jcardsim.bouncycastle.asn1.sec.SECNamedCurves;
+import java.math.BigInteger;
+import javacard.security.ECPrivateKey;
 import monoid.CurveException;
 import monoid.CurveSECP256k1;
 import monoid.CurveSECP256r1;
@@ -45,5 +49,36 @@ public class WeierstrassCurveTest {
     Assertions.assertNull(WeierstrassCurve.secp256r1);
     Assertions.assertNull(WeierstrassCurve.getSharedCurve(WeierstrassCurve.SECP256k1));
     Assertions.assertNull(WeierstrassCurve.getSharedCurve(WeierstrassCurve.SECP256r1));
+  }
+
+  @Test
+  public void operationsReplacePersistentScalarsAfterReset() {
+    WeierstrassCurve[] curves = { WeierstrassCurve.secp256k1, WeierstrassCurve.secp256r1 };
+    String[] names = { "secp256k1", "secp256r1" };
+
+    for (int index = 0; index < curves.length; index++) {
+      WeierstrassCurve curve = curves[index];
+      byte[] scalar = new byte[32];
+      ECPrivateKey previous = null;
+
+      for (int value = 1; value <= 3; value++) {
+        scalar[31] = (byte) value;
+        ECPrivateKey key = curve.getSharedPrivateKey(scalar, (short) 0);
+        if (previous != null) {
+          Assertions.assertSame(previous, key);
+        }
+        Assertions.assertArrayEquals(
+          SECNamedCurves.getByName(names[index])
+            .getG()
+            .multiply(BigInteger.valueOf(value))
+            .getEncoded(true),
+          curve.derivePublicKey(key)
+        );
+
+        SimulatorSystem.instance().reset();
+        Assertions.assertTrue(key.isInitialized());
+        previous = key;
+      }
+    }
   }
 }

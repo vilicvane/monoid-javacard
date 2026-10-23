@@ -66,7 +66,7 @@ public class CurveSECP256k1 extends WeierstrassCurve {
   public CurveSECP256k1() {
     sharedPrivateKey = (ECPrivateKey) KeyBuilder.buildKey(
       KeyBuilder.ALG_TYPE_EC_FP_PRIVATE,
-      JCSystem.MEMORY_TYPE_TRANSIENT_DESELECT,
+      JCSystem.MEMORY_TYPE_PERSISTENT,
       KeyBuilder.LENGTH_EC_FP_256,
       false
     );
@@ -118,10 +118,7 @@ public class CurveSECP256k1 extends WeierstrassCurve {
   public short derivePublicKey(ECPrivateKey privateKey, byte[] out, short outOffset) {
     sharedECDH.init(privateKey);
 
-    byte[] publicKey = JCSystem.makeTransientByteArray(
-      (short) (KEY_LENGTH * 2 + 1),
-      JCSystem.CLEAR_ON_DESELECT
-    );
+    byte[] publicKey = new byte[KEY_LENGTH * 2 + 1];
 
     sharedECDH.generateSecret(G, (short) 0, (short) G.length, publicKey, (short) 0);
 

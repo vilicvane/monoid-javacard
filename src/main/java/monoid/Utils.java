@@ -5,7 +5,7 @@ import javacard.framework.Util;
 
 public final class Utils {
 
-  private static final short COPY_BUFFER_LENGTH = 256;
+  private static final short COPY_LENGTH = 256;
 
   public static byte[] makePrivateByteArray(short length) {
     return new byte[length];
@@ -20,12 +20,10 @@ public final class Utils {
   public static byte[] duplicateAsPersistent(SafeDataSource source, short length) {
     byte[] duplicate = new byte[length];
 
-    if (length > 0) {
-      byte[] buffer = JCSystem.makeTransientByteArray(
-        length < COPY_BUFFER_LENGTH ? length : COPY_BUFFER_LENGTH,
-        JCSystem.CLEAR_ON_RESET
-      );
-      copy(source, (short) 0, duplicate, (short) 0, length, buffer);
+    for (short offset = 0; offset < length; ) {
+      short copied = min((short) (length - offset), COPY_LENGTH);
+      source.read(offset, duplicate, offset, copied);
+      offset += copied;
     }
 
     return duplicate;
@@ -98,30 +96,6 @@ public final class Utils {
 
   public static byte[] duplicateAsGlobal(byte[] buffer) {
     return duplicateAsGlobal(buffer, (short) 0, (short) buffer.length);
-  }
-
-  public static byte[] duplicateAsTransientDeselect(byte[] buffer, short offset, short length) {
-    byte[] duplicate = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_DESELECT);
-
-    Util.arrayCopyNonAtomic(buffer, offset, duplicate, (short) 0, length);
-
-    return duplicate;
-  }
-
-  public static byte[] duplicateAsTransientDeselect(byte[] buffer) {
-    return duplicateAsTransientDeselect(buffer, (short) 0, (short) buffer.length);
-  }
-
-  public static byte[] duplicateAsTransientReset(byte[] buffer, short offset, short length) {
-    byte[] duplicate = JCSystem.makeTransientByteArray(length, JCSystem.CLEAR_ON_RESET);
-
-    Util.arrayCopyNonAtomic(buffer, offset, duplicate, (short) 0, length);
-
-    return duplicate;
-  }
-
-  public static byte[] duplicateAsTransientReset(byte[] buffer) {
-    return duplicateAsTransientReset(buffer, (short) 0, (short) buffer.length);
   }
 
   public static byte[] duplicateAsPersistent(byte[] buffer, short offset, short length) {

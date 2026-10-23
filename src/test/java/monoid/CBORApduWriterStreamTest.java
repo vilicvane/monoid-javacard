@@ -3,12 +3,18 @@ package monoid;
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
 import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import javacard.framework.AID;
 import javacard.framework.APDU;
 import javacard.framework.Applet;
+import javacard.framework.JCSystem;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
+import monoidlib.CBORApduReader;
+import monoidlib.CBORApduWriter;
+import monoidlib.CBORResponse;
+import monoidlib.CBORWriter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +54,9 @@ public class CBORApduWriterStreamTest {
     Assertions.assertEquals(0x6100, response.getSW());
     Assertions.assertEquals(4, source.calls);
     Assertions.assertEquals(9, response.getData().length);
+    Object window = writerField("window");
+    Assertions.assertNotNull(window);
+    Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(window));
 
     assertResponse(source, response, 256);
   }
@@ -259,9 +268,21 @@ public class CBORApduWriterStreamTest {
   }
 
   private void assertReleased(StreamResponse source) {
+    Assertions.assertNull(writerField("window"));
+    Assertions.assertNull(writerField("response"));
     Assertions.assertFalse(Command.writer.hasPending());
     Assertions.assertEquals(0, Command.writer.getLength());
     Assertions.assertEquals(1, source.resets);
+  }
+
+  private Object writerField(String name) {
+    try {
+      Field field = CBORApduWriter.class.getDeclaredField(name);
+      field.setAccessible(true);
+      return field.get(Command.writer);
+    } catch (ReflectiveOperationException e) {
+      throw new AssertionError(e);
+    }
   }
 
   private static class StreamResponse implements CBORResponse {
@@ -309,9 +330,11 @@ public class CBORApduWriterStreamTest {
     }
   }
 
-  public static class StreamApplet extends MonoidApplet {
+  public static class StreamApplet extends Applet {
 
     static StreamResponse source;
+
+    private final ApduTransport transport = new ApduTransport(Command.reader, Command.writer);
 
     public static void install(byte[] parameters, short offset, byte length) {
       source = null;
@@ -332,7 +355,7 @@ public class CBORApduWriterStreamTest {
     @Override
     public void process(APDU apdu) {
       if (selectingApplet()) {
-        Command.clearTransport();
+        transport.clear();
         return;
       }
 
@@ -342,7 +365,13 @@ public class CBORApduWriterStreamTest {
         return;
       }
 
-      Command.process(apdu);
+      transport.process(apdu);
+    }
+
+    @Override
+    public void deselect() {
+      super.deselect();
+      transport.clear();
     }
   }
 

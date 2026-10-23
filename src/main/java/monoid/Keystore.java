@@ -1,9 +1,13 @@
 package monoid;
 
-import javacard.framework.JCSystem;
 import javacard.framework.Util;
+import javacard.security.CryptoException;
 import javacard.security.ECPrivateKey;
 import javacard.security.Key;
+import javacard.security.MessageDigest;
+import javacard.security.Signature;
+import javacardx.crypto.Cipher;
+import monoidlib.ByteSource;
 
 public final class Keystore {
 
@@ -14,6 +18,8 @@ public final class Keystore {
   private BIP32Derivation bip32;
   private SLIP10Ed25519Derivation slip10Ed25519;
   private Monoid001Derivation monoid001;
+  private Signature monoid001Signer;
+  private byte[] monoid001Signature;
 
   public Keystore(Safe safe) {
     this.safe = safe;
@@ -76,6 +82,67 @@ public final class Keystore {
   }
 
   public byte[] getMonoid001PublicKeyFromSeed(byte[] index, byte[] context) {
+    return getMonoid001DerivedKeyFromSeed(index, context).getPublicKey(WeierstrassCurve.secp256r1);
+  }
+
+  // The session holds authorization while these methods read its validated seed snapshot.
+  DerivedKey deriveMonoid001Key(byte[] seed, byte[] context) {
+    return monoid001.deriveFromSeed(seed, context);
+  }
+
+  byte[] getMonoid001UncompressedPublicKey(byte[] seed, byte[] context) {
+    return getMonoid001UncompressedPublicKey(deriveMonoid001Key(seed, context));
+  }
+
+  byte[] getMonoid001UncompressedPublicKey(DerivedKey derived) {
+    return derived.getUncompressedPublicKey((CurveSECP256r1) WeierstrassCurve.secp256r1);
+  }
+
+  byte[] signMonoid001ECDSADigest(byte[] seed, byte[] context, byte[] digest) {
+    return signMonoid001ECDSADigest(seed, context, digest, (short) 0);
+  }
+
+  byte[] signMonoid001ECDSADigest(byte[] seed, byte[] context, byte[] digest, short digestOffset) {
+    return signMonoid001ECDSADigest(deriveMonoid001Key(seed, context), digest, digestOffset);
+  }
+
+  // The returned buffer is private working storage; only its first 64 bytes are the signature.
+  byte[] signMonoid001ECDSADigest(DerivedKey derived, byte[] digest, short digestOffset) {
+    WeierstrassCurve curve = WeierstrassCurve.secp256r1;
+    Key privateKey = curve.getSharedPrivateKey(derived.key, (short) 0);
+
+    if (monoid001Signer == null) {
+      monoid001Signer = Signature.getInstance(
+        MessageDigest.ALG_SHA_256,
+        Signature.SIG_CIPHER_ECDSA_PLAIN,
+        Cipher.PAD_NULL,
+        true
+      );
+    }
+
+    // Reinitialize for every operation, including after another context used the shared key.
+    monoid001Signer.init(privateKey, Signature.MODE_SIGN);
+    if (monoid001Signature == null) {
+      // Some native PLAIN implementations require 72 bytes of capacity but return 64.
+      monoid001Signature = new byte[monoid001Signer.getLength()];
+    }
+
+    short length = monoid001Signer.signPreComputedHash(
+      digest,
+      digestOffset,
+      MessageDigest.LENGTH_SHA_256,
+      monoid001Signature,
+      (short) 0
+    );
+    if (length != 64) {
+      CryptoException.throwIt(CryptoException.ILLEGAL_USE);
+    }
+
+    LibECDSA.ensureLowS(curve.getR(), monoid001Signature, (short) 0);
+    return monoid001Signature;
+  }
+
+  private DerivedKey getMonoid001DerivedKeyFromSeed(byte[] index, byte[] context) {
     short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     if (!Safe.isTypeSeed(type)) {
@@ -84,9 +151,7 @@ public final class Keystore {
     }
 
     byte[] seed = requireKey(index);
-    DerivedKey derived = monoid001.deriveFromSeed(seed, context);
-
-    return derived.getPublicKey(WeierstrassCurve.secp256r1);
+    return monoid001.deriveFromSeed(seed, context);
   }
 
   public byte[] getWeierstrassKeyPublicKey(byte[] index) {
@@ -278,10 +343,7 @@ public final class Keystore {
 
     short keyLength = curve.getKeyLength();
 
-    byte[] data = JCSystem.makeTransientByteArray(
-      (short) (publicKey.length + keyLength),
-      JCSystem.CLEAR_ON_DESELECT
-    );
+    byte[] data = new byte[(short) (publicKey.length + keyLength)];
 
     // public key
     Util.arrayCopyNonAtomic(publicKey, (short) 0, data, (short) 0, (short) publicKey.length);
@@ -301,7 +363,7 @@ public final class Keystore {
 
     return taprootMerkleRoot == null
       ? publicKey
-      : Utils.duplicateAsTransientDeselect(publicKey, (short) 1, CurveSECP256k1.KEY_LENGTH);
+      : Utils.duplicateAsPersistent(publicKey, (short) 1, CurveSECP256k1.KEY_LENGTH);
   }
 
   /** Adjusts the operation's key copy in place, preserving any BIP32 chain code. */
@@ -341,10 +403,7 @@ public final class Keystore {
       short publicKeyLength = curve.getPublicKeyLength();
       short keyLength = curve.getKeyLength();
 
-      byte[] data = JCSystem.makeTransientByteArray(
-        (short) (publicKeyLength + keyLength),
-        JCSystem.CLEAR_ON_DESELECT
-      );
+      byte[] data = new byte[(short) (publicKeyLength + keyLength)];
 
       curve.derivePublicKey(privateKey, data, (short) 0);
       Util.arrayCopyNonAtomic(key.key, keyLength, data, publicKeyLength, keyLength);
