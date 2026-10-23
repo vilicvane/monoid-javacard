@@ -16,7 +16,7 @@ applet. Removing Monoid's code package requires removing its dependent Security
 Key package first.
 
 Authorize the installed instance through Monoid `0x51 Set Applet Grant`, under
-Secret PIN:
+Access PIN:
 
 ```typescript
 {
@@ -61,15 +61,14 @@ through a separate global window of up to 256 bytes.
 
 Discovery reuses space for four matching indices/IDs, falling back to the iterator
 for larger sets. This is an internal buffer budget, not a credential limit.
-Four records of up to 256 bytes retain their payload and parsed offsets in
+Four records of up to 320 bytes retain their payload and parsed offsets in
 persistent storage. Parsed offsets are restored into RAM after deselection or
 reset; filling a slot writes them together.
 Every cache hit validates the original data snapshot through the current session,
 including after reset and reauthentication. Long records retain stable reads;
 larger sets fall back to enumeration. `GetNextAssertion` reconnects and validates
 the selected record; caller, grant, Type, secret, full credential ID, RP and
-public-key checks remain. These SIO additions do not add CTAP commands or change
-the credential encoding.
+public-key checks remain. These SIO additions do not add CTAP commands.
 
 ## Commands
 
@@ -86,7 +85,8 @@ Delete an individual credential using Monoid `0x35 Remove` on its item index.
 Its old credential ID then returns `NO_CREDENTIALS`. CTAP2.1 credential management,
 U2F and optional extensions are not advertised.
 
-Reset commits credential removal before clearing the FIDO PIN. If interrupted
+Reset removes credentials from every seed/domain scope and commits their removal
+before clearing the FIDO PIN. If interrupted
 between these steps, the records are gone and the PIN remains; retry Reset to
 finish. Other Monoid data, PINs and grants are unchanged.
 
@@ -100,15 +100,19 @@ This transport does not use Monoid's custom framing.
 
 ## Credentials and derivation
 
-Credential records use Type `0xF101`, lookup `key = SHA256(rpId)` and
+Credential records use Type `0xF101`, lookup `key = scope || SHA256(rpId)` and
 `secret = false`. Their versioned CBOR data contains the random 32-byte credential
-ID, RP hash/ID, user ID and optional names, resident flag and 65-byte public key.
+ID, RP hash/ID, user ID and optional names, resident flag, 65-byte public key and
+32-byte scope (integer field `10`).
 The item index is `F101 || credentialId[0:8]`; collisions regenerate the ID.
-All 32 bytes and the RP hash are checked on lookup. Replacing the source seed or
-domain causes the stored public-key check to fail before signing.
+All 32 ID bytes, the scope and RP hash are checked on lookup. The scope identifies
+the granted seed contents and domain independently of card identity, installation
+token or local seed index. Switching either input hides the other scope's records
+without removing them; switching back makes them available again. Old records
+without a scope are not matched or automatically migrated.
 
-Resident registration collects all existing resident records for the same RP and
-user. If duplicates exist, it first removes all but the first old record, then
+Resident registration collects all existing resident records for the same scope,
+RP and user. If duplicates exist, it first removes all but the first old record, then
 commits the new record and removes the retained old record. Each change commits
 independently; an interrupted replacement preserves an old or new credential. A
 successful retry leaves only its new record. Every registration generates a new credential
@@ -121,12 +125,25 @@ after cleanup commits and require another attempt.
 ```text
 Monoid-001 context = "monoid applet: " || u16be(domain.length) || domain || clientContext
 clientContext     = "monoid fido2: " || SHA256(rpId) || credentialId
+scopeContext      = "monoid fido2 scope: " || zeroBytes(58)
+scope             = SHA256(Monoid.getMonoid001PublicKey(scopeContext))
 ```
 
-Both labels are ASCII with one trailing space. Monoid returns the public key as
+Labels are ASCII with one trailing space. Scope and credential contexts are both
+78 bytes, allowing Monoid to reuse its private context buffer. Scope is checked
+again for each registration/assertion, including after an in-place seed update;
+`GetNextAssertion` rejects a scope change during an outstanding sequence.
+Monoid returns the public key as
 a 65-byte uncompressed point `04 || X || Y` and signatures as 64-byte `r || s`; Security Key encodes COSE and DER
 for CTAP. Credential metadata is needed for recovery; the seed alone cannot
 recreate random credential IDs or accounts.
+
+After user verification, returned account names include ` [0123456789ABCDEF]`,
+using the first eight credential-ID bytes in uppercase hex. The fixed `F101`
+index prefix is omitted. Names are truncated at a UTF-8 boundary to keep the full
+label within 64 bytes; unnamed accounts return the label as `displayName`.
+Stored names and user/credential IDs are unchanged. Platforms control which name
+fields they display; the label is a lookup aid, not a validity indication.
 
 Software user presence (UP) is enabled. User verification (UV) requires a valid
 FIDO PIN-token proof. Account names are omitted when UV is absent. `signCount` is

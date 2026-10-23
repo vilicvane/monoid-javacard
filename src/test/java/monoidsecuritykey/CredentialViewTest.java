@@ -57,6 +57,7 @@ public class CredentialViewTest {
       Credential original = new Credential(
         id,
         rp,
+        new byte[32],
         new byte[] { 'r', 'p' },
         user,
         name,
@@ -77,7 +78,7 @@ public class CredentialViewTest {
       }
 
       Assertions.assertTrue(loaded.matchesId(filled(32, 1), (short) 0));
-      Assertions.assertTrue(loaded.matchesRP(filled(32, 2)));
+      Assertions.assertArrayEquals(filled(32, 2), Arrays.copyOfRange(loaded.key(), 32, 64));
       Assertions.assertTrue(loaded.matchesPublicKey(filled(65, 4)));
       Assertions.assertArrayEquals(original.context(), loaded.context());
       byte[] contextOutput = filled(133, 9);
@@ -118,6 +119,7 @@ public class CredentialViewTest {
       new Credential(
         filled(31, 1),
         filled(32, 2),
+        new byte[32],
         new byte[0],
         new byte[] { 3 },
         null,
@@ -129,8 +131,23 @@ public class CredentialViewTest {
     rejects(shortId, CTAP.INVALID_LENGTH);
 
     Record shortPoint = new Record(credential(1, null, true));
-    shortPoint.bytes = Arrays.copyOf(shortPoint.bytes, shortPoint.bytes.length - 1);
-    shortPoint.bytes[shortPoint.bytes.length - 65] = 64;
+    CBORReader pointReader = reader(shortPoint.bytes);
+    pointReader.map();
+    while (pointReader.integer() != 9) {
+      pointReader.skip();
+    }
+    short pointOffset = pointReader.bytesOffset();
+    byte[] shortened = new byte[shortPoint.bytes.length - 1];
+    System.arraycopy(shortPoint.bytes, 0, shortened, 0, pointOffset + 64);
+    System.arraycopy(
+      shortPoint.bytes,
+      pointOffset + 65,
+      shortened,
+      pointOffset + 64,
+      shortened.length - pointOffset - 64
+    );
+    shortened[pointOffset - 1] = 64;
+    shortPoint.bytes = shortened;
     rejects(shortPoint, CTAP.INVALID_LENGTH);
 
     Record badText = new Record(credential(1, new byte[] { (byte) 0xc0 }, true));
@@ -180,7 +197,7 @@ public class CredentialViewTest {
       Assertions.assertSame(views[1], find(large));
     });
     byte[] shortBuffer = backing(views[0]);
-    Assertions.assertEquals(256, shortBuffer.length);
+    Assertions.assertEquals(Credential.READ_BUFFER_LENGTH, shortBuffer.length);
     Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(shortBuffer));
     Assertions.assertEquals(
       JCSystem.NOT_A_TRANSIENT_OBJECT,
@@ -192,12 +209,11 @@ public class CredentialViewTest {
 
   @Test
   public void growingPersistentWorkspaceIsReusedForSmallerRecords() {
-    Record first = store.add(credential(1, filled(104, 'n'), true));
-    Record second = store.add(credential(2, filled(105, 'n'), true));
-    Assertions.assertEquals(257, first.bytes.length);
-    Assertions.assertEquals(258, second.bytes.length);
+    Record first = store.add(credential(1, filled(133, 'n'), true));
+    Record second = store.add(credential(2, filled(134, 'n'), true));
+    Assertions.assertEquals(Credential.READ_BUFFER_LENGTH + 1, first.bytes.length);
+    Assertions.assertEquals(Credential.READ_BUFFER_LENGTH + 2, second.bytes.length);
     run(() -> {
-      Assertions.assertTrue(APDU.getCurrentAPDUBuffer().length >= second.bytes.length);
       Credential previous = find(first);
       Credential grown = find(second);
       Assertions.assertNotSame(previous, grown);
@@ -211,6 +227,7 @@ public class CredentialViewTest {
       new Credential(
         filled(32, 1),
         filled(32, 2),
+        new byte[32],
         new byte[] { 'r', 'p' },
         filled(12, 3),
         new byte[] { 'n', 'a', 'm', 'e' },
@@ -238,7 +255,7 @@ public class CredentialViewTest {
     Assertions.assertEquals(JCSystem.CLEAR_ON_DESELECT, JCSystem.isTransient(cachedState));
     Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(snapshot));
     Assertions.assertTrue(simulator.selectApplet(AIDUtil.create(OTHER_APPLET)));
-    Assertions.assertArrayEquals(new short[11], cachedState);
+    Assertions.assertArrayEquals(new short[12], cachedState);
     Assertions.assertArrayEquals(saved, snapshot);
     Assertions.assertTrue(simulator.selectApplet(AIDUtil.create(APPLET)));
     run(() -> {
@@ -252,12 +269,13 @@ public class CredentialViewTest {
       Assertions.assertEquals(1, named.reads);
     });
     simulator.reset();
-    Assertions.assertArrayEquals(new short[11], cachedState);
+    Assertions.assertArrayEquals(new short[12], cachedState);
     Assertions.assertArrayEquals(saved, snapshot);
     store.newSession();
     Assertions.assertTrue(simulator.selectApplet(AIDUtil.create(APPLET)));
     Assertions.assertArrayEquals(expectedIndex, named.index);
-    Assertions.assertArrayEquals(filled(32, 2), named.key);
+    Assertions.assertArrayEquals(new byte[32], Arrays.copyOf(named.key, 32));
+    Assertions.assertArrayEquals(filled(32, 2), Arrays.copyOfRange(named.key, 32, 64));
     run(() -> {
       assertStatus((short) 0x6982, oldSnapshot[0]::getLength);
       Assertions.assertSame(cached[0], find(named));
@@ -294,7 +312,7 @@ public class CredentialViewTest {
       Credential restored = find(replacement);
       Assertions.assertSame(slot[0], restored);
       Assertions.assertFalse(restored.resident());
-      Assertions.assertEquals(1, reader(write(writer -> restored.writeUser(writer, true))).map());
+      Assertions.assertEquals(2, reader(write(writer -> restored.writeUser(writer, true))).map());
       Assertions.assertTrue(restored.matchesPublicKey(filled(65, 4)));
       Assertions.assertEquals(replacement.bytes.length, restored.getLength());
       Assertions.assertEquals(1, replacement.reads);
@@ -387,6 +405,93 @@ public class CredentialViewTest {
   }
 
   @Test
+  public void scopeChangeExcludesWarmRecordsAndSwitchingBackRestoresThem() {
+    Record original = store.add(credential(1, null, true));
+    Record other = store.add(credential(2, filled(32, 9), null, true));
+
+    run(() -> {
+      Assertions.assertNotNull(find(original));
+      Assertions.assertEquals(1, original.reads);
+
+      byte[] input = filled(38, 9);
+      credentials.setScope(input, (short) 3);
+      Arrays.fill(input, (byte) 7);
+
+      Assertions.assertArrayEquals(filled(32, 9), credentials.scope);
+      Assertions.assertNull(find(original));
+      Assertions.assertNotNull(find(other));
+      Assertions.assertEquals(1, original.reads);
+      Assertions.assertEquals(1, other.reads);
+
+      CredentialStore.Selection selected = credentials.discover(store.service, filled(32, 2));
+      Assertions.assertEquals(1, selected.count());
+      Assertions.assertTrue(selected.takeFirst().matchesId(other.id, (short) 0));
+
+      credentials.setScope(new byte[32], (short) 0);
+
+      Assertions.assertNull(find(other));
+      Assertions.assertNotNull(find(original));
+      Assertions.assertEquals(2, original.reads);
+      Assertions.assertEquals(2, store.records.size());
+    });
+  }
+
+  @Test
+  public void selectingTheSameScopePreservesWarmCacheEntries() {
+    Record record = store.add(credential(1, null, true));
+
+    run(() -> {
+      Credential cached = find(record);
+      credentials.setScope(new byte[36], (short) 2);
+
+      Assertions.assertSame(cached, find(record));
+      Assertions.assertEquals(1, record.reads);
+      Assertions.assertEquals(1, store.dataCalls);
+    });
+  }
+
+  @Test
+  public void boundedAndFallbackDiscoveryEnumerateOnlyTheSelectedScope() {
+    Record first = store.add(credential(1, null, true));
+    Record second = store.add(credential(2, null, true));
+
+    for (int index = 3; index < 3 + CredentialStore.DISCOVERY_CAPACITY + 1; index++) {
+      store.add(credential(index, filled(32, 9), null, true));
+    }
+
+    run(() -> {
+      CredentialStore.Selection bounded = credentials.discover(store.service, filled(32, 2));
+      Assertions.assertEquals(2, bounded.count());
+      Assertions.assertEquals(0, store.iteratorCalls);
+
+      credentials.setScope(filled(32, 9), (short) 0);
+      CredentialStore.Selection all = credentials.discover(store.service, filled(32, 2));
+
+      Assertions.assertEquals(CredentialStore.DISCOVERY_CAPACITY + 1, all.count());
+      Assertions.assertEquals(1, store.iteratorCalls);
+      Assertions.assertEquals(1, first.reads);
+      Assertions.assertEquals(1, second.reads);
+
+      for (short position = 0; position < all.count(); position++) {
+        int id = all.count() + 2 - position;
+        Assertions.assertArrayEquals(
+          filled(32, id),
+          Arrays.copyOfRange(all.ids, all.offset(position), all.offset(position) + 32)
+        );
+      }
+
+      credentials.setScope(new byte[32], (short) 0);
+      CredentialStore.Selection restored = credentials.discover(store.service, filled(32, 2));
+
+      Assertions.assertEquals(2, restored.count());
+      Assertions.assertTrue(restored.takeFirst().matchesId(second.id, (short) 0));
+      Assertions.assertEquals(1, store.iteratorCalls);
+      Assertions.assertEquals(2, first.reads);
+      Assertions.assertEquals(2, second.reads);
+    });
+  }
+
+  @Test
   public void cacheEvictsBeyondCapacityAndExplicitClearReloads() {
     Record[] records = new Record[CredentialStore.DISCOVERY_CAPACITY + 1];
     for (int index = 0; index < records.length; index++) {
@@ -448,7 +553,7 @@ public class CredentialViewTest {
     Credential registration = registration(2, new byte[] { 'n', 'e', 'w' }, new byte[0], null);
     byte[] encoded = new Record(registration).bytes;
     byte[] shortBuffer = backing(registration);
-    Assertions.assertEquals(256, shortBuffer.length);
+    Assertions.assertEquals(Credential.READ_BUFFER_LENGTH, shortBuffer.length);
     Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(shortBuffer));
     run(() -> {
       Credential loaded = find(previous);
@@ -465,7 +570,7 @@ public class CredentialViewTest {
     Credential plain = registration(4, null, null, registration);
     Assertions.assertSame(registration, plain);
     Assertions.assertTrue(plain.matchesId(filled(32, 4), (short) 0));
-    Assertions.assertEquals(1, reader(write(writer -> plain.writeUser(writer, true))).map());
+    Assertions.assertEquals(2, reader(write(writer -> plain.writeUser(writer, true))).map());
 
     byte[] saved = shortBuffer.clone();
     Assertions.assertTrue(simulator.selectApplet(AIDUtil.create(OTHER_APPLET)));
@@ -480,7 +585,10 @@ public class CredentialViewTest {
     Assertions.assertArrayEquals(Constants.KEY_ID, user.text());
     Assertions.assertArrayEquals(new byte[] { 3 }, user.bytes());
     Assertions.assertArrayEquals(Constants.KEY_DISPLAY_NAME, user.text());
-    Assertions.assertArrayEquals(new byte[0], user.text());
+    Assertions.assertArrayEquals(
+      "[0505050505050505]".getBytes(StandardCharsets.UTF_8),
+      user.text()
+    );
     Assertions.assertTrue(user.atEnd());
 
     saved = shortBuffer.clone();
@@ -496,7 +604,10 @@ public class CredentialViewTest {
     Assertions.assertArrayEquals(Constants.KEY_ID, user.text());
     Assertions.assertArrayEquals(new byte[] { 3 }, user.bytes());
     Assertions.assertArrayEquals(Constants.KEY_NAME, user.text());
-    Assertions.assertArrayEquals(new byte[] { 'n' }, user.text());
+    Assertions.assertArrayEquals(
+      "n [0606060606060606]".getBytes(StandardCharsets.UTF_8),
+      user.text()
+    );
     Assertions.assertTrue(user.atEnd());
   }
 
@@ -562,13 +673,14 @@ public class CredentialViewTest {
     collision[31] = 2;
     run(() -> {
       Assertions.assertNotNull(find(record));
-      Assertions.assertNull(credentials.find(store.service, collision, record.key));
+      Assertions.assertNull(credentials.find(store.service, collision, filled(32, 2)));
       Assertions.assertEquals(1, record.reads);
     });
     Record changedId = new Record(
       new Credential(
         collision,
         filled(32, 2),
+        new byte[32],
         new byte[0],
         new byte[] { 3 },
         null,
@@ -590,6 +702,7 @@ public class CredentialViewTest {
       new Credential(
         filled(32, 1),
         filled(32, 3),
+        new byte[32],
         new byte[0],
         new byte[] { 3 },
         null,
@@ -683,13 +796,18 @@ public class CredentialViewTest {
   }
 
   private Credential find(Record record) {
-    return credentials.find(store.service, record.id, record.key);
+    return credentials.find(store.service, record.id, Arrays.copyOfRange(record.key, 32, 64));
   }
 
   private static Credential credential(int id, byte[] name, boolean resident) {
+    return credential(id, new byte[32], name, resident);
+  }
+
+  private static Credential credential(int id, byte[] scope, byte[] name, boolean resident) {
     return new Credential(
       filled(32, id),
       filled(32, 2),
+      scope,
       new byte[] { 'r', 'p' },
       new byte[] { 3 },
       name,
@@ -708,6 +826,7 @@ public class CredentialViewTest {
     return Credential.create(
       filled(32, id),
       filled(32, 2),
+      new byte[32],
       new byte[] { 'r', 'p' },
       new byte[] { 3 },
       name,

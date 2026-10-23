@@ -657,7 +657,7 @@ type AppletGrant = AppletGrantOptions & {
 
 #### `0x50` List applet grants
 
-> Requires Secret PIN authentication.
+> Requires Access PIN authentication.
 
 ```ts
 type Request = {};
@@ -666,7 +666,7 @@ type Response = {grants: AppletGrant[]};
 
 #### `0x51` Set applet grant
 
-> Requires Secret PIN authentication.
+> Requires Access PIN authentication.
 
 ```ts
 /** Replaces the entire grant for aid; omitted permissions are removed. */
@@ -676,7 +676,7 @@ type Response = {};
 
 #### `0x52` Remove applet grant
 
-> Requires Secret PIN authentication.
+> Requires Access PIN authentication.
 
 ```ts
 /** Succeeds when the grant is already absent. */

@@ -24,7 +24,6 @@ public final class CommandSetAppletGrant extends Command {
     Safe safe = MonoidApplet.safe;
     AppletGrants grants = safe.getAppletGrants();
     grants.assertManagement();
-    safe.checkAccess();
 
     CBORMap request = reader.map(fields);
     request.requireKey(Text.aid);

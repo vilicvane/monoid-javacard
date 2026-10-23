@@ -16,12 +16,15 @@ final class CredentialStore {
 
   static final short DISCOVERY_CAPACITY = 4;
 
+  final byte[] scope = new byte[32];
+
   private Credential workspace;
   private Credential largeWorkspace;
   private final Credential[] cached = new Credential[DISCOVERY_CAPACITY];
   private final SafeDataShareable[] sources = new SafeDataShareable[DISCOVERY_CAPACITY];
   private short nextCache;
   private final byte[] lookupIndex = new byte[10];
+  private final byte[] lookupKey = new byte[64];
   private final byte[] indices = new byte[DISCOVERY_CAPACITY * 10];
   private final Selection selection = new Selection(new byte[DISCOVERY_CAPACITY * 32]);
 
@@ -41,8 +44,22 @@ final class CredentialStore {
   Credential find(Monoid monoid, byte[] id, short offset, byte[] rpHash) {
     Util.setShort(lookupIndex, (short) 0, CREDENTIAL_TYPE);
     Util.arrayCopyNonAtomic(id, offset, lookupIndex, (short) 2, (short) 8);
-    Credential credential = readCached(monoid, lookupIndex, (short) 0, rpHash);
+    writeLookupKey(rpHash);
+
+    Credential credential = readCached(monoid, lookupIndex, (short) 0, lookupKey);
     return credential != null && credential.matchesId(id, offset) ? credential : null;
+  }
+
+  void setScope(byte[] value, short offset) {
+    if (Util.arrayCompare(scope, (short) 0, value, offset, (short) scope.length) != 0) {
+      clear();
+      Util.arrayCopyNonAtomic(value, offset, scope, (short) 0, (short) scope.length);
+    }
+  }
+
+  private void writeLookupKey(byte[] rpHash) {
+    Util.arrayCopyNonAtomic(scope, (short) 0, lookupKey, (short) 0, (short) 32);
+    Util.arrayCopyNonAtomic(rpHash, (short) 0, lookupKey, (short) 32, (short) 32);
   }
 
   void clear() {
@@ -53,14 +70,14 @@ final class CredentialStore {
     }
   }
 
-  private Credential readCached(Monoid monoid, byte[] index, short offset, byte[] rpHash) {
+  private Credential readCached(Monoid monoid, byte[] index, short offset, byte[] key) {
     for (short slot = 0; slot < DISCOVERY_CAPACITY; slot++) {
       if (sources[slot] == null) {
         continue;
       }
       Credential credential = cached[slot];
       credential.restoreState();
-      if (credential.matchesIndex(index, offset) && credential.matchesRP(rpHash)) {
+      if (credential.matchesIndex(index, offset) && credential.matchesKey(key)) {
         // Validate through the current authenticated session, including after a card reset.
         if (monoid.isDataCurrent(sources[slot])) {
           return credential;
@@ -71,15 +88,21 @@ final class CredentialStore {
     }
     byte[] window = APDU.getCurrentAPDUBuffer();
     Util.arrayCopyNonAtomic(index, offset, window, (short) 0, (short) 10);
-    Util.arrayCopyNonAtomic(rpHash, (short) 0, window, (short) 10, (short) 32);
-    SafeDataShareable source = monoid.getData(window, (short) 0, window, (short) 10, (short) 32);
+    Util.arrayCopyNonAtomic(key, (short) 0, window, (short) 10, (short) key.length);
+    SafeDataShareable source = monoid.getData(
+      window,
+      (short) 0,
+      window,
+      (short) 10,
+      (short) key.length
+    );
     if (source == null) {
       return null;
     }
     short length = source.getLength();
     if (length > Credential.READ_BUFFER_LENGTH) {
       Credential credential = remember(Credential.read(source, length, workspace(length)));
-      credential.assertMetadata(index, offset, rpHash);
+      credential.assertMetadata(index, offset, key);
       return credential;
     }
     short slot = nextCache;
@@ -89,7 +112,7 @@ final class CredentialStore {
     }
     Credential credential = cached[slot];
     Credential.read(source, length, credential);
-    credential.assertMetadata(index, offset, rpHash);
+    credential.assertMetadata(index, offset, key);
     credential.saveState(window);
     sources[slot] = source;
     // Publish one valid cursor value, including if power is lost at the wrap boundary.
@@ -122,7 +145,7 @@ final class CredentialStore {
       CREDENTIAL_TYPE,
       key,
       (short) 0,
-      (short) 32,
+      (short) key.length,
       window,
       (short) 0,
       DISCOVERY_CAPACITY
@@ -176,29 +199,37 @@ final class CredentialStore {
 
   Selection discover(Monoid monoid, byte[] rpHash) {
     selection.set((short) 0, null);
+    writeLookupKey(rpHash);
+
     byte[] window = APDU.getCurrentAPDUBuffer();
-    Util.arrayCopyNonAtomic(rpHash, (short) 0, window, (short) 0, (short) 32);
+    Util.arrayCopyNonAtomic(lookupKey, (short) 0, window, (short) 0, (short) lookupKey.length);
     short size = monoid.listIndices(
       CREDENTIAL_TYPE,
       window,
       (short) 0,
-      (short) 32,
+      (short) lookupKey.length,
       window,
-      (short) 32,
+      (short) lookupKey.length,
       DISCOVERY_CAPACITY
     );
     if (size > DISCOVERY_CAPACITY) {
       return discoverAll(monoid, rpHash);
     }
-    Util.arrayCopyNonAtomic(window, (short) 32, indices, (short) 0, (short) (size * 10));
+    Util.arrayCopyNonAtomic(
+      window,
+      (short) lookupKey.length,
+      indices,
+      (short) 0,
+      (short) (size * 10)
+    );
     short count = 0;
     Credential first = null;
     for (short index = 0; index < size; index++) {
-      Credential credential = readCached(monoid, indices, (short) (index * 10), rpHash);
+      Credential credential = readCached(monoid, indices, (short) (index * 10), lookupKey);
       if (credential == null) {
         ISOException.throwIt(CTAP.OTHER);
       }
-      if (credential.resident() && credential.matchesRP(rpHash)) {
+      if (credential.resident() && credential.matchesKey(lookupKey)) {
         credential.copyId(selection.ids, (short) (count++ * 32));
         first = credential;
       } else {
@@ -212,15 +243,15 @@ final class CredentialStore {
     return selection;
   }
 
-  private Credential readIndex(Monoid monoid, short offset, byte[] rpHash, byte[] window) {
+  private Credential readIndex(Monoid monoid, short offset, byte[] key, byte[] window) {
     Util.arrayCopyNonAtomic(indices, offset, window, (short) 0, (short) 10);
-    Util.arrayCopyNonAtomic(rpHash, (short) 0, window, (short) 10, (short) 32);
+    Util.arrayCopyNonAtomic(key, (short) 0, window, (short) 10, (short) key.length);
     short length = monoid.readData(
       window,
       (short) 0,
       window,
       (short) 10,
-      (short) 32,
+      (short) key.length,
       window,
       (short) 0,
       (short) window.length
@@ -238,12 +269,12 @@ final class CredentialStore {
       Util.arrayCopyNonAtomic(indices, offset, index, (short) 0, (short) 10);
       credential = read(monoid.get(index));
     }
-    credential.assertMetadata(indices, offset, rpHash);
+    credential.assertMetadata(indices, offset, key);
     return credential;
   }
 
   private Selection discoverAll(Monoid monoid, byte[] rpHash) {
-    byte[] key = Utils.duplicateAsGlobal(rpHash);
+    byte[] key = Utils.duplicateAsGlobal(lookupKey);
     SafeItemIteratorShareable iterator = monoid.list(CREDENTIAL_TYPE, key);
     byte[] ids = new byte[(short) (iterator.getCount() * 32)];
     short count = 0;
@@ -265,8 +296,8 @@ final class CredentialStore {
       Credential credential = length <= window.length
         ? read(window, length)
         : read(monoid.get(index));
-      credential.assertMetadata(index, (short) 0, rpHash);
-      if (credential.resident() && credential.matchesRP(rpHash)) {
+      credential.assertMetadata(index, (short) 0, key);
+      if (credential.resident() && credential.matchesKey(key)) {
         credential.copyId(ids, (short) (count++ * 32));
         first = credential;
       } else {

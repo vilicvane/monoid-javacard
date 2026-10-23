@@ -376,6 +376,7 @@ public class ApduTransportTest {
     private final Credential credential = new Credential(
       new byte[32],
       new byte[32],
+      new byte[32],
       new byte[0],
       new byte[64],
       new byte[64],

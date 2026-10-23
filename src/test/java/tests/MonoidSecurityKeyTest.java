@@ -3,6 +3,7 @@ package tests;
 import static tests.MonoidItemTransferTest.fields;
 import static tests.MonoidItemTransferTest.sequence;
 
+import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
 import java.io.ByteArrayOutputStream;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import javacard.framework.AID;
 import javax.crypto.Cipher;
@@ -298,8 +300,10 @@ public class MonoidSecurityKeyTest {
       request.put(7, 1);
       Map<Object, Object> response = fixture.success(0x02, request);
       assertSignature(response, registration, 5);
-      Assertions.assertEquals("user-1", mapValue(response.get(4)).get("name"));
-      Assertions.assertEquals("User 1", mapValue(response.get(4)).get("displayName"));
+      String label =
+        " [" + Hex.toHexString(Arrays.copyOf(registration.id, 8)).toUpperCase(Locale.ROOT) + "]";
+      Assertions.assertEquals("user-1" + label, mapValue(response.get(4)).get("name"));
+      Assertions.assertEquals("User 1" + label, mapValue(response.get(4)).get("displayName"));
 
       byte[] invalid = auth(token, CLIENT_DATA_HASH);
       invalid[0] ^= 1;
@@ -378,7 +382,7 @@ public class MonoidSecurityKeyTest {
       changed[0] ^= 1;
       fixture.card.success(0x33, fields("index", fixture.seedIndex, "data", changed));
       fixture.select();
-      fixture.error(CTAP.NOT_ALLOWED, 0x02, assertion(RP, registration.id));
+      fixture.error(CTAP.NO_CREDENTIALS, 0x02, assertion(RP, registration.id));
     }
   }
 
@@ -400,7 +404,7 @@ public class MonoidSecurityKeyTest {
     }
   }
 
-  private static Map<Object, Object> make(String rp, int user, boolean resident) {
+  static Map<Object, Object> make(String rp, int user, boolean resident) {
     return map(
       1,
       CLIENT_DATA_HASH,
@@ -415,7 +419,7 @@ public class MonoidSecurityKeyTest {
     );
   }
 
-  private static Map<Object, Object> assertion(String rp, byte[] id) {
+  static Map<Object, Object> assertion(String rp, byte[] id) {
     Map<Object, Object> result = map(1, rp, 2, CLIENT_DATA_HASH);
     if (id != null) {
       result.put(3, Arrays.asList(descriptor(id)));
@@ -423,11 +427,11 @@ public class MonoidSecurityKeyTest {
     return result;
   }
 
-  private static Map<Object, Object> descriptor(byte[] id) {
+  static Map<Object, Object> descriptor(byte[] id) {
     return map("id", id, "type", "public-key");
   }
 
-  private static byte[] index(byte[] id) {
+  static byte[] index(byte[] id) {
     byte[] index = new byte[10];
     index[0] = (byte) 0xF1;
     index[1] = 1;
@@ -435,11 +439,8 @@ public class MonoidSecurityKeyTest {
     return index;
   }
 
-  private static void assertSignature(
-    Map<Object, Object> response,
-    Registration registration,
-    int flags
-  ) throws Exception {
+  static void assertSignature(Map<Object, Object> response, Registration registration, int flags)
+    throws Exception {
     Assertions.assertArrayEquals(registration.id, (byte[]) mapValue(response.get(1)).get("id"));
     byte[] authData = (byte[]) response.get(2);
     Assertions.assertEquals(37, authData.length);
@@ -488,11 +489,11 @@ public class MonoidSecurityKeyTest {
   }
 
   @SuppressWarnings("unchecked")
-  private static Map<Object, Object> mapValue(Object value) {
+  static Map<Object, Object> mapValue(Object value) {
     return (Map<Object, Object>) value;
   }
 
-  private static final class Registration {
+  static final class Registration {
 
     final byte[] authData;
     final byte[] id;
@@ -525,7 +526,7 @@ public class MonoidSecurityKeyTest {
     }
   }
 
-  private static final class Fixture implements AutoCloseable {
+  static final class Fixture implements AutoCloseable {
 
     final Card card = new Card(true);
     final byte[] seedIndex;
@@ -546,8 +547,8 @@ public class MonoidSecurityKeyTest {
         (short) 0,
         (byte) parameters.length
       );
-      card.simulator.selectApplet(MONOID_AID);
-      card.authenticate(true);
+      card.reset();
+      card.authenticate(false);
       seedIndex = card.create("seed", null, null, sequence(64), true);
       if (authorized) {
         grant(true);
@@ -569,7 +570,7 @@ public class MonoidSecurityKeyTest {
 
     void manage() {
       Assertions.assertTrue(card.simulator.selectApplet(MONOID_AID));
-      card.authenticate(true);
+      card.authenticate(false);
     }
 
     void grant(boolean writable) {

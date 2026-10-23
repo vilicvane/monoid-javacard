@@ -35,9 +35,15 @@ public class CredentialTest {
 
       for (int optional = 0; optional < 4; optional++) {
         for (boolean resident : new boolean[] { false, true }) {
+          // Four long fields exceed the record limit after adding the scope.
+          if (lengths[boundary] >= 255 && optional == 3) {
+            continue;
+          }
+
           Credential credential = new Credential(
             filled(32, 1),
             filled(32, 2),
+            filled(32, 5),
             value,
             value,
             (optional & 1) != 0 ? value : null,
@@ -46,7 +52,7 @@ public class CredentialTest {
             filled(65, 4)
           );
           String expected =
-            Integer.toHexString(0xA7 + Integer.bitCount(optional)) +
+            Integer.toHexString(0xA8 + Integer.bitCount(optional)) +
             "0101025820" +
             Hex.toHexString(filled(32, 1)) +
             "035820" +
@@ -59,7 +65,9 @@ public class CredentialTest {
             ((optional & 2) != 0 ? "07" + text : "") +
             (resident ? "08f5" : "08f4") +
             "095841" +
-            Hex.toHexString(filled(65, 4));
+            Hex.toHexString(filled(65, 4)) +
+            "0a5820" +
+            Hex.toHexString(filled(32, 5));
           byte[] actual = new byte[credential.getLength()];
           for (int offset = 0; offset < actual.length; offset += 64) {
             credential.read(
@@ -74,6 +82,7 @@ public class CredentialTest {
           Credential generated = Credential.create(
             filled(32, 1),
             filled(32, 2),
+            filled(32, 5),
             value,
             value,
             (optional & 1) != 0 ? value : null,
@@ -95,11 +104,12 @@ public class CredentialTest {
 
   @Test
   public void preservesTheEncodedRecordLimit() {
-    for (int length : new int[] { 1050, 1051, 1201 }) {
+    for (int length : new int[] { 1015, 1016, 1201 }) {
       Supplier<Credential> create = () ->
         new Credential(
           filled(32, 1),
           filled(32, 2),
+          filled(32, 5),
           filled(length, 0x61),
           new byte[] { 3 },
           null,
@@ -107,7 +117,7 @@ public class CredentialTest {
           false,
           filled(65, 4)
         );
-      if (length == 1050) {
+      if (length == 1015) {
         Assertions.assertEquals(CTAP.MAX_MESSAGE_LENGTH, create.get().getLength());
       } else {
         ISOException exception = Assertions.assertThrows(ISOException.class, create::get);
@@ -118,10 +128,11 @@ public class CredentialTest {
 
   @Test
   public void readsCompleteRecordsThroughDifferentBorrowedWindowLengths() {
-    for (int textLength : new int[] { 0, 129, 512, 1050 }) {
+    for (int textLength : new int[] { 0, 129, 512, 1015 }) {
       Credential original = new Credential(
         filled(32, 1),
         filled(32, 2),
+        filled(32, 5),
         filled(textLength, 0x61),
         new byte[] { 3 },
         null,

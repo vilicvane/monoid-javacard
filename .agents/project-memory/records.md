@@ -373,3 +373,9 @@
 182. [user] 批准分开数据互通与扩展审批资格，不为互通再刷A；最终批准Create23、Join24、Extend25、Approve Bundle Extension26独立命令及统一data字段，B批准响应直接用于C入组；要求沿用原有风格、多用空行。[agent] Create只收其他卡公钥，返回bundle及按序data数组；Extend publicKey→data，Approve data→{publicKey,data}，Join {publicKey,data}→bundle。root-HMAC加另一Identity签名证明扩展资格，数据解密不查名单，同root重Join幂等。最终593测试/67套件、6项JS及四CAP验证通过，实卡证据仍对应更早版本；详见 [Extend Bundle](./182.md)。
 
 183. [user] 要求将旧版Bundle数据迁移到新卡，并批准临时替换Test 2的Monoid后恢复。[agent] Test 1/Test 2两条相同记录已加密备份；使用旧EXP token15的临时relay在Test 2卡内解密并重加密给新J3R452，明文未出卡。Test 2原程序/记录/Identity/Bundle恢复、临时包全清；新卡两条Import及幂等验证通过，seed派生公钥、普通数据摘要与全部元数据一致，保持未入组。GP 24.10.15的install-only实际空操作，已字节码确认并改用create；见 [旧版Bundle迁移](./183.md)。
+
+## bf09b81
+
+184. [user] 多卡同步暂不加入删除/活动标记，批准账户名称附加index与seed/domain隔离一起实现。[agent] 凭证新增scope32、key改为scope||rpHash；以固定78B用途context的派生公钥SHA256确定scope，每次Make/Get/Next重查，覆盖查询/替换/缓存，保持全局Reset。UV后名称带16位hex，保留存储原名；持久缓存320B。610测试/69套件与四CAP通过，未实卡或系统UI验证；旧记录需另迁移，见 [凭证隔离与使用记录](./184.md)。
+
+185. [user] 澄清Access PIN用于APP管理Security Key的key/seed授权，FIDO PIN始终独立。[agent] 0x50/51/52统一走Safe.checkAccess，保留回调后复核及token/grant/secret隔离；不增加AID特例或接口字段。611测试/69套件、四CAP及格式/模板检查通过，未实卡部署或修改APP；见 [Access管理授权与独立FIDO PIN](./185.md)。

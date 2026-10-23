@@ -47,6 +47,8 @@ final class CommandMakeCredential extends Command {
     }
 
     Monoid monoid = MonoidSecurityKeyApplet.connect();
+    authenticator.selectScope(monoid);
+
     if (request.excludeOffset() != 0) {
       reader.setOffset(request.excludeOffset());
       short count = reader.array();
@@ -73,7 +75,15 @@ final class CommandMakeCredential extends Command {
     byte[] point = APDU.getCurrentAPDUBuffer();
     short contextLength = Credential.writeContext(id, rpHash, point, (short) 0);
     monoid.getMonoid001PublicKey(point, (short) 0, contextLength, point, (short) 0);
-    Credential credential = Credential.create(id, rpHash, input, resident, point, registration);
+    Credential credential = Credential.create(
+      id,
+      rpHash,
+      authenticator.credentials.scope,
+      input,
+      resident,
+      point,
+      registration
+    );
     if (credential.getLength() <= Credential.READ_BUFFER_LENGTH && credential != registration) {
       // Saving a replacement reads old records into the store's separate workspace.
       registration = credential;

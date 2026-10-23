@@ -5,7 +5,6 @@ import static tests.MonoidItemTransferTest.customIndex;
 import static tests.MonoidItemTransferTest.fields;
 import static tests.MonoidItemTransferTest.sequence;
 
-import com.licel.jcardsim.base.SimulatorSystem;
 import com.licel.jcardsim.utils.AIDUtil;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
@@ -20,8 +19,7 @@ import javacard.framework.AID;
 import javacard.framework.ISOException;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
-import monoididentity.MonoidIdentityApplet;
-import monoididentity.SecretPIN;
+import monoid.Command;
 import monoidlib.CBOR;
 import monoidlib.CBORBufferReader;
 import monoidlib.CBORBufferWriter;
@@ -32,10 +30,6 @@ import tests.MonoidItemTransferTest.Result;
 
 public class MonoidAppletGrantTest {
 
-  private static final AID IDENTITY_AID = AIDUtil.create(
-    // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
-    "f06d6f6e6f69640001"
-  );
   private static final AID CLIENT_AID = AIDUtil.create(
     // @inplate-line "{{hex MONOID_NAMESPACE}}7d01"
     "f06d6f6e6f69647d01"
@@ -46,38 +40,61 @@ public class MonoidAppletGrantTest {
   );
 
   @Test
-  public void allGrantCommandsRequireSecretAuthorization() {
+  public void grantCommandsRequireAccessAuthorizationAndAlsoAcceptSecretAuthorization() {
     try (Card card = new Card(true)) {
       AppletGrantClient client = installClient(card, CLIENT_AID);
       Map<String, Object> request = grant("types", types(0x1000, false));
+      card.reset();
 
-      for (boolean access : new boolean[] { false, true }) {
-        card.reset();
-        if (access) {
-          card.authenticate(false);
-        }
-
-        for (int instruction : new int[] { 0x50, 0x51, 0x52 }) {
-          assertError(
-            transmit(card, instruction, instruction == 0x50 ? fields() : request),
-            access ? "ACCESS_DENIED" : "UNAUTHORIZED"
-          );
-        }
-        Assertions.assertEquals(0, client.hashCalls);
+      for (int instruction : new int[] { 0x50, 0x51, 0x52 }) {
+        assertError(
+          transmit(card, instruction, instruction == 0x50 ? fields() : request),
+          "UNAUTHORIZED"
+        );
       }
 
-      card.authenticate(true);
-      assertEmptyResponse(success(card, 0x51, request));
-      Assertions.assertEquals(1, grants(card).size());
-      assertEmptyResponse(success(card, 0x52, grant()));
-      Assertions.assertTrue(grants(card).isEmpty());
+      Assertions.assertEquals(0, client.hashCalls);
+
+      for (boolean secret : new boolean[] { false, true }) {
+        card.reset();
+        card.authenticate(secret);
+        assertEmptyResponse(success(card, 0x51, request));
+        Assertions.assertEquals(1, grants(card).size());
+        assertEmptyResponse(success(card, 0x52, grant()));
+        Assertions.assertTrue(grants(card).isEmpty());
+      }
+    }
+  }
+
+  @Test
+  public void blockedSecretPINDeniesGrantManagementEvenWithAccessAuthorization() {
+    try (Card card = new Card(true)) {
+      AppletGrantClient client = installClient(card, CLIENT_AID);
+      Map<String, Object> request = grant("types", types(0x1000, false));
+      card.authenticate(false);
+      success(card, 0x51, request);
+
+      for (int attempt = 0; attempt < 5; attempt++) {
+        assertError(card.transmit(0x21, fields("pin", "000000", "secret", true)), "INVALID_PIN");
+      }
+
+      card.authenticate(false);
+
+      for (int instruction : new int[] { 0x50, 0x51, 0x52 }) {
+        assertError(
+          transmit(card, instruction, instruction == 0x50 ? fields() : request),
+          "SECRET_PIN_BLOCKED"
+        );
+      }
+
+      Assertions.assertEquals(1, client.hashCalls);
     }
   }
 
   @Test
   public void requiresAnInstalledClientWithTheIdentityInterface() {
     try (Card card = new Card(true)) {
-      card.authenticate(true);
+      card.authenticate(false);
       assertError(transmit(card, 0x51, grant()), "NOT_FOUND");
 
       AppletGrantClient client = installClient(card, CLIENT_AID);
@@ -102,7 +119,7 @@ public class MonoidAppletGrantTest {
   public void takesTheHashFromTheClientInsteadOfTheRequest() throws Exception {
     try (Card card = new Card(true)) {
       AppletGrantClient client = installClient(card, CLIENT_AID);
-      card.authenticate(true);
+      card.authenticate(false);
       success(card, 0x51, grant("tokenHash", new byte[32]));
       Map<String, Object> stored = grants(card).get(0);
       byte[] expected = MessageDigest.getInstance("SHA-256").digest(client.token);
@@ -115,7 +132,7 @@ public class MonoidAppletGrantTest {
       );
 
       card.reset();
-      card.authenticate(true);
+      card.authenticate(false);
       assertValueEquals(stored, grants(card).get(0));
       Assertions.assertEquals(1, client.hashCalls);
     }
@@ -125,7 +142,7 @@ public class MonoidAppletGrantTest {
   public void keepsExactCustomTypesAndWritableFlags() {
     try (Card card = new Card(true)) {
       installClient(card, CLIENT_AID);
-      card.authenticate(true);
+      card.authenticate(false);
       List<Object> permissions = types(
         0x1000,
         false,
@@ -183,7 +200,7 @@ public class MonoidAppletGrantTest {
       );
       Map<String, Object> seed = fields("index", seedIndex, "domain", bytes("passkey"));
       List<Object> permissions = types(0xF001, true);
-      card.authenticate(true);
+      card.authenticate(false);
 
       for (Map<String, Object> requested : Arrays.asList(
         grant("types", permissions),
@@ -208,7 +225,7 @@ public class MonoidAppletGrantTest {
     try (Card card = new Card(true)) {
       installClient(card, CLIENT_AID);
       byte[] seedIndex = card.create("seed", null, null, sequence(64), true);
-      card.authenticate(true);
+      card.authenticate(false);
       success(
         card,
         0x51,
@@ -251,7 +268,7 @@ public class MonoidAppletGrantTest {
       scalar[31] = 1;
       byte[] keyIndex = card.create("secp256r1", null, null, scalar, true);
       byte[] dataIndex = card.create(customIndex(701), null, null, sequence(64), false);
-      card.authenticate(true);
+      card.authenticate(false);
       success(card, 0x51, grant("types", types(0x1000, false)));
       Map<String, Object> original = grants(card).get(0);
 
@@ -312,7 +329,7 @@ public class MonoidAppletGrantTest {
   public void callbackFailuresAndInvalidHashLengthsLeaveTheGrantUnchanged() {
     try (Card card = new Card(true)) {
       AppletGrantClient client = installClient(card, CLIENT_AID);
-      card.authenticate(true);
+      card.authenticate(false);
       success(card, 0x51, grant("types", types(0x1000, false)));
       Map<String, Object> original = grants(card).get(0);
 
@@ -337,23 +354,21 @@ public class MonoidAppletGrantTest {
   }
 
   @Test
-  public void secretAuthorizationIsRecheckedAfterTheClientCallback() throws Exception {
+  public void accessAuthorizationIsRecheckedAfterTheClientCallback() throws Exception {
     try (Card card = new Card(true)) {
       AppletGrantClient client = installClient(card, CLIENT_AID);
-      card.authenticate(true);
+      card.authenticate(false);
       success(card, 0x51, grant("types", types(0x1000, false)));
       Map<String, Object> original = grants(card).get(0);
-      Field pinField = MonoidIdentityApplet.class.getDeclaredField("secretPIN");
-      pinField.setAccessible(true);
-      SecretPIN secretPIN = (SecretPIN) pinField.get(
-        SimulatorSystem.instance().lookupApplet(IDENTITY_AID).getApplet()
-      );
-      client.onHash = secretPIN::clearAuth;
+      Field authField = Command.class.getDeclaredField("auth");
+      authField.setAccessible(true);
+      short[] auth = (short[]) authField.get(null);
+      client.onHash = () -> Arrays.fill(auth, (short) 0);
 
       assertError(transmit(card, 0x51, grant("types", types(0x1001, true))), "UNAUTHORIZED");
       assertError(transmit(card, 0x50, fields()), "UNAUTHORIZED");
       client.onHash = null;
-      card.authenticate(true);
+      card.authenticate(false);
       assertValueEquals(original, grants(card).get(0));
       success(card, 0x51, grant("types", types(0x1001, true)));
     }
@@ -364,7 +379,7 @@ public class MonoidAppletGrantTest {
     try (Card card = new Card(true)) {
       installClient(card, CLIENT_AID);
       installClient(card, OTHER_CLIENT_AID);
-      card.authenticate(true);
+      card.authenticate(false);
       success(card, 0x51, grant("types", types(0x1000, false)));
       Map<String, Object> other = fields(
         "aid",
@@ -403,7 +418,7 @@ public class MonoidAppletGrantTest {
     try (Card card = new Card(true)) {
       installClient(card, CLIENT_AID);
       card.create(customIndex(702), null, null, new byte[] { 1 }, false);
-      card.authenticate(true);
+      card.authenticate(false);
       success(card, 0x51, grant("types", types(0x1000, true)));
       card.reset();
       assertEmptyResponse(card.success(0xFF, fields()));

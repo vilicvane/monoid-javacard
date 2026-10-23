@@ -12,6 +12,10 @@ import monoidlib.CBORReader;
 
 final class Authenticator {
 
+  // @formatter:off
+  private static final byte[] SCOPE_LABEL = {'m','o','n','o','i','d',' ','f','i','d','o','2',' ','s','c','o','p','e',':',' '};
+  // @formatter:on
+
   final CredentialStore credentials = new CredentialStore();
   final ClientPIN pin = new ClientPIN();
   final RandomData random = RandomData.getInstance(RandomData.ALG_KEYGENERATION);
@@ -33,6 +37,18 @@ final class Authenticator {
 
   void hash(byte[] value, short offset, short length, byte[] result) {
     sha256.doFinal(value, offset, length, result, (short) 0);
+  }
+
+  void selectScope(Monoid monoid) {
+    byte[] buffer = APDU.getCurrentAPDUBuffer();
+    short length = (short) (Constants.DERIVATION_CONTEXT.length + 64);
+
+    // A separate purpose, padded to the credential context length, reuses Monoid's frame.
+    Util.arrayFillNonAtomic(buffer, (short) 0, length, (byte) 0);
+    Util.arrayCopyNonAtomic(SCOPE_LABEL, (short) 0, buffer, (short) 0, (short) SCOPE_LABEL.length);
+    monoid.getMonoid001PublicKey(buffer, (short) 0, length, buffer, (short) 0);
+    sha256.doFinal(buffer, (short) 0, (short) 65, buffer, (short) 0);
+    credentials.setScope(buffer, (short) 0);
   }
 
   void assertCredentialKey(Monoid monoid, Credential credential) {

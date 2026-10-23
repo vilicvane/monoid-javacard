@@ -19,9 +19,9 @@ import monoidlib.Utils;
 
 final class Credential implements SafeDataShareable {
 
-  static final short READ_BUFFER_LENGTH = 256;
-  private static final short REQUIRED_FIELDS = 0x019F;
-  private static final short STATE_LENGTH = 11;
+  static final short READ_BUFFER_LENGTH = 320;
+  private static final short REQUIRED_FIELDS = 0x039F;
+  private static final short STATE_LENGTH = 12;
   private static final short LENGTH = 0;
   private static final short ID = 1;
   private static final short RP_HASH = 2;
@@ -33,12 +33,14 @@ final class Credential implements SafeDataShareable {
   private static final short USER_DISPLAY_NAME_LENGTH = 8;
   private static final short PUBLIC_KEY = 9;
   private static final short RESIDENT = 10;
+  private static final short SCOPE = 11;
 
   // One private record owns every field. Neither APDU scratch nor a foreign array is retained.
   private final byte[] data;
   private final short[] state;
   private final byte[] stateSnapshot;
   private final CBORReader reader;
+  private final byte[] label = new byte[19];
   private CBORBufferWriter writer;
 
   private Credential(short capacity) {
@@ -59,6 +61,7 @@ final class Credential implements SafeDataShareable {
   Credential(
     byte[] id,
     byte[] rpHash,
+    byte[] scope,
     byte[] rpId,
     byte[] userId,
     byte[] userName,
@@ -69,6 +72,7 @@ final class Credential implements SafeDataShareable {
     this(
       id,
       rpHash,
+      scope,
       new CredentialInput(rpId, userId, userName, userDisplayName),
       resident,
       publicKey
@@ -78,17 +82,19 @@ final class Credential implements SafeDataShareable {
   private Credential(
     byte[] id,
     byte[] rpHash,
+    byte[] scope,
     CredentialInput input,
     boolean resident,
     byte[] publicKey
   ) {
-    this(encodedLength(id, rpHash, input));
-    encode(id, rpHash, input, resident, publicKey);
+    this(encodedLength(id, rpHash, scope, input));
+    encode(id, rpHash, scope, input, resident, publicKey);
   }
 
   static Credential create(
     byte[] id,
     byte[] rpHash,
+    byte[] scope,
     byte[] rpId,
     byte[] userId,
     byte[] userName,
@@ -100,6 +106,7 @@ final class Credential implements SafeDataShareable {
     return create(
       id,
       rpHash,
+      scope,
       new CredentialInput(rpId, userId, userName, userDisplayName),
       resident,
       publicKey,
@@ -110,19 +117,21 @@ final class Credential implements SafeDataShareable {
   static Credential create(
     byte[] id,
     byte[] rpHash,
+    byte[] scope,
     CredentialInput input,
     boolean resident,
     byte[] publicKey,
     Credential reusable
   ) {
-    Credential credential = workspace(encodedLength(id, rpHash, input), reusable);
-    credential.encode(id, rpHash, input, resident, publicKey);
+    Credential credential = workspace(encodedLength(id, rpHash, scope, input), reusable);
+    credential.encode(id, rpHash, scope, input, resident, publicKey);
     return credential;
   }
 
   private void encode(
     byte[] id,
     byte[] rpHash,
+    byte[] scope,
     CredentialInput input,
     boolean resident,
     byte[] publicKey
@@ -137,7 +146,7 @@ final class Credential implements SafeDataShareable {
     state[USER_DISPLAY_NAME] = 0;
     state[USER_DISPLAY_NAME_LENGTH] = 0;
     writer.map(
-      (short) (7 +
+      (short) (8 +
         (input.length(CredentialInput.USER_NAME) < 0 ? 0 : 1) +
         (input.length(CredentialInput.USER_DISPLAY_NAME) < 0 ? 0 : 1))
     );
@@ -174,7 +183,12 @@ final class Credential implements SafeDataShareable {
     // A generated point may be in the larger APDU scratch buffer.
     writer.bytes(publicKey, (short) 0, (short) 65);
     state[PUBLIC_KEY] = (short) (writer.getLength() - 65);
+
+    writer.integer((short) 10);
+    writer.bytes(scope);
+    state[SCOPE] = (short) (writer.getLength() - scope.length);
     state[LENGTH] = writer.getLength();
+    updateLabel();
   }
 
   static Credential read(
@@ -250,7 +264,7 @@ final class Credential implements SafeDataShareable {
     // Stored records are flat maps. Read each value once, still accepting any field order.
     for (short index = 0; index < count; index++) {
       short field = reader.integer();
-      if (field >= 1 && field <= 9) {
+      if (field >= 1 && field <= 10) {
         short bit = (short) (1 << (field - 1));
         if ((seen & bit) != 0) {
           ISOException.throwIt(CTAP.INVALID_CBOR);
@@ -290,6 +304,9 @@ final class Credential implements SafeDataShareable {
         case 9:
           state[PUBLIC_KEY] = fixedBytes(reader, (short) 65);
           break;
+        case 10:
+          state[SCOPE] = fixedBytes(reader, (short) 32);
+          break;
         default:
           reader.skip();
       }
@@ -301,10 +318,11 @@ final class Credential implements SafeDataShareable {
       ISOException.throwIt(CTAP.MISSING_PARAMETER);
     }
     state[LENGTH] = length;
+    updateLabel();
   }
 
   void assertMetadata(byte[] index, short offset, byte[] key) {
-    if (!matchesIndex(index, offset) || key == null || !matchesRP(key)) {
+    if (!matchesIndex(index, offset) || key == null || !matchesKey(key)) {
       ISOException.throwIt(CTAP.OTHER);
     }
   }
@@ -354,10 +372,11 @@ final class Credential implements SafeDataShareable {
     return Util.arrayCompare(data, state[ID], id, offset, (short) 32) == 0;
   }
 
-  boolean matchesRP(byte[] rpHash) {
+  boolean matchesKey(byte[] key) {
     return (
-      rpHash.length == 32 &&
-      Util.arrayCompare(data, state[RP_HASH], rpHash, (short) 0, (short) 32) == 0
+      key.length == 64 &&
+      Util.arrayCompare(data, state[SCOPE], key, (short) 0, (short) 32) == 0 &&
+      Util.arrayCompare(data, state[RP_HASH], key, (short) 32, (short) 32) == 0
     );
   }
 
@@ -392,9 +411,16 @@ final class Credential implements SafeDataShareable {
   }
 
   byte[] key() {
-    byte[] key = Utils.makeGlobalByteArray((short) 32);
-    copyRPHash(key, (short) 0);
+    byte[] key = Utils.makeGlobalByteArray((short) 64);
+    writeKey(key, (short) 0);
     return key;
+  }
+
+  short writeKey(byte[] dest, short offset) {
+    Util.arrayCopyNonAtomic(data, state[SCOPE], dest, offset, (short) 32);
+    copyRPHash(dest, (short) (offset + 32));
+
+    return 64;
   }
 
   byte[] index() {
@@ -403,22 +429,24 @@ final class Credential implements SafeDataShareable {
 
   boolean create(Monoid monoid, byte[] window) {
     short length = getLength();
-    if (length > (short) (window.length - 10)) {
+    if (length > (short) (window.length - 74)) {
       return monoid.create(index(), key(), null, this, false) != null;
     }
     Util.setShort(window, (short) 0, CREDENTIAL_TYPE);
     Util.arrayCopyNonAtomic(data, state[ID], window, (short) 2, (short) 8);
-    read((short) 0, window, (short) 10, length);
-    // The key already occurs in the copied record; all three input ranges can share the APDU.
+    writeKey(window, (short) 10);
+    read((short) 0, window, (short) 74, length);
+
+    // Index, lookup key and record share separate ranges of the borrowed APDU buffer.
     return monoid.createData(
       window,
       (short) 0,
       window,
-      (short) (10 + state[RP_HASH]),
-      (short) 32,
+      (short) 10,
+      (short) 64,
       null,
       window,
-      (short) 10,
+      (short) 74,
       length,
       false
     );
@@ -484,28 +512,78 @@ final class Credential implements SafeDataShareable {
   }
 
   void writeUser(CBORWriter writer, boolean verified) {
+    boolean unnamed = state[USER_NAME] == 0 && state[USER_DISPLAY_NAME] == 0;
+
     writer.map(
       (short) (1 +
         (verified && state[USER_NAME] != 0 ? 1 : 0) +
-        (verified && state[USER_DISPLAY_NAME] != 0 ? 1 : 0))
+        (verified && (state[USER_DISPLAY_NAME] != 0 || unnamed) ? 1 : 0))
     );
     writer.text(KEY_ID);
     writer.bytes(data, state[USER_ID], state[USER_ID_LENGTH]);
+
     if (verified && state[USER_NAME] != 0) {
       writer.text(KEY_NAME);
-      writer.text(data, state[USER_NAME], state[USER_NAME_LENGTH]);
+      writeName(writer, state[USER_NAME], state[USER_NAME_LENGTH]);
     }
+
     if (verified && state[USER_DISPLAY_NAME] != 0) {
       writer.text(KEY_DISPLAY_NAME);
-      writer.text(data, state[USER_DISPLAY_NAME], state[USER_DISPLAY_NAME_LENGTH]);
+      writeName(writer, state[USER_DISPLAY_NAME], state[USER_DISPLAY_NAME_LENGTH]);
+    } else if (verified && unnamed) {
+      writer.text(KEY_DISPLAY_NAME);
+      writer.text(label, (short) 1, (short) 18);
     }
   }
 
-  private static short encodedLength(byte[] id, byte[] rpHash, CredentialInput input) {
+  private void writeName(CBORWriter writer, short offset, short length) {
+    if (length == 0) {
+      writer.text(label, (short) 1, (short) 18);
+      return;
+    }
+
+    if (length > 45) {
+      length = 45;
+
+      // Keep the complete index visible within CTAP's 64-byte name limit.
+      while ((data[(short) (offset + length)] & 0xC0) == 0x80) {
+        length--;
+      }
+    }
+
+    writer.textLength((short) (length + label.length));
+    writer.rawBytes(data, offset, length);
+    writer.rawBytes(label, (short) 0, (short) label.length);
+  }
+
+  private void updateLabel() {
+    label[0] = ' ';
+    label[1] = '[';
+
+    for (short index = 0; index < 8; index++) {
+      byte value = data[(short) (state[ID] + index)];
+      label[(short) (2 + index * 2)] = hex((byte) ((value >> 4) & 0x0F));
+      label[(short) (3 + index * 2)] = hex((byte) (value & 0x0F));
+    }
+
+    label[18] = ']';
+  }
+
+  private static byte hex(byte value) {
+    return (byte) (value < 10 ? '0' + value : 'A' + value - 10);
+  }
+
+  private static short encodedLength(
+    byte[] id,
+    byte[] rpHash,
+    byte[] scope,
+    CredentialInput input
+  ) {
     // Map, version, resident and the fixed 65-byte public key occupy 73 bytes.
     short length = (short) (73 +
       fieldLength((short) id.length) +
-      fieldLength((short) rpHash.length));
+      fieldLength((short) rpHash.length) +
+      fieldLength((short) scope.length));
     for (short field = 0; field < 4; field++) {
       length += fieldLength(input.length(field));
     }

@@ -11,6 +11,7 @@ import static monoidsecuritykey.Constants.SAFE_TRUE;
 
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
+import javacard.framework.Util;
 import monoid.Monoid;
 import monoidlib.CBORMap;
 import monoidlib.CBORReader;
@@ -26,6 +27,7 @@ final class CommandGetAssertion extends Command {
   private final CBORMap descriptor = new CBORMap(descriptorFields);
   private final byte[] rpHash = new byte[32];
   private final byte[] clientDataHash = new byte[32];
+  private final byte[] assertionScope = new byte[32];
 
   private final Object[] pending = JCSystem.makeTransientObjectArray(
     (short) 3,
@@ -80,6 +82,8 @@ final class CommandGetAssertion extends Command {
     }
 
     Monoid monoid = MonoidSecurityKeyApplet.connect();
+    authenticator.selectScope(monoid);
+
     Credential selected = null;
     CredentialStore.Selection credentials = null;
     if (fields.key((short) 3)) {
@@ -115,6 +119,13 @@ final class CommandGetAssertion extends Command {
     pending[0] = count > 1 ? credentials : null;
     pending[1] = clientDataHash;
     pending[2] = rpHash;
+    Util.arrayCopyNonAtomic(
+      authenticator.credentials.scope,
+      (short) 0,
+      assertionScope,
+      (short) 0,
+      (short) assertionScope.length
+    );
     state[0] = 0;
     state[1] = verified ? SAFE_TRUE : SAFE_FALSE;
     state[2] = presence ? SAFE_TRUE : SAFE_FALSE;
@@ -126,6 +137,22 @@ final class CommandGetAssertion extends Command {
       ISOException.throwIt(CTAP.NOT_ALLOWED);
     }
     Monoid monoid = MonoidSecurityKeyApplet.connect();
+    authenticator.selectScope(monoid);
+
+    if (
+      Util.arrayCompare(
+        assertionScope,
+        (short) 0,
+        authenticator.credentials.scope,
+        (short) 0,
+        (short) assertionScope.length
+      ) !=
+      0
+    ) {
+      clearAssertion();
+      ISOException.throwIt(CTAP.NOT_ALLOWED);
+    }
+
     CredentialStore.Selection credentials = (CredentialStore.Selection) pending[0];
     // A new APDU obtains fresh handles, so deletion or grant revocation takes effect immediately.
     Credential credential = authenticator.credentials.find(

@@ -126,11 +126,12 @@ public class CredentialStoreTest {
 
   @Test
   public void directCreateReservesTheIndexAtTheExactWindowBoundary() {
-    for (int length : new int[] { 101, 102 }) {
+    for (int length : new int[] { 3, 4 }) {
       byte[] id = new byte[32];
       id[0] = (byte) length;
       Credential credential = new Credential(
         id,
+        new byte[32],
         new byte[32],
         new byte[length],
         new byte[] { 1 },
@@ -139,7 +140,7 @@ public class CredentialStoreTest {
         false,
         new byte[65]
       );
-      Assertions.assertEquals(length + 149, credential.getLength());
+      Assertions.assertEquals(length + 183, credential.getLength());
       store.creating = credential;
       Assertions.assertTrue(
         credential.create(store.service, Utils.makeGlobalByteArray((short) 260))
@@ -252,7 +253,39 @@ public class CredentialStoreTest {
     Assertions.assertEquals(Arrays.asList(retry), store.items);
   }
 
+  @Test
+  public void residentReplacementPreservesOtherScopesInBothSearchPaths() {
+    byte[] activeScope = new byte[32];
+    activeScope[0] = 1;
+
+    for (int count : new int[] { 3, 5 }) {
+      store = new MemoryStore();
+      Credential inactive = credential(1, 1, 1, true);
+      store.add(inactive);
+
+      for (int id = 2; id < count + 2; id++) {
+        store.add(credential(id, 1, 1, true, activeScope));
+      }
+
+      Credential replacement = credential(10, 1, 1, true, activeScope);
+      credentials.setScope(activeScope, (short) 0);
+      save(replacement);
+
+      Assertions.assertEquals(Arrays.asList(inactive, replacement), store.items);
+      Assertions.assertEquals(count > CredentialStore.DISCOVERY_CAPACITY ? 1 : 0, store.iterators);
+
+      credentials.setScope(new byte[32], (short) 0);
+      Credential returned = credential(11, 1, 1, true);
+      save(returned);
+      Assertions.assertEquals(Arrays.asList(replacement, returned), store.items);
+    }
+  }
+
   private static Credential credential(int id, int rp, int user, boolean resident) {
+    return credential(id, rp, user, resident, new byte[32]);
+  }
+
+  private static Credential credential(int id, int rp, int user, boolean resident, byte[] scope) {
     byte[] credentialId = new byte[32];
     credentialId[0] = (byte) id;
     byte[] rpHash = new byte[32];
@@ -260,6 +293,7 @@ public class CredentialStoreTest {
     return new Credential(
       credentialId,
       rpHash,
+      scope,
       new byte[] { (byte) rp },
       new byte[] { (byte) user },
       null,
@@ -277,6 +311,7 @@ public class CredentialStoreTest {
     return Credential.create(
       credentialId,
       rpHash,
+      new byte[32],
       new byte[] { 1 },
       new byte[] { 1 },
       null,
@@ -490,7 +525,7 @@ public class CredentialStoreTest {
     private List<Credential> selected(byte[] key) {
       List<Credential> selected = new ArrayList<>();
       for (Credential item : items) {
-        if (item.matchesRP(key)) {
+        if (item.matchesKey(key)) {
           selected.add(item);
         }
       }

@@ -19,11 +19,7 @@ final class AppletGrants {
   }
 
   void assertManagement() {
-    Command.requireAuth(Command.AUTH_SECRET);
-
-    if (safe.getPINValidationResult() != Constants.SAFE_TRUE) {
-      MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
-    }
+    safe.checkAccess();
   }
 
   AppletGrant[] list() {

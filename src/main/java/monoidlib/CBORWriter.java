@@ -60,6 +60,11 @@ public abstract class CBORWriter {
     bytesLike(CBOR.TYPE_TEXT, value, (short) 0, (short) value.length);
   }
 
+  /** Starts one UTF-8 text string whose content is subsequently written with rawBytes. */
+  public void textLength(short length) {
+    metadataUnsignedInteger(CBOR.TYPE_TEXT, length);
+  }
+
   private void bytesLike(byte type, byte[] in, short valueOffset, short valueLength) {
     metadataUnsignedInteger(type, valueLength);
     rawBytes(in, valueOffset, valueLength);

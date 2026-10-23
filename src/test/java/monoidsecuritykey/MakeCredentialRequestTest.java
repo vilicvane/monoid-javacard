@@ -319,6 +319,7 @@ public class MakeCredentialRequestTest {
     Credential credential = Credential.create(
       new byte[32],
       new byte[32],
+      new byte[32],
       input,
       resident,
       new byte[65],

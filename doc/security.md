@@ -53,13 +53,14 @@ secrets has a raw export interface.
 | First Secret PIN setup                                                              | No prior PIN when Secret PIN is unset; initializes Access PIN if it is unset. Initial provisioning must be trusted.                                      |
 | Change either PIN                                                                   | Secret authorization once Secret PIN is configured. Access authorization is insufficient.                                                                |
 | List, View, Get, Set, Create, Remove, Create random key, View Key, Sign             | Access or Secret authorization. Safe storage also requires Secret PIN to be set and unblocked. Get additionally checks `secret`.                         |
+| List, Set, Remove applet grants                                                     | Access or Secret authorization. Secret PIN must be set and unblocked; its verification is not required.                                                  |
 | Export, Import, Create Bundle, Join Bundle, Extend Bundle, Approve Bundle Extension | Secret authorization, independently checked inside Identity. Bundle management also requires the fixed Monoid caller AID.                                |
 | Reset                                                                               | No PIN. Verifies Identity binding and the fixed Monoid caller AID; clears items/cache/Bundle, both PINs and authorization, and generates a new Identity. |
 | GP deletion/recreation                                                              | Card-management authorization; not authorized or prevented by either PIN.                                                                                |
 
 Access PIN is not a read-only permission: it permits signing and item mutations,
-including replacement and deletion. Secret PIN includes ordinary access and adds
-PIN management, encrypted export/import, Bundle management and applet-grant management. See the commands for exact
+including replacement and deletion, and delegation through applet grants. Secret PIN includes ordinary access and adds
+PIN management, encrypted export/import and Bundle management. See the commands for exact
 inputs and error behavior.
 
 APDU authorization is scoped to Monoid selection and is cleared by deselection,
@@ -76,11 +77,11 @@ Each PIN has a configured five-attempt budget. An Authenticate request checks th
 PIN once; redundant checks inspect the result/state rather than consuming three
 attempts.
 
-The `0x50`–`0x52` commands manage applet grants under Secret PIN authorization.
+The `0x50`–`0x52` commands manage applet grants under Access or Secret PIN authorization.
 Grants belong to Monoid's private directory and cannot be addressed, exported or
 imported as ordinary Safe items. Set validates the source descriptors, reads the
 installed client's token hash through `MonoidClientShareable`, and rechecks
-command authorization and Identity PIN validation after each client callback.
+command authorization and Identity's initialized/unblocked state after each client callback.
 It publishes the entire replacement atomically. Remove is idempotent; factory
 Reset clears grants in the same transaction as the protected data.
 
@@ -88,7 +89,7 @@ The client privately generates a random 32-byte installation token. Its public
 hash is an enrollment identifier, not code attestation or evidence of FIDO PIN
 verification. Monoid stores owned bytes and descriptors, not persistent client
 AID objects or Shareable references. Reinstalling a client does not update the
-stored grant automatically; enrolling its new token requires Secret PIN again.
+stored grant automatically; enrolling its new token requires Access or Secret PIN again.
 
 The public `Monoid` Shareable interface authenticates the private token, binds
 the session to the runtime caller and rechecks the current immutable grant on
@@ -117,6 +118,9 @@ data, with RP binding and complete random credential-ID checks. Generic Monoid
 management and backup remain permitted; this is not FIDO certification isolation.
 Software UP is enabled; UV is set only after valid FIDO PIN-token authentication.
 The counter is zero, and self attestation does not establish manufacturer identity.
+Access authorization can delegate the same seed/domain to another client. FIDO PIN
+protects the Security Key entry point; it is not an additional card-wide factor
+for equivalent signing through Monoid's other authorized interfaces.
 Local FIDO Reset requires no FIDO PIN but does require writable Type authorization;
 it commits removal of FIDO records before separately clearing the FIDO PIN, retaining
 Monoid/Identity data, their PINs, the seed and the grant. Revoking the grant prevents
