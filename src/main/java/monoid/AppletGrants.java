@@ -4,6 +4,8 @@ import javacard.framework.AID;
 import javacard.framework.JCSystem;
 import javacard.framework.Shareable;
 import javacard.security.MessageDigest;
+import monoidlib.LibSecurity;
+import monoidlib.Utils;
 
 final class AppletGrants {
 

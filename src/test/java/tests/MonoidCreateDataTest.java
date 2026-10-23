@@ -7,7 +7,7 @@ import monoid.Monoid;
 import monoid.SafeDataShareable;
 import monoid.SafeItemIteratorShareable;
 import monoid.SafeItemShareable;
-import monoid.Utils;
+import monoidlib.Utils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

@@ -3,6 +3,8 @@ package monoid;
 import static monoid.Constants.SAFE_FALSE;
 import static monoid.Constants.SAFE_TRUE;
 
+import monoidlib.LibSecurity;
+
 public class CommandGet extends Command {
 
   private final SafeDataResponse response = new SafeDataResponse();

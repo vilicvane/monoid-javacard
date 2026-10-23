@@ -4,6 +4,7 @@ import javacard.framework.Util;
 import javacard.security.MessageDigest;
 import monoidlib.CBOR;
 import monoidlib.CBORMap;
+import monoidlib.Utils;
 
 public class CommandSign extends Command {
 

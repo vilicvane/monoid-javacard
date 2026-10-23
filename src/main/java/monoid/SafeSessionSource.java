@@ -4,9 +4,10 @@ import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
+import monoidlib.Utils;
 
 /** Operation-local adapter. Client objects are never retained in persistent fields. */
-final class SafeSessionSource implements SafeDataSource {
+final class SafeSessionSource extends SafeDataSource {
 
   private final MonoidSession session;
   private final Object[] source = JCSystem.makeTransientObjectArray(

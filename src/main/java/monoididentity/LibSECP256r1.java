@@ -4,9 +4,8 @@ import javacard.security.ECKey;
 
 public final class LibSECP256r1 {
 
-  // @formatter:off
   // @inplate {{{secp256r1Parameters}}}
-
+  // @formatter:off
   public static final byte FP[] = {
       (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x01,
       (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
@@ -46,9 +45,8 @@ public final class LibSECP256r1 {
       (byte) 0xBC, (byte) 0xE6, (byte) 0xFA, (byte) 0xAD, (byte) 0xA7, (byte) 0x17, (byte) 0x9E, (byte) 0x84,
       (byte) 0xF3, (byte) 0xB9, (byte) 0xCA, (byte) 0xC2, (byte) 0xFC, (byte) 0x63, (byte) 0x25, (byte) 0x51
   };
-
-  // @end
   // @formatter:on
+  // @end
 
   public static final short K = 1;
 

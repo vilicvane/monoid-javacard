@@ -8,6 +8,7 @@ import monoidlib.CBORApduReader;
 import monoidlib.CBORReader;
 import monoidlib.CBORResponse;
 import monoidlib.CBORWriter;
+import monoidlib.Utils;
 
 public final class CommandCreateBundle extends Command implements CBORResponse {
 
@@ -49,7 +50,7 @@ public final class CommandCreateBundle extends Command implements CBORResponse {
         3)
     );
 
-    byte[] publicKeys = Utils.makePrivateByteArray((short) (count * PUBLIC_KEY_LENGTH));
+    byte[] publicKeys = new byte[(short) (count * PUBLIC_KEY_LENGTH)];
 
     for (short index = 0; index < count; index++) {
       short offset = reader.getOffset();

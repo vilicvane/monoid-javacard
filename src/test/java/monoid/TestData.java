@@ -5,7 +5,7 @@ import javacard.framework.JCSystem;
 import main.ShareableSimulatorRuntime;
 import org.junit.jupiter.api.Assertions;
 
-class TestData implements SafeDataSource {
+class TestData extends SafeDataSource {
 
   static class Runtime extends ShareableSimulatorRuntime {
 

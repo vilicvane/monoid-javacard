@@ -5,6 +5,7 @@ import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import monoididentity.CommunicationDataShareable;
 import monoididentity.IdentityShareable;
+import monoidlib.Utils;
 
 /** Moves item data across the Identity firewall without exposing communication keys. */
 public class ItemCipher {
@@ -75,7 +76,7 @@ public class ItemCipher {
     }
   }
 
-  static final class Result implements SafeDataSource {
+  static final class Result extends SafeDataSource {
 
     private final Safe safe;
     private final CommunicationDataShareable data;

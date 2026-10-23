@@ -10,6 +10,8 @@ import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.CryptoException;
 import javacard.security.MessageDigest;
+import monoidlib.LibSecurity;
+import monoidlib.Utils;
 
 final class MonoidSession implements Monoid {
 
@@ -628,7 +630,7 @@ final class MonoidSession implements Monoid {
 
     if (framedContext == null || framedContext.length != length) {
       derivedKey = null;
-      byte[] input = Utils.makePrivateByteArray(length);
+      byte[] input = new byte[length];
       Util.arrayCopyNonAtomic(
         CONTEXT_LABEL,
         (short) 0,

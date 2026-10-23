@@ -2,6 +2,7 @@ package monoid;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
+import monoidlib.Utils;
 
 final class SafeSessionItem implements SafeItemShareable {
 

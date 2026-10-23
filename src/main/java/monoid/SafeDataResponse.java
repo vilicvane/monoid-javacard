@@ -5,6 +5,7 @@ import javacard.framework.JCSystem;
 import monoidlib.CBORApduWriter;
 import monoidlib.CBORResponse;
 import monoidlib.CBORWriter;
+import monoidlib.Utils;
 
 public class SafeDataResponse implements CBORResponse {
 

@@ -8,6 +8,7 @@ import javacard.framework.JCSystem;
 import javacard.security.CryptoException;
 import monoidlib.CBORApduReader;
 import monoidlib.CBORApduWriter;
+import monoidlib.LibSecurity;
 
 public abstract class Command {
 

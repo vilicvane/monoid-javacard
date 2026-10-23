@@ -4,6 +4,7 @@ import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
+import monoidlib.Utils;
 
 public class SafeItem {
 
@@ -73,7 +74,7 @@ public class SafeItem {
 
   public byte[] getIndex() {
     safe.assertAccess();
-    return Utils.duplicateAsPrivate(index);
+    return Utils.duplicateAsPersistent(index);
   }
 
   public short getIndex(byte[] dest, short offset) {
@@ -85,7 +86,7 @@ public class SafeItem {
 
   public byte[] getKey() {
     safe.assertAccess();
-    return key != null ? Utils.duplicateAsPrivate(key) : null;
+    return key != null ? Utils.duplicateAsPersistent(key) : null;
   }
 
   public short getKey(byte[] dest, short offset) {
@@ -102,7 +103,7 @@ public class SafeItem {
 
   public byte[] getAlias() {
     safe.assertAccess();
-    return this.alias != null ? Utils.duplicateAsPrivate(this.alias) : null;
+    return this.alias != null ? Utils.duplicateAsPersistent(this.alias) : null;
   }
 
   public short getAlias(byte[] dest, short offset) {
@@ -149,7 +150,7 @@ public class SafeItem {
     short length = data.getLength();
     safe.assertAccess();
     safe.checkStorage(length);
-    byte[] replacement = Utils.duplicateAsPersistent(data, length);
+    byte[] replacement = data.duplicateAsPersistent(length);
     safe.assertAccess();
     publish(replacement, state.secret);
   }
@@ -159,7 +160,7 @@ public class SafeItem {
     short length = data.getLength();
     safe.assertAccess();
     safe.checkStorage(length);
-    byte[] replacement = Utils.duplicateAsPersistent(data, length);
+    byte[] replacement = data.duplicateAsPersistent(length);
     safe.assertAccess();
     publish(replacement, secret ? Constants.SAFE_TRUE : Constants.SAFE_FALSE);
   }

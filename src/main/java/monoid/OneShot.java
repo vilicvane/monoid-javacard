@@ -6,6 +6,7 @@ import javacard.security.MessageDigest;
 import javacard.security.RandomData;
 import javacard.security.Signature;
 import javacardx.crypto.Cipher;
+import monoidlib.Utils;
 
 /**
  * This is a utility class that provides OneShot fallback for JCardSim.

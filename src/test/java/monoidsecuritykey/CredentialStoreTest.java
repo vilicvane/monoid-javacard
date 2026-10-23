@@ -16,6 +16,7 @@ import javax.smartcardio.ResponseAPDU;
 import monoid.Monoid;
 import monoid.SafeItemIteratorShareable;
 import monoid.SafeItemShareable;
+import monoidlib.Utils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -118,7 +119,7 @@ public class CredentialStoreTest {
 
     Credential next = credential(2, 1, 1, false);
     store.creating = next;
-    Assertions.assertTrue(next.create(store.service, Utils.global((short) 133)));
+    Assertions.assertTrue(next.create(store.service, Utils.makeGlobalByteArray((short) 133)));
     Assertions.assertEquals(1, store.callbackCreates);
     Assertions.assertTrue(store.items.get(1).sameId(next));
   }
@@ -140,7 +141,9 @@ public class CredentialStoreTest {
       );
       Assertions.assertEquals(length + 149, credential.getLength());
       store.creating = credential;
-      Assertions.assertTrue(credential.create(store.service, Utils.global((short) 260)));
+      Assertions.assertTrue(
+        credential.create(store.service, Utils.makeGlobalByteArray((short) 260))
+      );
     }
     Assertions.assertEquals(1, store.directCreates);
     Assertions.assertEquals(1, store.callbackCreates);

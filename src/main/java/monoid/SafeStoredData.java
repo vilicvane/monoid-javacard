@@ -2,7 +2,7 @@ package monoid;
 
 import javacard.framework.Util;
 
-public class SafeStoredData implements SafeDataSource {
+public class SafeStoredData extends SafeDataSource {
 
   private final Safe safe;
   private final byte[] data;

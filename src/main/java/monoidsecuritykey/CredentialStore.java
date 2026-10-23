@@ -10,6 +10,7 @@ import monoid.Monoid;
 import monoid.SafeDataShareable;
 import monoid.SafeItemIteratorShareable;
 import monoid.SafeItemShareable;
+import monoidlib.Utils;
 
 final class CredentialStore {
 
@@ -141,7 +142,7 @@ final class CredentialStore {
       ) {
         if (previous == null) {
           previous = new SafeItemShareable[size];
-          itemIndex = Utils.global((short) 10);
+          itemIndex = Utils.makeGlobalByteArray((short) 10);
         }
         Util.arrayCopyNonAtomic(indices, offset, itemIndex, (short) 0, (short) 10);
         previous[count++] = monoid.get(itemIndex);
@@ -233,7 +234,7 @@ final class CredentialStore {
     if (length <= window.length) {
       credential = read(window, length);
     } else {
-      byte[] index = Utils.global((short) 10);
+      byte[] index = Utils.makeGlobalByteArray((short) 10);
       Util.arrayCopyNonAtomic(indices, offset, index, (short) 0, (short) 10);
       credential = read(monoid.get(index));
     }
@@ -242,12 +243,12 @@ final class CredentialStore {
   }
 
   private Selection discoverAll(Monoid monoid, byte[] rpHash) {
-    byte[] key = Utils.global(rpHash);
+    byte[] key = Utils.duplicateAsGlobal(rpHash);
     SafeItemIteratorShareable iterator = monoid.list(CREDENTIAL_TYPE, key);
     byte[] ids = new byte[(short) (iterator.getCount() * 32)];
     short count = 0;
     Credential first = null;
-    byte[] index = Utils.global((short) 10);
+    byte[] index = Utils.makeGlobalByteArray((short) 10);
     byte[] window = APDU.getCurrentAPDUBuffer();
     short length;
     while (

@@ -1,6 +1,7 @@
 package monoid;
 
 import javacard.security.ECPrivateKey;
+import monoidlib.Utils;
 
 public abstract class WeierstrassCurve {
 

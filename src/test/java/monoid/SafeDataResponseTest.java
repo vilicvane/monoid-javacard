@@ -158,7 +158,7 @@ public class SafeDataResponseTest {
     }
   }
 
-  private static class TestData implements SafeDataSource {
+  private static class TestData extends SafeDataSource {
 
     final byte[] data;
     int reads;

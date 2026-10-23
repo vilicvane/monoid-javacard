@@ -13,6 +13,8 @@ import javacard.security.MessageDigest;
 import monoididentity.CommunicationDataShareable;
 import monoididentity.IdentityShareable;
 import monoidlib.CBORReader;
+import monoidlib.LibSecurity;
+import monoidlib.Utils;
 
 public final class Safe {
 
@@ -109,7 +111,7 @@ public final class Safe {
 
   void initializeIdentity() {
     if (identityToken == null) {
-      identityToken = Utils.duplicateAsPrivate(getIdentity().getToken());
+      identityToken = Utils.duplicateAsPersistent(getIdentity().getToken());
     }
   }
 
@@ -147,7 +149,7 @@ public final class Safe {
     IdentityShareable identity = requireIdentity();
     SafeItem[] emptyItems = new SafeItem[ITEM_LENGTH_EXTENSION];
     OwnerPIN accessPIN = new OwnerPIN(MonoidApplet.PIN_TRY_LIMIT, MonoidApplet.MAX_PIN_LENGTH);
-    byte[] token = Utils.duplicateAsPrivate(identity.prepareReset());
+    byte[] token = Utils.duplicateAsPersistent(identity.prepareReset());
     JCSystem.beginTransaction();
 
     try {
@@ -515,7 +517,7 @@ public final class Safe {
     short dataLength = data.getLength();
     assertAccess();
     checkStorage((short) (dataLength + getItemTableExtensionLength()));
-    byte[] storedData = Utils.duplicateAsPersistent(data, dataLength);
+    byte[] storedData = data.duplicateAsPersistent(dataLength);
     assertAccess();
 
     return finishCreate(index, key, alias, storedData, secret);
@@ -621,10 +623,10 @@ public final class Safe {
     // Reserve the cross-applet read buffer.
     byte[] buffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) 64);
 
-    index = Utils.duplicateAsPrivate(index);
-    key = key != null ? Utils.duplicateAsPrivate(key) : null;
-    alias = alias != null ? Utils.duplicateAsPrivate(alias) : null;
-    senderPublicKey = senderPublicKey != null ? Utils.duplicateAsPrivate(senderPublicKey) : null;
+    index = Utils.duplicateAsPersistent(index);
+    key = key != null ? Utils.duplicateAsPersistent(key) : null;
+    alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
+    senderPublicKey = senderPublicKey != null ? Utils.duplicateAsPersistent(senderPublicKey) : null;
 
     CommunicationDataShareable plaintext = requireItemCipher().decrypt(
       requireIdentity(),
@@ -977,14 +979,15 @@ public final class Safe {
 
     switch (type) {
       case TYPE_WEIERSTRASS_SECP256K1:
-        if (length != CurveSECP256k1.KEY_LENGTH || Utils.isZero(readData(data))) {
+        if (length != CurveSECP256k1.KEY_LENGTH || Utils.isZero(data.duplicateAsPersistent())) {
           SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
         }
 
         return type;
       case TYPE_WEIERSTRASS_SECP256R1:
         if (
-          length != CurveSECP256r1.KEY_LENGTH || !isValidScalar(readData(data), CurveSECP256r1.R)
+          length != CurveSECP256r1.KEY_LENGTH ||
+          !isValidScalar(data.duplicateAsPersistent(), CurveSECP256r1.R)
         ) {
           SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
         }
@@ -1022,12 +1025,6 @@ public final class Safe {
 
     SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     return type;
-  }
-
-  public static byte[] readData(SafeDataSource data) {
-    byte[] buffer = new byte[data.getLength()];
-    data.read((short) 0, buffer, (short) 0, (short) buffer.length);
-    return buffer;
   }
 
   private static boolean isValidScalar(byte[] data, byte[] order) {

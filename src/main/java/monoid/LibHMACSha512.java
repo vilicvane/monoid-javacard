@@ -144,7 +144,7 @@ public final class LibHMACSha512 {
   }
 
   public static byte[] digest(byte[] key, byte[] data) {
-    byte[] out = Utils.makePrivateByteArray(OUT_BYTES);
+    byte[] out = new byte[OUT_BYTES];
 
     digest(
       key,

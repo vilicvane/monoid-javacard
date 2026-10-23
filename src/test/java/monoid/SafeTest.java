@@ -13,6 +13,7 @@ import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import monoididentity.MonoidIdentityApplet;
 import monoidlib.CBORBufferWriter;
+import monoidlib.Utils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

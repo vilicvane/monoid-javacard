@@ -3,16 +3,19 @@
 import {Handlebars} from 'inplate';
 import {readFileSync} from 'node:fs';
 
-// Applet packages cannot export ordinary helper classes to another CAP.
+// Identity stays independent of the shared library CAP.
 const libSecuritySource = readFileSync(
-  new URL('./src/main/java/monoid/LibSecurity.java', import.meta.url),
+  new URL('./src/main/java/monoidlib/LibSecurity.java', import.meta.url),
   'utf8',
 );
-const identityLibSecurity = libSecuritySource.replace('package monoid;', 'package monoididentity;');
+const identityLibSecurity = libSecuritySource.replace(
+  'package monoidlib;',
+  'package monoididentity;',
+);
 const secp256r1Parameters = readFileSync(
   new URL('./src/main/java/monoid/CurveSECP256r1.java', import.meta.url),
   'utf8',
-).match(/\/\/ @formatter:off([\s\S]*?)\/\/ @formatter:on/)[1];
+).match(/\/\/ @formatter:off[\s\S]*?\/\/ @formatter:on/)[0];
 
 const MONOID_VERSION = Buffer.from([0x00, 0x00]);
 
@@ -45,7 +48,7 @@ const data = {
 };
 
 const securityKeySources = Object.fromEntries(
-  ['monoid/LibSecurity', 'monoididentity/LibHMACSha256'].map(source => {
+  ['monoididentity/LibHMACSha256'].map(source => {
     const name = source.split('/')[1];
     const content = readFileSync(
       new URL(`./src/main/java/${source}.java`, import.meta.url),
@@ -68,7 +71,7 @@ export default {
   'scripts/uninstall.ps1': {data, commentStyles: ['#']},
   'src/main/java/*/Constants.java': {data},
   'src/main/java/monoididentity/LibSecurity.java': {
-    template: '// Generated from monoid/LibSecurity.java by Inplate.\n{{{identityLibSecurity}}}',
+    template: '// Generated from monoidlib/LibSecurity.java by Inplate.\n{{{identityLibSecurity}}}',
     data: {identityLibSecurity},
   },
   'src/main/java/monoididentity/LibSECP256r1.java': {data: {secp256r1Parameters}},

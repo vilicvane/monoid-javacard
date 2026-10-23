@@ -17,6 +17,7 @@ import javacard.security.KeyPair;
 import javacard.security.MessageDigest;
 import javacard.security.RandomData;
 import javacardx.crypto.Cipher;
+import monoidlib.LibSecurity;
 
 /** CTAP 2.0 ClientPIN protocol 1. */
 public final class ClientPIN {

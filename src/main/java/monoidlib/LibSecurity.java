@@ -1,9 +1,12 @@
-package monoid;
+package monoidlib;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 
 public final class LibSecurity {
+
+  public static final short SAFE_FALSE = (short) 0xA501;
+  public static final short SAFE_TRUE = (short) 0x5AFE;
 
   private static final short CHECK_ROUNDS = 3;
 
@@ -11,8 +14,8 @@ public final class LibSecurity {
     boolean check();
   }
 
-  static short check(byte[] expected, byte[] actual, short conservativeResult) {
-    if (conservativeResult != Constants.SAFE_FALSE && conservativeResult != Constants.SAFE_TRUE) {
+  public static short check(byte[] expected, byte[] actual, short conservativeResult) {
+    if (conservativeResult != SAFE_FALSE && conservativeResult != SAFE_TRUE) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
     }
 
@@ -24,7 +27,7 @@ public final class LibSecurity {
         return conservativeResult;
       }
 
-      short result = Constants.SAFE_FALSE;
+      short result = SAFE_FALSE;
 
       if (expected != null && expected.length == actual.length) {
         short difference = 0;
@@ -33,7 +36,7 @@ public final class LibSecurity {
           difference |= expected[index] ^ actual[index];
         }
 
-        result = difference == 0 ? Constants.SAFE_TRUE : Constants.SAFE_FALSE;
+        result = difference == 0 ? SAFE_TRUE : SAFE_FALSE;
       }
 
       if (result == conservativeResult) {
@@ -56,7 +59,7 @@ public final class LibSecurity {
   }
 
   public static short check(Condition condition, short conservativeResult) {
-    if (conservativeResult != Constants.SAFE_FALSE && conservativeResult != Constants.SAFE_TRUE) {
+    if (conservativeResult != SAFE_FALSE && conservativeResult != SAFE_TRUE) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
     }
 
@@ -68,7 +71,7 @@ public final class LibSecurity {
         return conservativeResult;
       }
 
-      short result = condition.check() ? Constants.SAFE_TRUE : Constants.SAFE_FALSE;
+      short result = condition.check() ? SAFE_TRUE : SAFE_FALSE;
 
       if (result == conservativeResult) {
         return conservativeResult;

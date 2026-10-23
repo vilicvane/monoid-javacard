@@ -3,6 +3,7 @@ package monoid;
 import javacard.framework.Util;
 import monoidlib.CBOR;
 import monoidlib.CBORMap;
+import monoidlib.Utils;
 
 public final class CommandViewKey extends Command {
 

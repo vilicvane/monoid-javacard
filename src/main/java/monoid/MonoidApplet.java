@@ -10,6 +10,7 @@ import javacard.framework.AppletEvent;
 import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
 import javacard.framework.Shareable;
+import monoidlib.LibSecurity;
 
 public class MonoidApplet extends Applet implements AppletEvent {
 

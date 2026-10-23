@@ -15,6 +15,7 @@ import monoid.SafeItemShareable;
 import monoidlib.CBORBufferWriter;
 import monoidlib.CBORReader;
 import monoidlib.CBORWriter;
+import monoidlib.Utils;
 
 final class Credential implements SafeDataShareable {
 
@@ -391,7 +392,7 @@ final class Credential implements SafeDataShareable {
   }
 
   byte[] key() {
-    byte[] key = Utils.global((short) 32);
+    byte[] key = Utils.makeGlobalByteArray((short) 32);
     copyRPHash(key, (short) 0);
     return key;
   }
@@ -428,20 +429,20 @@ final class Credential implements SafeDataShareable {
   }
 
   private static byte[] index(byte[] id, short offset) {
-    byte[] index = Utils.global((short) 10);
+    byte[] index = Utils.makeGlobalByteArray((short) 10);
     Util.setShort(index, (short) 0, CREDENTIAL_TYPE);
     Util.arrayCopyNonAtomic(id, offset, index, (short) 2, (short) 8);
     return index;
   }
 
   byte[] context() {
-    byte[] context = Utils.global((short) (Constants.DERIVATION_CONTEXT.length + 64));
+    byte[] context = Utils.makeGlobalByteArray((short) (Constants.DERIVATION_CONTEXT.length + 64));
     writeContext(context, (short) 0);
     return context;
   }
 
   static byte[] context(byte[] id, byte[] rpHash) {
-    byte[] context = Utils.global((short) (Constants.DERIVATION_CONTEXT.length + 64));
+    byte[] context = Utils.makeGlobalByteArray((short) (Constants.DERIVATION_CONTEXT.length + 64));
     writeContext(id, rpHash, context, (short) 0);
     return context;
   }

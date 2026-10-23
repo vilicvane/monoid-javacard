@@ -1,6 +1,7 @@
 package monoid;
 
 import javacard.security.CryptoException;
+import monoidlib.Utils;
 
 /** Monoid-001 HKDF-SHA512 derivation. Initialize LibHMACSha512 before use. */
 public final class Monoid001Derivation extends KeyDerivation {

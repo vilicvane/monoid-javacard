@@ -11,6 +11,7 @@ import javacard.security.ECPrivateKey;
 import javacard.security.KeyAgreement;
 import javacard.security.KeyBuilder;
 import javacard.security.MessageDigest;
+import monoidlib.Utils;
 
 public class CurveED25519 extends EdwardsCurve {
 

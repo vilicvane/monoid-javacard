@@ -3,6 +3,7 @@ package monoid;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.Util;
+import monoidlib.Utils;
 
 /** SLIP-0010 hardened Ed25519 derivation. Initialize LibHMACSha512 before use. */
 public final class SLIP10Ed25519Derivation extends KeyDerivation {

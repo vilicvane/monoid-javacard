@@ -8,6 +8,7 @@ import javacard.security.MessageDigest;
 import javacard.security.Signature;
 import javacardx.crypto.Cipher;
 import monoidlib.ByteSource;
+import monoidlib.Utils;
 
 public final class Keystore {
 
@@ -415,6 +416,6 @@ public final class Keystore {
   }
 
   private byte[] requireKey(byte[] index) {
-    return Safe.readData(safe.require(index).getData());
+    return safe.require(index).getData().duplicateAsPersistent();
   }
 }

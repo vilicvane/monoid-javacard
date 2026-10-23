@@ -3,6 +3,7 @@ package monoid;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import monoidlib.ByteSource;
+import monoidlib.Utils;
 
 public final class LibED25519 {
 

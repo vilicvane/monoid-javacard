@@ -1,6 +1,7 @@
 package monoid;
 
 import javacard.framework.JCSystem;
+import monoidlib.Utils;
 
 public abstract class KeyDerivation {
 

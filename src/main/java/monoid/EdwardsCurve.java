@@ -1,5 +1,7 @@
 package monoid;
 
+import monoidlib.Utils;
+
 public abstract class EdwardsCurve {
 
   // @formatter:off

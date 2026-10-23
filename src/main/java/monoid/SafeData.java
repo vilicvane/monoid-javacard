@@ -5,8 +5,9 @@ import javacard.framework.ISOException;
 import javacard.framework.Util;
 import monoidlib.ByteSource;
 import monoidlib.CBORReader;
+import monoidlib.Utils;
 
-public class SafeData implements SafeDataSource {
+public class SafeData extends SafeDataSource {
 
   private final byte[] data;
   private final ByteSource source;

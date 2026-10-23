@@ -1,9 +1,11 @@
 package monoidsecuritykey;
 
+import monoidlib.LibSecurity;
+
 public final class Constants {
 
-  public static final short SAFE_FALSE = (short) 0xA501;
-  public static final short SAFE_TRUE = (short) 0x5AFE;
+  public static final short SAFE_FALSE = LibSecurity.SAFE_FALSE;
+  public static final short SAFE_TRUE = LibSecurity.SAFE_TRUE;
   public static final short CREDENTIAL_TYPE = (short) 0xF101;
 
   // prettier-ignore

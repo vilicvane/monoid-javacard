@@ -1,6 +1,7 @@
 package monoid;
 
 import javacard.framework.Util;
+import monoidlib.Utils;
 
 /** Persistent derivation result. Working keys are copied into operation-local storage. */
 public final class DerivedKey {
@@ -16,7 +17,7 @@ public final class DerivedKey {
   }
 
   public byte[] getKey() {
-    return Utils.duplicateAsPrivate(key);
+    return Utils.duplicateAsPersistent(key);
   }
 
   public byte[] getPublicKey(WeierstrassCurve curve) {
@@ -35,12 +36,12 @@ public final class DerivedKey {
       return result;
     }
 
-    return Utils.duplicateAsPrivate(publicKey);
+    return Utils.duplicateAsPersistent(publicKey);
   }
 
   byte[] getUncompressedPublicKey(CurveSECP256r1 curve) {
     if (uncompressedPublicKey == null) {
-      byte[] result = Utils.makePrivateByteArray((short) 65);
+      byte[] result = new byte[65];
       curve.deriveUncompressedPublicKey(
         curve.getSharedPrivateKey(key, (short) 0),
         result,

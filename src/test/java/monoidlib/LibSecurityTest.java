@@ -1,4 +1,4 @@
-package monoid;
+package monoidlib;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
@@ -15,9 +15,9 @@ public class LibSecurityTest {
       expected[index] = (byte) (index * 17);
     }
 
-    for (short conservativeResult : new short[] { Constants.SAFE_FALSE, Constants.SAFE_TRUE }) {
+    for (short conservativeResult : new short[] { LibSecurity.SAFE_FALSE, LibSecurity.SAFE_TRUE }) {
       Assertions.assertEquals(
-        Constants.SAFE_TRUE,
+        LibSecurity.SAFE_TRUE,
         LibSecurity.check(expected, expected.clone(), conservativeResult)
       );
 
@@ -27,7 +27,7 @@ public class LibSecurityTest {
           actual[index] ^= (byte) (1 << bit);
 
           Assertions.assertEquals(
-            Constants.SAFE_FALSE,
+            LibSecurity.SAFE_FALSE,
             LibSecurity.check(expected, actual, conservativeResult)
           );
         }
@@ -38,7 +38,7 @@ public class LibSecurityTest {
       actual[31] ^= (byte) 0x80;
 
       Assertions.assertEquals(
-        Constants.SAFE_FALSE,
+        LibSecurity.SAFE_FALSE,
         LibSecurity.check(expected, actual, conservativeResult)
       );
     }
@@ -46,17 +46,17 @@ public class LibSecurityTest {
 
   @Test
   public void missingOrDifferentLengthBindingsDoNotMatch() {
-    for (short conservativeResult : new short[] { Constants.SAFE_FALSE, Constants.SAFE_TRUE }) {
+    for (short conservativeResult : new short[] { LibSecurity.SAFE_FALSE, LibSecurity.SAFE_TRUE }) {
       Assertions.assertEquals(
-        Constants.SAFE_FALSE,
+        LibSecurity.SAFE_FALSE,
         LibSecurity.check(null, new byte[32], conservativeResult)
       );
       Assertions.assertEquals(
-        Constants.SAFE_FALSE,
+        LibSecurity.SAFE_FALSE,
         LibSecurity.check(new byte[32], new byte[31], conservativeResult)
       );
       Assertions.assertEquals(
-        Constants.SAFE_FALSE,
+        LibSecurity.SAFE_FALSE,
         LibSecurity.check(new byte[32], new byte[33], conservativeResult)
       );
     }
@@ -64,23 +64,23 @@ public class LibSecurityTest {
 
   @Test
   public void falseIsConservativeForValidation() {
-    assertResult(Constants.SAFE_FALSE, Constants.SAFE_TRUE, 3, true, true, true);
-    assertResult(Constants.SAFE_FALSE, Constants.SAFE_FALSE, 1, false, true, true);
-    assertResult(Constants.SAFE_FALSE, Constants.SAFE_FALSE, 2, true, false, true);
-    assertResult(Constants.SAFE_FALSE, Constants.SAFE_FALSE, 3, true, true, false);
+    assertResult(LibSecurity.SAFE_FALSE, LibSecurity.SAFE_TRUE, 3, true, true, true);
+    assertResult(LibSecurity.SAFE_FALSE, LibSecurity.SAFE_FALSE, 1, false, true, true);
+    assertResult(LibSecurity.SAFE_FALSE, LibSecurity.SAFE_FALSE, 2, true, false, true);
+    assertResult(LibSecurity.SAFE_FALSE, LibSecurity.SAFE_FALSE, 3, true, true, false);
   }
 
   @Test
   public void trueIsConservativeForBlocking() {
-    assertResult(Constants.SAFE_TRUE, Constants.SAFE_FALSE, 3, false, false, false);
-    assertResult(Constants.SAFE_TRUE, Constants.SAFE_TRUE, 1, true, false, false);
-    assertResult(Constants.SAFE_TRUE, Constants.SAFE_TRUE, 2, false, true, false);
-    assertResult(Constants.SAFE_TRUE, Constants.SAFE_TRUE, 3, false, false, true);
+    assertResult(LibSecurity.SAFE_TRUE, LibSecurity.SAFE_FALSE, 3, false, false, false);
+    assertResult(LibSecurity.SAFE_TRUE, LibSecurity.SAFE_TRUE, 1, true, false, false);
+    assertResult(LibSecurity.SAFE_TRUE, LibSecurity.SAFE_TRUE, 2, false, true, false);
+    assertResult(LibSecurity.SAFE_TRUE, LibSecurity.SAFE_TRUE, 3, false, false, true);
   }
 
   @Test
   public void corruptedConservativeValuesCannotSelectAnotherPolicy() {
-    for (short conservativeResult : new short[] { Constants.SAFE_FALSE, Constants.SAFE_TRUE }) {
+    for (short conservativeResult : new short[] { LibSecurity.SAFE_FALSE, LibSecurity.SAFE_TRUE }) {
       for (int bit = 0; bit < 16; bit++) {
         short corrupted = (short) (conservativeResult ^ (1 << bit));
 

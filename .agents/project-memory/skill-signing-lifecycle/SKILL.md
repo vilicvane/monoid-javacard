@@ -5,7 +5,9 @@ description: Monoid Java Card signing workload and RAM lifecycle assumptions. Us
 
 # Monoid Java Card signing lifecycle
 
-Source: `../records.md`, records 12–20, 34, 37–43, 47–51, 57–61, 63–71, 73–80, 106, 111–113, 115–116, 121–127, 132–133, 136, 142–147, 165–172, 174–176 and 178–180. Treat these records and their references as authoritative and keep them up to date.
+Source: `../records.md`, records 12–20, 34, 37–43, 47–51, 57–61, 63–71, 73–80, 106, 111–113, 115–116, 121–127, 132–133, 136, 142–147, 165–172, 174–176 and 178–181. Treat these records and their references as authoritative and keep them up to date.
+
+- Record181 moves stateless LibSecurity and byte-array Utils to monoidlib for Monoid and Security Key. Keep authorization state and private allocations in caller context, with global arrays remaining JCRE-owned. SafeDataSource is a Monoid-local abstract class and owns its 256B-chunk persistent-copy methods; do not put source-specific copying into the byte-array library or Safe/SafeData helpers. Use new byte[] or duplicateAsPersistent instead of obsolete private-allocation aliases. Identity retains an Inplate-generated local LibSecurity and no library dependency. P-256 static parameter arrays stay local: Java Card3.0.5 library CAPs require array_init_count=0. Do not add shared mutable static objects to bypass that restriction or assume code sharing reduces RAM.
 
 - Record180 completes the J3R452 full four-CAP layout after diagnosing cold Hello, Ed25519 output and Bundle response allocation failures. Keep low-write private inputs, expanded keys, public/signature outputs, metadata and credential data persistent; keep authorization/session validity and parser cursors transient, and retain RAM for high-frequency arithmetic. Required cross-Applet global arrays remain global. HMAC-SHA512 KeyBuilder capacity is512bits for64B, with a persistent shared key; software128B padding is lazy/shared and absent on the native backend. Identity reuses its64B HMAC pad and persistent AES keys. The shared-ECDH experiment was reverted. APIs, real caches and GC policy remain unchanged.
 

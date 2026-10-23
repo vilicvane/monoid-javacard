@@ -2,6 +2,7 @@ package monoid;
 
 import javacard.framework.Util;
 import javacard.security.ECPrivateKey;
+import monoidlib.Utils;
 
 public final class BIP32Derivation extends KeyDerivation {
 
