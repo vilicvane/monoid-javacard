@@ -7,9 +7,11 @@ public final class CommandJoinBundle extends Command {
     requireAuth(AUTH_SECRET);
 
     reader.map();
-    byte[] senderPublicKey = reader.requireKey(Text.senderPublicKey).bytesGlobal((short) 65);
+
+    byte[] publicKey = reader.requireKey(Text.publicKey).bytesGlobal((short) 65);
     byte[] data = reader.requireKey(Text.data).bytesGlobal();
-    byte[] bundle = MonoidApplet.safe.joinBundle(senderPublicKey, data);
+
+    byte[] bundle = MonoidApplet.safe.joinBundle(publicKey, data);
 
     writer.map((short) 1);
     {

@@ -1,16 +1,18 @@
 # Bundle
 
-A Bundle shares one random 32-byte key among a fixed set of card identities.
+A Bundle shares one random 32-byte key among enrolled card identities.
 Identity generates and retains the key; Monoid and the host receive only encrypted
 enrollment packets and `SHA-256(key)`. The hash is the `bundle` value returned by
 Hello and Bundle management. It covers the key alone, not a protocol
 version or member list.
 
-Bundle management uses Secret PIN and `0x23 Create Bundle` and `0x24 Join Bundle`,
-defined in [README](../README.md#0x23-create-bundle).
+Bundle management uses Secret PIN and `0x23 Create Bundle`, `0x24 Join Bundle`,
+`0x25 Extend Bundle` and `0x26 Approve Bundle Extension`, defined in
+[README](../README.md#0x23-create-bundle).
 Access PIN and item data remain in Monoid; Secret PIN, its retry state, the Bundle
-key and membership remain in Identity across Monoid reinstallation.
-Identity restricts Bundle creation, joining and clearing to Monoid's exact fixed AID.
+key and enrollment snapshot remain in Identity across Monoid reinstallation.
+Identity restricts Bundle creation, joining, extension and clearing
+to Monoid's exact fixed AID.
 Other applets can use encrypted transfer after their own Secret PIN verification,
 but cannot change this shared configuration.
 
@@ -18,35 +20,107 @@ but cannot change this shared configuration.
 
 1. Read Hello from every intended card and retain its full `publicKey`.
 2. On any one card A, authenticate with the Secret PIN and call Create Bundle with
-   the complete `publicKeys` list, including A. The response contains `bundle` and all
-   recipient `packets`, in request-list order with A omitted. Keep the packets,
-   A's public key and the full Bundle hash.
+   only the other cards' `publicKeys`. The response contains the newly generated
+   `bundle` hash and one encrypted byte-array `data[i]` for each
+   `publicKeys[i]`, in the same order. Keep that association, A's public key and
+   the full Bundle hash.
 3. Visit the recipients in any order. Authenticate with each card's Secret PIN and
-   call Join Bundle with A's `senderPublicKey` and that recipient's
-   packet `data`. Compare the returned `bundle` with A's full hash immediately.
+   call Join Bundle with A's Identity key as `publicKey` and that recipient's
+   packet as `data`. Compare the returned `bundle` with A's full hash immediately.
 
 No return visit to A, final verification round or extra Hello call is required.
 Hello serves ordinary card discovery. The host tracks completion separately for
 each card. A matching response hash confirms that the card reports the same stored
 key; it is not an authenticated receipt sent back to A.
 
-Generation requires at least two distinct public keys and includes the local
-Identity. It sorts the full 65-byte keys lexicographically by unsigned bytes for
-the authenticated member list. The response packets retain request order.
-Membership is fixed for that key. Create rejects an existing Bundle, including
-when the same list is supplied. An enrollment packet must include both the receiving
-Identity and its authenticated sender in its membership.
+Create requires at least one recipient, rejects duplicates and the local public
+key, and adds the local Identity internally. It sorts the full 65-byte keys
+lexicographically by unsigned bytes for the authenticated enrollment snapshot.
+The response packets retain request order; public keys are not echoed.
+Create rejects an existing Bundle, including when the same list is supplied.
+An enrollment packet must include both the receiving Identity and its
+authenticated sender in its member list.
 
 Identity finishes encrypting every recipient packet before publishing the new
 local Bundle. A failed packet preparation leaves the card without a Bundle.
 
-Join commits the key and membership together. Rejoining the same key and membership
-succeeds unchanged; a different key or list conflicts. Interrupted recipient
+Join commits the key and enrollment snapshot together. Rejoining the same key
+succeeds unchanged, retaining the local snapshot; a different key conflicts. Interrupted recipient
 initialization can resume with the saved packets. Create cannot be replayed to
 recover lost packets once the Bundle exists. There is no atomic commit across all
 cards, and one unavailable member does not roll back other members.
 
+## Extension
+
+Adding C requires two distinct existing members A and B, each verifying its own
+Secret PIN inside Identity. Read C's full Identity public key first, then:
+
+1. On A, call `0x25 Extend Bundle` with `{publicKey: C}`. Retain its `data`.
+   Identity authenticates its own public key, the current Bundle hash
+   and C's full public key with a dedicated Bundle-root HMAC and Identity signature.
+2. On B, retain the `bundle` from Hello and call `0x26 Approve Bundle Extension`
+   with A's `{data}` response. B verifies both proofs, including that A is a
+   different Identity holding the same Bundle key. It returns `{publicKey, data}`:
+   B's actual Identity public key and an encrypted enrollment packet for C.
+3. On C, forward B's response unchanged to `0x24 Join Bundle`, under C's own
+   Secret PIN. Verify the returned Bundle hash against B's Hello value.
+
+Extend's `data` is an opaque, authenticated request bound to the initiator,
+target and Bundle. The host forwards it unchanged; the target cannot be replaced
+on B. Approve's `data` is an encrypted enrollment packet addressed to C, and its
+`publicKey` identifies B, not C. Neither result gives the host the Bundle key.
+
+Create returns `bundle` because it generates a new key. Extend and Approve keep
+the existing key and do not return a separate `bundle` field. Join returns the hash of the key
+actually installed, allowing the host to confirm the result without another scan.
+Join uses `publicKey` to authenticate the HPKE sender. The approving card returns
+that key directly, so the host need not assemble or look up a separate sender field.
+
+Data transfer and approval eligibility are separate checks. Data transfer verifies
+the derived sender key and payload tag without consulting the enrollment snapshot.
+Extension requires both proof of the same Bundle root and a signature by another
+Identity. The HMAC alone cannot prove a second Identity participated; the signature
+alone cannot prove that its signer holds the Bundle key. Both bind the actual
+initiator and the specified target in a domain unavailable to ordinary item transfer.
+
+After Join, C can immediately exchange data and participate in further extensions.
+No return visit to A, member-list synchronization or final proof installation is
+needed. Extend and Approve leave A's and B's persistent Bundle configuration unchanged.
+The stored member list records enrollment, not a live authorization roster.
+
+Retain `data` until C joins. Requests bind one target identity and may be retried
+for that target; Approve can regenerate its encrypted packet. There is no
+simultaneous-presence requirement, request expiry or revocation. One surviving
+member cannot authorize another member alone. Ordinary item encryption cannot
+produce an extension request or release the Bundle key.
+
+Extension retains the Bundle key, Hello hash and per-sender keys. Existing
+ciphertext remains usable, and C can decrypt historical artifacts from other
+members. Adding a replacement card does not revoke a lost card; transferring
+resources to a new Bundle is a separate operation.
+
 ## Enrollment packet
+
+The extension request is encoded separately from enrollment:
+
+```text
+statement = 01 || bundleHash[32] || initiatorPublicKey[65] || targetPublicKey[65]
+domain = "Monoid Bundle Extension"
+mac = HMAC-SHA256(bundleKey, domain || statement)
+signature = ECDSA-SHA256(identityPrivateKey, domain || statement || mac)
+
+data = statement || mac[32] || u8(signatureLength) || signature
+```
+
+The signature uses ASN.1 DER encoding, at most 72 bytes. The packet must end
+exactly after the declared signature. The initiator's actual Identity fills its
+public key and Bundle hash; callers supply only the target. The confirming
+Identity rejects its own public key as initiator and verifies both MAC and
+signature before encrypting the root for the bound target.
+
+The extension enrollment packet uses the same format below. Its snapshot is the
+confirming card's stored snapshot plus the target if absent, sorted without
+duplicates. This does not update the confirming card's local snapshot.
 
 Public keys are 65-byte uncompressed SEC 1 P-256 points. `u16` is unsigned
 big-endian; labels are ASCII without a terminator.
@@ -63,7 +137,7 @@ The sender is the exporting Identity and the recipient is the selected member.
 The HPKE `info` binds the version and complete sorted membership. The total packet
 length is `116 + 65 * memberCount` bytes.
 
-The member list is public; the Bundle key is encrypted. Identity checks the list,
+The enrollment snapshot is public; the Bundle key is encrypted. Identity checks the list,
 recipient, sender and HPKE authentication before committing. Ordinary item
 decryption cannot select this enrollment domain or return the Bundle key.
 Compatibility is determined by supported packet versions, independently of the
@@ -79,16 +153,17 @@ complete runtime caller AID and that public key. The same applet AID on another
 member can import the artifact after Secret authentication. The sender key is
 inside the envelope, so Import needs no separate sender public key.
 
-Identity rejects its own Bundle artifacts, senders outside the fixed membership
-and artifacts from another caller domain. An enrolled card can still import
+Identity rejects its own Bundle artifacts and artifacts from another caller
+domain. Other senders are authenticated by the shared root and derived sender
+key, independently of the local enrollment snapshot. An enrolled card can still import
 asymmetric artifacts from another Identity, but cannot recover its own earlier
 self-addressed asymmetric artifacts. The host cannot choose another sending
 identity for Export. These restrictions are enforced by trusted Identity code;
 symmetric keys themselves are not encryption-only keys.
 
 Other applets can exchange records between cards in their own caller domains
-without gaining access to Monoid's encrypted records. The root key, membership
-and public Bundle hash are shared; the derived sender keys remain inside Identity.
+without gaining access to Monoid's encrypted records. The root key and public
+Bundle hash are shared; the derived sender keys remain inside Identity.
 
 See [item transfer](item-transfer.md) for both formats and key derivation.
 
@@ -105,7 +180,7 @@ secret, clears the token cache and updates Monoid's binding. These persistent
 changes commit in one transaction; success clears current authorization and
 requests garbage collection. A failed transaction retains the previous persistent
 state. It is not a hardware-erasure guarantee.
-The request and response are both `{}`. The former `0x25` instruction is unsupported.
+The request and response are both `{}`.
 
 Anyone able to send Monoid APDUs can clear these records. This is an intentional
 availability boundary, not permission to read or export them. Reset still verifies

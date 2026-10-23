@@ -115,6 +115,8 @@ public class MonoidIdentityAppletTest {
     assertDenied(transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(publicKey, CONTEXT, KEY)));
     assertDenied(transmit(IdentityCallerApplet.CREATE_BUNDLE, publicKey));
     assertDenied(transmit(IdentityCallerApplet.JOIN_BUNDLE, publicKey));
+    assertDenied(transmit(IdentityCallerApplet.EXTEND_BUNDLE, publicKey));
+    assertDenied(transmit(IdentityCallerApplet.APPROVE_BUNDLE_EXTENSION, new byte[0]));
 
     success(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, PIN));
     assertSecretPINSet(true);
@@ -178,6 +180,8 @@ public class MonoidIdentityAppletTest {
     assertDenied(transmit(IdentityCallerApplet.UPDATE_SECRET_PIN, NEW_PIN));
     assertDenied(transmit(IdentityCallerApplet.CREATE_BUNDLE, publicKey));
     assertDenied(transmit(IdentityCallerApplet.JOIN_BUNDLE, publicKey));
+    assertDenied(transmit(IdentityCallerApplet.EXTEND_BUNDLE, publicKey));
+    assertDenied(transmit(IdentityCallerApplet.APPROVE_BUNDLE_EXTENSION, new byte[0]));
 
     select(MONOID_AID);
     assertSecretValidation(false);
@@ -615,10 +619,9 @@ public class MonoidIdentityAppletTest {
     byte[] targetPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     acquire(IDENTITY_AID);
     success(transmit(IdentityCallerApplet.CLEAR_SECRET_AUTH));
-    byte[] members = concat(sourcePublicKey, targetPublicKey);
-    assertDenied(transmit(IdentityCallerApplet.CREATE_BUNDLE, members));
+    assertDenied(transmit(IdentityCallerApplet.CREATE_BUNDLE, targetPublicKey));
     checkSecretPIN(PIN, true);
-    byte[] enrollment = success(transmit(IdentityCallerApplet.CREATE_BUNDLE, members));
+    byte[] enrollment = success(transmit(IdentityCallerApplet.CREATE_BUNDLE, targetPublicKey));
     byte[] bundle = success(transmit(IdentityCallerApplet.GET_BUNDLE));
     byte[] encrypted = success(
       transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(sourcePublicKey, CONTEXT, KEY))
@@ -877,9 +880,7 @@ public class MonoidIdentityAppletTest {
     acquire(OTHER_IDENTITY_AID);
     initializeSecretPIN();
     byte[] senderPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
-    byte[] packet = success(
-      transmit(IdentityCallerApplet.CREATE_BUNDLE, concat(senderPublicKey, publicKey))
-    );
+    byte[] packet = success(transmit(IdentityCallerApplet.CREATE_BUNDLE, publicKey));
     byte[] bundle = success(transmit(IdentityCallerApplet.GET_BUNDLE));
     acquire(IDENTITY_AID);
     Assertions.assertArrayEquals(
@@ -967,21 +968,16 @@ public class MonoidIdentityAppletTest {
       0x9000,
       transmit(
         IdentityCallerApplet.CREATE_BUNDLE,
-        concat(concat(recipientPublicKey, senderPublicKey), invalidPublicKey)
+        concat(recipientPublicKey, invalidPublicKey)
       ).getSW()
     );
     Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_BUNDLE)).length);
-    byte[] envelope = success(
-      transmit(IdentityCallerApplet.CREATE_BUNDLE, concat(recipientPublicKey, senderPublicKey))
-    );
+    byte[] envelope = success(transmit(IdentityCallerApplet.CREATE_BUNDLE, recipientPublicKey));
     byte[] bundle = success(transmit(IdentityCallerApplet.GET_BUNDLE));
     Assertions.assertEquals(32, bundle.length);
     Assertions.assertEquals(
       0x6985,
-      transmit(
-        IdentityCallerApplet.CREATE_BUNDLE,
-        concat(senderPublicKey, recipientPublicKey)
-      ).getSW()
+      transmit(IdentityCallerApplet.CREATE_BUNDLE, recipientPublicKey).getSW()
     );
     Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
 
@@ -1006,7 +1002,7 @@ public class MonoidIdentityAppletTest {
     initializeSecretPIN();
     byte[] otherSenderPublicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
     byte[] conflictingEnvelope = success(
-      transmit(IdentityCallerApplet.CREATE_BUNDLE, concat(otherSenderPublicKey, recipientPublicKey))
+      transmit(IdentityCallerApplet.CREATE_BUNDLE, recipientPublicKey)
     );
     Assertions.assertFalse(
       Arrays.equals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)))
@@ -1031,10 +1027,7 @@ public class MonoidIdentityAppletTest {
       // One false "no Bundle" observation must not replace or bypass the existing Bundle.
       Assertions.assertEquals(
         0x6985,
-        transmit(
-          IdentityCallerApplet.CREATE_BUNDLE,
-          concat(senderPublicKey, recipientPublicKey)
-        ).getSW()
+        transmit(IdentityCallerApplet.CREATE_BUNDLE, senderPublicKey).getSW()
       );
       Assertions.assertArrayEquals(bundle, success(transmit(IdentityCallerApplet.GET_BUNDLE)));
       reads[0] = 0;

@@ -131,7 +131,7 @@ public final class Safe {
     Command.requireAuth(Command.AUTH_SECRET);
     checkAccess();
 
-    return new ItemCipher.Result(
+    return new SafeIdentityData(
       this,
       requireIdentity().createBundle(Utils.duplicateAsGlobal(publicKeys))
     );
@@ -143,6 +143,22 @@ public final class Safe {
     checkAccess();
 
     return requireIdentity().joinBundle(senderPublicKey, data);
+  }
+
+  /** The input must be a global array for the Identity call. */
+  public SafeDataSource extendBundle(byte[] publicKey) {
+    Command.requireAuth(Command.AUTH_SECRET);
+    checkAccess();
+
+    return new SafeIdentityData(this, requireIdentity().extendBundle(publicKey));
+  }
+
+  /** The input must be a global array for the Identity call. */
+  public SafeDataSource approveBundleExtension(byte[] request) {
+    Command.requireAuth(Command.AUTH_SECRET);
+    checkAccess();
+
+    return new SafeIdentityData(this, requireIdentity().approveBundleExtension(request));
   }
 
   public void reset() {

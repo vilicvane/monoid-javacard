@@ -12,6 +12,10 @@ const identityLibSecurity = libSecuritySource.replace(
   'package monoidlib;',
   'package monoididentity;',
 );
+const securityKeyLibHMACSha256 = readFileSync(
+  new URL('./src/main/java/monoididentity/LibHMACSha256.java', import.meta.url),
+  'utf8',
+).replace('package monoididentity;', 'package monoidsecuritykey;');
 const secp256r1Parameters = readFileSync(
   new URL('./src/main/java/monoid/CurveSECP256r1.java', import.meta.url),
   'utf8',
@@ -47,23 +51,6 @@ const data = {
   MONOID_LIB_PACKAGE_AID,
 };
 
-const securityKeySources = Object.fromEntries(
-  ['monoididentity/LibHMACSha256'].map(source => {
-    const name = source.split('/')[1];
-    const content = readFileSync(
-      new URL(`./src/main/java/${source}.java`, import.meta.url),
-      'utf8',
-    ).replace(/^package \w+;/m, 'package monoidsecuritykey;');
-    return [
-      `src/main/java/monoidsecuritykey/${name}.java`,
-      {
-        template: `// Generated from ${source}.java by Inplate.\n{{{content}}}`,
-        data: {content},
-      },
-    ];
-  }),
-);
-
 export default {
   'README.md': {data},
   'doc/architecture.md': {data},
@@ -75,7 +62,11 @@ export default {
     data: {identityLibSecurity},
   },
   'src/main/java/monoididentity/LibSECP256r1.java': {data: {secp256r1Parameters}},
-  ...securityKeySources,
+  'src/main/java/monoidsecuritykey/LibHMACSha256.java': {
+    template:
+      '// Generated from monoididentity/LibHMACSha256.java by Inplate.\n{{{securityKeyLibHMACSha256}}}',
+    data: {securityKeyLibHMACSha256},
+  },
   'src/main/java/monoidsecuritykey/LibSECP256r1.java': {data: {secp256r1Parameters}},
   'src/main/java/main/Run.java': {data},
   'src/test/java/**/*.java': {data},

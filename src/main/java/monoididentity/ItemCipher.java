@@ -248,7 +248,7 @@ final class ItemCipher {
         PUBLIC_KEY_LENGTH,
         buffer
       );
-      bundle.assertMember(senderPublicKey);
+      // The sender's derived key and GCM tag prove Bundle possession without a synced roster.
       assertOtherSender(ownPublicKey, senderPublicKey);
       encryptedData.read(BUNDLE_SALT_OFFSET, buffer, (short) 0, KEY_LENGTH);
       deriveBundleSenderKey(bundle.key, callerBytes, callerLength, senderPublicKey);

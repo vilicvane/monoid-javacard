@@ -67,17 +67,12 @@ public class IdentityTransferBoundaryTest {
       source.reset();
       assertError(source.transmit(0x36, fields("index", index)), "UNAUTHORIZED");
       source.authenticate(true);
-      Result created = source.success(
-        0x23,
-        fields("publicKeys", new byte[][] { sourcePublicKey, targetPublicKey })
-      );
+      Result created = source.success(0x23, fields("publicKeys", new byte[][] { targetPublicKey }));
       byte[] bundle = created.bytes("bundle");
       CBORBufferReader packets = created.reader();
-      Assertions.assertEquals(1, packets.requireKey(ascii("packets")).array());
+      Assertions.assertEquals(1, packets.requireKey(ascii("data")).array());
       Assertions.assertTrue(packets.index((short) 0));
-      packets.map();
-      Assertions.assertArrayEquals(targetPublicKey, packets.requireKey(ascii("publicKey")).bytes());
-      byte[] enrollment = packets.requireKey(ascii("data")).bytes().clone();
+      byte[] enrollment = packets.bytes().clone();
       byte[] exported = source.success(0x36, fields("index", index)).bytes("data");
       Assertions.assertEquals(2, exported[0]);
       Assertions.assertArrayEquals(bundle, Arrays.copyOfRange(exported, 1, 33));
@@ -88,7 +83,7 @@ public class IdentityTransferBoundaryTest {
       Assertions.assertArrayEquals(
         bundle,
         target
-          .success(0x24, fields("senderPublicKey", sourcePublicKey, "data", enrollment))
+          .success(0x24, fields("publicKey", sourcePublicKey, "data", enrollment))
           .bytes("bundle")
       );
       target.reset();

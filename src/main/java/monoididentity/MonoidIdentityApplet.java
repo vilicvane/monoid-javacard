@@ -44,6 +44,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   private byte[] hmacBlock;
   private AESGcmCipher aesGcmCipher;
   private CommunicationCipher communicationCipher;
+  private BundleExtension bundleExtension;
   private ItemCipher itemCipher;
   private Bundle bundle;
   private final byte[] communicationOperation = JCSystem.makeTransientByteArray(
@@ -234,7 +235,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     byte[] ownPublicKey = publicKey();
     CommunicationCipher cipher = requireCommunicationCipher();
     Bundle created = Bundle.create(publicKeys, ownPublicKey, cipher);
-    byte[] packets = created.encryptPackets(publicKeys, ownPublicKey, cipher);
+    byte[] packets = created.encryptPackets(publicKeys, cipher);
     CommunicationData result = new CommunicationData(packets, JCSystem.getPreviousContextAID());
     publishBundle(created);
 
@@ -269,6 +270,32 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     Util.arrayCopyNonAtomic(bundle.hash, (short) 0, hash, (short) 0, MessageDigest.LENGTH_SHA_256);
 
     return hash;
+  }
+
+  @Override
+  public CommunicationDataShareable extendBundle(byte[] publicKey) {
+    assertMonoidCaller();
+    assertCommunicationAvailable();
+    assertSecretAuth();
+    assertBundle();
+
+    byte[] request = requireBundleExtension().extend(bundle, publicKey);
+
+    return new CommunicationData(request, JCSystem.getPreviousContextAID());
+  }
+
+  @Override
+  public CommunicationDataShareable approveBundleExtension(byte[] request) {
+    assertMonoidCaller();
+    assertCommunicationAvailable();
+    assertSecretAuth();
+    assertBundle();
+
+    byte[] recipient = requireBundleExtension().requireRecipientPublicKey(bundle, request);
+
+    byte[] data = bundle.encryptFor(recipient, publicKey(), requireCommunicationCipher());
+
+    return new CommunicationData(data, JCSystem.getPreviousContextAID());
   }
 
   @Override
@@ -309,6 +336,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     nextTokenCacheIndex = 0;
     bundle = null;
     communicationCipher = null;
+    bundleExtension = null;
     preparedReset[0] = null;
     JCSystem.requestObjectDeletion();
   }
@@ -403,6 +431,12 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     return publicKey;
   }
 
+  private void assertBundle() {
+    if (LibSecurity.check(bundleAbsenceValidation, Constants.SAFE_TRUE) != Constants.SAFE_FALSE) {
+      ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+    }
+  }
+
   private void publishBundle(Bundle bundle) {
     JCSystem.beginTransaction();
 
@@ -447,7 +481,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   private byte[] requireHMACBlock() {
     if (hmacBlock == null) {
-      // HPKE finishes before item-key derivation starts; every HMAC replaces the complete pad.
+      // HPKE, item derivation and Bundle requests run in sequence and replace the complete pad.
       hmacBlock = JCSystem.makeTransientByteArray(
         LibHMACSha256.BLOCK_LENGTH,
         JCSystem.CLEAR_ON_RESET
@@ -455,6 +489,14 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     }
 
     return hmacBlock;
+  }
+
+  private BundleExtension requireBundleExtension() {
+    if (bundleExtension == null) {
+      bundleExtension = new BundleExtension(keyPair, requireHMACBlock());
+    }
+
+    return bundleExtension;
   }
 
   private static KeyPair createKeyPair() {

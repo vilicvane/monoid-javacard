@@ -51,8 +51,9 @@ For an item containing `n` data bytes:
 
 The total length is `n + 160` bytes. Identity generates a fresh salt and nonce for
 each Export and writes its own 65-byte public key into the envelope. Import requires
-a local Bundle with the same hash and a sender in its fixed membership other than
-the local Identity. Unknown versions and version `02` envelopes shorter than
+a local Bundle with the same hash, a valid authentication tag and a sender other
+than the local Identity. It does not consult the stored enrollment snapshot.
+Unknown versions and version `02` envelopes shorter than
 160 bytes are rejected. This format replaces the earlier prototype using the same
 version byte; earlier Bundle artifacts are not compatible.
 
@@ -60,7 +61,7 @@ Enrolled cards always export this format, even when `recipientPublicKey` is
 supplied. Import does not need a separate `senderPublicKey`: the full sender key
 is inside the envelope and bound to payload-key derivation. Changing that field
 without recomputing a valid authentication tag cannot impersonate another sender.
-See [Bundle](bundle.md) for enrollment and reinitialization.
+See [Bundle](bundle.md) for enrollment, extension and reinitialization.
 
 ## Metadata context
 
@@ -150,7 +151,8 @@ publish a plaintext result or modify an existing item.
 
 For asymmetric transfer, Export's recipient public key and Import's expected
 sender public key must come from the application's trust decision. For Bundle
-transfer, that decision applies when establishing the fixed membership. Neither
+transfer, that decision applies when choosing the initial members or approving
+a new member through Extend Bundle and Approve Bundle Extension. Neither
 envelope establishes that an unverified public key belongs to the intended
 physical card. The four-byte display ID is not a cryptographic identity fingerprint.
 
@@ -161,6 +163,11 @@ member, after that member's Secret PIN is verified. The sending Identity cannot
 decrypt its own Bundle artifact. This policy is enforced by trusted Identity code;
 a symmetric key has no inherent encryption-only property. A software holder of
 the root could derive every member key, so peer trust remains necessary.
+
+Extension retains the root and sender-key derivation. A new member can immediately
+exchange data with existing members and decrypt their historical artifacts;
+existing members need no member-list update. Extension requests use a separate
+root-HMAC and Identity-signature domain that ordinary item transfer cannot select.
 
 Retaining Identity, Secret PIN and Bundle permits recovery of other members'
 artifacts after Monoid replacement. Previously exported artifacts need no new

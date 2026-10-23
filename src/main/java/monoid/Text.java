@@ -43,7 +43,6 @@ public class Text {
   public static final byte[] persistent = {'p','e','r','s','i','s','t','e','n','t'};
   public static final byte[] pin = {'p','i','n'};
   public static final byte[] pins = {'p','i','n','s'};
-  public static final byte[] packets = {'p','a','c','k','e','t','s'};
   public static final byte[] publicKey = {'p','u','b','l','i','c','K','e','y'};
   public static final byte[] publicKeys = {'p','u','b','l','i','c','K','e','y','s'};
   public static final byte[] reason = {'r','e','a','s','o','n'};

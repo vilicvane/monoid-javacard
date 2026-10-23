@@ -365,3 +365,11 @@
 179. [user] 要求响应缓冲也按需使用持久存储。[agent] 公共Writer动态chunk和流式window完成修改，短响应仍借用APDU；578测试及四CAP验证通过。J3R452实卡600/1536B读写与List通过，Get均值797/1328ms；600B响应采样RAM始终519/512B，临时持久占用548B在收尾恢复。完整布局冷Hello及独立布局首次Ed签名仍INTERNAL。临时包已清理、原registry及暂存内容保留。[blog] 接收与响应的RAM占用需分别检查，见 [响应缓冲按需持久存储](./179.md)。
 
 180. [user] 要求调通J3R452现有Ed25519和完整布局，补齐遗漏内存优化。[agent] 明确定位Hello/Ed/Bundle响应的NO_TRANSIENT_SPACE，整理低写入私有数组、共享HMAC/AES密钥及pad并修正HMAC512bit容量；ECDH合并实验已撤回。最终同一四包安装完成6次FIDO注册/43次断言、28次Ed及22次EC独立验签、1536B读写、32/256/1024B双模式传输、三成员Bundle和通信后签名/复位。Bundle为单实卡加两个软件对端；通信热后RAM771/784B稳定，非峰值。581测试/65套件及四CAP验证通过，120源哈希匹配；临时包清除、原registry及暂存保留，未提交推送。[blog] 见 [完整布局内存整理](./180.md)。
+
+## ac72c0e
+
+181. [user] 阶段性提交推送后继续抽取其他共用部分到lib。[agent] 前阶段已提交推送ac72c0e；后续将无状态LibSecurity及通用Utils移入monoidlib，Identity由模板保留独立实现；SafeDataSource改为抽象类并归入复制方法，删除重复private分配/复制封装，APDU/SIO及内存策略不变。P-256静态数组受library CAP初始化限制暂不抽取。581测试/65套件及四CAP验证通过；J3R452同卡6注册38验签、10项拒绝/恢复检查通过，LOAD减324B，RAM边界不变，持久余量增276B。已知ID/三凭证均值519→590ms、1320→1385ms，各5样本有波动，非孤立分发成本。临时包全清、原registry保留；后续抽取未提交。[blog] 见 [共用安全检查与字节工具](./181.md)。
+
+182. [user] 批准分开数据互通与扩展审批资格，不为互通再刷A；最终批准Create23、Join24、Extend25、Approve Bundle Extension26独立命令及统一data字段，B批准响应直接用于C入组；要求沿用原有风格、多用空行。[agent] Create只收其他卡公钥，返回bundle及按序data数组；Extend publicKey→data，Approve data→{publicKey,data}，Join {publicKey,data}→bundle。root-HMAC加另一Identity签名证明扩展资格，数据解密不查名单，同root重Join幂等。最终593测试/67套件、6项JS及四CAP验证通过，实卡证据仍对应更早版本；详见 [Extend Bundle](./182.md)。
+
+183. [user] 要求将旧版Bundle数据迁移到新卡，并批准临时替换Test 2的Monoid后恢复。[agent] Test 1/Test 2两条相同记录已加密备份；使用旧EXP token15的临时relay在Test 2卡内解密并重加密给新J3R452，明文未出卡。Test 2原程序/记录/Identity/Bundle恢复、临时包全清；新卡两条Import及幂等验证通过，seed派生公钥、普通数据摘要与全部元数据一致，保持未入组。GP 24.10.15的install-only实际空操作，已字节码确认并改用create；见 [旧版Bundle迁移](./183.md)。

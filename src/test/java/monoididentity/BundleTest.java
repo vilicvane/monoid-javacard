@@ -43,9 +43,9 @@ public class BundleTest {
   public void enrollmentMatchesIndependentHpkeAndInstallsTheSamePrivateKey() throws Exception {
     CommunicationCipher sender = communication(1);
     CommunicationCipher receiver = communication(2);
-    byte[] inputMembers = concat(publicKey(2), publicKey(1));
-    Bundle created = Bundle.create(inputMembers, publicKey(1), sender);
-    byte[] envelope = created.encryptPackets(inputMembers, publicKey(1), sender);
+    byte[] recipients = publicKey(2);
+    Bundle created = Bundle.create(recipients, publicKey(1), sender);
+    byte[] envelope = created.encryptPackets(recipients, sender);
     byte[] members = Arrays.copyOfRange(envelope, 3, 133);
     byte[] expectedMembers = compare(publicKey(1), publicKey(2)) < 0
       ? concat(publicKey(1), publicKey(2))
@@ -66,25 +66,28 @@ public class BundleTest {
     Assertions.assertArrayEquals(created.hash, imported.hash);
     Assertions.assertArrayEquals(
       created.key,
-      openEnrollment(imported.encryptPackets(inputMembers, publicKey(2), receiver), 2, 1)
+      openEnrollment(imported.encryptPackets(publicKey(1), receiver), 2, 1)
     );
   }
 
   @Test
-  public void enrollmentRejectsMissingDuplicateAndChangedMembers() {
+  public void enrollmentRejectsEmptySelfDuplicateAndChangedMembers() {
     CommunicationCipher sender = communication(1);
-    byte[] members = concat(publicKey(1), publicKey(2));
-    Bundle bundle = Bundle.create(members, publicKey(1), sender);
-    byte[] envelope = bundle.encryptPackets(members, publicKey(1), sender);
+    byte[] recipients = publicKey(2);
+    Bundle bundle = Bundle.create(recipients, publicKey(1), sender);
+    byte[] envelope = bundle.encryptPackets(recipients, sender);
 
-    Assertions.assertThrows(RuntimeException.class, () ->
+    Assertions.assertThrows(CryptoException.class, () ->
+      Bundle.create(new byte[0], publicKey(1), sender)
+    );
+    Assertions.assertThrows(CryptoException.class, () ->
       Bundle.create(publicKey(1), publicKey(1), sender)
     );
-    Assertions.assertThrows(RuntimeException.class, () ->
-      Bundle.create(concat(publicKey(1), publicKey(1)), publicKey(1), sender)
+    Assertions.assertThrows(CryptoException.class, () ->
+      Bundle.create(concat(publicKey(2), publicKey(1)), publicKey(1), sender)
     );
-    Assertions.assertThrows(RuntimeException.class, () ->
-      Bundle.create(members, publicKey(3), sender)
+    Assertions.assertThrows(CryptoException.class, () ->
+      Bundle.create(concat(publicKey(2), publicKey(2)), publicKey(1), sender)
     );
     Assertions.assertThrows(RuntimeException.class, () ->
       Bundle.decrypt(publicKey(3), publicKey(2), envelope, communication(2))
@@ -107,16 +110,40 @@ public class BundleTest {
     Assertions.assertThrows(RuntimeException.class, () ->
       Bundle.decrypt(publicKey(1), publicKey(2), reordered, communication(2))
     );
-    Assertions.assertFalse(bundle.matches(Bundle.create(members, publicKey(1), sender)));
+    Assertions.assertFalse(bundle.matches(Bundle.create(recipients, publicKey(1), sender)));
+  }
+
+  @Test
+  public void enrollmentRejectsIncompleteAndMalformedRecipientPublicKeys() {
+    CommunicationCipher sender = communication(1);
+
+    for (int length : new int[] { 1, 64, 66, 129, 131 }) {
+      Assertions.assertThrows(CryptoException.class, () ->
+        Bundle.create(Arrays.copyOf(publicKey(2), length), publicKey(1), sender)
+      );
+    }
+
+    byte[] compressed = publicKey(2);
+    compressed[0] = 2;
+    byte[] outOfRange = publicKey(2);
+    Arrays.fill(outOfRange, 1, 33, (byte) 0xFF);
+
+    for (byte[] invalid : new byte[][] { compressed, outOfRange }) {
+      Assertions.assertThrows(CryptoException.class, () ->
+        Bundle.create(invalid, publicKey(1), sender)
+      );
+    }
   }
 
   @Test
   public void allEnrollmentPacketsPreserveInputOrderWithoutTransientOutputArrays()
     throws Exception {
     CommunicationCipher sender = communication(1);
-    byte[] members = concat(publicKey(3), publicKey(1), publicKey(2));
-    Bundle bundle = Bundle.create(members, publicKey(1), sender);
-    byte[] packets = bundle.encryptPackets(members, publicKey(1), sender);
+    byte[] recipients = concat(publicKey(3), publicKey(2));
+    byte[] original = recipients.clone();
+    Bundle bundle = Bundle.create(recipients, publicKey(1), sender);
+    byte[] packets = bundle.encryptPackets(recipients, sender);
+    Assertions.assertArrayEquals(original, recipients);
     Assertions.assertEquals(622, packets.length);
     Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(packets));
     Assertions.assertArrayEquals(
@@ -133,12 +160,12 @@ public class BundleTest {
   public void bundleItemsMatchIndependentHkdfAndGcmInBothDirections() throws Exception {
     CommunicationCipher sender = communication(1);
     CommunicationCipher receiver = communication(2);
-    byte[] members = concat(publicKey(1), publicKey(2));
-    Bundle bundle = Bundle.create(members, publicKey(1), sender);
+    byte[] recipients = publicKey(2);
+    Bundle bundle = Bundle.create(recipients, publicKey(1), sender);
     Bundle imported = Bundle.decrypt(
       publicKey(1),
       publicKey(2),
-      bundle.encryptPackets(members, publicKey(1), sender),
+      bundle.encryptPackets(recipients, sender),
       receiver
     );
     ItemCipher cipher = new ItemCipher(sharedCipher);
@@ -210,11 +237,11 @@ public class BundleTest {
   }
 
   @Test
-  public void bundleItemsBindMetadataKeyAndEnvelopeAndRequireMembership() {
+  public void bundleItemsBindMetadataKeyAndEnvelopeAndRejectOtherRoots() {
     CommunicationCipher sender = communication(1);
     CommunicationCipher receiver = communication(2);
-    Bundle bundle = Bundle.create(concat(publicKey(1), publicKey(2)), publicKey(1), sender);
-    Bundle different = Bundle.create(concat(publicKey(1), publicKey(2)), publicKey(1), sender);
+    Bundle bundle = Bundle.create(publicKey(2), publicKey(1), sender);
+    Bundle different = Bundle.create(publicKey(2), publicKey(1), sender);
     ItemCipher cipher = new ItemCipher(sharedCipher);
     byte[] encrypted = cipher.encrypt(
       sender,
@@ -319,7 +346,7 @@ public class BundleTest {
   public void bundleItemsAreIsolatedByTheFullCallerAIDAndItsLength() {
     CommunicationCipher sender = communication(1);
     CommunicationCipher receiver = communication(2);
-    Bundle bundle = Bundle.create(concat(publicKey(1), publicKey(2)), publicKey(1), sender);
+    Bundle bundle = Bundle.create(publicKey(2), publicKey(1), sender);
     ItemCipher cipher = new ItemCipher(sharedCipher);
     byte[] data = bytes(32);
     byte[] encrypted = cipher.encrypt(
@@ -377,8 +404,8 @@ public class BundleTest {
   public void bundledIdentityStillReceivesOrdinaryTransfersButCannotUnwrapEnrollmentAsData() {
     CommunicationCipher sender = communication(1);
     CommunicationCipher receiver = communication(2);
-    byte[] members = concat(publicKey(1), publicKey(2));
-    Bundle bundle = Bundle.create(members, publicKey(1), sender);
+    byte[] recipients = publicKey(2);
+    Bundle bundle = Bundle.create(recipients, publicKey(1), sender);
     ItemCipher cipher = new ItemCipher(sharedCipher);
     byte[] encrypted = cipher.encrypt(
       sender,
@@ -408,7 +435,7 @@ public class BundleTest {
       )
     );
 
-    byte[] enrollment = bundle.encryptPackets(members, publicKey(1), sender);
+    byte[] enrollment = bundle.encryptPackets(recipients, sender);
     byte[] forgedItem = encrypted.clone();
     System.arraycopy(enrollment, 133, forgedItem, 1, 113);
     Assertions.assertThrows(RuntimeException.class, () ->

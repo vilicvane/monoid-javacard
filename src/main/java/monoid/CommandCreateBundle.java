@@ -16,11 +16,11 @@ public final class CommandCreateBundle extends Command implements CBORResponse {
   private static final short CHUNK_LENGTH = 256;
 
   private final Object[] references = JCSystem.makeTransientObjectArray(
-    (short) 2,
+    (short) 1,
     JCSystem.CLEAR_ON_DESELECT
   );
   private final short[] state = JCSystem.makeTransientShortArray(
-    (short) 5,
+    (short) 3,
     JCSystem.CLEAR_ON_DESELECT
   );
 
@@ -29,26 +29,16 @@ public final class CommandCreateBundle extends Command implements CBORResponse {
     requireAuth(AUTH_SECRET);
 
     reader.map();
+
     short count = reader.requireKey(Text.publicKeys).array();
 
-    if (count < 2 || count > CBORApduReader.MAX_LENGTH / (PUBLIC_KEY_LENGTH + 2)) {
+    if (count < 1 || count > CBORApduReader.MAX_LENGTH / (PUBLIC_KEY_LENGTH + 2)) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
     // Reserve the response window before creating and publishing the Bundle.
-    // Each unit contains at most a packet's map header and one data chunk.
-    writer.start(
-      this,
-      (short) (CHUNK_LENGTH +
-        1 +
-        1 +
-        Text.publicKey.length +
-        2 +
-        PUBLIC_KEY_LENGTH +
-        1 +
-        Text.data.length +
-        3)
-    );
+    // Each unit contains at most a byte-string header and one data chunk.
+    writer.start(this, (short) (CHUNK_LENGTH + 3));
 
     byte[] publicKeys = new byte[(short) (count * PUBLIC_KEY_LENGTH)];
 
@@ -64,75 +54,54 @@ public final class CommandCreateBundle extends Command implements CBORResponse {
       reader.bytes(publicKeys, (short) (index * PUBLIC_KEY_LENGTH));
     }
 
-    byte[] ownPublicKey = MonoidApplet.safe.getPublicKey();
-    SafeDataSource packets = MonoidApplet.safe.createBundle(publicKeys);
-    short packetLength = (short) (packets.getLength() / (short) (count - 1));
-    short ownOffset = 0;
+    SafeDataSource data = MonoidApplet.safe.createBundle(publicKeys);
+    short length = data.getLength();
 
-    while (!Utils.isEqual(ownPublicKey, publicKeys, ownOffset, PUBLIC_KEY_LENGTH)) {
-      ownOffset += PUBLIC_KEY_LENGTH;
-    }
-
-    references[0] = publicKeys;
-    references[1] = packets;
-    state[0] = 0;
-    state[1] = 0;
-    state[2] = packetLength;
-    state[3] = ownOffset;
-    state[4] = 0;
+    references[0] = data;
+    state[0] = length;
+    state[1] = (short) (length / count);
+    state[2] = 0;
 
     writer.map((short) 2);
     {
       writer.text(Text.bundle);
       writer.bytes(MonoidApplet.safe.getBundle());
 
-      writer.text(Text.packets);
-      writer.array((short) (count - 1));
+      writer.text(Text.data);
+      writer.array(count);
     }
   }
 
   @Override
   public boolean writeNext(CBORWriter writer) {
-    byte[] publicKeys = (byte[]) references[0];
-
-    if (state[0] == state[3]) {
-      state[0] += PUBLIC_KEY_LENGTH;
-    }
-
-    if (state[0] >= publicKeys.length) {
+    if (state[2] >= state[0]) {
       return false;
     }
 
-    if (state[1] == 0) {
-      writer.map((short) 2);
-      writer.text(Text.publicKey);
-      writer.bytes(publicKeys, state[0], PUBLIC_KEY_LENGTH);
-      writer.text(Text.data);
-      writer.bytesLength(state[2]);
+    short packetOffset = (short) (state[2] % state[1]);
+
+    if (packetOffset == 0) {
+      writer.bytesLength(state[1]);
     }
 
     byte[] buffer = APDU.getCurrentAPDUBuffer();
     short length = Utils.min(
-      (short) (state[2] - state[1]),
+      (short) (state[1] - packetOffset),
       Utils.min(CHUNK_LENGTH, (short) buffer.length)
     );
-    ((SafeDataSource) references[1]).read(state[4], buffer, (short) 0, length);
+
+    ((SafeDataSource) references[0]).read(state[2], buffer, (short) 0, length);
     writer.rawBytes(buffer, (short) 0, length);
-    state[1] += length;
-    state[4] += length;
 
-    if (state[1] == state[2]) {
-      state[0] += PUBLIC_KEY_LENGTH;
-      state[1] = 0;
-    }
+    state[2] += length;
 
-    return state[0] < publicKeys.length;
+    return state[2] < state[0];
   }
 
   @Override
   public void reset() {
     references[0] = null;
-    references[1] = null;
+
     for (short index = 0; index < state.length; index++) {
       state[index] = 0;
     }

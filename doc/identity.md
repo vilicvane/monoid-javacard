@@ -3,7 +3,7 @@
 Monoid Identity retains a P-256 key pair and a four-byte random ID generated on
 installation or `0xFF Reset`. Its private key has no export interface. Identity
 also owns Secret PIN, its retry and caller authorization state, the optional Bundle
-key and fixed membership. It performs complete item encryption and decryption
+key and enrollment snapshot. It performs complete item encryption and decryption
 for applets in separate caller domains. Monoid owns Access PIN, Safe item storage
 and command authorization.
 
@@ -40,11 +40,17 @@ public interface IdentityShareable extends Shareable {
 
   void clearSecretAuth();
 
-  /** Requires Secret authentication and no Bundle; packets exclude self, in input order. */
+  /** Requires Secret authentication and no Bundle; recipients exclude self, without duplicates. */
   CommunicationDataShareable createBundle(byte[] publicKeys);
 
-  /** Requires Secret authentication; identical enrollment is idempotent. */
+  /** Requires Secret authentication; the same Bundle key is idempotent. */
   byte[] joinBundle(byte[] senderPublicKey, byte[] data);
+
+  /** Monoid only, with Secret authentication: initiates extension for the specified target. */
+  CommunicationDataShareable extendBundle(byte[] publicKey);
+
+  /** Monoid only, with Secret authentication: approves another member's request and encrypts enrollment. */
+  CommunicationDataShareable approveBundleExtension(byte[] request);
 
   /** Monoid only: prepares a new identity outside a transaction and returns its caller token. */
   byte[] prepareReset();
@@ -89,7 +95,7 @@ public interface CommunicationDataShareable extends Shareable {
 - Completed data results are readable only by their original calling applet.
 - Admission: any registered applet can acquire the interface, read public information
   and get its own token. Encryption/decryption requires Secret PIN verification by
-  Identity for that caller. Creating/joining a Bundle and changing Secret PIN also
+  Identity for that caller. Creating, joining or extending a Bundle and changing Secret PIN also
   require the exact Monoid instance AID. Preparing/publishing a reset requires that
   AID but deliberately does not require PIN authentication.
 - Direct APDUs: SELECT only. Monoid owns [item transfer](item-transfer.md) and
@@ -98,7 +104,7 @@ public interface CommunicationDataShareable extends Shareable {
 
 Identity derives authenticated contexts internally from the operation, full runtime
 caller AID and metadata. Callers cannot choose another AID, supply arbitrary HPKE contexts or retrieve decrypted
-communication or Bundle keys. Enrollment and ordinary item transfer use separate
+communication or Bundle keys. Enrollment, extension requests and ordinary item transfer use separate
 cryptographic domains. With a Bundle installed, item encryption always uses it;
 `recipientPublicKey` is ignored. Decryption dispatches by envelope version. With a
 Bundle present, it rejects artifacts sent by the local Identity in either format,
@@ -107,8 +113,9 @@ including self-addressed asymmetric items created before enrollment.
 Matching applet AIDs on different cards can exchange data; different AIDs cannot
 decrypt each other's envelopes, even within the same Bundle. Bundle item transfers
 derive a key for the runtime caller and actual sending Identity from the shared
-root before deriving each payload key. The sender must be another fixed member
-when decrypting.
+root before deriving each payload key. Decryption requires a valid tag under the
+same Bundle root and a sender other than the local Identity. It does not consult
+the stored enrollment snapshot.
 The root key and its public hash remain common to all members. See
 [item transfer](item-transfer.md) for the exact derivation.
 
@@ -124,7 +131,8 @@ ordinary SELECT switches without authorizing other callers. A new Secret PIN
 check, PIN update, explicit authorization clearing or card power reset invalidates
 the previous validation. Monoid APDU authorization has its separate deselect scope.
 
-Encryption, decryption, Create Bundle and Join Bundle require current Secret
+Encryption, decryption, Create Bundle, Join Bundle, Extend Bundle and Approve Bundle
+Extension require current Secret
 authorization inside Identity. Changing an existing PIN requires the same
 validation and clears authorization. Monoid reinstallation preserves Secret PIN
 and retries. Unauthenticated `0xFF Reset` may clear it only while replacing the
@@ -198,16 +206,31 @@ use the Bundle format and imports reject the local Identity as sender. The domai
 and complete envelopes are specified
 in [item transfer](item-transfer.md) and [Bundle](bundle.md).
 
-`createBundle` receives concatenated 65-byte public keys. Its result contains
-equal-length enrollment packets in input order with self omitted. Identity
-encrypts all packets before atomically publishing the new key and membership.
-Monoid reads the result by range and associates each packet with its recipient
-in the Create Bundle response.
+`createBundle` receives concatenated 65-byte public keys for at least one other
+recipient, without duplicates or the local Identity. Identity adds itself to the
+enrollment snapshot. The result contains equal-length encrypted packets in input
+order. Identity encrypts all packets before atomically publishing the new key and
+snapshot. Monoid reads the result by range and returns one `data[]` packet per
+recipient, without repeating the public keys.
+
+`extendBundle` returns a dedicated request binding the local Identity's
+public key, Bundle hash and target public key with both a Bundle-root HMAC and an
+Identity signature. `approveBundleExtension` checks both proofs, requires an initiator other
+than the local Identity and encrypts an enrollment packet only for that target.
+Both methods leave the existing Bundle configuration unchanged. The target joins
+with `joinBundle`; it can then exchange records and approve future extensions
+without synchronizing member lists. The snapshot records enrollment rather than
+serving as an authorization list. See [Bundle extension](bundle.md#extension).
+
+The host commands expose these results as `data`. Approve Bundle Extension also
+returns the approving Identity's `publicKey`; the complete response is the Join
+Bundle request. Join's `publicKey` denotes the enrollment sender. Item Import's
+separate `senderPublicKey` field is unchanged.
 
 The caller must obtain the expected peer public key through its trust mechanism;
 the envelope does not establish that trust. Caller AIDs isolate transfer domains but
-does not authenticate installed code. Item transfer has no single-use restriction;
-Joining a Bundle is idempotent only for an identical key and membership. Bundle
+do not authenticate installed code. Item transfer has no single-use restriction;
+joining the same Bundle key is idempotent and retains the local enrollment snapshot. Bundle
 creation requires no existing Bundle. Neither method replaces an installed Bundle.
 `prepareReset` requires no active transaction and no communication operation in
 progress. It generates a candidate key pair, random ID, binding secret, unset
@@ -225,7 +248,7 @@ See [reinitialization](bundle.md#reinitialization) for Reset and the GP lifecycl
 
 ## Safe ID
 
-Hello returns the ID stored in Identity. A card power reset, Bundle creation/joining,
+Hello returns the ID stored in Identity. A card power reset, Bundle creation/joining/extension,
 Monoid replacement and PIN changes preserve it. `0xFF Reset` or reinstalling Identity
 generates a new ID, key pair and binding secret.
 The four-byte random value

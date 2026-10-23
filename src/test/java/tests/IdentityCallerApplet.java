@@ -51,6 +51,8 @@ public class IdentityCallerApplet
   public static final byte DECRYPT_CHECK_SECRET_PIN_REENTRANT = 34;
   public static final byte DECRYPT_UPDATE_SECRET_PIN_REENTRANT = 35;
   public static final byte DECRYPT_CLEAR_SECRET_AUTH_REENTRANT = 36;
+  public static final byte APPROVE_BUNDLE_EXTENSION = 37;
+  public static final byte EXTEND_BUNDLE = 38;
 
   private IdentityShareable identity;
   private CommunicationDataShareable result;
@@ -252,6 +254,14 @@ public class IdentityCallerApplet
         return;
       case CREATE_BUNDLE:
         result = identity.createBundle(duplicate(buffer, (short) 0, length));
+        send(apdu, readResult((short) 0));
+        return;
+      case APPROVE_BUNDLE_EXTENSION:
+        result = identity.approveBundleExtension(duplicate(buffer, (short) 0, length));
+        send(apdu, readResult((short) 0));
+        return;
+      case EXTEND_BUNDLE:
+        result = identity.extendBundle(duplicate(buffer, (short) 0, length));
         send(apdu, readResult((short) 0));
         return;
       case JOIN_BUNDLE:

@@ -159,6 +159,31 @@ task prepareSimulatorIdentity {
 	}
 }
 
+task prepareSimulatorBundleExtension {
+	def original = file('src/main/java/monoididentity/BundleExtension.java')
+	def adapted = file("${buildDir}/generated/simulator/monoididentity/BundleExtension.java")
+	inputs.file original
+	outputs.file adapted
+
+	doLast {
+		def source = original.text
+		def replacements = [
+			[/KeyBuilder\.ALG_TYPE_EC_FP_PUBLIC,\s*JCSystem\.MEMORY_TYPE_PERSISTENT,/, 'KeyBuilder.TYPE_EC_FP_PUBLIC,'],
+			[/MessageDigest\.ALG_SHA_256, true/, 'MessageDigest.ALG_SHA_256, false'],
+			[/Signature\.ALG_ECDSA_SHA_256, true/, 'Signature.ALG_ECDSA_SHA_256, false']
+		]
+		// The simulator lacks the four-argument key factory and shared native engines.
+		replacements.each { replacement ->
+			if ((source =~ replacement[0]).count != 1) {
+				throw new GradleException('Unexpected simulator BundleExtension factory match count')
+			}
+			source = source.replaceAll(replacement[0], replacement[1])
+		}
+		adapted.parentFile.mkdirs()
+		adapted.text = source
+	}
+}
+
 task prepareSimulatorHMACSha512 {
 	def original = file('src/main/java/monoid/LibHMACSha512.java')
 	def adapted = file("${buildDir}/generated/simulator/monoid/LibHMACSha512.java")
@@ -299,6 +324,8 @@ task prepareSimulatorAppletGrants {
 }
 
 compileSimulatorMath {
+	dependsOn prepareSimulatorBundleExtension
+	source file("${buildDir}/generated/simulator/monoididentity/BundleExtension.java")
 	dependsOn prepareSimulatorCommunicationCipher, prepareSimulatorAESGcmCipher, prepareSimulatorItemCipher, prepareSimulatorIdentity, prepareSimulatorHMACSha512, prepareSimulatorStorage
 	source file("${buildDir}/generated/simulator/monoid/LibHMACSha512.java")
 	source file("${buildDir}/generated/simulator/monoididentity/CommunicationCipher.java")

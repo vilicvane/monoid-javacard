@@ -32,11 +32,17 @@ public interface IdentityShareable extends Shareable {
 
   public void clearSecretAuth();
 
-  /** Monoid only: creates a Bundle when none exists and prepares packets for the other members. */
+  /** Monoid only: creates for self and these other recipients; requires no local Bundle. */
   public CommunicationDataShareable createBundle(byte[] publicKeys);
 
-  /** Monoid only: joins a Bundle, returning its key hash; identical enrollment is idempotent. */
+  /** Monoid only: joins a Bundle, returning its key hash; the same root is idempotent. */
   public byte[] joinBundle(byte[] senderPublicKey, byte[] data);
+
+  /** Monoid only: requests this recipient's admission using Bundle possession and this Identity. */
+  public CommunicationDataShareable extendBundle(byte[] publicKey);
+
+  /** Monoid only: approves another member's request and encrypts enrollment for its recipient. */
+  public CommunicationDataShareable approveBundleExtension(byte[] request);
 
   /** Monoid only: prepares a new identity outside a transaction and returns its caller token. */
   public byte[] prepareReset();

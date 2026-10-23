@@ -44,18 +44,18 @@ Possession of an authorized session is sufficient to request supported signature
 Monoid owns Safe items, Access PIN, derivation and signing. Safe is an internal
 class in the same applet, not a separately replaceable security authority.
 Identity owns Secret PIN and its retry/authorization state, the long-term P-256
-private key, binding secret, Bundle key and membership. None of those Identity
+private key, binding secret, Bundle key and enrollment snapshot. None of those Identity
 secrets has a raw export interface.
 
-| Operation                                                               | Required authorization and scope                                                                                                                         |
-| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hello, System information                                               | No PIN. Identity ID/public key, Bundle hash, versions, capabilities, memory and PIN status are not confidential.                                         |
-| First Secret PIN setup                                                  | No prior PIN when Secret PIN is unset; initializes Access PIN if it is unset. Initial provisioning must be trusted.                                      |
-| Change either PIN                                                       | Secret authorization once Secret PIN is configured. Access authorization is insufficient.                                                                |
-| List, View, Get, Set, Create, Remove, Create random key, View Key, Sign | Access or Secret authorization. Safe storage also requires Secret PIN to be set and unblocked. Get additionally checks `secret`.                         |
-| Export, Import, Create Bundle, Join Bundle                              | Secret authorization, independently checked inside Identity. Bundle creation/joining also requires the fixed Monoid caller AID.                          |
-| Reset                                                                   | No PIN. Verifies Identity binding and the fixed Monoid caller AID; clears items/cache/Bundle, both PINs and authorization, and generates a new Identity. |
-| GP deletion/recreation                                                  | Card-management authorization; not authorized or prevented by either PIN.                                                                                |
+| Operation                                                                           | Required authorization and scope                                                                                                                         |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hello, System information                                                           | No PIN. Identity ID/public key, Bundle hash, versions, capabilities, memory and PIN status are not confidential.                                         |
+| First Secret PIN setup                                                              | No prior PIN when Secret PIN is unset; initializes Access PIN if it is unset. Initial provisioning must be trusted.                                      |
+| Change either PIN                                                                   | Secret authorization once Secret PIN is configured. Access authorization is insufficient.                                                                |
+| List, View, Get, Set, Create, Remove, Create random key, View Key, Sign             | Access or Secret authorization. Safe storage also requires Secret PIN to be set and unblocked. Get additionally checks `secret`.                         |
+| Export, Import, Create Bundle, Join Bundle, Extend Bundle, Approve Bundle Extension | Secret authorization, independently checked inside Identity. Bundle management also requires the fixed Monoid caller AID.                                |
+| Reset                                                                               | No PIN. Verifies Identity binding and the fixed Monoid caller AID; clears items/cache/Bundle, both PINs and authorization, and generates a new Identity. |
+| GP deletion/recreation                                                              | Card-management authorization; not authorized or prevented by either PIN.                                                                                |
 
 Access PIN is not a read-only permission: it permits signing and item mutations,
 including replacement and deletion. Secret PIN includes ordinary access and adds
@@ -206,8 +206,10 @@ human owner's approval or the sender's installed code.
 With a Bundle, Identity derives a sending key from the shared root, complete
 runtime caller AID and its own public key. The full sender key in the envelope
 is bound to payload-key derivation and the GCM tag. Identity chooses the local
-sending identity internally; it rejects decryption of its own Bundle artifacts,
-nonmember senders and mismatched caller domains. A supplied recipient key cannot
+sending identity internally; it rejects decryption of its own Bundle artifacts
+and mismatched caller domains. Sender-key derivation and tag verification prove
+access to the shared root; item transfer does not consult the enrollment snapshot.
+A supplied recipient key cannot
 switch Export to asymmetric mode. Incoming asymmetric artifacts from other
 identities are accepted; old self-addressed artifacts are rejected while bundled.
 
@@ -217,9 +219,26 @@ software peer holding the root could derive all member keys; membership must
 therefore be restricted to trusted identities. This is not a cryptographic proof
 of the sender against a malicious holder of the Bundle root.
 
-Membership is fixed at creation. Create rejects an existing Bundle even for the
-same roster. Join verifies the enrollment packet, accepts an identical key/roster
-idempotently and rejects a conflicting one. `0xFF Reset` clears local items,
+Create accepts only other recipients, rejects duplicate keys and the local key,
+and rejects an existing Bundle even for the same recipients. Join verifies the
+enrollment packet, accepts the same key idempotently while retaining the local
+snapshot, and rejects a different key. Extend and Approve require two distinct
+existing Bundle identities and each executing card's Secret PIN. The initiating Identity produces
+a dedicated Bundle-root HMAC and Identity signature, both binding its actual
+public key, the Bundle hash and the target's complete public key. The second
+Identity approves the request only after verifying both, then encrypts the root
+for that target. Neither a
+root MAC alone nor an Identity signature alone satisfies this authorization.
+These operations expose neither generic signing nor a caller-selected MAC domain.
+
+The new card uses Join and may immediately exchange data and approve further
+extensions; no member-list synchronization is required. Enrollment snapshots do
+not confer approval authority. Extend and Approve do not change the existing cards'
+configuration. Saved requests can be replayed for the same target; this is not
+a fresh-presence or revocation protocol. Extension retains the root and permits
+historical data recovery, without revoking lost members.
+
+`0xFF Reset` clears local items,
 derivation cache, both PINs, authorization and Bundle together, and generates a
 new Identity; it cannot clear only the Bundle while retaining Monoid data. Bundle management is
 restricted to the exact Monoid AID, although other applets may use their own
@@ -336,7 +355,7 @@ cross-card enrollment have no shared transaction.
 | Secret reads and updates                 | [CommandGet](../src/main/java/monoid/CommandGet.java), [CommandSet](../src/main/java/monoid/CommandSet.java), [SafeItem](../src/main/java/monoid/SafeItem.java)                                                                                                | [MonoidItemTransferTest](../src/test/java/tests/MonoidItemTransferTest.java)                                                                                                        |
 | Identity binding and caller domains      | [MonoidIdentityApplet](../src/main/java/monoididentity/MonoidIdentityApplet.java), [CommunicationData](../src/main/java/monoididentity/CommunicationData.java), [ItemCipher](../src/main/java/monoididentity/ItemCipher.java)                                  | [MonoidIdentityAppletTest](../src/test/java/monoididentity/MonoidIdentityAppletTest.java), [IdentityTransferBoundaryTest](../src/test/java/tests/IdentityTransferBoundaryTest.java) |
 | Bundle membership and removal boundaries | [Bundle](../src/main/java/monoididentity/Bundle.java), [CommandCreateBundle](../src/main/java/monoid/CommandCreateBundle.java), [CommandJoinBundle](../src/main/java/monoid/CommandJoinBundle.java), [CommandReset](../src/main/java/monoid/CommandReset.java) | [MonoidBundleTest](../src/test/java/tests/MonoidBundleTest.java), [BundleTest](../src/test/java/monoididentity/BundleTest.java)                                                     |
-| Redundant checks                         | [LibSecurity](../src/main/java/monoid/LibSecurity.java) and its generated Identity counterpart                                                                                                                                                                 | [LibSecurityTest](../src/test/java/monoid/LibSecurityTest.java)                                                                                                                     |
+| Redundant checks                         | [LibSecurity](../src/main/java/monoidlib/LibSecurity.java) and its generated Identity counterpart                                                                                                                                                              | [LibSecurityTest](../src/test/java/monoidlib/LibSecurityTest.java)                                                                                                                  |
 
 These tests are evidence for specific software paths, not a complete audit. Physical
 firewall, deletion, native-crypto and fault behavior need evidence from the actual

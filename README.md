@@ -227,7 +227,7 @@ type Response = {};
 
 ```ts
 type Request = {
-  /** Requires no existing Bundle; at least two 65-byte public keys, including self. */
+  /** Requires no existing Bundle; other recipients only, at least one, without duplicates. */
   publicKeys: byte[][];
 };
 ```
@@ -236,11 +236,8 @@ type Request = {
 type Response = {
   /** SHA-256 of the Bundle key. */
   bundle: byte[];
-  /** Request order, excluding self. */
-  packets: {
-    publicKey: byte[];
-    data: byte[];
-  }[];
+  /** One encrypted packet per publicKeys entry, in the same order. */
+  data: byte[][];
 };
 ```
 
@@ -250,15 +247,54 @@ type Response = {
 
 ```ts
 type Request = {
-  senderPublicKey: byte[];
+  /** The sender's Identity public key. */
+  publicKey: byte[];
   data: byte[];
 };
 ```
 
 ```ts
 type Response = {
-  /** Identical key and membership succeed unchanged; differences conflict. */
+  /** The same Bundle key succeeds unchanged; a different key conflicts. */
   bundle: byte[];
+};
+```
+
+#### `0x25` Extend Bundle
+
+> Requires authentication with Secret PIN. [Extension workflow](doc/bundle.md#extension).
+
+```ts
+type Request = {
+  /** The new member's Identity public key. */
+  publicKey: byte[];
+};
+```
+
+```ts
+type Response = {
+  /** Authenticated extension request for another Bundle member to approve. */
+  data: byte[];
+};
+```
+
+#### `0x26` Approve Bundle Extension
+
+> Requires authentication with Secret PIN.
+
+```ts
+type Request = {
+  /** Data returned by Extend Bundle on another member. */
+  data: byte[];
+};
+```
+
+```ts
+/** Forward unchanged to Join Bundle on the new member. */
+type Response = {
+  /** The approving Identity's public key. */
+  publicKey: byte[];
+  data: byte[];
 };
 ```
 

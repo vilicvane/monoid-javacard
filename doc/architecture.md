@@ -41,15 +41,17 @@ Bundle across Monoid replacement. It verifies Secret PIN and performs complete
 item encryption and decryption, enforcing caller authorization and Bundle policy
 internally. See
 [Monoid Identity](identity.md) for its card-local interface and [Bundle](bundle.md)
-for fixed membership and enrollment.
+for enrollment and two-member extension.
 
 Monoid and Security Key share CBOR parsing, map indexing, APDU reception, response
 storage and segmented sending through the library. Command framing, chaining
 rules and protocol status mapping remain in each applet's `ApduTransport`, which
 uses the shared reader and writer directly. Commands run only after the complete
 request arrives; buffers belong to the applet that creates them. Identity does
-not import the library. Replacing the
-library requires first removing its dependent Security Key and Monoid packages;
+not import the library. The library also provides stateless security checks and
+byte-array utilities; authentication state and private arrays remain owned by
+the calling applet. Identity keeps its own generated security-check implementation.
+Replacing the library requires first removing its dependent Security Key and Monoid packages;
 Identity can remain installed.
 
 The installation script defaults to `Install`, which does not delete installed
@@ -120,9 +122,10 @@ reused unchanged; in particular, the former secp256k1 type `0x0401` now denotes
 Ed25519. There is no automatic conversion of these former types.
 
 Each item stores its data in one persistent byte array. The internal
-`SafeDataSource` interface provides a length and repeatable range reads into a
-supplied buffer. Stored-data reads check Safe authorization. Create and Set copy
-input into new persistent arrays, then publish the completed replacement.
+`SafeDataSource` abstract class provides a length, repeatable range reads into a
+supplied buffer and persistent copying in 256-byte chunks. Stored-data reads
+check Safe authorization. Create and Set copy input into new persistent arrays,
+then publish the completed replacement.
 Data and secret change atomically; alias updates remain separate.
 
 Get and Export use the existing response transport. Responses fitting in one
@@ -203,7 +206,14 @@ without first authenticating the configured one or resetting the entire Identity
 
 Identity remains a separate applet. It provides caller-specific binding tokens
 and encrypted transfer to other applets, with full runtime caller AIDs separating
-their cryptographic domains. Only the exact Monoid AID can manage Bundle membership.
+their cryptographic domains. Only the exact Monoid AID can create, join or extend
+a Bundle. A initiates with `0x25 Extend Bundle`, B confirms with
+`0x26 Approve Bundle Extension` and C joins with `0x24 Join Bundle`. B's response
+is C's complete Join request. Approval
+requires another Identity's signature together with a Bundle-root HMAC and local
+Secret authorization; it preserves the root. Stored
+enrollment snapshots are not authorization lists, so new members can exchange
+records and participate in later extensions without synchronizing older cards.
 Monoid privately binds its Identity token before processing its first command;
 later Identity calls must match that token. Replacing Identity cannot automatically
 rebind a Monoid that retains its data. Only `0xFF Reset` explicitly synchronizes a

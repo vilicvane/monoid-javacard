@@ -12,7 +12,13 @@
     "$": ["publicKeys"]
   },
   "0x24": {
-    "$": ["senderPublicKey", "data"]
+    "$": ["publicKey", "data"]
+  },
+  "0x25": {
+    "$": ["publicKey"]
+  },
+  "0x26": {
+    "$": ["data"]
   },
   "0x2F": {
     "$": []

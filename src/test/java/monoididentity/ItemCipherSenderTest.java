@@ -122,10 +122,10 @@ public class ItemCipherSenderTest {
     );
 
     System.arraycopy(outsider.publicKey, 0, forgedSender, 33, 65);
-    ISOException exception = Assertions.assertThrows(ISOException.class, () ->
+    // An unknown sender is authenticated by its derived key, not an enrollment roster.
+    Assertions.assertThrows(CryptoException.class, () ->
       decrypt(second, bundle, first.publicKey, new Data(forgedSender))
     );
-    Assertions.assertEquals(ISO7816.SW_CONDITIONS_NOT_SATISFIED, exception.getReason());
     Assertions.assertArrayEquals(
       plaintext(data),
       decrypt(second, bundle, null, new Data(encrypted))
@@ -281,10 +281,10 @@ public class ItemCipherSenderTest {
   }
 
   private Bundle bundle(TestIdentity... members) {
-    byte[][] publicKeys = new byte[members.length][];
+    byte[][] publicKeys = new byte[members.length - 1][];
 
-    for (int index = 0; index < members.length; index++) {
-      publicKeys[index] = members[index].publicKey;
+    for (int index = 1; index < members.length; index++) {
+      publicKeys[index - 1] = members[index].publicKey;
     }
 
     return Bundle.create(concat(publicKeys), members[0].publicKey, members[0].cipher);
