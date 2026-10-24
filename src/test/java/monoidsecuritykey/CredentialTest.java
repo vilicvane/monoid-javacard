@@ -168,8 +168,8 @@ public class CredentialTest {
                 return source;
               case "getIndex":
                 return original.index();
-              case "getKey":
-                return original.key();
+              case "getMetadata":
+                return original.metadata();
               default:
                 throw new UnsupportedOperationException(method.getName());
             }

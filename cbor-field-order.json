@@ -3,7 +3,7 @@
     "$": []
   },
   "0x21": {
-    "$": ["secret", "pin"]
+    "$": ["aid", "secret", "pin"]
   },
   "0x22": {
     "$": ["pin", "secret"]
@@ -24,7 +24,7 @@
     "$": []
   },
   "0x30": {
-    "$": ["type", "keyPrefix"]
+    "$": ["type", "metadataPrefix"]
   },
   "0x31": {
     "$": ["index"]
@@ -36,7 +36,7 @@
     "$": ["index", "alias", "data", "secret"]
   },
   "0x34": {
-    "$": ["data", "key", "alias", "secret", "type", "index"]
+    "$": ["data", "metadata", "alias", "secret", "type", "index"]
   },
   "0x35": {
     "$": ["index"]
@@ -45,7 +45,7 @@
     "$": ["index", "recipientPublicKey"]
   },
   "0x37": {
-    "$": ["index", "senderPublicKey", "key", "alias", "data"]
+    "$": ["index", "senderPublicKey", "metadata", "alias", "data"]
   },
   "0x38": {
     "$": ["type", "length"]

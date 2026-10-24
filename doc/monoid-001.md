@@ -76,7 +76,7 @@ accepts `taproot` for this scheme, including `false`. The derivation has no
 `curve` or `path` override. Independent private-key items do not accept it.
 
 The same seed and the same context produce
-the same key. The index, lookup key, alias, signing digest and card identity
+the same key. The index, metadata, alias, signing digest and card identity
 are not derivation inputs. Empty context still derives a key; it does not
 select a master scalar.
 

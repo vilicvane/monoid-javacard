@@ -24,7 +24,7 @@ public class ItemCipher {
       safe,
       identity.encryptData(
         global(item.index),
-        global(item.key),
+        global(item.metadata),
         global(item.alias),
         item.getSecretValue(),
         global(recipientPublicKey),
@@ -36,14 +36,14 @@ public class ItemCipher {
   public CommunicationDataShareable decrypt(
     IdentityShareable identity,
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     byte[] senderPublicKey,
     SafeDataSource encryptedData
   ) {
     return identity.decryptData(
       global(index),
-      global(key),
+      global(metadata),
       global(alias),
       global(senderPublicKey),
       new Source(encryptedData)

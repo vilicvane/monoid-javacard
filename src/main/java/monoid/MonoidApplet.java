@@ -172,12 +172,14 @@ public class MonoidApplet extends Applet implements AppletEvent {
       MonoidException.throwIt(MonoidException.CODE_SECRET_PIN_NOT_SET);
     }
 
+    safe.getAppletGrants().clearUserAuthentication();
     setPIN(pinBytes);
   }
 
   public static void updateSecretPIN(byte[] pin) {
     checkPINUpdate();
 
+    safe.getAppletGrants().clearUserAuthentication();
     safe.updatePIN(pin);
 
     if (getPINSetResult(SAFE_TRUE) == SAFE_FALSE) {

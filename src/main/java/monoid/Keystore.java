@@ -21,6 +21,7 @@ public final class Keystore {
   private Monoid001Derivation monoid001;
   private Signature monoid001Signer;
   private byte[] monoid001Signature;
+  private HMAC hmac;
 
   public Keystore(Safe safe) {
     this.safe = safe;
@@ -28,6 +29,14 @@ public final class Keystore {
     bip32 = new BIP32Derivation();
     slip10Ed25519 = new SLIP10Ed25519Derivation();
     monoid001 = new Monoid001Derivation();
+  }
+
+  HMAC getHmac() {
+    if (hmac == null) {
+      hmac = new HMAC();
+    }
+
+    return hmac;
   }
 
   public byte[] getBIP32PublicKeyAndChainCodeFromSeed(

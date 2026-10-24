@@ -13,7 +13,7 @@ public class CommandCreate extends Command {
     reader.map();
 
     SafeData data = SafeData.fromReader(reader.requireKey(Text.data));
-    byte[] key = reader.key(Text.key) ? reader.bytes() : null;
+    byte[] metadata = reader.key(Text.metadata) ? reader.bytes() : null;
     byte[] alias = reader.key(Text.alias) ? reader.text() : null;
     boolean secret = reader.key(Text.secret) && reader.bool();
 
@@ -22,11 +22,11 @@ public class CommandCreate extends Command {
     if (reader.key(Text.type)) {
       short type = reader.is(CBOR.TYPE_TEXT) ? Safe.type(reader) : reader.integer();
 
-      item = MonoidApplet.safe.create(type, key, alias, data, secret);
+      item = MonoidApplet.safe.create(type, metadata, alias, data, secret);
     } else {
       byte[] index = reader.requireKey(Text.index).bytes(Safe.INDEX_LENGTH);
 
-      item = MonoidApplet.safe.create(index, key, alias, data, secret);
+      item = MonoidApplet.safe.create(index, metadata, alias, data, secret);
     }
 
     writer.map((short) 1);

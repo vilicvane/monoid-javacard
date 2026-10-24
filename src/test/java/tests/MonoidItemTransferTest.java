@@ -72,9 +72,9 @@ public class MonoidItemTransferTest {
 
       byte[] index = customIndex(1);
       byte[] data = { 1, 2, 3 };
-      byte[] key = { 4, 5 };
-      card.create(index, key, "plain", data, null);
-      assertMetadata(card, index, key, "plain", false);
+      byte[] metadata = { 4, 5 };
+      card.create(index, metadata, "plain", data, null);
+      assertMetadata(card, index, metadata, "plain", false);
       assertData(card, index, data);
       assertListedSecret(card, index, false);
 
@@ -95,15 +95,15 @@ public class MonoidItemTransferTest {
         fields("index", index, "alias", "changed", "secret", false)
       );
       Assertions.assertEquals(0x6985, denied.status);
-      assertMetadata(card, index, key, "plain", true);
+      assertMetadata(card, index, metadata, "plain", true);
 
       byte[] replacement = { 8, 9 };
       card.success(0x33, fields("index", index, "secret", false, "data", replacement));
-      assertMetadata(card, index, key, "plain", false);
+      assertMetadata(card, index, metadata, "plain", false);
       assertData(card, index, replacement);
 
       card.success(0x33, fields("index", index, "secret", true, "data", new byte[] { 10 }));
-      assertMetadata(card, index, key, "plain", true);
+      assertMetadata(card, index, metadata, "plain", true);
       assertError(card.transmit(0x32, fields("index", index)), "ACCESS_DENIED");
       card.success(0x33, fields("index", index, "secret", false, "data", new byte[0]));
       assertData(card, index, new byte[0]);
@@ -280,9 +280,9 @@ public class MonoidItemTransferTest {
   public void conflictingImportsDoNotOverwriteExistingItems() {
     try (Card card = new Card(true)) {
       byte[] index = customIndex(20);
-      byte[] key = { 1, 2 };
+      byte[] metadata = { 1, 2 };
       byte[] data = { 3, 4 };
-      card.create(index, key, "original", data, false);
+      card.create(index, metadata, "original", data, false);
       byte[] sender = card.publicKey();
       card.authenticate(true);
       Transfer transfer = card.export(index, sender);
@@ -290,15 +290,15 @@ public class MonoidItemTransferTest {
       card.authenticate(true);
 
       for (int difference = 0; difference < 4; difference++) {
-        byte[] existingKey = difference == 0 ? new byte[] { 5 } : key;
+        byte[] existingMetadata = difference == 0 ? new byte[] { 5 } : metadata;
         String existingAlias = difference == 1 ? "other" : "original";
         byte[] existingData = difference == 2 ? new byte[] { 6 } : data;
         boolean existingSecret = difference == 3;
-        card.create(index, existingKey, existingAlias, existingData, existingSecret);
+        card.create(index, existingMetadata, existingAlias, existingData, existingSecret);
 
         Assertions.assertEquals(0x6985, card.transmit(0x37, transfer.request(sender)).status);
         Assertions.assertEquals(1, itemCount(card));
-        assertMetadata(card, index, existingKey, existingAlias, existingSecret);
+        assertMetadata(card, index, existingMetadata, existingAlias, existingSecret);
         if (existingSecret) {
           assertError(card.transmit(0x32, fields("index", index)), "ACCESS_DENIED");
         } else {
@@ -336,9 +336,9 @@ public class MonoidItemTransferTest {
         request.put("index", changed);
         invalidRequests.add(request);
       }
-      Map<String, Object> changedKey = transfer.request(sender);
-      changedKey.put("key", new byte[] { 1, 2, 4 });
-      invalidRequests.add(changedKey);
+      Map<String, Object> changedMetadata = transfer.request(sender);
+      changedMetadata.put("metadata", new byte[] { 1, 2, 4 });
+      invalidRequests.add(changedMetadata);
       Map<String, Object> changedAlias = transfer.request(sender);
       changedAlias.put("alias", "Record");
       invalidRequests.add(changedAlias);
@@ -389,29 +389,29 @@ public class MonoidItemTransferTest {
 
       for (boolean present : new boolean[] { false, true }) {
         byte[] index = customIndex(present ? 41 : 40);
-        byte[] key = present ? new byte[0] : null;
+        byte[] metadata = present ? new byte[0] : null;
         String alias = present ? "" : null;
-        card.create(index, key, alias, new byte[] { 1 }, false);
+        card.create(index, metadata, alias, new byte[] { 1 }, false);
         card.authenticate(true);
         Transfer transfer = card.export(index, sender);
-        Assertions.assertEquals(present, transfer.key != null);
+        Assertions.assertEquals(present, transfer.metadata != null);
         Assertions.assertEquals(present, transfer.alias != null);
         card.success(0x35, fields("index", index));
         card.authenticate(true);
 
-        for (String field : new String[] { "key", "alias" }) {
+        for (String field : new String[] { "metadata", "alias" }) {
           Map<String, Object> altered = transfer.request(sender);
           if (present) {
             altered.remove(field);
           } else {
-            altered.put(field, field.equals("key") ? new byte[0] : "");
+            altered.put(field, field.equals("metadata") ? new byte[0] : "");
           }
           assertCryptoRejected(card.transmit(0x37, altered));
           assertAbsent(card, index);
         }
 
         card.success(0x37, transfer.request(sender));
-        assertMetadata(card, index, key, alias, false);
+        assertMetadata(card, index, metadata, alias, false);
         card.success(0x37, transfer.request(sender));
       }
 
@@ -427,10 +427,10 @@ public class MonoidItemTransferTest {
       for (int length : new int[] { 256, 512 }) {
         byte[] index = customIndex(length);
         byte[] data = sequence(length);
-        byte[] key = sequence(16);
+        byte[] metadata = sequence(16);
         Result created = card.transmit(
           0x34,
-          fields("index", index, "key", key, "alias", "chunked", "data", data)
+          fields("index", index, "metadata", metadata, "alias", "chunked", "data", data)
         );
         created.assertSuccess();
         Assertions.assertTrue(created.requestFrames > 1);
@@ -458,7 +458,7 @@ public class MonoidItemTransferTest {
         Assertions.assertEquals(1, fetched.size());
         Assertions.assertTrue(fetched.responseFrames > 1);
         Assertions.assertArrayEquals(data, fetched.bytes("data"));
-        assertMetadata(card, index, key, "chunked", false);
+        assertMetadata(card, index, metadata, "chunked", false);
       }
 
       Assertions.assertEquals(2, itemCount(card));
@@ -469,12 +469,12 @@ public class MonoidItemTransferTest {
   public void largeItemsUseFragmentedRequestsAndResponses() {
     try (Card card = new Card(true)) {
       byte[] index = customIndex(60);
-      byte[] key = sequence(16);
+      byte[] metadata = sequence(16);
       byte[] data = sequence(4097);
       data[2048] = 42;
       Result created = card.transmit(
         0x34,
-        fields("data", data, "alias", "large", "index", index, "key", key),
+        fields("data", data, "alias", "large", "index", index, "metadata", metadata),
         127
       );
       created.assertSuccess();
@@ -494,7 +494,7 @@ public class MonoidItemTransferTest {
       updated.assertSuccess();
       Assertions.assertTrue(updated.requestFrames > 1);
       assertData(card, index, replacement);
-      assertMetadata(card, index, key, "large", false);
+      assertMetadata(card, index, metadata, "large", false);
 
       for (boolean reset : new boolean[] { false, true }) {
         byte[] request = encode(fields("index", index, "data", data, "secret", true));
@@ -521,7 +521,7 @@ public class MonoidItemTransferTest {
         }
 
         assertData(card, index, replacement);
-        assertMetadata(card, index, key, "large", false);
+        assertMetadata(card, index, metadata, "large", false);
 
         ResponseAPDU first = card.simulator.transmitCommand(
           new CommandAPDU(0, 0x32, 0, 0, encode(fields("index", index)))
@@ -543,7 +543,7 @@ public class MonoidItemTransferTest {
       }
 
       card.success(0x33, fields("index", index, "data", data, "secret", true));
-      assertMetadata(card, index, key, "large", true);
+      assertMetadata(card, index, metadata, "large", true);
       assertError(card.transmit(0x32, fields("index", index)), "ACCESS_DENIED");
     }
   }
@@ -552,10 +552,10 @@ public class MonoidItemTransferTest {
   public void largeImportsVerifyEveryChunkBeforePublishingOrMatchingExistingData() {
     try (Card card = new Card(true)) {
       byte[] index = customIndex(61);
-      byte[] key = sequence(16);
+      byte[] metadata = sequence(16);
       byte[] data = sequence(4097);
       data[2048] = 42;
-      card.create(index, key, "large transfer", data, false);
+      card.create(index, metadata, "large transfer", data, false);
       byte[] sender = card.publicKey();
       card.authenticate(true);
       Transfer transfer = card.export(index, sender);
@@ -574,7 +574,7 @@ public class MonoidItemTransferTest {
       imported.assertSuccess();
       Assertions.assertTrue(imported.requestFrames > 1);
       assertData(card, index, data);
-      assertMetadata(card, index, key, "large transfer", false);
+      assertMetadata(card, index, metadata, "large transfer", false);
       card.success(0x37, transfer.request(sender));
       Assertions.assertEquals(1, itemCount(card));
 
@@ -583,7 +583,7 @@ public class MonoidItemTransferTest {
       card.success(0x33, fields("index", index, "data", replacement));
       Assertions.assertEquals(0x6985, card.transmit(0x37, transfer.request(sender)).status);
       assertData(card, index, replacement);
-      assertMetadata(card, index, key, "large transfer", false);
+      assertMetadata(card, index, metadata, "large transfer", false);
     }
   }
 
@@ -709,14 +709,23 @@ public class MonoidItemTransferTest {
     Assertions.assertArrayEquals(data, result.bytes("data"));
   }
 
-  static void assertMetadata(Card card, byte[] index, byte[] key, String alias, boolean secret) {
+  static void assertMetadata(
+    Card card,
+    byte[] index,
+    byte[] metadata,
+    String alias,
+    boolean secret
+  ) {
     Result result = card.success(0x31, fields("index", index));
-    Assertions.assertEquals(1 + (key == null ? 0 : 1) + (alias == null ? 0 : 1), result.size());
+    Assertions.assertEquals(
+      1 + (metadata == null ? 0 : 1) + (alias == null ? 0 : 1),
+      result.size()
+    );
     CBORBufferReader reader = result.reader();
     Assertions.assertEquals(secret, reader.requireKey(bytes("secret")).bool());
-    Assertions.assertEquals(key != null, reader.key(bytes("key")));
-    if (key != null) {
-      Assertions.assertArrayEquals(key, reader.bytes());
+    Assertions.assertEquals(metadata != null, reader.key(bytes("metadata")));
+    if (metadata != null) {
+      Assertions.assertArrayEquals(metadata, reader.bytes());
     }
     Assertions.assertEquals(alias != null, reader.key(bytes("alias")));
     if (alias != null) {
@@ -875,7 +884,7 @@ public class MonoidItemTransferTest {
   private static class Transfer {
 
     final byte[] index;
-    final byte[] key;
+    final byte[] metadata;
     final String alias;
     final byte[] data;
     final int responseFrames;
@@ -883,17 +892,20 @@ public class MonoidItemTransferTest {
     Transfer(byte[] index, Result result) {
       this.index = index.clone();
       CBORBufferReader reader = result.reader();
-      key = reader.key(bytes("key")) ? reader.bytes().clone() : null;
+      metadata = reader.key(bytes("metadata")) ? reader.bytes().clone() : null;
       alias = reader.key(bytes("alias")) ? new String(reader.text(), StandardCharsets.UTF_8) : null;
       data = result.bytes("data");
       responseFrames = result.responseFrames;
-      Assertions.assertEquals(1 + (key == null ? 0 : 1) + (alias == null ? 0 : 1), result.size());
+      Assertions.assertEquals(
+        1 + (metadata == null ? 0 : 1) + (alias == null ? 0 : 1),
+        result.size()
+      );
     }
 
     Map<String, Object> request(byte[] senderPublicKey) {
       Map<String, Object> request = fields("index", index, "senderPublicKey", senderPublicKey);
-      if (key != null) {
-        request.put("key", key);
+      if (metadata != null) {
+        request.put("metadata", metadata);
       }
       if (alias != null) {
         request.put("alias", alias);
@@ -1031,15 +1043,15 @@ public class MonoidItemTransferTest {
       }
     }
 
-    byte[] create(Object selector, byte[] key, String alias, byte[] data, Boolean secret) {
+    byte[] create(Object selector, byte[] metadata, String alias, byte[] data, Boolean secret) {
       Map<String, Object> request = fields(
         "data",
         data,
         selector instanceof String ? "type" : "index",
         selector
       );
-      if (key != null) {
-        request.put("key", key);
+      if (metadata != null) {
+        request.put("metadata", metadata);
       }
       if (alias != null) {
         request.put("alias", alias);

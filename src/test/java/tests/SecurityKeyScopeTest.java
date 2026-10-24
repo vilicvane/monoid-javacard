@@ -217,7 +217,7 @@ public class SecurityKeyScopeTest {
   private static byte[] scope(Fixture fixture, Registration registration) throws Exception {
     fixture.manage();
     byte[] index = index(registration.id);
-    byte[] key = fixture.card.success(0x31, fields("index", index)).bytes("key");
+    byte[] metadata = fixture.card.success(0x31, fields("index", index)).bytes("metadata");
     byte[] data = fixture.card.success(0x32, fields("index", index)).bytes("data");
     CBORBufferReader reader = new CBORBufferReader(data);
     short count = reader.map();
@@ -233,11 +233,11 @@ public class SecurityKeyScopeTest {
 
     Assertions.assertNotNull(scope);
     Assertions.assertEquals(32, scope.length);
-    Assertions.assertEquals(64, key.length);
-    Assertions.assertArrayEquals(scope, Arrays.copyOf(key, 32));
+    Assertions.assertEquals(64, metadata.length);
+    Assertions.assertArrayEquals(scope, Arrays.copyOf(metadata, 32));
     Assertions.assertArrayEquals(
       MessageDigest.getInstance("SHA-256").digest(bytes(RP)),
-      Arrays.copyOfRange(key, 32, 64)
+      Arrays.copyOfRange(metadata, 32, 64)
     );
     fixture.select();
 

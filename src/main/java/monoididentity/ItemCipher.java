@@ -85,7 +85,7 @@ final class ItemCipher {
     AID caller,
     byte[] ownPublicKey,
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     short secret,
     byte[] recipientPublicKey,
@@ -102,7 +102,7 @@ final class ItemCipher {
     short nonceOffset = nonceOffset(version);
     short dataOffset = (short) (nonceOffset + NONCE_LENGTH);
     short overhead = (short) (dataOffset + SECRET_LENGTH + TAG_LENGTH);
-    byte[] context = createContext(version, callerBytes, callerLength, index, key, alias);
+    byte[] context = createContext(version, callerBytes, callerLength, index, metadata, alias);
     recipientPublicKey = CommunicationData.duplicateAsPrivate(recipientPublicKey);
     short dataLength = data.getLength();
 
@@ -183,7 +183,7 @@ final class ItemCipher {
     AID caller,
     byte[] ownPublicKey,
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     byte[] senderPublicKey,
     CommunicationDataShareable encryptedData
@@ -192,7 +192,7 @@ final class ItemCipher {
     byte[] callerBytes = new byte[16];
     byte callerLength = caller.getBytes(callerBytes, (short) 0);
     index = CommunicationData.duplicateAsPrivate(index);
-    key = CommunicationData.duplicateAsPrivate(key);
+    metadata = CommunicationData.duplicateAsPrivate(metadata);
     alias = CommunicationData.duplicateAsPrivate(alias);
     senderPublicKey = CommunicationData.duplicateAsPrivate(senderPublicKey);
     short encryptedLength = encryptedData.getLength();
@@ -210,7 +210,7 @@ final class ItemCipher {
       CryptoException.throwIt(CryptoException.ILLEGAL_VALUE);
     }
 
-    byte[] context = createContext(version, callerBytes, callerLength, index, key, alias);
+    byte[] context = createContext(version, callerBytes, callerLength, index, metadata, alias);
 
     if (version == VERSION_IDENTITY) {
       if (bundle != null) {
@@ -300,7 +300,7 @@ final class ItemCipher {
     byte[] caller,
     byte callerLength,
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias
   ) {
     if (index.length != INDEX_LENGTH) {
@@ -316,7 +316,7 @@ final class ItemCipher {
     digest.update(suffix, (short) 0, (short) 1);
     digest.update(caller, (short) 0, callerLength);
     digest.update(index, (short) 0, INDEX_LENGTH);
-    updateContext(key);
+    updateContext(metadata);
     updateContext(alias);
     digest.doFinal(EMPTY, (short) 0, (short) 0, context, (short) 0);
 

@@ -33,8 +33,8 @@ public class CredentialParsingTest {
     byte[] encoded = record(new int[] { 9, 6, 2, 42, 10, 8, 5, 3, 7, 4, 1 }, "账户");
     Credential credential = read(encoded, null);
     Assertions.assertTrue(credential.matchesId(id, (short) 0));
-    Assertions.assertArrayEquals(scope, Arrays.copyOf(credential.key(), 32));
-    Assertions.assertArrayEquals(rpHash, Arrays.copyOfRange(credential.key(), 32, 64));
+    Assertions.assertArrayEquals(scope, Arrays.copyOf(credential.metadata(), 32));
+    Assertions.assertArrayEquals(rpHash, Arrays.copyOfRange(credential.metadata(), 32, 64));
     Assertions.assertTrue(credential.matchesPublicKey(publicKey));
     Assertions.assertTrue(credential.resident());
     Assertions.assertEquals(encoded.length, credential.getLength());
@@ -43,24 +43,24 @@ public class CredentialParsingTest {
   @Test
   public void metadataMatchesBothScopeAndRelyingParty() {
     Credential credential = read(record(REQUIRED, null), null);
-    byte[] key = new byte[64];
-    System.arraycopy(scope, 0, key, 0, 32);
-    System.arraycopy(rpHash, 0, key, 32, 32);
+    byte[] metadata = new byte[64];
+    System.arraycopy(scope, 0, metadata, 0, 32);
+    System.arraycopy(rpHash, 0, metadata, 32, 32);
 
-    Assertions.assertArrayEquals(key, credential.key());
-    Assertions.assertTrue(credential.matchesKey(key));
-    Assertions.assertFalse(credential.matchesKey(rpHash));
-    credential.assertMetadata(credential.index(), (short) 0, key);
+    Assertions.assertArrayEquals(metadata, credential.metadata());
+    Assertions.assertTrue(credential.matchesMetadata(metadata));
+    Assertions.assertFalse(credential.matchesMetadata(rpHash));
+    credential.assertMetadata(credential.index(), (short) 0, metadata);
 
     byte[] output = new byte[68];
-    Assertions.assertEquals(64, credential.writeKey(output, (short) 2));
-    Assertions.assertArrayEquals(key, Arrays.copyOfRange(output, 2, 66));
+    Assertions.assertEquals(64, credential.writeMetadata(output, (short) 2));
+    Assertions.assertArrayEquals(metadata, Arrays.copyOfRange(output, 2, 66));
 
     for (int offset : new int[] { 0, 32 }) {
-      byte[] changed = key.clone();
+      byte[] changed = metadata.clone();
       changed[offset] ^= 1;
 
-      Assertions.assertFalse(credential.matchesKey(changed));
+      Assertions.assertFalse(credential.matchesMetadata(changed));
       ISOException error = Assertions.assertThrows(ISOException.class, () ->
         credential.assertMetadata(credential.index(), (short) 0, changed)
       );

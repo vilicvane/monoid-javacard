@@ -73,13 +73,15 @@ public final class CommandSetAppletGrant extends Command {
       safe.checkStorage((short) (count * 2));
       keys = new AppletGrant.Key[count];
 
+      CBORMap key = new CBORMap(keyFields);
+
       for (short index = 0; index < count; index++) {
         short offset = reader.getOffset();
         reader.skip();
         short next = reader.getOffset();
         // Work around CAP converter lookup failures by referencing setOffset's declaring class.
         ((CBORReader) reader).setOffset(offset);
-        keys[index] = readKey();
+        keys[index] = readKey(key);
         // Work around CAP converter lookup failures by referencing setOffset's declaring class.
         ((CBORReader) reader).setOffset(next);
       }
@@ -105,20 +107,30 @@ public final class CommandSetAppletGrant extends Command {
     sendEmptyMap();
   }
 
-  private AppletGrant.Key readKey() {
-    CBORMap key = reader.map(keyFields);
+  private AppletGrant.Key readKey(CBORMap key) {
+    key.read(reader);
     key.requireKey(Text.index);
     byte[] index = readIndex();
     short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
     short declaredType = Safe.type(key.requireKey(Text.type));
 
     if (
-      declaredType != (Safe.isTypeSeed(type) ? (short) (type & Safe.TYPE_CATEGORY_MASK) : type) ||
+      declaredType !=
+        (Safe.isKnownExplicitLengthType(type) ? (short) (type & Safe.TYPE_CATEGORY_MASK) : type) ||
       key.key(Text.seed) ||
       key.key(Text.curve) ||
       key.key(Text.path)
     ) {
       MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+    }
+
+    if (Safe.isTypeHmac(type)) {
+      if (key.key(Text.derivation)) {
+        MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+      }
+
+      assertSourceLength(index, (short) (type & Safe.TYPE_METADATA_MASK));
+      return new AppletGrant.Key(index, declaredType, null, null);
     }
 
     if (!Safe.isTypeSeed(type)) {

@@ -9,7 +9,7 @@ public class SafeItemIterator {
   private final SafeItem[] items;
   private final short length;
   private final short type;
-  private final byte[] keyPrefix;
+  private final byte[] metadataPrefix;
   private final short count;
   private final short maxMetadataLength;
   private final AppletGrant grant;
@@ -20,8 +20,14 @@ public class SafeItemIterator {
     JCSystem.CLEAR_ON_RESET
   );
 
-  public SafeItemIterator(Safe safe, SafeItem[] items, short length, short type, byte[] keyPrefix) {
-    this(safe, items, length, type, keyPrefix, null);
+  public SafeItemIterator(
+    Safe safe,
+    SafeItem[] items,
+    short length,
+    short type,
+    byte[] metadataPrefix
+  ) {
+    this(safe, items, length, type, metadataPrefix, null);
   }
 
   SafeItemIterator(
@@ -29,7 +35,7 @@ public class SafeItemIterator {
     SafeItem[] items,
     short length,
     short type,
-    byte[] keyPrefix,
+    byte[] metadataPrefix,
     AppletGrant grant
   ) {
     this.safe = safe;
@@ -39,15 +45,17 @@ public class SafeItemIterator {
     this.grant = grant;
 
     // Snapshot the filter for the duration of this enumeration.
-    this.keyPrefix = keyPrefix != null && keyPrefix.length > 0 ? new byte[keyPrefix.length] : null;
+    this.metadataPrefix = metadataPrefix != null && metadataPrefix.length > 0
+      ? new byte[metadataPrefix.length]
+      : null;
 
-    if (this.keyPrefix != null) {
+    if (this.metadataPrefix != null) {
       Util.arrayCopyNonAtomic(
-        keyPrefix,
+        metadataPrefix,
         (short) 0,
-        this.keyPrefix,
+        this.metadataPrefix,
         (short) 0,
-        (short) keyPrefix.length
+        (short) metadataPrefix.length
       );
     }
 
@@ -62,8 +70,8 @@ public class SafeItemIterator {
 
         short metadataLength = Safe.INDEX_LENGTH;
 
-        if (item.key != null) {
-          metadataLength += (short) item.key.length;
+        if (item.metadata != null) {
+          metadataLength += (short) item.metadata.length;
         }
 
         if (item.alias != null) {
@@ -106,7 +114,7 @@ public class SafeItemIterator {
 
   private boolean matches(SafeItem item) {
     return (
-      item.matches(type, keyPrefix) &&
+      item.matches(type, metadataPrefix) &&
       (grant == null || grant.allows(Util.getShort(item.index, Safe.INDEX_TYPE_OFFSET), false))
     );
   }

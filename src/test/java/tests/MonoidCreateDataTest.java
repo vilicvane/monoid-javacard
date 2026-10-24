@@ -23,7 +23,7 @@ public class MonoidCreateDataTest {
       System.arraycopy(index, 0, input, 5, 10);
       byte[] alias = global(new byte[] { 1, 2 });
       byte[] expectedData = Arrays.copyOfRange(input, 20, 247);
-      byte[] expectedKey = Arrays.copyOfRange(input, 45, 77);
+      byte[] expectedMetadata = Arrays.copyOfRange(input, 45, 77);
       byte[] original = input.clone();
       SafeItemIteratorShareable before = session.list((short) 0);
 
@@ -49,7 +49,7 @@ public class MonoidCreateDataTest {
 
       SafeItemShareable stored = session.get(index);
       Assertions.assertArrayEquals(index, stored.getIndex());
-      Assertions.assertArrayEquals(expectedKey, stored.getKey());
+      Assertions.assertArrayEquals(expectedMetadata, stored.getMetadata());
       Assertions.assertArrayEquals(new byte[] { 1, 2 }, stored.getAlias());
       Assertions.assertArrayEquals(expectedData, read(stored.getData()));
       SafeItemIteratorShareable unchanged = session.list((short) 0);
@@ -215,7 +215,7 @@ public class MonoidCreateDataTest {
   }
 
   @Test
-  public void nullAndEmptyKeysRemainDistinctAndZeroLengthDataIsSupported() {
+  public void nullAndEmptyMetadataRemainDistinctAndZeroLengthDataIsSupported() {
     try (MonoidSessionTest.Fixture fixture = new MonoidSessionTest.Fixture()) {
       fixture.grant(null);
       Monoid session = fixture.connect(true);
@@ -235,9 +235,9 @@ public class MonoidCreateDataTest {
           false
         )
       );
-      Assertions.assertNull(session.get(index(0xF101, 1)).getKey());
+      Assertions.assertNull(session.get(index(0xF101, 1)).getMetadata());
       SafeItemShareable second = session.get(index(0xF101, 2));
-      Assertions.assertArrayEquals(new byte[0], second.getKey());
+      Assertions.assertArrayEquals(new byte[0], second.getMetadata());
       Assertions.assertArrayEquals(new byte[0], second.getAlias());
       Assertions.assertArrayEquals(new byte[0], read(second.getData()));
     }

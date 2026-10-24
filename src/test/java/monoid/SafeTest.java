@@ -156,21 +156,21 @@ public class SafeTest {
     Safe safe = initializeSafe();
     byte[] index = { 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
     byte[] originalIndex = index.clone();
-    byte[] key = { 1, 2 };
+    byte[] metadata = { 1, 2 };
     byte[] alias = { 3, 4 };
     TestData source = new TestData(new byte[] { 5 }) {
       @Override
       public short getLength() {
         Arrays.fill(index, (byte) 0);
-        Arrays.fill(key, (byte) 0);
+        Arrays.fill(metadata, (byte) 0);
         Arrays.fill(alias, (byte) 0);
         return super.getLength();
       }
     };
-    SafeItem item = safe.create(index, key, alias, source, false);
+    SafeItem item = safe.create(index, metadata, alias, source, false);
 
     Assertions.assertArrayEquals(originalIndex, item.getIndex());
-    Assertions.assertArrayEquals(new byte[] { 1, 2 }, item.getKey());
+    Assertions.assertArrayEquals(new byte[] { 1, 2 }, item.getMetadata());
     Assertions.assertArrayEquals(new byte[] { 3, 4 }, item.getAlias());
     Assertions.assertArrayEquals(new byte[] { 5 }, read(item.getData()));
   }
@@ -208,7 +208,7 @@ public class SafeTest {
       Assertions.assertNull(safe.create(index, null, null, source, false));
       Assertions.assertEquals(1, safe.list((short) 0).getCount());
       SafeItem item = safe.get(index);
-      Assertions.assertArrayEquals(new byte[] { 7 }, item.getKey());
+      Assertions.assertArrayEquals(new byte[] { 7 }, item.getMetadata());
       Assertions.assertArrayEquals(new byte[] { 9 }, read(item.getData()));
       Assertions.assertTrue(item.isSecret());
     }
@@ -262,10 +262,10 @@ public class SafeTest {
     Safe safe = initializeSafe();
     byte[] index = { 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
     byte[] originalIndex = index.clone();
-    byte[] key = { 1, 2 };
+    byte[] metadata = { 1, 2 };
     byte[] alias = { 3, 4 };
     byte[] publicKey = safe.getPublicKey();
-    SafeItem item = safe.create(index, key, alias, new TestData(new byte[] { 5 }), true);
+    SafeItem item = safe.create(index, metadata, alias, new TestData(new byte[] { 5 }), true);
     byte[] encrypted = read(item.exportData(publicKey));
     item.remove();
 
@@ -273,17 +273,17 @@ public class SafeTest {
       @Override
       public short getLength() {
         Arrays.fill(index, (byte) 0);
-        Arrays.fill(key, (byte) 0);
+        Arrays.fill(metadata, (byte) 0);
         Arrays.fill(alias, (byte) 0);
         Arrays.fill(publicKey, (byte) 0);
         return super.getLength();
       }
     };
-    safe.importItem(index, key, alias, publicKey, source);
+    safe.importItem(index, metadata, alias, publicKey, source);
     SafeItem imported = safe.get(originalIndex);
 
     Assertions.assertNotNull(imported);
-    Assertions.assertArrayEquals(new byte[] { 1, 2 }, imported.getKey());
+    Assertions.assertArrayEquals(new byte[] { 1, 2 }, imported.getMetadata());
     Assertions.assertArrayEquals(new byte[] { 3, 4 }, imported.getAlias());
     Assertions.assertArrayEquals(new byte[] { 5 }, read(imported.getData()));
     Assertions.assertEquals(Constants.SAFE_TRUE, imported.getSecretValue());
@@ -318,7 +318,7 @@ public class SafeTest {
   }
 
   @Test
-  public void listsItemsByBinaryKeyPrefixAndTypeInInsertionOrder() {
+  public void listsItemsByBinaryMetadataPrefixAndTypeInInsertionOrder() {
     Safe safe = initializeSafe();
     byte[] data = { (byte) 0x80, 0, 2 };
     byte[] first = createItem(
@@ -345,13 +345,13 @@ public class SafeTest {
     );
     createItem(safe, (short) 0x1301, 5, new byte[] { 0, (byte) 0x80, 0 }, data);
     createItem(safe, (short) 0x1301, 6, null, data);
-    byte[] key = { (byte) 0x80, 0 };
+    byte[] metadata = { (byte) 0x80, 0 };
 
-    assertListedItems(safe, (short) 0, key, first, second, fourth);
-    assertListedItems(safe, (short) 0x1300, key, first, second);
-    assertListedItems(safe, (short) 0x1301, key, first);
-    assertListedItems(safe, (short) 0x1401, key, fourth);
-    assertListedItems(safe, (short) 0x1600, key);
+    assertListedItems(safe, (short) 0, metadata, first, second, fourth);
+    assertListedItems(safe, (short) 0x1300, metadata, first, second);
+    assertListedItems(safe, (short) 0x1301, metadata, first);
+    assertListedItems(safe, (short) 0x1401, metadata, fourth);
+    assertListedItems(safe, (short) 0x1600, metadata);
     assertListedItems(safe, (short) 0, data);
     assertListedItems(
       safe,
@@ -365,7 +365,7 @@ public class SafeTest {
   }
 
   @Test
-  public void handlesMissingAndEmptyKeysAndPrefixLengthBoundaries() {
+  public void handlesMissingAndEmptyMetadataAndPrefixLengthBoundaries() {
     Safe safe = initializeSafe();
     byte[] data = { (byte) 0x80, 0 };
     byte[] absent = createItem(safe, (short) 0x1301, 1, null, data);
@@ -373,8 +373,8 @@ public class SafeTest {
     byte[] value = createItem(safe, (short) 0x1302, 3, data, new byte[0]);
 
     Assertions.assertEquals(3, safe.list((short) 0).getCount());
-    Assertions.assertNull(safe.get(absent).getKey());
-    Assertions.assertArrayEquals(new byte[0], safe.get(empty).getKey());
+    Assertions.assertNull(safe.get(absent).getMetadata());
+    Assertions.assertArrayEquals(new byte[0], safe.get(empty).getMetadata());
     assertListedItems(safe, (short) 0, null, absent, empty, value);
     assertListedItems(safe, (short) 0, new byte[0], absent, empty, value);
     assertListedItems(safe, (short) 0x1301, null, absent, empty);
@@ -386,27 +386,27 @@ public class SafeTest {
   }
 
   @Test
-  public void copiesCreationKeysAndPreservesThemWhenDataChanges() {
+  public void copiesCreationMetadataAndPreservesItWhenDataChanges() {
     Safe safe = initializeSafe();
-    byte[] key = { 1, 2 };
+    byte[] metadata = { 1, 2 };
     byte[] data = { 3, 4 };
-    byte[] index = createItem(safe, (short) 0x1301, 1, key, data);
+    byte[] index = createItem(safe, (short) 0x1301, 1, metadata, data);
     SafeItem item = safe.get(index);
-    key[0] = 9;
-    byte[] returnedKey = item.getKey();
-    returnedKey[0] = 8;
-    Assertions.assertArrayEquals(new byte[] { 1, 2 }, item.getKey());
+    metadata[0] = 9;
+    byte[] returnedMetadata = item.getMetadata();
+    returnedMetadata[0] = 8;
+    Assertions.assertArrayEquals(new byte[] { 1, 2 }, item.getMetadata());
 
     byte[] replacement = { (byte) 0xFF, 0 };
     item.setData(new TestData(replacement));
-    Assertions.assertArrayEquals(new byte[] { 1, 2 }, item.getKey());
+    Assertions.assertArrayEquals(new byte[] { 1, 2 }, item.getMetadata());
     Assertions.assertArrayEquals(replacement, read(item.getData()));
     assertListedItems(safe, (short) 0, new byte[] { 1 }, index);
     assertListedItems(safe, (short) 0, new byte[] { (byte) 0xFF });
   }
 
   @Test
-  public void iteratorsKeepIndependentCursorsAndCopyTheKeyPrefix() {
+  public void iteratorsKeepIndependentCursorsAndCopyTheMetadataPrefix() {
     Safe safe = initializeSafe();
     byte[] first = createItem(safe, (short) 0x1000, 1, new byte[] { 1, 2 }, new byte[] { 1 });
     byte[] second = createItem(safe, (short) 0x1000, 2, new byte[] { 2, 3 }, new byte[] { 2 });
@@ -459,7 +459,7 @@ public class SafeTest {
     short offset = 2;
     Assertions.assertEquals(Safe.INDEX_LENGTH, item.getIndex(destination, offset));
     offset += Safe.INDEX_LENGTH;
-    Assertions.assertEquals(3, item.getKey(destination, offset));
+    Assertions.assertEquals(3, item.getMetadata(destination, offset));
     offset += 3;
     Assertions.assertEquals(4, item.getAlias(destination, offset));
     byte[] expected = new byte[destination.length];
@@ -469,12 +469,12 @@ public class SafeTest {
     Assertions.assertArrayEquals(expected, destination);
 
     Assertions.assertArrayEquals(index, item.getIndex());
-    Assertions.assertArrayEquals(new byte[] { 1, 2, 3 }, item.getKey());
+    Assertions.assertArrayEquals(new byte[] { 1, 2, 3 }, item.getMetadata());
     Assertions.assertArrayEquals(new byte[] { 4, 5, 6, 7 }, item.getAlias());
 
-    Assertions.assertEquals(-1, safe.get(absent).getKey(destination, (short) 0));
+    Assertions.assertEquals(-1, safe.get(absent).getMetadata(destination, (short) 0));
     Assertions.assertEquals(-1, safe.get(absent).getAlias(destination, (short) 0));
-    Assertions.assertEquals(0, safe.get(empty).getKey(destination, (short) 0));
+    Assertions.assertEquals(0, safe.get(empty).getMetadata(destination, (short) 0));
     Assertions.assertEquals(0, safe.get(empty).getAlias(destination, (short) 0));
     Assertions.assertArrayEquals(expected, destination);
   }
@@ -523,18 +523,18 @@ public class SafeTest {
   @Test
   public void prefixListingAndReturnedItemsRequireAuthorization() {
     Safe safe = initializeSafe();
-    byte[] key = { (byte) 0x80, 0 };
+    byte[] metadata = { (byte) 0x80, 0 };
     byte[] data = { 1, 2 };
-    byte[] itemIndex = createItem(safe, (short) 0x1301, 1, key, data);
-    SafeItemIterator iterator = safe.list((short) 0, key);
+    byte[] itemIndex = createItem(safe, (short) 0x1301, 1, metadata, data);
+    SafeItemIterator iterator = safe.list((short) 0, metadata);
     SafeItem item = iterator.next();
-    Assertions.assertArrayEquals(key, item.getKey());
+    Assertions.assertArrayEquals(metadata, item.getMetadata());
     Assertions.assertArrayEquals(data, read(item.getData()));
 
     byte[] wrongPIN = { 6, 5, 4, 3, 2, 1 };
     Assertions.assertFalse(safe.checkPIN(wrongPIN));
 
-    for (byte[] query : new byte[][] { null, new byte[0], key, new byte[] { 1 } }) {
+    for (byte[] query : new byte[][] { null, new byte[0], metadata, new byte[] { 1 } }) {
       ISOException exception = Assertions.assertThrows(ISOException.class, () ->
         safe.list((short) 0, query)
       );
@@ -543,7 +543,7 @@ public class SafeTest {
 
     ISOException exception = Assertions.assertThrows(ISOException.class, item::getData);
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
-    exception = Assertions.assertThrows(ISOException.class, item::getKey);
+    exception = Assertions.assertThrows(ISOException.class, item::getMetadata);
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
     exception = Assertions.assertThrows(ISOException.class, iterator::getCount);
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
@@ -558,7 +558,7 @@ public class SafeTest {
     );
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
     exception = Assertions.assertThrows(ISOException.class, () ->
-      item.getKey(destination, (short) 0)
+      item.getMetadata(destination, (short) 0)
     );
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
     exception = Assertions.assertThrows(ISOException.class, () ->
@@ -616,18 +616,18 @@ public class SafeTest {
     return safe;
   }
 
-  private byte[] createItem(Safe safe, short type, int id, byte[] key, byte[] data) {
+  private byte[] createItem(Safe safe, short type, int id, byte[] metadata, byte[] data) {
     byte[] index = new byte[Safe.INDEX_LENGTH];
     index[0] = (byte) (type >> 8);
     index[1] = (byte) type;
     index[index.length - 1] = (byte) id;
-    Assertions.assertNotNull(safe.create(index, key, null, new TestData(data), false));
+    Assertions.assertNotNull(safe.create(index, metadata, null, new TestData(data), false));
 
     return index;
   }
 
-  private void assertListedItems(Safe safe, short type, byte[] key, byte[]... indexes) {
-    SafeItemIterator items = safe.list(type, key);
+  private void assertListedItems(Safe safe, short type, byte[] metadata, byte[]... indexes) {
+    SafeItemIterator items = safe.list(type, metadata);
     Assertions.assertEquals(indexes.length, items.getCount());
 
     for (int position = 0; position < indexes.length; position++) {
@@ -635,7 +635,7 @@ public class SafeTest {
 
       Assertions.assertNotNull(item);
       Assertions.assertArrayEquals(indexes[position], item.getIndex());
-      Assertions.assertArrayEquals(safe.get(indexes[position]).getKey(), item.getKey());
+      Assertions.assertArrayEquals(safe.get(indexes[position]).getMetadata(), item.getMetadata());
       Assertions.assertArrayEquals(
         read(safe.get(indexes[position]).getData()),
         read(item.getData())

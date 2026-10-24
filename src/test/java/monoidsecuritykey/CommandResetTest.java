@@ -164,6 +164,31 @@ public class CommandResetTest {
     }
 
     @Override
+    public void consumeUserAuthentication() {
+      Assertions.fail("Security Key must not consume Monoid user authentication");
+    }
+
+    @Override
+    public void revokeUserAuthentication() {
+      Assertions.fail("Security Key must not revoke Monoid user authentication");
+    }
+
+    @Override
+    public short hmac(
+      byte algorithm,
+      byte[] index,
+      short indexOffset,
+      byte[] message,
+      short messageOffset,
+      short messageLength,
+      byte[] dest,
+      short destOffset
+    ) {
+      Assertions.fail("Security Key must not use the OTP HMAC service");
+      return 0;
+    }
+
+    @Override
     public void removeAll(short type) {
       Assertions.assertEquals(Constants.CREDENTIAL_TYPE, type);
       Assertions.assertEquals(0, JCSystem.getTransactionDepth());
@@ -221,16 +246,16 @@ public class CommandResetTest {
     }
 
     @Override
-    public SafeItemIteratorShareable list(short type, byte[] keyPrefix) {
+    public SafeItemIteratorShareable list(short type, byte[] metadataPrefix) {
       throw new AssertionError("Unexpected enumeration during Reset");
     }
 
     @Override
     public short listIndices(
       short type,
-      byte[] keyPrefix,
-      short keyOffset,
-      short keyLength,
+      byte[] metadataPrefix,
+      short metadataOffset,
+      short metadataLength,
       byte[] dest,
       short offset,
       short capacity
@@ -247,9 +272,9 @@ public class CommandResetTest {
     public SafeDataShareable getData(
       byte[] index,
       short indexOffset,
-      byte[] expectedKey,
-      short keyOffset,
-      short keyLength
+      byte[] expectedMetadata,
+      short metadataOffset,
+      short metadataLength
     ) {
       throw new AssertionError("Unexpected data lookup during Reset");
     }
@@ -262,7 +287,7 @@ public class CommandResetTest {
     @Override
     public short readData(
       byte[] index,
-      byte[] expectedKey,
+      byte[] expectedMetadata,
       byte[] dest,
       short offset,
       short capacity
@@ -274,9 +299,9 @@ public class CommandResetTest {
     public short readData(
       byte[] index,
       short indexOffset,
-      byte[] expectedKey,
-      short keyOffset,
-      short keyLength,
+      byte[] expectedMetadata,
+      short metadataOffset,
+      short metadataLength,
       byte[] dest,
       short offset,
       short capacity
@@ -287,7 +312,7 @@ public class CommandResetTest {
     @Override
     public SafeItemShareable create(
       byte[] index,
-      byte[] key,
+      byte[] metadata,
       byte[] alias,
       SafeDataShareable data,
       boolean secret
@@ -299,9 +324,9 @@ public class CommandResetTest {
     public boolean createData(
       byte[] index,
       short indexOffset,
-      byte[] key,
-      short keyOffset,
-      short keyLength,
+      byte[] metadata,
+      short metadataOffset,
+      short metadataLength,
       byte[] alias,
       byte[] data,
       short dataOffset,

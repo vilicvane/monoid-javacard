@@ -44,6 +44,9 @@ public class MonoidIdentityAppletTest {
   private static final AID UNRELATED_AID = AIDUtil.create("f06d6f6e6f69647f13");
 
   private static final byte[] CONTEXT = "card transfer".getBytes(StandardCharsets.US_ASCII);
+  private static final byte[] AUTHORITY = "https://authority.example/时间".getBytes(
+    StandardCharsets.UTF_8
+  );
   private static final byte[] PIN = "888888".getBytes(StandardCharsets.US_ASCII);
   private static final byte[] NEW_PIN = "123456".getBytes(StandardCharsets.US_ASCII);
   private static final byte[] KEY = "0123456789ABCDEF0123456789ABCDEF".getBytes(
@@ -74,8 +77,8 @@ public class MonoidIdentityAppletTest {
       new byte[0],
       new byte[] { 0 },
       concat(new byte[] { 1 }, id),
-      concat(new byte[] { 2 }, LibSECP256r1.G),
-      concat(concat(new byte[] { 3 }, id), LibSECP256r1.G),
+      concat(concat(new byte[] { 2 }, LibSECP256r1.G), AUTHORITY),
+      concat(concat(concat(new byte[] { 3 }, id), LibSECP256r1.G), AUTHORITY),
     };
 
     for (int index = 0; index < data.length; index++) {
@@ -92,8 +95,13 @@ public class MonoidIdentityAppletTest {
 
       if (index >= 3) {
         Assertions.assertArrayEquals(LibSECP256r1.G, authorityPublicKey(IDENTITY_AID));
+        Assertions.assertArrayEquals(
+          AUTHORITY,
+          success(transmit(IdentityCallerApplet.GET_AUTHORITY))
+        );
       } else {
         Assertions.assertNull(authorityPublicKey(IDENTITY_AID));
+        Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_AUTHORITY)).length);
       }
     }
   }
@@ -105,7 +113,7 @@ public class MonoidIdentityAppletTest {
     byte[] parameters = installationParameters(
       AppletTest.aidBytes(OTHER_IDENTITY_AID),
       new byte[] { 0x55, 0x66, 0x77 },
-      concat(concat(new byte[] { 3 }, id), LibSECP256r1.G)
+      concat(concat(concat(new byte[] { 3 }, id), LibSECP256r1.G), AUTHORITY)
     );
     byte[] buffer = concat(new byte[] { 0x11, 0x22, 0x33 }, parameters);
 
@@ -128,6 +136,7 @@ public class MonoidIdentityAppletTest {
 
     Assertions.assertArrayEquals(id, success(transmit(IdentityCallerApplet.GET_IDENTITY_ID)));
     Assertions.assertArrayEquals(LibSECP256r1.G, authorityPublicKey(OTHER_IDENTITY_AID));
+    Assertions.assertArrayEquals(AUTHORITY, success(transmit(IdentityCallerApplet.GET_AUTHORITY)));
   }
 
   @Test
@@ -136,7 +145,7 @@ public class MonoidIdentityAppletTest {
     byte[] parameters = installationParameters(
       new byte[0],
       new byte[0],
-      concat(concat(new byte[] { 3 }, id), LibSECP256r1.G)
+      concat(concat(concat(new byte[] { 3 }, id), LibSECP256r1.G), AUTHORITY)
     );
 
     initializeManager(parameters);
@@ -148,6 +157,7 @@ public class MonoidIdentityAppletTest {
 
     Assertions.assertArrayEquals(id, success(transmit(IdentityCallerApplet.GET_IDENTITY_ID)));
     Assertions.assertArrayEquals(LibSECP256r1.G, authorityPublicKey(IDENTITY_AID));
+    Assertions.assertArrayEquals(AUTHORITY, success(transmit(IdentityCallerApplet.GET_AUTHORITY)));
   }
 
   @Test
@@ -159,7 +169,7 @@ public class MonoidIdentityAppletTest {
       installationParameters(
         new byte[0],
         new byte[0],
-        concat(concat(new byte[] { 3 }, id), LibSECP256r1.G)
+        concat(concat(concat(new byte[] { 3 }, id), LibSECP256r1.G), AUTHORITY)
       )
     );
     acquire(IDENTITY_AID);
@@ -172,6 +182,7 @@ public class MonoidIdentityAppletTest {
 
     Assertions.assertArrayEquals(id, success(transmit(IdentityCallerApplet.GET_IDENTITY_ID)));
     Assertions.assertArrayEquals(LibSECP256r1.G, authorityPublicKey(IDENTITY_AID));
+    Assertions.assertArrayEquals(AUTHORITY, success(transmit(IdentityCallerApplet.GET_AUTHORITY)));
 
     Assertions.assertFalse(
       Arrays.equals(publicKey, success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY)))
@@ -189,9 +200,11 @@ public class MonoidIdentityAppletTest {
       new byte[] { 4 },
       new byte[] { 1, 0x12, 0x34, 0x56 },
       new byte[] { 0, 0 },
-      concat(new byte[] { 2 }, invalidPublicKey),
+      concat(new byte[] { 2 }, LibSECP256r1.G),
+      concat(new byte[] { 2 }, AUTHORITY),
+      concat(concat(new byte[] { 2 }, invalidPublicKey), AUTHORITY),
     };
-    int[] status = { 0x6A80, 0x6700, 0x6700, 0x6A80 };
+    int[] status = { 0x6A80, 0x6700, 0x6700, 0x6700, 0x6700, 0x6A80 };
 
     simulator.loadApplet(OTHER_IDENTITY_AID, MonoidIdentityApplet.class);
 
@@ -206,6 +219,49 @@ public class MonoidIdentityAppletTest {
       Assertions.assertEquals(status[index], exception.getReason() & 0xFFFF);
       Assertions.assertFalse(simulator.selectApplet(OTHER_IDENTITY_AID));
     }
+  }
+
+  @Test
+  public void installationUsesUnsignedLengthsForTheMaximumInstallBuffer() throws Exception {
+    byte[] authority = new byte[177];
+    Arrays.fill(authority, (byte) 'x');
+    System.arraycopy(AUTHORITY, 0, authority, 0, AUTHORITY.length);
+
+    byte[] parameters = installationParameters(
+      AppletTest.aidBytes(IDENTITY_AID),
+      new byte[0],
+      concat(concat(new byte[] { 2 }, LibSECP256r1.G), authority)
+    );
+    Assertions.assertEquals(255, parameters.length);
+
+    initializeManager(parameters);
+    acquire(IDENTITY_AID);
+
+    Assertions.assertArrayEquals(authority, success(transmit(IdentityCallerApplet.GET_AUTHORITY)));
+    Assertions.assertArrayEquals(LibSECP256r1.G, authorityPublicKey(IDENTITY_AID));
+  }
+
+  @Test
+  public void authorityIsPublicAndReturnedCopiesCannotChangeInstallationConfiguration() {
+    initializeManager(
+      installationParameters(
+        new byte[0],
+        new byte[0],
+        concat(concat(new byte[] { 2 }, LibSECP256r1.G), AUTHORITY)
+      )
+    );
+    select(UNRELATED_AID);
+    acquire(IDENTITY_AID);
+
+    Assertions.assertArrayEquals(AUTHORITY, success(transmit(IdentityCallerApplet.GET_AUTHORITY)));
+    byte[] changed = AUTHORITY.clone();
+    changed[0] ^= (byte) 0xFF;
+
+    Assertions.assertArrayEquals(
+      changed,
+      success(transmit(IdentityCallerApplet.MUTATE_AUTHORITY_COPY))
+    );
+    Assertions.assertArrayEquals(AUTHORITY, success(transmit(IdentityCallerApplet.GET_AUTHORITY)));
   }
 
   @Test

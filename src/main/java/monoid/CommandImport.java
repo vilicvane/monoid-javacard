@@ -17,13 +17,13 @@ public class CommandImport extends Command {
     reader.requireKey(Text.index);
     byte[] index = readBytes(Safe.INDEX_LENGTH);
     byte[] senderPublicKey = reader.key(Text.senderPublicKey) ? readBytes((short) 65) : null;
-    byte[] key = reader.key(Text.key) ? readBytes((short) -1) : null;
+    byte[] metadata = reader.key(Text.metadata) ? readBytes((short) -1) : null;
     byte[] alias = reader.key(Text.alias) ? reader.text() : null;
 
     reader.requireKey(Text.data);
     SafeData data = SafeData.fromReader(reader);
 
-    MonoidApplet.safe.importItem(index, key, alias, senderPublicKey, data);
+    MonoidApplet.safe.importItem(index, metadata, alias, senderPublicKey, data);
 
     sendEmptyMap();
   }

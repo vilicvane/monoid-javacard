@@ -33,6 +33,8 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   // @formatter:on
 
   private final byte[] id = new byte[ID_LENGTH];
+
+  private final byte[] authority;
   private final ECPublicKey authorityPublicKey;
 
   private byte[] tokenSecret = new byte[TOKEN_LENGTH];
@@ -58,6 +60,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   private CommunicationCipher communicationCipher;
   private BundleExtension bundleExtension;
   private ItemCipher itemCipher;
+  private AuthorityTime authorityTime;
 
   private Bundle bundle;
 
@@ -103,7 +106,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
     if (length != 0) {
       offset += (short) (aidLength + 1);
-      offset += (short) (buffer[offset] + 1);
+      offset += (short) ((buffer[offset] & 0xFF) + 1);
       length = buffer[offset++];
     }
 
@@ -117,17 +120,22 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   }
 
   MonoidIdentityApplet(byte[] buffer, short offset, byte length) {
+    short dataLength = (short) (length & 0xFF);
     byte flags = length == 0 ? 0 : buffer[offset++];
 
     if ((flags & ~(INSTALL_ID | INSTALL_AUTHORITY)) != 0) {
       ISOException.throwIt(ISO7816.SW_WRONG_DATA);
     }
 
-    short expectedLength = (short) (1 +
+    short fixedLength = (short) (1 +
       ((flags & INSTALL_ID) != 0 ? ID_LENGTH : 0) +
       ((flags & INSTALL_AUTHORITY) != 0 ? AUTHORITY_PUBLIC_KEY_LENGTH : 0));
 
-    if (length != 0 && length != expectedLength) {
+    if (
+      (flags & INSTALL_AUTHORITY) != 0
+        ? dataLength <= fixedLength
+        : dataLength != 0 && dataLength != fixedLength
+    ) {
       ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
     }
 
@@ -154,7 +162,12 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
       LibSECP256r1.initialize(authorityPublicKey);
       authorityPublicKey.setW(buffer, offset, AUTHORITY_PUBLIC_KEY_LENGTH);
+      offset += AUTHORITY_PUBLIC_KEY_LENGTH;
+
+      authority = new byte[(short) (dataLength - fixedLength)];
+      Util.arrayCopyNonAtomic(buffer, offset, authority, (short) 0, (short) authority.length);
     } else {
+      authority = null;
       authorityPublicKey = null;
     }
 
@@ -247,6 +260,28 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     assertCaller();
 
     return bundle == null ? null : duplicateAsGlobal(bundle.hash);
+  }
+
+  @Override
+  public byte[] getAuthority() {
+    assertCaller();
+
+    return authority == null ? null : duplicateAsGlobal(authority);
+  }
+
+  @Override
+  public void verifyAuthorityTime(byte[] data, byte[] signature, byte[] challenge) {
+    assertCaller();
+
+    if (authorityPublicKey == null) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+
+    if (authorityTime == null) {
+      authorityTime = new AuthorityTime(authorityPublicKey);
+    }
+
+    authorityTime.verify(data, signature, challenge);
   }
 
   @Override
@@ -430,7 +465,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   @Override
   public CommunicationDataShareable encryptData(
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     short secret,
     byte[] recipientPublicKey,
@@ -451,7 +486,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
         caller,
         publicKey(),
         index,
-        key,
+        metadata,
         alias,
         secret,
         recipientPublicKey,
@@ -467,7 +502,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   @Override
   public CommunicationDataShareable decryptData(
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     byte[] senderPublicKey,
     CommunicationDataShareable data
@@ -486,7 +521,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
         caller,
         publicKey(),
         index,
-        key,
+        metadata,
         alias,
         senderPublicKey,
         data

@@ -1,6 +1,8 @@
 package monoid;
 
 import javacard.framework.AID;
+import javacard.framework.ISO7816;
+import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.Shareable;
 import javacard.security.MessageDigest;
@@ -13,6 +15,26 @@ final class AppletGrants {
   private AppletGrant[] grants;
   private MessageDigest tokenHash;
   private byte[] tokenDigest;
+
+  private final Object[] userGrant = JCSystem.makeTransientObjectArray(
+    (short) 1,
+    JCSystem.CLEAR_ON_RESET
+  );
+  private final short[] userAuth = JCSystem.makeTransientShortArray(
+    (short) 2,
+    JCSystem.CLEAR_ON_RESET
+  );
+  private final LibSecurity.Condition userAuthenticationValidation = new LibSecurity.Condition() {
+    @Override
+    public boolean check() {
+      return (
+        userAuth[0] == Constants.SAFE_TRUE &&
+        userAuth[1] == Constants.SAFE_FALSE &&
+        userGrant[0] != null &&
+        contains((AppletGrant) userGrant[0])
+      );
+    }
+  };
 
   AppletGrants(Safe safe) {
     this.safe = safe;
@@ -39,6 +61,56 @@ final class AppletGrants {
     }
 
     return null;
+  }
+
+  AppletGrant require(byte[] aid) {
+    if (aid.length < 5 || aid.length > 16) {
+      MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+    }
+
+    short index = find(aid);
+
+    if (index < 0) {
+      MonoidException.throwIt(MonoidException.CODE_NOT_FOUND);
+    }
+
+    return grants[index];
+  }
+
+  void clearUserAuthentication() {
+    userAuth[0] = 0;
+    userAuth[1] = 0;
+    userGrant[0] = null;
+  }
+
+  void grantUserAuthentication(AppletGrant grant) {
+    clearUserAuthentication();
+    Command.requireAuth();
+
+    if (!contains(grant)) {
+      MonoidException.throwIt(MonoidException.CODE_NOT_FOUND);
+    }
+
+    userGrant[0] = grant;
+    userAuth[1] = Constants.SAFE_FALSE;
+    userAuth[0] = Constants.SAFE_TRUE;
+  }
+
+  void consumeUserAuthentication(AppletGrant grant) {
+    if (
+      userGrant[0] != grant ||
+      LibSecurity.check(userAuthenticationValidation, Constants.SAFE_FALSE) != Constants.SAFE_TRUE
+    ) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+
+    clearUserAuthentication();
+  }
+
+  void revokeUserAuthentication(AppletGrant grant) {
+    if (userGrant[0] == grant) {
+      clearUserAuthentication();
+    }
   }
 
   boolean contains(AppletGrant grant) {
@@ -171,11 +243,16 @@ final class AppletGrants {
       }
     }
 
+    if (userGrant[0] != null && !contains((AppletGrant) userGrant[0])) {
+      clearUserAuthentication();
+    }
+
     JCSystem.requestObjectDeletion();
   }
 
   /** Called inside Safe's factory-reset transaction. */
   void clear() {
+    clearUserAuthentication();
     grants = null;
     tokenHash = null;
     tokenDigest = null;

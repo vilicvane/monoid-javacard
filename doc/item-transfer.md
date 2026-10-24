@@ -3,7 +3,7 @@
 Export and Import transfer one authenticated Safe item. The commands and their
 authorization requirements are defined in [README](../README.md#iso-7816-commands).
 Both operations require the executing card's Secret PIN, verified by Identity.
-The `data` field carries the binary envelope below; `index`, `key` and `alias`
+The `data` field carries the binary envelope below; `index`, `metadata` and `alias`
 remain public and are authenticated with it. Keep the Export request's original
 index with its response for Import.
 
@@ -74,12 +74,12 @@ nullable(value) = u16(length(value)) || value
 
 context = SHA-256(
   "Monoid Item" || version || u8(length(callerAID)) || callerAID
-  || index || nullable(key) || nullable(alias)
+  || index || nullable(metadata) || nullable(alias)
 )
 ```
 
 `index` is exactly 10 bytes: two type bytes followed by the eight-byte identifier.
-`key` is the exact byte string. `alias` is its exact UTF-8 encoding, without Unicode
+`metadata` is the exact byte string. `alias` is its exact UTF-8 encoding, without Unicode
 normalization. An omitted optional field uses `null`; an empty byte string or alias
 uses length `0000`. These encodings are distinct. Length `FFFF` is reserved for
 null; lengths count bytes rather than characters.
@@ -188,6 +188,6 @@ reinstallation preserve Identity, Secret PIN and its Bundle.
 Retrying an existing artifact does not re-encrypt it. Re-exporting generates a new
 communication key or Bundle salt, nonce and envelope. Import succeeds without
 mutation when the existing item
-has identical index, key, alias, secret and data; different contents conflict.
+has identical index, metadata, alias, secret and data; different contents conflict.
 Items commit independently. The format does not authenticate a complete batch or
 detect omitted items, and does not provide rollback or replay protection.

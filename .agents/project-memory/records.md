@@ -382,8 +382,18 @@
 
 ## b531981
 
-186. [user] 选择Monoid通用HMAC与独立OTP Applet；要求近期多组OTP，提出上电配额/跨断电不回退后重新审视必要性，并讨论预装证书、一次贴卡多轮验证可信时间。[agent] secret读取边界不放宽；签名时间凭据可约束未来窗口，单独主机时间/单调状态不能证明真实时间。具体接口/协议/配额未批准，未改生产代码或实卡；见 [OTP入口与职责划分](./186.md)。
+186. [user] 选择Monoid通用HMAC与独立OTP、TOTP固定3组、单AID启动时消费许可和List后按需计算；批准内置HMAC Key，复用grant.keys，移除grant.hmac。[agent] 0x05LL保存1–255B密钥，按完整index授权；公开F201账户保存配置和Key引用。Authenticate21加aid、Identity验Authority时间，普通认证仍DESELECT/FIDO独立。当前用原生MessageDigest组合HMAC、共享128B RESET pad；Safe减少重复token副本及SetGrant复用map，三轮检查保留。668测试/77套件、5CAP、Inplate/JS6/格式通过；ACR39U/J3R452完整40项实卡检查含热态Hello及16-Key授权更新，单账户三码约0.664/0.693/0.741s，16账户48码共3Key/独立16Key为7.474/7.840s，热态剩余RAM562/560B（非峰值）。旧D321/原生优先候选仅为历史，不能混作当前性能。原正式数据经用户允许清除，厂商系统包保留；本轮五临时包清理及registry复核完成，无正式部署，未提交/推送或改APP/服务。[blog] [OTP入口与职责划分](./186.md)。
 
 187. [user] Authority共用密钥，选择账户派生Bundle Token并批准allowPeerExtension控制成员双卡扩展，Authority独立签发不受限。[agent] 复用Join24和HPKE Auth，安装公钥认证单卡入组；策略随密文绑定并在Extend/Approve执行，相同root+策略才幂等，不覆盖既有Bundle。入组包增加flags且不兼容旧包，条目密文不变；无新APDU/SIO、APP或服务端实现；626测试/70套件与四CAP通过，未实卡/提交，见 [Authority职责与边界](./187.md)。
 
 188. [user] 要求Reset保留Card ID并允许安装恢复ID，批准flags+可选ID4/Authority65格式。[agent] Identity接入安装配置、持久公钥与指定实例AID，Reset保留两配置但轮换密钥/token并清数据/PIN/Bundle；脚本增加安装参数，无新业务SIO/APDU。65测试/4套件、四CAP及格式/模板检查通过，未实卡/提交；见 [Card ID与安装配置](./188.md)。
+
+189. [user] 批准Monoid／OTP共享ApduTransport并检查遗漏。[agent] framing／GET RESPONSE／清理移入monoidlib实例基类，两客户端只保留supports/execute命令分派；外部协议/SIO不变，CTAP与Identity独立。OTP Prepare直接global读取41B证明／64B签名，去掉持久中间副本；跨命令time／indices仍持久。670测试/78套件、5CAP、Inplate/JS6/格式通过；ACR39U/J3R452实卡40项/175事件通过，136源码哈希一致，RAM边界读数与186前轮相同（热态562/560B），Prepare9次均值610→582ms，其余差值不作单项因果结论。五临时CAP／四实例全清，registry恢复baseline且厂商系统不变，reader已释放；未提交/暂存/正式部署，见 [共享APDU传输](./189.md)。
+
+190. [user] 批准 Safe Item 的 key/keyPrefix/getKey 改名 metadata/metadataPrefix/getMetadata。[agent] 同步 APDU/SIO、Safe、Security Key、OTP、文档与字段顺序；索引、授权、查询及加密封装字节不变，真实密码学 Key 保留，不合并 OTP/HMAC 记录。全量测试、五 CAP、JS6 与模板检查通过，本轮未实卡/部署/提交；见 [条目 metadata 命名](./190.md)。
+
+191. [user] 要求三卡旧Bundle迁入fresh卡，并追加升级Test1以便APP升级最后一张。[agent] 两源四条数据逐项一致；独立卡内桥经双卡批准转换旧入组包，新卡Join/导入/复位验证通过，root不出卡，临时包已清理；获准删除无实例D0/D2释放空间。Test1三包升级、原Card ID与四条数据恢复完成，旧Test2 Extend→新版卡Approve→Test1 Join直接走正式命令；两种PIN独立复位认证及全部内容/registry核验通过。两新版卡保有完整副本，Test2旧程序/数据保留待APP升级；见 [三卡跨格式迁移](./191.md)。[blog] 外层字段改名与HPKE认证上下文变化的不同迁移成本。
+
+192. [user] 批准 Hello 返回 Authority URL，安装时成对传入 URL/公钥，OTP 未配置 Authority 时接受 APP 时间。[agent] Identity global getter、安装UTF-8尾部、Hello string|false、Prepare time8或原签名证明互斥；配置由卡内决定，禁止签名失败降级，原单次授权及三窗口保留。680测试/79套件、五CAP、脚本mock11项、JS6与模板通过；随后经193完成无Authority的双卡核心包部署，OTP新分支仍为本地验证，见 [Authority URL 与 OTP 时间](./192.md)。
+
+193. [user] 要求今后 Identity 更新且 APP 可能不兼容时，提供临时双卡更新脚本；确认Test2后续APP重装，并批准恢复四条记录。[agent] 本轮15阶段完成，Test1 7D643176/Test2 A6B79EFE升级并复位验证四条记录、PIN、原Bundle及allowPeerExtension；第三卡6A1590AE六条/两授权保留。17项离线测试及最终证据核对通过，next=15/pending=null，未改暂存区或提交；见 [双卡更新工作流](./193.md)。

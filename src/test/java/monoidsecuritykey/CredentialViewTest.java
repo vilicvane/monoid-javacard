@@ -78,7 +78,7 @@ public class CredentialViewTest {
       }
 
       Assertions.assertTrue(loaded.matchesId(filled(32, 1), (short) 0));
-      Assertions.assertArrayEquals(filled(32, 2), Arrays.copyOfRange(loaded.key(), 32, 64));
+      Assertions.assertArrayEquals(filled(32, 2), Arrays.copyOfRange(loaded.metadata(), 32, 64));
       Assertions.assertTrue(loaded.matchesPublicKey(filled(65, 4)));
       Assertions.assertArrayEquals(original.context(), loaded.context());
       byte[] contextOutput = filled(133, 9);
@@ -170,9 +170,9 @@ public class CredentialViewTest {
     Record badIndex = new Record(credential(1, null, true));
     badIndex.index[2] ^= 1;
     rejects(badIndex, CTAP.OTHER);
-    Record badKey = new Record(credential(1, null, true));
-    badKey.key[0] ^= 1;
-    rejects(badKey, CTAP.OTHER);
+    Record badMetadata = new Record(credential(1, null, true));
+    badMetadata.metadata[0] ^= 1;
+    rejects(badMetadata, CTAP.OTHER);
     Credential loaded = Credential.read(valid.handle(), new byte[64]);
     Assertions.assertTrue(loaded.resident());
   }
@@ -237,7 +237,7 @@ public class CredentialViewTest {
       )
     );
     Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(named.index));
-    Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(named.key));
+    Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(named.metadata));
     byte[] expectedIndex = named.index.clone();
     Credential[] cached = new Credential[1];
     byte[][] encodedUser = new byte[1][];
@@ -274,8 +274,8 @@ public class CredentialViewTest {
     store.newSession();
     Assertions.assertTrue(simulator.selectApplet(AIDUtil.create(APPLET)));
     Assertions.assertArrayEquals(expectedIndex, named.index);
-    Assertions.assertArrayEquals(new byte[32], Arrays.copyOf(named.key, 32));
-    Assertions.assertArrayEquals(filled(32, 2), Arrays.copyOfRange(named.key, 32, 64));
+    Assertions.assertArrayEquals(new byte[32], Arrays.copyOf(named.metadata, 32));
+    Assertions.assertArrayEquals(filled(32, 2), Arrays.copyOfRange(named.metadata, 32, 64));
     run(() -> {
       assertStatus((short) 0x6982, oldSnapshot[0]::getLength);
       Assertions.assertSame(cached[0], find(named));
@@ -796,7 +796,7 @@ public class CredentialViewTest {
   }
 
   private Credential find(Record record) {
-    return credentials.find(store.service, record.id, Arrays.copyOfRange(record.key, 32, 64));
+    return credentials.find(store.service, record.id, Arrays.copyOfRange(record.metadata, 32, 64));
   }
 
   private static Credential credential(int id, byte[] name, boolean resident) {
@@ -928,7 +928,7 @@ public class CredentialViewTest {
     byte[] bytes;
     final byte[] id = new byte[32];
     final byte[] index;
-    final byte[] key;
+    final byte[] metadata;
     Store owner;
     boolean secret;
     Runnable onRead;
@@ -940,7 +940,7 @@ public class CredentialViewTest {
       credential.copyId(id, (short) 0);
       // Safe owns persistent metadata; the exported credential helpers return reset-cleared globals.
       index = credential.index().clone();
-      key = credential.key().clone();
+      metadata = credential.metadata().clone();
     }
 
     @Override
@@ -967,8 +967,8 @@ public class CredentialViewTest {
         switch (method.getName()) {
           case "getIndex":
             return index;
-          case "getKey":
-            return key;
+          case "getMetadata":
+            return metadata;
           case "getData":
             return snapshot();
           default:
@@ -1074,7 +1074,7 @@ public class CredentialViewTest {
                 )
               ) &&
               Arrays.equals(
-                record.key,
+                record.metadata,
                 Arrays.copyOfRange(
                   (byte[]) arguments[2],
                   (short) arguments[3],
@@ -1097,7 +1097,7 @@ public class CredentialViewTest {
         }
         if (method.getName().equals("listIndices")) {
           indexCalls++;
-          byte[] key = Arrays.copyOfRange(
+          byte[] metadata = Arrays.copyOfRange(
             (byte[]) arguments[1],
             (short) arguments[2],
             (short) arguments[2] + (short) arguments[3]
@@ -1105,8 +1105,8 @@ public class CredentialViewTest {
           short count = 0;
           for (Record record : records) {
             if (
-              record.key.length >= key.length &&
-              Arrays.equals(key, Arrays.copyOf(record.key, key.length))
+              record.metadata.length >= metadata.length &&
+              Arrays.equals(metadata, Arrays.copyOf(record.metadata, metadata.length))
             ) {
               if (count < (short) arguments[6]) {
                 System.arraycopy(
@@ -1126,7 +1126,7 @@ public class CredentialViewTest {
           iteratorCalls++;
           List<Record> selected = new ArrayList<>();
           for (Record record : records) {
-            if (Arrays.equals(record.key, (byte[]) arguments[1])) {
+            if (Arrays.equals(record.metadata, (byte[]) arguments[1])) {
               selected.add(record);
             }
           }
@@ -1142,7 +1142,7 @@ public class CredentialViewTest {
                   return (short) -1;
                 }
                 Record record = selected.get(position[0]++);
-                Assertions.assertArrayEquals(record.key, (byte[]) parameters[0]);
+                Assertions.assertArrayEquals(record.metadata, (byte[]) parameters[0]);
                 System.arraycopy(
                   record.index,
                   0,

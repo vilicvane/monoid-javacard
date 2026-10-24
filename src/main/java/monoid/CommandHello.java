@@ -9,7 +9,7 @@ public final class CommandHello extends Command {
   protected void run() {
     reader.map();
 
-    writer.map((short) 5);
+    writer.map((short) 6);
     {
       writer.text(Text.version);
       writer.integer(Constants.MONOID_VERSION);
@@ -19,6 +19,14 @@ public final class CommandHello extends Command {
 
       writer.text(Text.publicKey);
       writer.bytes(MonoidApplet.safe.getPublicKey());
+
+      writer.text(Text.authority);
+      byte[] authority = MonoidApplet.safe.getAuthority();
+      if (authority != null) {
+        writer.text(authority);
+      } else {
+        writer.bool(false);
+      }
 
       writer.text(Text.bundle);
       byte[] bundle = MonoidApplet.safe.getBundle();

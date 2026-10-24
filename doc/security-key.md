@@ -43,14 +43,14 @@ The [Monoid](../src/main/java/monoid/Monoid.java) and
 [iterator](../src/main/java/monoid/SafeItemIteratorShareable.java) interfaces retain
 their handle methods and add direct operations:
 
-| Operation       | Contract                                                                                                                                                                                                                                                       |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `readData`      | Returns total data length and copies up to the byte capacity; `-1` means absent or a different exact key. Null matches only null. No cross-call snapshot.                                                                                                      |
-| `getData`       | Returns a data snapshot for an index range and exact key; null means absent or a different key. Snapshot reads retain the current session and data checks.                                                                                                     |
-| `isDataCurrent` | Checks a previously issued data snapshot through the current authenticated session. Returns false for deleted, replaced or changed data; current Type and nonsecret permissions are required. Does not reactivate the snapshot's old session.                  |
-| `nextData`      | Advances once and returns the true index plus a data prefix; `-1` means end. An inexact key fails with `6985`. Output regions must not overlap; restart enumeration after an error that advanced it.                                                           |
-| `listIndices`   | Applies the Type/grant and key-prefix filters; null or empty prefix means no key filter. Returns the total count and copies the first `capacity` 10-byte indices. Capacity counts indices. Prefix and output ranges must not overlap; no snapshot is retained. |
-| `createData`    | Copies a complete index/key/alias/data record without a callback; returns false if the index exists. Requires a writable Type and preserves normal validation and storage publication.                                                                         |
+| Operation       | Contract                                                                                                                                                                                                                                                                  |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `readData`      | Returns total data length and copies up to the byte capacity; `-1` means absent or different `expectedMetadata`. Null matches only null. No cross-call snapshot.                                                                                                          |
+| `getData`       | Returns a data snapshot for an index range and exact `expectedMetadata`; null means absent or different metadata. Snapshot reads retain the current session and data checks.                                                                                              |
+| `isDataCurrent` | Checks a previously issued data snapshot through the current authenticated session. Returns false for deleted, replaced or changed data; current Type and nonsecret permissions are required. Does not reactivate the snapshot's old session.                             |
+| `nextData`      | Advances once and returns the true index plus a data prefix; `-1` means end. Different `expectedMetadata` fails with `6985`. Output regions must not overlap; restart enumeration after an error that advanced it.                                                        |
+| `listIndices`   | Applies the Type/grant and `metadataPrefix` filters; null or empty prefix means no metadata filter. Returns the total count and copies the first `capacity` 10-byte indices. Capacity counts indices. Prefix and output ranges must not overlap; no snapshot is retained. |
+| `createData`    | Copies a complete index/metadata/alias/data record without a callback; returns false if the index exists. Requires a writable Type and preserves normal validation and storage publication.                                                                               |
 
 Authentication, derivation, signing and direct reads have offset/length overloads
 for global arrays, including the shared APDU buffer. Token and digest inputs remain
@@ -100,7 +100,7 @@ This transport does not use Monoid's custom framing.
 
 ## Credentials and derivation
 
-Credential records use Type `0xF101`, lookup `key = scope || SHA256(rpId)` and
+Credential records use Type `0xF101`, lookup `metadata = scope || SHA256(rpId)` and
 `secret = false`. Their versioned CBOR data contains the random 32-byte credential
 ID, RP hash/ID, user ID and optional names, resident flag, 65-byte public key and
 32-byte scope (integer field `10`).

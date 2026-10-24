@@ -329,7 +329,34 @@ task prepareSimulatorAppletGrants {
 	}
 }
 
+task prepareSimulatorOTP {
+	def paths = ['monoid/HMAC', 'monoididentity/AuthorityTime']
+	def originals = paths.collect { file("src/main/java/${it}.java") }
+	def adapted = paths.collect { file("${buildDir}/generated/simulator/${it}.java") }
+	inputs.files originals
+	outputs.files adapted
+
+	doLast {
+		originals.eachWithIndex { original, index ->
+			def source = original.text
+			def pattern = index == 0 ? /MessageDigest\.(ALG_SHA(?:_256|_512)?), true/ : /Signature\.(ALG_ECDSA_SHA_256), true/
+			if ((source =~ pattern).count != (index == 0 ? 3 : 1)) {
+				throw new GradleException("Unexpected simulator OTP factory match count: ${original}")
+			}
+
+			source = source.replaceAll(pattern, index == 0 ? 'MessageDigest.$1, false' : 'Signature.$1, false')
+
+			// The simulator rejects external-access factories; CAP keeps the original source.
+			adapted[index].parentFile.mkdirs()
+			adapted[index].text = source
+		}
+	}
+}
+
 compileSimulatorMath {
+	dependsOn prepareSimulatorOTP
+	source file("${buildDir}/generated/simulator/monoid/HMAC.java")
+	source file("${buildDir}/generated/simulator/monoididentity/AuthorityTime.java")
 	dependsOn prepareSimulatorBundleExtension
 	source file("${buildDir}/generated/simulator/monoididentity/BundleExtension.java")
 	dependsOn prepareSimulatorCommunicationCipher, prepareSimulatorAESGcmCipher, prepareSimulatorItemCipher, prepareSimulatorIdentity, prepareSimulatorHMACSha512, prepareSimulatorStorage

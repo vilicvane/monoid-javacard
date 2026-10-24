@@ -162,7 +162,7 @@ public class ItemCipherTest {
           CALLER_AID,
           recipient.getPublicKey(),
           changed,
-          item.key,
+          item.metadata,
           item.alias,
           sender.getPublicKey(),
           new TestData(encrypted)
@@ -192,7 +192,7 @@ public class ItemCipherTest {
           CALLER_AID,
           recipient.getPublicKey(),
           new byte[indexLength],
-          item.key,
+          item.metadata,
           item.alias,
           sender.getPublicKey(),
           new TestData(encrypted)
@@ -200,11 +200,11 @@ public class ItemCipherTest {
       );
     }
 
-    for (byte[] key : new byte[][] { null, new byte[0] }) {
+    for (byte[] metadata : new byte[][] { null, new byte[0] }) {
       for (byte[] alias : new byte[][] { null, new byte[0] }) {
-        TestItem nullable = new TestItem(INDEX, key, alias, bytes(32), Constants.SAFE_FALSE);
+        TestItem nullable = new TestItem(INDEX, metadata, alias, bytes(32), Constants.SAFE_FALSE);
         byte[] envelope = encryptOnHost(sender, recipient, nullable);
-        byte[] changedKey = key == null ? new byte[0] : null;
+        byte[] changedMetadata = metadata == null ? new byte[0] : null;
         byte[] changedAlias = alias == null ? new byte[0] : null;
 
         Assertions.assertThrows(CryptoException.class, () ->
@@ -214,7 +214,7 @@ public class ItemCipherTest {
             CALLER_AID,
             recipient.getPublicKey(),
             INDEX,
-            changedKey,
+            changedMetadata,
             alias,
             sender.getPublicKey(),
             new TestData(envelope)
@@ -227,7 +227,7 @@ public class ItemCipherTest {
             CALLER_AID,
             recipient.getPublicKey(),
             INDEX,
-            key,
+            metadata,
             changedAlias,
             sender.getPublicKey(),
             new TestData(envelope)
@@ -267,7 +267,7 @@ public class ItemCipherTest {
           otherCaller,
           recipient.getPublicKey(),
           item.index,
-          item.key,
+          item.metadata,
           item.alias,
           sender.getPublicKey(),
           new TestData(encrypted)
@@ -283,7 +283,7 @@ public class ItemCipherTest {
         new AID(caller, (short) 0, (byte) caller.length),
         recipient.getPublicKey(),
         item.index,
-        item.key,
+        item.metadata,
         item.alias,
         sender.getPublicKey(),
         new TestData(encrypted)
@@ -478,7 +478,7 @@ public class ItemCipherTest {
       CALLER_AID,
       sender.getPublicKey(),
       item.index,
-      item.key,
+      item.metadata,
       item.alias,
       item.secret,
       recipientPublicKey,
@@ -499,7 +499,7 @@ public class ItemCipherTest {
       CALLER_AID,
       recipient.getPublicKey(),
       item.index,
-      item.key,
+      item.metadata,
       item.alias,
       sender.getPublicKey(),
       new TestData(encrypted)
@@ -543,7 +543,7 @@ public class ItemCipherTest {
     output.write(caller);
     output.write(item.index);
 
-    for (byte[] value : new byte[][] { item.key, item.alias }) {
+    for (byte[] value : new byte[][] { item.metadata, item.alias }) {
       output.writeShort(value == null ? 0xFFFF : value.length);
 
       if (value != null) {
@@ -557,14 +557,14 @@ public class ItemCipherTest {
   private static final class TestItem {
 
     private final byte[] index;
-    private final byte[] key;
+    private final byte[] metadata;
     private final byte[] alias;
     private final byte[] data;
     private final short secret;
 
-    TestItem(byte[] index, byte[] key, byte[] alias, byte[] data, short secret) {
+    TestItem(byte[] index, byte[] metadata, byte[] alias, byte[] data, short secret) {
       this.index = index;
-      this.key = key;
+      this.metadata = metadata;
       this.alias = alias;
       this.data = data;
       this.secret = secret;

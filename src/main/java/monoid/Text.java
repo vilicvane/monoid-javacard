@@ -7,6 +7,7 @@ public class Text {
   public static final byte[] aid = {'a','i','d'};
   public static final byte[] alias = {'a','l','i','a','s'};
   public static final byte[] auth = {'a','u','t','h'};
+  public static final byte[] authority = {'a','u','t','h','o','r','i','t','y'};
   public static final byte[] available = {'a','v','a','i','l','a','b','l','e'};
   public static final byte[] bundle = {'b','u','n','d','l','e'};
   public static final byte[] chainCode = {'c','h','a','i','n','C','o','d','e'};
@@ -30,13 +31,13 @@ public class Text {
   public static final byte[] indexes = {'i','n','d','e','x','e','s'};
   public static final byte[] items = {'i','t','e','m','s'};
   public static final byte[] javacard = {'j','a','v','a','c','a','r','d'};
-  public static final byte[] key = {'k','e','y'};
-  public static final byte[] keyPrefix = {'k','e','y','P','r','e','f','i','x'};
   public static final byte[] keys = {'k','e','y','s'};
   public static final byte[] length = {'l','e','n','g','t','h'};
   public static final byte[] memories = {'m','e','m','o','r','i','e','s'};
   public static final byte[] merkleRoot = {'m','e','r','k','l','e','R','o','o','t'};
   public static final byte[] message = {'m','e','s','s','a','g','e'};
+  public static final byte[] metadata = {'m','e','t','a','d','a','t','a'};
+  public static final byte[] metadataPrefix = {'m','e','t','a','d','a','t','a','P','r','e','f','i','x'};
   public static final byte[] monoid = {'m','o','n','o','i','d'};
   public static final byte[] name = {'n','a','m','e'};
   public static final byte[] path = {'p','a','t','h'};

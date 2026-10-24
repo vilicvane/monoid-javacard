@@ -30,9 +30,9 @@ public class CommandList extends Command implements CBORResponse {
       ? reader.is(CBOR.TYPE_TEXT) ? Safe.type(reader) : reader.integer()
       : 0;
 
-    byte[] keyPrefix = reader.key(Text.keyPrefix) ? reader.bytes() : null;
+    byte[] metadataPrefix = reader.key(Text.metadataPrefix) ? reader.bytes() : null;
 
-    SafeItemIterator items = MonoidApplet.safe.list(type, keyPrefix);
+    SafeItemIterator items = MonoidApplet.safe.list(type, metadataPrefix);
     short count = items.getCount();
 
     references[0] = items;
@@ -54,7 +54,7 @@ public class CommandList extends Command implements CBORResponse {
     return (short) (metadataLength +
       17 +
       Text.type.length +
-      Text.key.length +
+      Text.metadata.length +
       Text.alias.length +
       Text.index.length +
       Text.secret.length +
@@ -68,18 +68,18 @@ public class CommandList extends Command implements CBORResponse {
     }
 
     SafeItem item = ((SafeItemIterator) references[0]).next();
-    byte[] metadata = APDU.getCurrentAPDUBuffer();
+    byte[] buffer = APDU.getCurrentAPDUBuffer();
 
-    if (state[1] > metadata.length) {
-      metadata = new byte[state[1]];
+    if (state[1] > buffer.length) {
+      buffer = new byte[state[1]];
     }
 
-    short indexLength = item.getIndex(metadata, (short) 0);
-    byte[] typeName = Safe.type(Util.getShort(metadata, Safe.INDEX_TYPE_OFFSET));
-    short keyOffset = indexLength;
-    short keyLength = item.getKey(metadata, keyOffset);
-    short aliasOffset = (short) (keyOffset + (keyLength > 0 ? keyLength : 0));
-    short aliasLength = item.getAlias(metadata, aliasOffset);
+    short indexLength = item.getIndex(buffer, (short) 0);
+    byte[] typeName = Safe.type(Util.getShort(buffer, Safe.INDEX_TYPE_OFFSET));
+    short metadataOffset = indexLength;
+    short metadataLength = item.getMetadata(buffer, metadataOffset);
+    short aliasOffset = (short) (metadataOffset + (metadataLength > 0 ? metadataLength : 0));
+    short aliasLength = item.getAlias(buffer, aliasOffset);
 
     short entries = 2;
 
@@ -87,7 +87,7 @@ public class CommandList extends Command implements CBORResponse {
       entries++;
     }
 
-    if (keyLength >= 0) {
+    if (metadataLength >= 0) {
       entries++;
     }
 
@@ -102,18 +102,18 @@ public class CommandList extends Command implements CBORResponse {
         writer.text(typeName);
       }
 
-      if (keyLength >= 0) {
-        writer.text(Text.key);
-        writer.bytes(metadata, keyOffset, keyLength);
+      if (metadataLength >= 0) {
+        writer.text(Text.metadata);
+        writer.bytes(buffer, metadataOffset, metadataLength);
       }
 
       if (aliasLength >= 0) {
         writer.text(Text.alias);
-        writer.text(metadata, aliasOffset, aliasLength);
+        writer.text(buffer, aliasOffset, aliasLength);
       }
 
       writer.text(Text.index);
-      writer.bytes(metadata, (short) 0, indexLength);
+      writer.bytes(buffer, (short) 0, indexLength);
 
       writer.text(Text.secret);
       writer.bool(item.isSecret());

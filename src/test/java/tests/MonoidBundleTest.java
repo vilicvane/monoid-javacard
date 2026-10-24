@@ -348,7 +348,7 @@ public class MonoidBundleTest {
       byte[] plainIndex = customIndex(201);
       byte[] legacyIndex = customIndex(202);
       byte[] payload = sequence(2048);
-      byte[] lookupKey = sequence(12);
+      byte[] lookupMetadata = sequence(12);
 
       outsider.installMonoid();
       outsider.create(legacyIndex, null, null, sequence(64), false);
@@ -359,7 +359,7 @@ public class MonoidBundleTest {
 
       first.installMonoid();
       byte[] identity = first.safeId();
-      first.create(plainIndex, lookupKey, "large note", payload, false);
+      first.create(plainIndex, lookupMetadata, "large note", payload, false);
       byte[] secretIndex = first.create("ed25519", null, "secret key", ED25519_KEY, true);
       first.authenticate(true);
 
@@ -429,7 +429,7 @@ public class MonoidBundleTest {
         0x6985,
         first.transmit(
           0x37,
-          importItem(plainIndex, lookupKey, "large note", null, plainData)
+          importItem(plainIndex, lookupMetadata, "large note", null, plainData)
         ).status
       );
       byte[] secretData = exportItem(first, secretIndex, null).bytes("data");
@@ -445,7 +445,7 @@ public class MonoidBundleTest {
       first.uninstallMonoid();
 
       outsider.installMonoid();
-      outsider.create(plainIndex, lookupKey, "large note", payload, false);
+      outsider.create(plainIndex, lookupMetadata, "large note", payload, false);
       outsider.authenticate(true);
       byte[][] otherRecipients = { secondKey };
       Result otherCreated = outsider.success(0x23, fields("publicKeys", otherRecipients));
@@ -484,13 +484,16 @@ public class MonoidBundleTest {
 
       second.authenticate(false);
       assertError(
-        second.transmit(0x37, importItem(plainIndex, lookupKey, "large note", null, plainData)),
+        second.transmit(
+          0x37,
+          importItem(plainIndex, lookupMetadata, "large note", null, plainData)
+        ),
         "ACCESS_DENIED"
       );
       second.authenticate(true);
       Result plainImport = second.success(
         0x37,
-        importItem(plainIndex, lookupKey, "large note", null, plainData)
+        importItem(plainIndex, lookupMetadata, "large note", null, plainData)
       );
       Assertions.assertTrue(plainImport.requestFrames > 1);
       assertData(second, plainIndex, payload);
@@ -505,26 +508,29 @@ public class MonoidBundleTest {
       assertData(second, legacyIndex, sequence(64));
       second.success(
         0x37,
-        importItem(plainIndex, lookupKey, "large note", firstKey, asymmetricData)
+        importItem(plainIndex, lookupMetadata, "large note", firstKey, asymmetricData)
       );
 
       byte[] tamperedData = plainData.clone();
       tamperedData[tamperedData.length - 1] ^= 1;
       assertCryptoRejected(
-        second.transmit(0x37, importItem(plainIndex, lookupKey, "large note", null, tamperedData))
+        second.transmit(
+          0x37,
+          importItem(plainIndex, lookupMetadata, "large note", null, tamperedData)
+        )
       );
       assertCryptoRejected(
-        second.transmit(0x37, importItem(plainIndex, lookupKey, "changed", null, plainData))
+        second.transmit(0x37, importItem(plainIndex, lookupMetadata, "changed", null, plainData))
       );
       Assertions.assertEquals(
         0x6985,
         second.transmit(
           0x37,
-          importItem(plainIndex, lookupKey, "large note", null, foreignData)
+          importItem(plainIndex, lookupMetadata, "large note", null, foreignData)
         ).status
       );
       assertData(second, plainIndex, payload);
-      assertMetadata(second, plainIndex, lookupKey, "large note", false);
+      assertMetadata(second, plainIndex, lookupMetadata, "large note", false);
       second.authenticate(true);
       byte[] relayedData = exportItem(second, plainIndex, null).bytes("data");
       second.uninstallMonoid();
@@ -535,25 +541,28 @@ public class MonoidBundleTest {
         third.success(0x24, fields("publicKey", firstKey, "data", thirdEnrollment)),
         bundle
       );
-      third.success(0x37, importItem(plainIndex, lookupKey, "large note", null, relayedData));
+      third.success(0x37, importItem(plainIndex, lookupMetadata, "large note", null, relayedData));
       assertData(third, plainIndex, payload);
       third.uninstallMonoid();
 
       // Replacing Monoid keeps the member identity and its original Secret PIN.
       first.installMonoid(false);
       assertError(
-        first.transmit(0x37, importItem(plainIndex, lookupKey, "large note", null, relayedData)),
+        first.transmit(
+          0x37,
+          importItem(plainIndex, lookupMetadata, "large note", null, relayedData)
+        ),
         "UNAUTHORIZED"
       );
       assertError(first.transmit(0x22, fields("pin", "111111", "secret", true)), "UNAUTHORIZED");
       first.authenticate(true);
-      first.success(0x37, importItem(plainIndex, lookupKey, "large note", null, relayedData));
+      first.success(0x37, importItem(plainIndex, lookupMetadata, "large note", null, relayedData));
       assertData(first, plainIndex, payload);
       Assertions.assertEquals(
         0x6985,
         first.transmit(
           0x37,
-          importItem(plainIndex, lookupKey, "large note", null, plainData)
+          importItem(plainIndex, lookupMetadata, "large note", null, plainData)
         ).status
       );
       first.uninstallMonoid();
@@ -569,7 +578,7 @@ public class MonoidBundleTest {
         0x6985,
         outsider.transmit(
           0x37,
-          importItem(plainIndex, lookupKey, "large note", null, plainData)
+          importItem(plainIndex, lookupMetadata, "large note", null, plainData)
         ).status
       );
       assertError(outsider.transmit(0x31, fields("index", plainIndex)), "NOT_FOUND");
@@ -586,7 +595,7 @@ public class MonoidBundleTest {
 
   private static Map<String, Object> importItem(
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     String alias,
     byte[] sender,
     byte[] data
@@ -595,8 +604,8 @@ public class MonoidBundleTest {
     if (sender != null) {
       request.put("senderPublicKey", sender);
     }
-    if (key != null) {
-      request.put("key", key);
+    if (metadata != null) {
+      request.put("metadata", metadata);
     }
     if (alias != null) {
       request.put("alias", alias);

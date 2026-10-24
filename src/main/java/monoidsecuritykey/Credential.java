@@ -236,7 +236,7 @@ final class Credential implements SafeDataShareable {
     if (index.length != 10) {
       ISOException.throwIt(CTAP.OTHER);
     }
-    assertMetadata(index, (short) 0, item.getKey());
+    assertMetadata(index, (short) 0, item.getMetadata());
   }
 
   private void load(SafeDataShareable source, short length, byte[] window) {
@@ -321,8 +321,8 @@ final class Credential implements SafeDataShareable {
     updateLabel();
   }
 
-  void assertMetadata(byte[] index, short offset, byte[] key) {
-    if (!matchesIndex(index, offset) || key == null || !matchesKey(key)) {
+  void assertMetadata(byte[] index, short offset, byte[] metadata) {
+    if (!matchesIndex(index, offset) || metadata == null || !matchesMetadata(metadata)) {
       ISOException.throwIt(CTAP.OTHER);
     }
   }
@@ -372,11 +372,11 @@ final class Credential implements SafeDataShareable {
     return Util.arrayCompare(data, state[ID], id, offset, (short) 32) == 0;
   }
 
-  boolean matchesKey(byte[] key) {
+  boolean matchesMetadata(byte[] metadata) {
     return (
-      key.length == 64 &&
-      Util.arrayCompare(data, state[SCOPE], key, (short) 0, (short) 32) == 0 &&
-      Util.arrayCompare(data, state[RP_HASH], key, (short) 32, (short) 32) == 0
+      metadata.length == 64 &&
+      Util.arrayCompare(data, state[SCOPE], metadata, (short) 0, (short) 32) == 0 &&
+      Util.arrayCompare(data, state[RP_HASH], metadata, (short) 32, (short) 32) == 0
     );
   }
 
@@ -410,13 +410,13 @@ final class Credential implements SafeDataShareable {
     Util.arrayCopyNonAtomic(data, state[RP_HASH], dest, offset, (short) 32);
   }
 
-  byte[] key() {
-    byte[] key = Utils.makeGlobalByteArray((short) 64);
-    writeKey(key, (short) 0);
-    return key;
+  byte[] metadata() {
+    byte[] metadata = Utils.makeGlobalByteArray((short) 64);
+    writeMetadata(metadata, (short) 0);
+    return metadata;
   }
 
-  short writeKey(byte[] dest, short offset) {
+  short writeMetadata(byte[] dest, short offset) {
     Util.arrayCopyNonAtomic(data, state[SCOPE], dest, offset, (short) 32);
     copyRPHash(dest, (short) (offset + 32));
 
@@ -430,14 +430,14 @@ final class Credential implements SafeDataShareable {
   boolean create(Monoid monoid, byte[] window) {
     short length = getLength();
     if (length > (short) (window.length - 74)) {
-      return monoid.create(index(), key(), null, this, false) != null;
+      return monoid.create(index(), metadata(), null, this, false) != null;
     }
     Util.setShort(window, (short) 0, CREDENTIAL_TYPE);
     Util.arrayCopyNonAtomic(data, state[ID], window, (short) 2, (short) 8);
-    writeKey(window, (short) 10);
+    writeMetadata(window, (short) 10);
     read((short) 0, window, (short) 74, length);
 
-    // Index, lookup key and record share separate ranges of the borrowed APDU buffer.
+    // Index, metadata and record share separate ranges of the borrowed APDU buffer.
     return monoid.createData(
       window,
       (short) 0,

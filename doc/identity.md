@@ -19,22 +19,38 @@ Identity accepts the following application data in the GP installation parameter
 flags:              1 byte
 id:                 4 bytes, present when flags & 0x01
 authorityPublicKey: 65 bytes, present when flags & 0x02
+authorityUrl:       remaining bytes, nonempty UTF-8, present when flags & 0x02
 ```
 
 Fields appear in that order. Empty application data or `flags = 0` generates a random
 Card ID and leaves Authority unset. Other flag bits are invalid. The Authority key
 is an uncompressed P-256 public key (`04 || X || Y`), independent of the card's key pair.
-Both values are stored persistently and preserved by `0xFF Reset` and Monoid replacement.
+The service URL and public key must be supplied together. The URL occupies the rest
+of the application data, without another length prefix; a key-only configuration is invalid.
+Card ID, Authority URL and Authority key are stored persistently and preserved by
+`0xFF Reset` and Monoid replacement.
 Identity reinstallation can restore a supplied Card ID, but generates a fresh card key pair
 and binding secret. No runtime setter is exposed.
 
-The installation authority chooses the trusted Authority public key. Identity uses
-it to authenticate [Authority-issued Bundle enrollment](authority.md); it cannot
-replace an existing Bundle or change its policy.
+The user selects the Authority service URL, and the installer obtains its public
+key before installing both. This initial choice establishes trust. The APP uses
+the URL returned by Monoid Hello to reach the service; Identity does not access the
+network and verifies [Authority-issued Bundle enrollment and signed time](authority.md)
+with the installed key. A different key returned by the service cannot replace it
+at runtime. Authority cannot replace an existing Bundle or change its policy.
 
 `scripts/build-install.ps1 -Mode Install` accepts optional `-CardId` (8 hex digits)
-and `-AuthorityPublicKey` (130 hex digits beginning with `04`). Both apply only to
-Identity installation; `ReinstallMonoid` preserves the existing Identity configuration.
+and the paired `-AuthorityPublicKey` (130 hex digits beginning with `04`) and
+`-AuthorityUrl` arguments. These apply only to Identity installation;
+`ReinstallMonoid` preserves the existing Identity configuration. The script receives
+the public key explicitly; fetching it from the chosen service belongs to the APP.
+With the standard nine-byte instance AID and empty control information, application
+data is limited to 243 bytes: up to 177 UTF-8 bytes for the URL, or 173 when supplying
+a Card ID. The limit counts bytes, not characters.
+
+```powershell
+.\scripts\build-install.ps1 -AuthorityUrl 'https://authority.example' -AuthorityPublicKey $authorityPublicKey
+```
 
 ## Interface
 
@@ -47,8 +63,14 @@ public interface IdentityShareable extends Shareable {
 
   byte[] getPublicKey();
 
+  /** Authority service URL as global UTF-8 bytes, or null when not configured. */
+  byte[] getAuthority();
+
   /** SHA-256 of the Bundle key, or null when not enrolled. */
   byte[] getBundle();
+
+  /** Verifies signed time using the installed key and the caller's one-use challenge. */
+  void verifyAuthorityTime(byte[] data, byte[] signature, byte[] challenge);
 
   boolean isSecretPINSet();
 
@@ -85,7 +107,7 @@ public interface IdentityShareable extends Shareable {
 
   CommunicationDataShareable encryptData(
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     short secret,
     byte[] recipientPublicKey,
@@ -95,7 +117,7 @@ public interface IdentityShareable extends Shareable {
   /** Returns secret (two bytes) || data after authenticating the complete envelope. */
   CommunicationDataShareable decryptData(
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     byte[] senderPublicKey,
     CommunicationDataShareable data
@@ -113,7 +135,7 @@ public interface CommunicationDataShareable extends Shareable {
 - Public keys: 65-byte SEC 1 uncompressed P-256 points (`04 || X || Y`).
 - Binding tokens: 32 bytes, distinct for each caller AID and current Identity secret.
 - Bundle keys and asymmetric item communication keys: 32 bytes, kept inside Identity.
-- Metadata: ten-byte index, optional byte-string key and optional UTF-8 alias.
+- Item fields: ten-byte index, optional byte-string metadata and optional UTF-8 alias.
   Null and empty fields remain distinct.
 - Byte-array arguments and direct results: global arrays for card-local calls.
   Data sources use repeatable range reads through a bounded global buffer.
@@ -124,8 +146,8 @@ public interface CommunicationDataShareable extends Shareable {
   require the exact Monoid instance AID. Preparing/publishing a reset requires that
   AID but deliberately does not require PIN authentication.
 - Direct APDUs: SELECT only. Monoid owns [item transfer](item-transfer.md) and
-  [Bundle management](bundle.md) commands; Hello exposes `id`, `publicKey` and
-  `bundle` directly.
+  [Bundle management](bundle.md) commands; Hello exposes `id`, `publicKey`,
+  `authority` (URL or false) and `bundle` directly.
 
 Identity derives authenticated contexts internally from the operation, full runtime
 caller AID and metadata. Callers cannot choose another AID, supply arbitrary HPKE contexts or retrieve decrypted

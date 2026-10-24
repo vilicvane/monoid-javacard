@@ -53,6 +53,8 @@ public class IdentityCallerApplet
   public static final byte DECRYPT_CLEAR_SECRET_AUTH_REENTRANT = 36;
   public static final byte APPROVE_BUNDLE_EXTENSION = 37;
   public static final byte EXTEND_BUNDLE = 38;
+  public static final byte GET_AUTHORITY = 39;
+  public static final byte MUTATE_AUTHORITY_COPY = 40;
 
   private IdentityShareable identity;
   private CommunicationDataShareable result;
@@ -97,6 +99,15 @@ public class IdentityCallerApplet
         return;
       case GET_PUBLIC_KEY:
         send(apdu, identity.getPublicKey());
+        return;
+      case GET_AUTHORITY:
+        byte[] authority = identity.getAuthority();
+        send(apdu, authority == null ? new byte[0] : authority);
+        return;
+      case MUTATE_AUTHORITY_COPY:
+        byte[] authorityCopy = identity.getAuthority();
+        authorityCopy[0] ^= (byte) 0xFF;
+        send(apdu, authorityCopy);
         return;
       case IS_SECRET_PIN_SET:
         send(apdu, new byte[] { identity.isSecretPINSet() ? (byte) 1 : 0 });

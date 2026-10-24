@@ -5,8 +5,11 @@ group. The token is the Bundle root used by [item transfer](item-transfer.md).
 Each card receives a separate authenticated encrypted packet addressed to its
 Identity public key; the host never needs the plaintext token.
 
-The Authority's P-256 public key is configured at
-[Identity installation](identity.md#installation-parameters). Its corresponding
+The Authority's service URL and P-256 public key are configured together at
+[Identity installation](identity.md#installation-parameters). Monoid Hello returns
+the URL as `authority`, or false when neither is configured. The APP can use a
+user-selected service; it obtains the initial public key from that service before
+installation. Subsequent responses cannot replace the card's trusted key. Its corresponding
 private key authenticates issuance through HPKE Auth. This uses the existing key
 pair, without another service key or a separate certificate/signature format.
 
@@ -122,5 +125,36 @@ the Authority may issue a fresh packet for the new key after its account checks.
 Restoring a Card ID alone does not restore a private key or enrollment eligibility.
 
 This mechanism does not prove genuine card hardware, trusted applet code, fresh
-card presence or revocation of earlier members and ciphertext. Trusted-time
-messages, card certificates and OTP are separate protocols.
+card presence or revocation of earlier members and ciphertext. Card certificates
+are not defined by this protocol.
+
+## Signed time
+
+The same installed Authority key verifies challenge-bound time for [OTP](otp.md).
+The APP forwards a card-generated challenge to the service identified by Hello's
+`authority` URL:
+
+```text
+POST /v1/time
+{challenge: base64url(32B)}
+
+-> {publicKey, data, signature} // Unpadded base64url
+
+data = 01 || unixSeconds_u64_BE || challenge[32]
+message = ASCII("Monoid Authority Time") || data
+signature = ECDSA-P256-SHA256(message) // 64B r || s
+```
+
+Identity's `verifyAuthorityTime(data, signature, challenge)` accepts global arrays,
+checks the 41-byte data layout, expected challenge and signature, and returns void
+on success. It uses the installed key, not the HTTP response's `publicKey`. An
+unset Authority rejects verification. The caller owns challenge generation,
+single-use state and the allowed operation; Identity retains no challenge or
+user authorization from verification.
+
+The signature binds the service's issuance time. Without a card clock, it cannot
+prove how promptly the host delivered the response. OTP limits calculations to
+the signed window and its next two windows when Authority is configured. It rejects
+host-chosen time in that mode, including when the service is unavailable or its
+proof fails. Cards without Authority instead accept the APP's unsigned time through
+OTP Prepare, as specified in [OTP](otp.md). That mode does not authenticate time.

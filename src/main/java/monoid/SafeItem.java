@@ -11,7 +11,7 @@ public class SafeItem {
   private final Safe safe;
 
   public byte[] index;
-  public byte[] key;
+  public byte[] metadata;
   public byte[] alias;
 
   private ItemState state;
@@ -31,10 +31,10 @@ public class SafeItem {
     }
   }
 
-  SafeItem(Safe safe, byte[] index, byte[] key, byte[] alias, byte[] data, short secret) {
+  SafeItem(Safe safe, byte[] index, byte[] metadata, byte[] alias, byte[] data, short secret) {
     this.safe = safe;
     this.index = index;
-    this.key = key;
+    this.metadata = metadata;
     this.alias = alias;
     this.state = new ItemState(data, secret);
   }
@@ -61,14 +61,21 @@ public class SafeItem {
     }
   }
 
-  public boolean matches(short type, byte[] keyPrefix) {
+  public boolean matches(short type, byte[] metadataPrefix) {
     return (
       matches(type) &&
-      (keyPrefix == null ||
-        keyPrefix.length == 0 ||
-        (key != null &&
-          keyPrefix.length <= key.length &&
-          Util.arrayCompare(key, (short) 0, keyPrefix, (short) 0, (short) keyPrefix.length) == 0))
+      (metadataPrefix == null ||
+        metadataPrefix.length == 0 ||
+        (metadata != null &&
+          metadataPrefix.length <= metadata.length &&
+          Util.arrayCompare(
+            metadata,
+            (short) 0,
+            metadataPrefix,
+            (short) 0,
+            (short) metadataPrefix.length
+          ) ==
+          0))
     );
   }
 
@@ -84,20 +91,20 @@ public class SafeItem {
     return length;
   }
 
-  public byte[] getKey() {
+  public byte[] getMetadata() {
     safe.assertAccess();
-    return key != null ? Utils.duplicateAsPersistent(key) : null;
+    return metadata != null ? Utils.duplicateAsPersistent(metadata) : null;
   }
 
-  public short getKey(byte[] dest, short offset) {
+  public short getMetadata(byte[] dest, short offset) {
     safe.assertAccess();
 
-    if (key == null) {
+    if (metadata == null) {
       return -1;
     }
 
-    short length = (short) key.length;
-    Util.arrayCopyNonAtomic(key, (short) 0, dest, offset, length);
+    short length = (short) metadata.length;
+    Util.arrayCopyNonAtomic(metadata, (short) 0, dest, offset, length);
     return length;
   }
 

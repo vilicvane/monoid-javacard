@@ -44,7 +44,7 @@ final class SafeSessionIterator implements SafeItemIteratorShareable {
 
   @Override
   public short nextData(
-    byte[] expectedKey,
+    byte[] expectedMetadata,
     byte[] indexDest,
     short indexOffset,
     byte[] dest,
@@ -52,9 +52,9 @@ final class SafeSessionIterator implements SafeItemIteratorShareable {
     short capacity
   ) {
     return nextData(
-      expectedKey,
+      expectedMetadata,
       (short) 0,
-      expectedKey == null ? 0 : (short) expectedKey.length,
+      expectedMetadata == null ? 0 : (short) expectedMetadata.length,
       indexDest,
       indexOffset,
       dest,
@@ -65,9 +65,9 @@ final class SafeSessionIterator implements SafeItemIteratorShareable {
 
   @Override
   public short nextData(
-    byte[] expectedKey,
-    short keyOffset,
-    short keyLength,
+    byte[] expectedMetadata,
+    short metadataOffset,
+    short metadataLength,
     byte[] indexDest,
     short indexOffset,
     byte[] dest,
@@ -78,7 +78,7 @@ final class SafeSessionIterator implements SafeItemIteratorShareable {
 
     try {
       session.assertItemsRevision(revision);
-      MonoidSession.assertKeyRange(expectedKey, keyOffset, keyLength);
+      MonoidSession.assertMetadataRange(expectedMetadata, metadataOffset, metadataLength);
       MonoidSession.assertRange(indexDest, indexOffset, Safe.INDEX_LENGTH);
       MonoidSession.assertRange(dest, offset, capacity);
       SafeItem item = iterator.next();
@@ -89,7 +89,7 @@ final class SafeSessionIterator implements SafeItemIteratorShareable {
 
       byte[] data = session.requireReadableData(item);
 
-      if (!MonoidSession.matchesKey(item, expectedKey, keyOffset, keyLength)) {
+      if (!MonoidSession.matchesMetadata(item, expectedMetadata, metadataOffset, metadataLength)) {
         ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
       }
 

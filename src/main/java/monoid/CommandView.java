@@ -14,12 +14,12 @@ public class CommandView extends Command {
 
     SafeItem item = MonoidApplet.safe.require(index);
 
-    byte[] key = item.getKey();
+    byte[] metadata = item.getMetadata();
     byte[] alias = item.getAlias();
 
     short entries = 1;
 
-    if (key != null) {
+    if (metadata != null) {
       entries++;
     }
 
@@ -29,9 +29,9 @@ public class CommandView extends Command {
 
     writer.map(entries);
     {
-      if (key != null) {
-        writer.text(Text.key);
-        writer.bytes(key);
+      if (metadata != null) {
+        writer.text(Text.metadata);
+        writer.bytes(metadata);
       }
 
       if (alias != null) {

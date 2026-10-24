@@ -87,6 +87,73 @@ final class MonoidSession implements Monoid {
   }
 
   @Override
+  public void consumeUserAuthentication() {
+    assertActive();
+    safe.getAppletGrants().consumeUserAuthentication(grant);
+  }
+
+  @Override
+  public void revokeUserAuthentication() {
+    assertActive();
+    safe.getAppletGrants().revokeUserAuthentication(grant);
+  }
+
+  @Override
+  public short hmac(
+    byte algorithm,
+    byte[] index,
+    short indexOffset,
+    byte[] message,
+    short messageOffset,
+    short messageLength,
+    byte[] dest,
+    short destOffset
+  ) {
+    begin();
+
+    try {
+      assertRange(index, indexOffset, Safe.INDEX_LENGTH);
+
+      short type = Util.getShort(index, (short) (indexOffset + Safe.INDEX_TYPE_OFFSET));
+
+      if (!Safe.isTypeHmac(type) || !grant.allowsKey(Safe.TYPE_HMAC, index, indexOffset)) {
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+      }
+
+      HMAC engine = keystore.getHmac();
+      short length = engine.getLength(algorithm);
+
+      assertRange(message, messageOffset, messageLength);
+      assertRange(dest, destOffset, length);
+
+      SafeItem item = safe.get(index, indexOffset);
+
+      if (item == null) {
+        ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+      }
+
+      byte[] result = engine.calculate(
+        algorithm,
+        item.getStoredData(),
+        message,
+        messageOffset,
+        messageLength
+      );
+
+      assertActive();
+      Util.arrayCopyNonAtomic(result, (short) 0, dest, destOffset, length);
+
+      return length;
+    } catch (CryptoException exception) {
+      ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+
+      return 0;
+    } finally {
+      end();
+    }
+  }
+
+  @Override
   public short getMonoid001PublicKey(byte[] context, byte[] dest, short offset) {
     return getMonoid001PublicKey(
       context,
@@ -206,13 +273,13 @@ final class MonoidSession implements Monoid {
   }
 
   @Override
-  public SafeItemIteratorShareable list(short type, byte[] keyPrefix) {
+  public SafeItemIteratorShareable list(short type, byte[] metadataPrefix) {
     begin();
 
     try {
       return new SafeSessionIterator(
         this,
-        safe.list(type, keyPrefix, grant),
+        safe.list(type, metadataPrefix, grant),
         safe.getItemsRevision()
       );
     } finally {
@@ -237,22 +304,22 @@ final class MonoidSession implements Monoid {
   public SafeDataShareable getData(
     byte[] index,
     short indexOffset,
-    byte[] expectedKey,
-    short keyOffset,
-    short keyLength
+    byte[] expectedMetadata,
+    short metadataOffset,
+    short metadataLength
   ) {
     begin();
     SafeDataShareable snapshot = null;
 
     try {
       assertIndex(index, indexOffset, false);
-      assertKeyRange(expectedKey, keyOffset, keyLength);
+      assertMetadataRange(expectedMetadata, metadataOffset, metadataLength);
       SafeItem item = safe.get(index, indexOffset);
 
       if (item != null) {
         byte[] data = requireReadableData(item);
 
-        if (matchesKey(item, expectedKey, keyOffset, keyLength)) {
+        if (matchesMetadata(item, expectedMetadata, metadataOffset, metadataLength)) {
           snapshot = new SafeSessionData(this, item, data, safe.getItemsRevision());
         }
       }
@@ -283,9 +350,9 @@ final class MonoidSession implements Monoid {
   @Override
   public short listIndices(
     short type,
-    byte[] keyPrefix,
-    short keyOffset,
-    short keyLength,
+    byte[] metadataPrefix,
+    short metadataOffset,
+    short metadataLength,
     byte[] dest,
     short offset,
     short capacity
@@ -293,22 +360,31 @@ final class MonoidSession implements Monoid {
     begin();
 
     try {
-      assertKeyRange(keyPrefix, keyOffset, keyLength);
+      assertMetadataRange(metadataPrefix, metadataOffset, metadataLength);
       if (capacity < 0 || capacity > (short) (0x7FFF / Safe.INDEX_LENGTH)) {
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
       }
       short length = (short) (capacity * Safe.INDEX_LENGTH);
       assertRange(dest, offset, length);
       if (
-        keyPrefix == dest &&
-        keyLength != 0 &&
+        metadataPrefix == dest &&
+        metadataLength != 0 &&
         length != 0 &&
-        keyOffset < (short) (offset + length) &&
-        offset < (short) (keyOffset + keyLength)
+        metadataOffset < (short) (offset + length) &&
+        offset < (short) (metadataOffset + metadataLength)
       ) {
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
       }
-      return safe.listIndices(type, keyPrefix, keyOffset, keyLength, dest, offset, capacity, grant);
+      return safe.listIndices(
+        type,
+        metadataPrefix,
+        metadataOffset,
+        metadataLength,
+        dest,
+        offset,
+        capacity,
+        grant
+      );
     } finally {
       end();
     }
@@ -317,7 +393,7 @@ final class MonoidSession implements Monoid {
   @Override
   public short readData(
     byte[] index,
-    byte[] expectedKey,
+    byte[] expectedMetadata,
     byte[] dest,
     short offset,
     short capacity
@@ -326,9 +402,9 @@ final class MonoidSession implements Monoid {
       index,
       (short) 0,
       index == null ? 0 : (short) index.length,
-      expectedKey,
+      expectedMetadata,
       (short) 0,
-      expectedKey == null ? 0 : (short) expectedKey.length,
+      expectedMetadata == null ? 0 : (short) expectedMetadata.length,
       dest,
       offset,
       capacity
@@ -339,9 +415,9 @@ final class MonoidSession implements Monoid {
   public short readData(
     byte[] index,
     short indexOffset,
-    byte[] expectedKey,
-    short keyOffset,
-    short keyLength,
+    byte[] expectedMetadata,
+    short metadataOffset,
+    short metadataLength,
     byte[] dest,
     short offset,
     short capacity
@@ -350,9 +426,9 @@ final class MonoidSession implements Monoid {
       index,
       indexOffset,
       Safe.INDEX_LENGTH,
-      expectedKey,
-      keyOffset,
-      keyLength,
+      expectedMetadata,
+      metadataOffset,
+      metadataLength,
       dest,
       offset,
       capacity
@@ -363,9 +439,9 @@ final class MonoidSession implements Monoid {
     byte[] index,
     short indexOffset,
     short indexLength,
-    byte[] expectedKey,
-    short keyOffset,
-    short keyLength,
+    byte[] expectedMetadata,
+    short metadataOffset,
+    short metadataLength,
     byte[] dest,
     short offset,
     short capacity
@@ -380,14 +456,14 @@ final class MonoidSession implements Monoid {
       }
 
       assertIndex(index, indexOffset, false);
-      assertKeyRange(expectedKey, keyOffset, keyLength);
+      assertMetadataRange(expectedMetadata, metadataOffset, metadataLength);
       assertRange(dest, offset, capacity);
       SafeItem item = safe.get(index, indexOffset);
 
       if (item != null) {
         byte[] data = requireReadableData(item);
 
-        if (matchesKey(item, expectedKey, keyOffset, keyLength)) {
+        if (matchesMetadata(item, expectedMetadata, metadataOffset, metadataLength)) {
           length = (short) data.length;
           Util.arrayCopyNonAtomic(data, (short) 0, dest, offset, Utils.min(capacity, length));
         }
@@ -402,7 +478,7 @@ final class MonoidSession implements Monoid {
   @Override
   public SafeItemShareable create(
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     SafeDataShareable data,
     boolean secret
@@ -413,7 +489,7 @@ final class MonoidSession implements Monoid {
     try {
       assertIndex(index, true);
       source = new SafeSessionSource(this, data);
-      SafeItem item = safe.create(index, key, alias, source, secret);
+      SafeItem item = safe.create(index, metadata, alias, source, secret);
       return item == null ? null : new SafeSessionItem(this, item, safe.getItemsRevision());
     } finally {
       if (source != null) {
@@ -443,9 +519,9 @@ final class MonoidSession implements Monoid {
   public boolean createData(
     byte[] index,
     short indexOffset,
-    byte[] key,
-    short keyOffset,
-    short keyLength,
+    byte[] metadata,
+    short metadataOffset,
+    short metadataLength,
     byte[] alias,
     byte[] data,
     short dataOffset,
@@ -456,14 +532,14 @@ final class MonoidSession implements Monoid {
 
     try {
       assertIndex(index, indexOffset, true);
-      assertKeyRange(key, keyOffset, keyLength);
+      assertMetadataRange(metadata, metadataOffset, metadataLength);
       assertRange(data, dataOffset, dataLength);
       return safe.createData(
         index,
         indexOffset,
-        key,
-        keyOffset,
-        keyLength,
+        metadata,
+        metadataOffset,
+        metadataLength,
         alias,
         data,
         dataOffset,
@@ -524,19 +600,25 @@ final class MonoidSession implements Monoid {
     return item.getStoredData();
   }
 
-  static boolean matchesKey(SafeItem item, byte[] expectedKey, short keyOffset, short keyLength) {
-    return item.key == null
-      ? expectedKey == null
-      : expectedKey != null && Utils.isEqual(item.key, expectedKey, keyOffset, keyLength);
+  static boolean matchesMetadata(
+    SafeItem item,
+    byte[] expectedMetadata,
+    short metadataOffset,
+    short metadataLength
+  ) {
+    return item.metadata == null
+      ? expectedMetadata == null
+      : expectedMetadata != null &&
+      Utils.isEqual(item.metadata, expectedMetadata, metadataOffset, metadataLength);
   }
 
-  static void assertKeyRange(byte[] key, short offset, short length) {
-    if (key == null) {
+  static void assertMetadataRange(byte[] metadata, short offset, short length) {
+    if (metadata == null) {
       if (offset != 0 || length != 0) {
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
       }
     } else {
-      assertRange(key, offset, length);
+      assertRange(metadata, offset, length);
     }
   }
 

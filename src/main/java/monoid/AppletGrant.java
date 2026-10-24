@@ -1,6 +1,7 @@
 package monoid;
 
 import monoidlib.CBORWriter;
+import monoidlib.Utils;
 
 final class AppletGrant {
 
@@ -32,6 +33,24 @@ final class AppletGrant {
       for (short index = 0; index < types.length; index++) {
         if (types[index] == type) {
           return !write || writable[index] == Constants.SAFE_TRUE;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  boolean allowsKey(short type, byte[] index, short offset) {
+    if (keys != null) {
+      for (short entry = 0; entry < keys.length; entry++) {
+        Key key = keys[entry];
+
+        if (
+          key.type == type &&
+          key.derivation == null &&
+          Utils.isEqual(key.index, index, offset, Safe.INDEX_LENGTH)
+        ) {
+          return true;
         }
       }
     }

@@ -20,6 +20,7 @@ Applet AIDs append a one-byte applet number; software versions are independent o
 | Monoid Identity | `{{hex MONOID_IDENTITY_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_IDENTITY_AID uppercase=true}}` |
 | Monoid | `{{hex MONOID_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_AID uppercase=true}}` |
 | Monoid Security Key | `{{hex MONOID_SECURITY_KEY_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_SECURITY_KEY_AID uppercase=true}}` |
+| Monoid OTP | `{{hex MONOID_OTP_PACKAGE_AID uppercase=true}}` | `{{hex MONOID_OTP_AID uppercase=true}}` |
 | Monoid Library | `{{hex MONOID_LIB_PACKAGE_AID uppercase=true}}` | — |
 -->
 
@@ -28,13 +29,14 @@ Applet AIDs append a one-byte applet number; software versions are independent o
 | Monoid Identity     | `F06D6F6E6F696400` | `F06D6F6E6F69640001` |
 | Monoid              | `F06D6F6E6F696402` | `F06D6F6E6F69640201` |
 | Monoid Security Key | `F06D6F6E6F696403` | `A0000006472F0001`   |
+| Monoid OTP          | `F06D6F6E6F696405` | `F06D6F6E6F69640501` |
 | Monoid Library      | `F06D6F6E6F696404` | —                    |
 
 <!-- @end -->
 
 Security Key uses the standard FIDO NFC instance AID; its CAP module AID follows
 the Monoid package namespace. Install Identity, load Monoid Library, then install
-Monoid and Security Key. The library has no applet instance.
+Monoid, then the optional Security Key and OTP applets. The library has no applet instance.
 Monoid owns Safe item storage, Access PIN, derivation and signing in one applet
 context. Monoid Identity keeps its key pair, Card ID, Secret PIN and optional
 Bundle across Monoid replacement. It verifies Secret PIN and performs complete
@@ -46,16 +48,23 @@ at Identity installation authenticates [issued Bundle tokens](authority.md).
 Identity retains the token's `allowPeerExtension` policy and enforces it at both
 extension entry points.
 
-Monoid and Security Key share CBOR parsing, map indexing, APDU reception, response
-storage and segmented sending through the library. Command framing, chaining
-rules and protocol status mapping remain in each applet's `ApduTransport`, which
-uses the shared reader and writer directly. Commands run only after the complete
-request arrives; buffers belong to the applet that creates them. Identity does
+Monoid, Security Key and OTP share CBOR parsing, map indexing, APDU reception, response
+storage and segmented sending through the library. Monoid and OTP also share
+short-APDU framing, header validation and GET RESPONSE in `monoidlib.ApduTransport`;
+their subclasses only select and execute commands. Security Key keeps CTAP framing
+and status mapping in its own transport. Commands run only after the complete
+request arrives; each applet owns its transport state and buffers. Identity does
 not import the library. The library also provides stateless security checks and
 byte-array utilities; authentication state and private arrays remain owned by
 the calling applet. Identity keeps its own generated security-check implementation.
-Replacing the library requires first removing its dependent Security Key and Monoid packages;
+Replacing the library requires first removing its dependent OTP, Security Key and Monoid packages;
 Identity can remain installed.
+
+[OTP](otp.md) owns TOTP configuration interpretation and batch state. Monoid
+computes HMAC with an explicitly granted built-in key without returning the shared secret;
+Identity verifies signed time against its installed Authority public key.
+HMAC reuses native SHA-1/256/512 digest engines and one 128-byte transient pad.
+Inputs and results use persistent storage; repeated pad writes stay in RAM.
 
 The installation script defaults to `Install`, which does not delete installed
 applets. Explicit `ReinstallMonoid` clears all Safe items and Access PIN while
@@ -118,8 +127,9 @@ also count as occupied when checking a replacement.
 
 ## Item data
 
-The built-in key types are `0x0301` (secp256k1), `0x0302` (secp256r1) and
-`0x0401` (Ed25519). Removing the former master type shifted these categories.
+The built-in key types include `0x0301` (secp256k1), `0x0302` (secp256r1),
+`0x0401` (Ed25519) and `0x05LL` (HMAC, `LL` is the 1–255-byte key length).
+Removing the former master type shifted the curve categories.
 Indices and exported items using the former master or curve types cannot be
 reused unchanged; in particular, the former secp256k1 type `0x0401` now denotes
 Ed25519. There is no automatic conversion of these former types.
@@ -133,7 +143,7 @@ Data and secret change atomically; alias updates remain separate.
 
 Get and Export use the existing response transport. Responses fitting in one
 256-byte packet borrow the APDU buffer; larger data is read through a fixed
-window as GET RESPONSE advances. Large key or alias metadata can still require
+window as GET RESPONSE advances. Large metadata or alias fields can still require
 a larger window. Small signing keys are materialized only when the signing or
 derivation operation needs them.
 

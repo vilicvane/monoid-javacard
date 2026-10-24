@@ -9,8 +9,8 @@ import javacard.framework.Shareable;
 public interface SafeItemShareable extends Shareable {
   byte[] getIndex();
 
-  /** Returns null when no lookup key is set. */
-  byte[] getKey();
+  /** Returns null when no metadata is set. */
+  byte[] getMetadata();
 
   /** Returns null when no alias is set. */
   byte[] getAlias();

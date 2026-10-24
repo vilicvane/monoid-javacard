@@ -24,7 +24,7 @@ final class CredentialStore {
   private final SafeDataShareable[] sources = new SafeDataShareable[DISCOVERY_CAPACITY];
   private short nextCache;
   private final byte[] lookupIndex = new byte[10];
-  private final byte[] lookupKey = new byte[64];
+  private final byte[] lookupMetadata = new byte[64];
   private final byte[] indices = new byte[DISCOVERY_CAPACITY * 10];
   private final Selection selection = new Selection(new byte[DISCOVERY_CAPACITY * 32]);
 
@@ -44,9 +44,9 @@ final class CredentialStore {
   Credential find(Monoid monoid, byte[] id, short offset, byte[] rpHash) {
     Util.setShort(lookupIndex, (short) 0, CREDENTIAL_TYPE);
     Util.arrayCopyNonAtomic(id, offset, lookupIndex, (short) 2, (short) 8);
-    writeLookupKey(rpHash);
+    writeLookupMetadata(rpHash);
 
-    Credential credential = readCached(monoid, lookupIndex, (short) 0, lookupKey);
+    Credential credential = readCached(monoid, lookupIndex, (short) 0, lookupMetadata);
     return credential != null && credential.matchesId(id, offset) ? credential : null;
   }
 
@@ -57,9 +57,9 @@ final class CredentialStore {
     }
   }
 
-  private void writeLookupKey(byte[] rpHash) {
-    Util.arrayCopyNonAtomic(scope, (short) 0, lookupKey, (short) 0, (short) 32);
-    Util.arrayCopyNonAtomic(rpHash, (short) 0, lookupKey, (short) 32, (short) 32);
+  private void writeLookupMetadata(byte[] rpHash) {
+    Util.arrayCopyNonAtomic(scope, (short) 0, lookupMetadata, (short) 0, (short) 32);
+    Util.arrayCopyNonAtomic(rpHash, (short) 0, lookupMetadata, (short) 32, (short) 32);
   }
 
   void clear() {
@@ -70,14 +70,14 @@ final class CredentialStore {
     }
   }
 
-  private Credential readCached(Monoid monoid, byte[] index, short offset, byte[] key) {
+  private Credential readCached(Monoid monoid, byte[] index, short offset, byte[] metadata) {
     for (short slot = 0; slot < DISCOVERY_CAPACITY; slot++) {
       if (sources[slot] == null) {
         continue;
       }
       Credential credential = cached[slot];
       credential.restoreState();
-      if (credential.matchesIndex(index, offset) && credential.matchesKey(key)) {
+      if (credential.matchesIndex(index, offset) && credential.matchesMetadata(metadata)) {
         // Validate through the current authenticated session, including after a card reset.
         if (monoid.isDataCurrent(sources[slot])) {
           return credential;
@@ -88,13 +88,13 @@ final class CredentialStore {
     }
     byte[] window = APDU.getCurrentAPDUBuffer();
     Util.arrayCopyNonAtomic(index, offset, window, (short) 0, (short) 10);
-    Util.arrayCopyNonAtomic(key, (short) 0, window, (short) 10, (short) key.length);
+    Util.arrayCopyNonAtomic(metadata, (short) 0, window, (short) 10, (short) metadata.length);
     SafeDataShareable source = monoid.getData(
       window,
       (short) 0,
       window,
       (short) 10,
-      (short) key.length
+      (short) metadata.length
     );
     if (source == null) {
       return null;
@@ -102,7 +102,7 @@ final class CredentialStore {
     short length = source.getLength();
     if (length > Credential.READ_BUFFER_LENGTH) {
       Credential credential = remember(Credential.read(source, length, workspace(length)));
-      credential.assertMetadata(index, offset, key);
+      credential.assertMetadata(index, offset, metadata);
       return credential;
     }
     short slot = nextCache;
@@ -112,7 +112,7 @@ final class CredentialStore {
     }
     Credential credential = cached[slot];
     Credential.read(source, length, credential);
-    credential.assertMetadata(index, offset, key);
+    credential.assertMetadata(index, offset, metadata);
     credential.saveState(window);
     sources[slot] = source;
     // Publish one valid cursor value, including if power is lost at the wrap boundary.
@@ -139,19 +139,19 @@ final class CredentialStore {
   }
 
   private SafeItemShareable[] findPrevious(Monoid monoid, Credential replacement) {
-    byte[] key = replacement.key();
+    byte[] metadata = replacement.metadata();
     byte[] window = APDU.getCurrentAPDUBuffer();
     short size = monoid.listIndices(
       CREDENTIAL_TYPE,
-      key,
+      metadata,
       (short) 0,
-      (short) key.length,
+      (short) metadata.length,
       window,
       (short) 0,
       DISCOVERY_CAPACITY
     );
     if (size > DISCOVERY_CAPACITY) {
-      return findPreviousAll(monoid, replacement, key);
+      return findPreviousAll(monoid, replacement, metadata);
     }
     Util.arrayCopyNonAtomic(window, (short) 0, indices, (short) 0, (short) (size * 10));
     SafeItemShareable[] previous = null;
@@ -159,7 +159,7 @@ final class CredentialStore {
     short count = 0;
     for (short index = 0; index < size; index++) {
       short offset = (short) (index * 10);
-      Credential credential = readIndex(monoid, offset, key, window);
+      Credential credential = readIndex(monoid, offset, metadata, window);
       if (
         credential.resident() && credential.sameUser(replacement) && !credential.sameId(replacement)
       ) {
@@ -174,8 +174,12 @@ final class CredentialStore {
     return previous;
   }
 
-  private SafeItemShareable[] findPreviousAll(Monoid monoid, Credential replacement, byte[] key) {
-    SafeItemIteratorShareable iterator = monoid.list(CREDENTIAL_TYPE, key);
+  private SafeItemShareable[] findPreviousAll(
+    Monoid monoid,
+    Credential replacement,
+    byte[] metadata
+  ) {
+    SafeItemIteratorShareable iterator = monoid.list(CREDENTIAL_TYPE, metadata);
     short size = iterator.getCount();
     if (size == 0) {
       return null;
@@ -199,17 +203,23 @@ final class CredentialStore {
 
   Selection discover(Monoid monoid, byte[] rpHash) {
     selection.set((short) 0, null);
-    writeLookupKey(rpHash);
+    writeLookupMetadata(rpHash);
 
     byte[] window = APDU.getCurrentAPDUBuffer();
-    Util.arrayCopyNonAtomic(lookupKey, (short) 0, window, (short) 0, (short) lookupKey.length);
+    Util.arrayCopyNonAtomic(
+      lookupMetadata,
+      (short) 0,
+      window,
+      (short) 0,
+      (short) lookupMetadata.length
+    );
     short size = monoid.listIndices(
       CREDENTIAL_TYPE,
       window,
       (short) 0,
-      (short) lookupKey.length,
+      (short) lookupMetadata.length,
       window,
-      (short) lookupKey.length,
+      (short) lookupMetadata.length,
       DISCOVERY_CAPACITY
     );
     if (size > DISCOVERY_CAPACITY) {
@@ -217,7 +227,7 @@ final class CredentialStore {
     }
     Util.arrayCopyNonAtomic(
       window,
-      (short) lookupKey.length,
+      (short) lookupMetadata.length,
       indices,
       (short) 0,
       (short) (size * 10)
@@ -225,11 +235,11 @@ final class CredentialStore {
     short count = 0;
     Credential first = null;
     for (short index = 0; index < size; index++) {
-      Credential credential = readCached(monoid, indices, (short) (index * 10), lookupKey);
+      Credential credential = readCached(monoid, indices, (short) (index * 10), lookupMetadata);
       if (credential == null) {
         ISOException.throwIt(CTAP.OTHER);
       }
-      if (credential.resident() && credential.matchesKey(lookupKey)) {
+      if (credential.resident() && credential.matchesMetadata(lookupMetadata)) {
         credential.copyId(selection.ids, (short) (count++ * 32));
         first = credential;
       } else {
@@ -243,20 +253,20 @@ final class CredentialStore {
     return selection;
   }
 
-  private Credential readIndex(Monoid monoid, short offset, byte[] key, byte[] window) {
+  private Credential readIndex(Monoid monoid, short offset, byte[] metadata, byte[] window) {
     Util.arrayCopyNonAtomic(indices, offset, window, (short) 0, (short) 10);
-    Util.arrayCopyNonAtomic(key, (short) 0, window, (short) 10, (short) key.length);
+    Util.arrayCopyNonAtomic(metadata, (short) 0, window, (short) 10, (short) metadata.length);
     short length = monoid.readData(
       window,
       (short) 0,
       window,
       (short) 10,
-      (short) key.length,
+      (short) metadata.length,
       window,
       (short) 0,
       (short) window.length
     );
-    // Enumeration already matched this prefix. A missing record or an inexact metadata key
+    // Enumeration already matched this prefix. A missing record or inexact metadata
     // cannot silently disappear from the result; the iterator path fails on these too.
     if (length < 0) {
       ISOException.throwIt(CTAP.OTHER);
@@ -269,13 +279,13 @@ final class CredentialStore {
       Util.arrayCopyNonAtomic(indices, offset, index, (short) 0, (short) 10);
       credential = read(monoid.get(index));
     }
-    credential.assertMetadata(indices, offset, key);
+    credential.assertMetadata(indices, offset, metadata);
     return credential;
   }
 
   private Selection discoverAll(Monoid monoid, byte[] rpHash) {
-    byte[] key = Utils.duplicateAsGlobal(lookupKey);
-    SafeItemIteratorShareable iterator = monoid.list(CREDENTIAL_TYPE, key);
+    byte[] metadata = Utils.duplicateAsGlobal(lookupMetadata);
+    SafeItemIteratorShareable iterator = monoid.list(CREDENTIAL_TYPE, metadata);
     byte[] ids = new byte[(short) (iterator.getCount() * 32)];
     short count = 0;
     Credential first = null;
@@ -284,7 +294,7 @@ final class CredentialStore {
     short length;
     while (
       (length = iterator.nextData(
-          key,
+          metadata,
           index,
           (short) 0,
           window,
@@ -296,8 +306,8 @@ final class CredentialStore {
       Credential credential = length <= window.length
         ? read(window, length)
         : read(monoid.get(index));
-      credential.assertMetadata(index, (short) 0, key);
-      if (credential.resident() && credential.matchesKey(key)) {
+      credential.assertMetadata(index, (short) 0, metadata);
+      if (credential.resident() && credential.matchesMetadata(metadata)) {
         credential.copyId(ids, (short) (count++ * 32));
         first = credential;
       } else {

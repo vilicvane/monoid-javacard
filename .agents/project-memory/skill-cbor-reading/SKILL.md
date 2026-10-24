@@ -5,7 +5,7 @@ description: Shared monoidlib CBOR parsing and encoding, Monoid/CTAP profiles, s
 
 # Monoid CBOR reading
 
-Source: `../records.md`, records [112](../112.md), [113](../113.md), [153](../153.md), [166](../166.md), [175](../175.md), [176](../176.md), [178](../178.md), [179](../179.md) and [180](../180.md). Treat those
+Source: `../records.md`, records [112](../112.md), [113](../113.md), [153](../153.md), [166](../166.md), [175](../175.md), [176](../176.md), [178](../178.md), [179](../179.md), [180](../180.md) and [189](../189.md). Treat those
 records as authoritative and keep them current when changing this snapshot.
 
 - Record175 supersedes the separate Reader/Writer implementations described in
@@ -13,12 +13,25 @@ records as authoritative and keep them current when changing this snapshot.
   package AID `F06D6F6E6F696404`. Monoid and Security Key import its `CBOR`,
   `CBORReader`, `CBORBufferReader`, `CBORMap`, `CBORWriter` and `ByteSource`.
   Record176 also moves `CBORApduReader`, `CBORBufferWriter`, `CBORApduWriter`
-  and `CBORResponse` into the library. Both applets keep framing and status
-  mapping in their own `ApduTransport`, composing the shared reader and writer.
+  and `CBORResponse` into the library. Record189 also shares Monoid/OTP short-APDU
+  framing through `monoidlib.ApduTransport`; Security Key retains CTAP framing.
   Monoid no longer subclasses the APDU reader to gate individual reads by READY;
   the transport only executes a command after the complete request arrives.
   Identity remains independent. Load the library before its clients; replacing it
-  requires removing dependent Security Key and Monoid packages first.
+  requires removing dependent OTP, Security Key and Monoid packages first.
+- The shared transport's protected reader/writer constructor and `supports(byte)` /
+  `execute(byte)` hooks leave command dispatch in two thin Monoid/OTP subclasses.
+  `clear/clearRequest/isReceiving/process/receive` are public final. Header3,
+  state1short and reader/writer references are per instance, not shared statics.
+  Unknown INS is rejected before receiving data; chain validation, GET RESPONSE,
+  cleanup and GC retain their existing wire behavior. Record189 passes670 tests/
+  78suites and fiveCAPs locally, including interleaved independent-instance chains;
+  ACR39U/J3R452 contact-transport-1 passes40 physical checks/175events with136 source
+  hashes matching the tested snapshot. RAM boundaries match186:1417/1408B fresh,
+  1353/1344B after16accounts and562/560B warm, not peaks. Prepare's nine-run mean
+  is582.44ms versus610.04ms; other timings and combined-change attribution limits
+  are in189. All five temporaryCAPs/fourinstances are removed, registry matches
+  baseline with vendor/system apps preserved, and the reader is released. No formal deployment.
 - `CBORReader(buffer, offset, length)` selects `PROFILE_CTAP`; the four-argument
   constructor explicitly selects `PROFILE_CTAP` or `PROFILE_MONOID`.
   `CBORBufferReader(buffer)` selects Monoid's profile. The protected no-argument
@@ -55,6 +68,12 @@ records as authoritative and keep them current when changing this snapshot.
   use ByteSource for chunked input. Do not add cursor increments based on the old
   meaning of `bytes()`/`text()`; old Monoid callers now explicitly use the
   non-advancing transient/global variants where needed.
+
+- Record189 uses `bytesGlobal(41/64)` for OTP Prepare's signed time data and
+  signature, passing them straight to Identity instead of persistent intermediate
+  copies followed by global copies. The retained challenge still needs a global
+  copy for verification; time8 and indices remain persistent across SELECT.
+  Finish copying request fields before client `connect()` borrows APDU scratch.
 
 - Common APDU reception supports borrowed complete short input, on-demand
   persistent 256B chunks, or a fixed persistent request buffer. Record178 removes

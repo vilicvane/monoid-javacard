@@ -40,6 +40,7 @@ public final class Safe {
   public static final short TYPE_WEIERSTRASS_SECP256R1 = TYPE_WEIERSTRASS | 0x02;
   public static final short TYPE_EDWARDS = 0x0400;
   public static final short TYPE_EDWARDS_ED25519 = TYPE_EDWARDS | 0x01;
+  public static final short TYPE_HMAC = 0x0500;
   public static final short TYPE_GENERIC = 0x0FFF;
   public static final short TYPE_RESERVED_EXTENSION_MARK = (short) 0xFFFF;
 
@@ -49,6 +50,7 @@ public final class Safe {
   public static final byte[] TYPE_TEXT_SECP256K1 = {'s','e','c','p','2','5','6','k','1'};
   public static final byte[] TYPE_TEXT_SECP256R1 = {'s','e','c','p','2','5','6','r','1'};
   public static final byte[] TYPE_TEXT_ED25519 = {'e','d','2','5','5','1','9'};
+  public static final byte[] TYPE_TEXT_HMAC = {'h','m','a','c'};
   // @formatter:on
 
   private static final short AUTH_ACCESS = (short) 0x5AFE;
@@ -75,20 +77,6 @@ public final class Safe {
       }
 
       return true;
-    }
-  };
-
-  private final LibSecurity.Condition pinSetValidation = new LibSecurity.Condition() {
-    @Override
-    public boolean check() {
-      return requireIdentity().isSecretPINSet();
-    }
-  };
-
-  private final LibSecurity.Condition pinBlockedValidation = new LibSecurity.Condition() {
-    @Override
-    public boolean check() {
-      return requireIdentity().getSecretPINTriesRemaining() == 0;
     }
   };
 
@@ -121,6 +109,10 @@ public final class Safe {
 
   public byte[] getPublicKey() {
     return requireIdentity().getPublicKey();
+  }
+
+  public byte[] getAuthority() {
+    return requireIdentity().getAuthority();
   }
 
   public byte[] getBundle() {
@@ -225,15 +217,31 @@ public final class Safe {
   }
 
   public boolean isPINSet() {
-    return pinSetValidation.check();
+    return requireIdentity().isSecretPINSet();
   }
 
   short getPINSetResult(short conservativeResult) {
-    return LibSecurity.check(pinSetValidation, conservativeResult);
+    final IdentityShareable identity = requireIdentity();
+    LibSecurity.Condition condition = new LibSecurity.Condition() {
+      @Override
+      public boolean check() {
+        return identity.isSecretPINSet();
+      }
+    };
+
+    return LibSecurity.check(condition, conservativeResult);
   }
 
   short getPINBlockedResult() {
-    return LibSecurity.check(pinBlockedValidation, SAFE_TRUE);
+    final IdentityShareable identity = requireIdentity();
+    LibSecurity.Condition condition = new LibSecurity.Condition() {
+      @Override
+      public boolean check() {
+        return identity.getSecretPINTriesRemaining() == 0;
+      }
+    };
+
+    return LibSecurity.check(condition, SAFE_TRUE);
   }
 
   public short getPINTriesRemaining() {
@@ -266,14 +274,14 @@ public final class Safe {
     return appletGrants;
   }
 
-  public SafeItemIterator list(short type, byte[] keyPrefix) {
+  public SafeItemIterator list(short type, byte[] metadataPrefix) {
     assertAccess();
-    return new SafeItemIterator(this, items, itemsLength, type, keyPrefix);
+    return new SafeItemIterator(this, items, itemsLength, type, metadataPrefix);
   }
 
-  SafeItemIterator list(short type, byte[] keyPrefix, AppletGrant grant) {
+  SafeItemIterator list(short type, byte[] metadataPrefix, AppletGrant grant) {
     assertAccess();
-    return new SafeItemIterator(this, items, itemsLength, type, keyPrefix, grant);
+    return new SafeItemIterator(this, items, itemsLength, type, metadataPrefix, grant);
   }
 
   Object getItemsRevision() {
@@ -282,9 +290,9 @@ public final class Safe {
 
   short listIndices(
     short type,
-    byte[] keyPrefix,
-    short keyOffset,
-    short keyLength,
+    byte[] metadataPrefix,
+    short metadataOffset,
+    short metadataLength,
     byte[] dest,
     short offset,
     short capacity,
@@ -297,10 +305,17 @@ public final class Safe {
       if (
         item.matches(type) &&
         grant.allows(Util.getShort(item.index, INDEX_TYPE_OFFSET), false) &&
-        (keyLength == 0 ||
-          (item.key != null &&
-            keyLength <= item.key.length &&
-            Util.arrayCompare(item.key, (short) 0, keyPrefix, keyOffset, keyLength) == 0))
+        (metadataLength == 0 ||
+          (item.metadata != null &&
+            metadataLength <= item.metadata.length &&
+            Util.arrayCompare(
+              item.metadata,
+              (short) 0,
+              metadataPrefix,
+              metadataOffset,
+              metadataLength
+            ) ==
+            0))
       ) {
         if (count < capacity) {
           Util.arrayCopyNonAtomic(item.index, (short) 0, dest, offset, INDEX_LENGTH);
@@ -355,7 +370,8 @@ public final class Safe {
 
     switch (type & TYPE_CATEGORY_MASK) {
       case TYPE_ENTROPY:
-      case TYPE_SEED: {
+      case TYPE_SEED:
+      case TYPE_HMAC: {
         short keyLength = (short) (type & TYPE_METADATA_MASK);
 
         if (keyLength == 0) {
@@ -412,8 +428,13 @@ public final class Safe {
     return item;
   }
 
-  public SafeItem create(short type, byte[] key, byte[] alias, SafeDataSource data, boolean secret)
-    throws SafeException {
+  public SafeItem create(
+    short type,
+    byte[] metadata,
+    byte[] alias,
+    SafeDataSource data,
+    boolean secret
+  ) throws SafeException {
     if (!isKnownDigestIndexedType(type)) {
       SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
     }
@@ -422,12 +443,12 @@ public final class Safe {
 
     byte[] index = buildDigestIndex(type, data);
 
-    return createItem(index, key, alias, data, secret ? SAFE_TRUE : SAFE_FALSE);
+    return createItem(index, metadata, alias, data, secret ? SAFE_TRUE : SAFE_FALSE);
   }
 
   public SafeItem create(
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     SafeDataSource data,
     boolean secret
@@ -437,7 +458,7 @@ public final class Safe {
     }
 
     byte[] builtIndex = validateIndex(index, data);
-    return createItem(builtIndex, key, alias, data, secret ? SAFE_TRUE : SAFE_FALSE);
+    return createItem(builtIndex, metadata, alias, data, secret ? SAFE_TRUE : SAFE_FALSE);
   }
 
   private byte[] validateIndex(byte[] index, SafeDataSource data) {
@@ -475,9 +496,9 @@ public final class Safe {
   boolean createData(
     byte[] index,
     short indexOffset,
-    byte[] key,
-    short keyOffset,
-    short keyLength,
+    byte[] metadata,
+    short metadataOffset,
+    short metadataLength,
     byte[] alias,
     byte[] data,
     short dataOffset,
@@ -490,12 +511,14 @@ public final class Safe {
 
     checkStorage(
       (short) (INDEX_LENGTH +
-        keyLength +
+        metadataLength +
         (alias == null ? 0 : alias.length) +
         getItemTableExtensionLength())
     );
     byte[] ownedIndex = Utils.duplicateAsPersistent(index, indexOffset, INDEX_LENGTH);
-    byte[] ownedKey = key == null ? null : Utils.duplicateAsPersistent(key, keyOffset, keyLength);
+    byte[] ownedMetadata = metadata == null
+      ? null
+      : Utils.duplicateAsPersistent(metadata, metadataOffset, metadataLength);
     byte[] ownedAlias = alias == null ? null : Utils.duplicateAsPersistent(alias);
     checkStorage((short) (dataLength + getItemTableExtensionLength()));
     byte[] storedData = Utils.duplicateAsPersistent(data, dataOffset, dataLength);
@@ -507,14 +530,20 @@ public final class Safe {
 
     assertAccess();
     return (
-      finishCreate(ownedIndex, ownedKey, ownedAlias, storedData, secret ? SAFE_TRUE : SAFE_FALSE) !=
+      finishCreate(
+        ownedIndex,
+        ownedMetadata,
+        ownedAlias,
+        storedData,
+        secret ? SAFE_TRUE : SAFE_FALSE
+      ) !=
       null
     );
   }
 
   private SafeItem createItem(
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     SafeDataSource data,
     short secret
@@ -525,9 +554,9 @@ public final class Safe {
       return null;
     }
 
-    checkStorage(getItemStorageLength(index, key, alias, (short) 0));
+    checkStorage(getItemStorageLength(index, metadata, alias, (short) 0));
     index = Utils.duplicateAsPersistent(index);
-    key = key != null ? Utils.duplicateAsPersistent(key) : null;
+    metadata = metadata != null ? Utils.duplicateAsPersistent(metadata) : null;
     alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
 
     short dataLength = data.getLength();
@@ -536,12 +565,12 @@ public final class Safe {
     byte[] storedData = data.duplicateAsPersistent(dataLength);
     assertAccess();
 
-    return finishCreate(index, key, alias, storedData, secret);
+    return finishCreate(index, metadata, alias, storedData, secret);
   }
 
   private SafeItem finishCreate(
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     byte[] storedData,
     short secret
@@ -556,14 +585,19 @@ public final class Safe {
       checkStorage(extensionLength);
     }
 
-    return publishItem(index, key, alias, storedData, secret);
+    return publishItem(index, metadata, alias, storedData, secret);
   }
 
-  private short getItemStorageLength(byte[] index, byte[] key, byte[] alias, short dataLength) {
+  private short getItemStorageLength(
+    byte[] index,
+    byte[] metadata,
+    byte[] alias,
+    short dataLength
+  ) {
     short length = (short) (index.length + dataLength);
 
-    if (key != null) {
-      length += (short) key.length;
+    if (metadata != null) {
+      length += (short) metadata.length;
     }
 
     if (alias != null) {
@@ -580,8 +614,14 @@ public final class Safe {
       : 0;
   }
 
-  private SafeItem publishItem(byte[] index, byte[] key, byte[] alias, byte[] data, short secret) {
-    SafeItem item = new SafeItem(this, index, key, alias, data, secret);
+  private SafeItem publishItem(
+    byte[] index,
+    byte[] metadata,
+    byte[] alias,
+    byte[] data,
+    short secret
+  ) {
+    SafeItem item = new SafeItem(this, index, metadata, alias, data, secret);
     SafeItem[] updatedItems = items;
 
     if (itemsLength == items.length) {
@@ -629,7 +669,7 @@ public final class Safe {
 
   public void importItem(
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     byte[] senderPublicKey,
     SafeDataSource data
@@ -640,14 +680,14 @@ public final class Safe {
     byte[] buffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) 64);
 
     index = Utils.duplicateAsPersistent(index);
-    key = key != null ? Utils.duplicateAsPersistent(key) : null;
+    metadata = metadata != null ? Utils.duplicateAsPersistent(metadata) : null;
     alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
     senderPublicKey = senderPublicKey != null ? Utils.duplicateAsPersistent(senderPublicKey) : null;
 
     CommunicationDataShareable plaintext = requireItemCipher().decrypt(
       requireIdentity(),
       index,
-      key,
+      metadata,
       alias,
       senderPublicKey,
       data
@@ -668,7 +708,7 @@ public final class Safe {
 
       if (
         item.getSecretValue() != secret ||
-        !equal(item.key, key) ||
+        !equal(item.metadata, metadata) ||
         !equal(item.alias, alias) ||
         itemData.length != dataLength
       ) {
@@ -690,9 +730,9 @@ public final class Safe {
       return;
     }
 
-    checkStorage(getItemStorageLength(index, key, alias, dataLength));
+    checkStorage(getItemStorageLength(index, metadata, alias, dataLength));
     index = Utils.duplicateAsPersistent(index);
-    key = key != null ? Utils.duplicateAsPersistent(key) : null;
+    metadata = metadata != null ? Utils.duplicateAsPersistent(metadata) : null;
     alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
     byte[] storedData = new byte[dataLength];
 
@@ -704,7 +744,7 @@ public final class Safe {
     }
 
     assertAccess();
-    publishItem(index, key, alias, storedData, secret);
+    publishItem(index, metadata, alias, storedData, secret);
   }
 
   private static boolean equal(byte[] left, byte[] right) {
@@ -885,6 +925,8 @@ public final class Safe {
       return TYPE_WEIERSTRASS_SECP256R1;
     } else if (Utils.isEqual(TYPE_TEXT_ED25519, buffer, offset, length)) {
       return TYPE_EDWARDS_ED25519;
+    } else if (Utils.isEqual(TYPE_TEXT_HMAC, buffer, offset, length)) {
+      return TYPE_HMAC;
     }
 
     MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
@@ -901,6 +943,8 @@ public final class Safe {
         return TYPE_TEXT_ENTROPY;
       case TYPE_SEED:
         return TYPE_TEXT_SEED;
+      case TYPE_HMAC:
+        return TYPE_TEXT_HMAC;
       case TYPE_WEIERSTRASS:
       case TYPE_EDWARDS:
         switch (type) {
@@ -930,10 +974,15 @@ public final class Safe {
     return (type & TYPE_CATEGORY_MASK) == (TYPE_WEIERSTRASS & TYPE_CATEGORY_MASK);
   }
 
+  public static boolean isTypeHmac(short type) {
+    return (type & TYPE_CATEGORY_MASK) == TYPE_HMAC;
+  }
+
   public static boolean isKnownExplicitLengthType(short type) {
     switch (type & TYPE_CATEGORY_MASK) {
       case TYPE_ENTROPY:
       case TYPE_SEED:
+      case TYPE_HMAC:
         return true;
       default:
         return false;
@@ -946,6 +995,7 @@ public final class Safe {
       case TYPE_SEED:
       case TYPE_WEIERSTRASS:
       case TYPE_EDWARDS:
+      case TYPE_HMAC:
         return true;
       default:
         return false;
@@ -1028,7 +1078,12 @@ public final class Safe {
 
     switch (type & TYPE_CATEGORY_MASK) {
       case TYPE_ENTROPY:
-      case TYPE_SEED: {
+      case TYPE_SEED:
+      case TYPE_HMAC: {
+        if (isTypeHmac(type) && (length < 1 || length > TYPE_METADATA_MASK)) {
+          SafeException.throwIt(SafeException.REASON_INVALID_PARAMETER);
+        }
+
         short specifiedKeyLength = (short) (type & TYPE_METADATA_MASK);
 
         if (specifiedKeyLength != 0 && specifiedKeyLength != length) {

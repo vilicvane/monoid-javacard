@@ -103,13 +103,44 @@ Opt-in session reuse matches the exact caller and current grant, clears authenti
 on acquisition and never revives an expired session. Range and direct-data methods
 retain the same live authorization, Type and secret checks before copying output.
 Index enumeration exposes metadata only; it does not authorize reading secret data.
-Direct reads filter exact keys, including null, before returning data; a key miss
+Direct reads filter exact metadata, including null, before returning data; a metadata mismatch
 is not evidence that the caller may read a different item. Direct creation owns
 the supplied bytes before normal storage publication and keeps the existing reserve
 and transaction boundaries. No global/APDU array reference is retained by these calls.
 Client data callbacks are checked before and after invocation; they do not inherit
-APDU PIN authorization. Fixed Key descriptors remain management data; the first
+APDU PIN authorization. Fixed asymmetric Key descriptors remain management data; the first
 signing service exposes only the granted seed/domain's Monoid-001/P-256 path.
+
+HMAC uses a built-in key explicitly selected by its full index in `grant.keys`.
+It permits SHA-1/SHA-256/SHA-512 MACs without returning the key. Type read/write
+access does not authorize HMAC, and a key grant does not permit plaintext secret
+reads. OTP account records contain configuration and a readable key reference;
+changing that reference cannot authorize another key. HMAC callers choose
+arbitrary messages; only delegate this computation to code whose policy the user
+trusts.
+
+`Authenticate` may additionally name one granted client AID. This issues one
+operation-start permission, held in CLEAR_ON_RESET state and shared by that
+grant's SIO sessions. The client authenticates its installation token, then
+consumes the permission before starting work. A new Authenticate clears the old
+permission, including when it fails; PIN updates and replacement/revocation of
+the matching grant also invalidate it. Consumption cannot be repeated. Ordinary
+APDU authentication remains CLEAR_ON_DESELECT; no PIN is passed to the client.
+This permission has no time-based expiry and does not authenticate host software.
+
+[OTP](otp.md) requires that permission after fixing the time and selected account
+indices. With Authority configured, it requires signed challenge-bound time;
+without Authority, it accepts APP-provided time. The card's installed configuration
+chooses this policy, and a configured Authority never falls back to unsigned time.
+The unsigned mode permits the host to choose past or future windows. OTP consumes
+the permission before producing three
+windows per account and discards the batch even on failure. Its pending state
+clears on card reset; a new preparation revokes its old permission. Configuration
+and secret data are read at calculation, not frozen item revisions. The signed
+time proves issuance, not prompt delivery; old prepared windows can remain
+available while powered. No persistent time high-water mark or per-power quota
+is claimed. The HMAC SIO itself does not enforce this OTP policy, just as Monoid
+does not implement the client's FIDO PIN policy.
 
 Security Key owns its FIDO PIN and protocol-1 PIN token. Its normal CTAP requests
 need no Monoid APDU PIN login: Monoid trusts the installed authorized client's
@@ -143,7 +174,7 @@ updates remain atomic.
 `secret: true` prohibits returning the stored item data through plaintext Get,
 including after Secret PIN authentication. It does not prohibit use of the key for
 signing/derivation, public-key queries, metadata enumeration, encrypted Export,
-replacement or deletion. List/View expose metadata; index, lookup key and alias
+replacement or deletion. List/View expose public fields; index, metadata and alias
 must not be used as confidential storage.
 
 Changing `secret` from true to false without supplying replacement data is
@@ -197,7 +228,7 @@ certificate chain or prove that a peer keeps its private key inside a card.
 ## Encrypted transfer and Bundle
 
 The [item envelope](item-transfer.md) protects data and the secret flag, and binds
-the complete index, key, alias, protocol version and runtime caller AID. Metadata
+the complete index, metadata, alias, protocol version and runtime caller AID. Public fields
 and length remain visible. Identity verifies the complete authentication tag
 before returning plaintext to Monoid; a failed or mismatched artifact must not
 publish a result or overwrite an existing item.
@@ -245,7 +276,9 @@ configuration. Saved requests can be replayed for the same target; this is not
 a fresh-presence or revocation protocol. Extension retains the root and permits
 historical data recovery, without revoking lost members.
 
-An optional Authority key is fixed at Identity installation. Authority enrollment
+An optional Authority URL and key are fixed together at Identity installation.
+Hello exposes the URL for service discovery, while cryptographic verification
+continues to use the installed key. Authority enrollment
 authenticates that installed key through HPKE Auth and binds the recipient and
 `allowPeerExtension` in the authenticated packet header. It requires Secret PIN
 and the fixed Monoid caller, and cannot replace an existing root or change its

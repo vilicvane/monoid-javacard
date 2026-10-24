@@ -28,11 +28,11 @@ final class SafeSessionItem implements SafeItemShareable {
   }
 
   @Override
-  public byte[] getKey() {
+  public byte[] getMetadata() {
     begin(false);
 
     try {
-      return item.key == null ? null : Utils.duplicateAsGlobal(item.key);
+      return item.metadata == null ? null : Utils.duplicateAsGlobal(item.metadata);
     } finally {
       session.end();
     }

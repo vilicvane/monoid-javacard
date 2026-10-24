@@ -390,12 +390,12 @@ public class CredentialStoreTest {
     final Monoid service = service(Monoid.class, (proxy, method, arguments) -> {
       if (method.getName().equals("listIndices")) {
         indexLists++;
-        byte[] key = Arrays.copyOfRange(
+        byte[] metadata = Arrays.copyOfRange(
           (byte[]) arguments[1],
           (Short) arguments[2],
           (Short) arguments[2] + (Short) arguments[3]
         );
-        List<Credential> selected = selected(key);
+        List<Credential> selected = selected(metadata);
         if (selected.size() <= (Short) arguments[6]) {
           byte[] output = (byte[]) arguments[4];
           short offset = (Short) arguments[5];
@@ -413,13 +413,13 @@ public class CredentialStoreTest {
           (Short) arguments[1],
           (Short) arguments[1] + 10
         );
-        byte[] key = Arrays.copyOfRange(
+        byte[] metadata = Arrays.copyOfRange(
           (byte[]) arguments[2],
           (Short) arguments[3],
           (Short) arguments[3] + (Short) arguments[4]
         );
         Credential item = find(index);
-        if (item == null || !Arrays.equals(item.key(), key)) {
+        if (item == null || !Arrays.equals(item.metadata(), metadata)) {
           return (short) -1;
         }
         short length = item.getLength();
@@ -477,7 +477,7 @@ public class CredentialStoreTest {
             )
           );
           Assertions.assertArrayEquals(
-            creating.key(),
+            creating.metadata(),
             Arrays.copyOfRange(
               (byte[]) arguments[2],
               (Short) arguments[3],
@@ -522,10 +522,10 @@ public class CredentialStoreTest {
       revision++;
     }
 
-    private List<Credential> selected(byte[] key) {
+    private List<Credential> selected(byte[] metadata) {
       List<Credential> selected = new ArrayList<>();
       for (Credential item : items) {
-        if (item.matchesKey(key)) {
+        if (item.matchesMetadata(metadata)) {
           selected.add(item);
         }
       }
@@ -546,8 +546,8 @@ public class CredentialStoreTest {
         switch (method.getName()) {
           case "getIndex":
             return credential.index();
-          case "getKey":
-            return credential.key();
+          case "getMetadata":
+            return credential.metadata();
           case "getData":
             return credential;
           case "remove":

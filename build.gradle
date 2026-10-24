@@ -226,5 +226,37 @@ javacard {
 				}
 			}
 		}
+
+		cap {
+			packageName 'monoidotp'
+			version '0.0'
+			// @inplate-line aid '{{hex MONOID_OTP_PACKAGE_AID}}'
+			aid 'f06d6f6e6f696405'
+			output 'monoidotp.cap'
+
+			targetsdk JC305u3
+			sources 'src/main/java/monoidotp'
+
+			applet {
+				className 'monoidotp.MonoidOTPApplet'
+				// @inplate-line aid '{{hex MONOID_OTP_AID}}'
+				aid 'f06d6f6e6f69640501'
+			}
+
+			dependencies {
+				local {
+					exps "${buildDir}/javacard/monoidlib.exp"
+					jar "${buildDir}/javacard/monoidlib.exp/monoidlib.jar"
+				}
+				local {
+					exps "${buildDir}/javacard/monoididentity.exp"
+					jar "${buildDir}/javacard/monoididentity.exp/monoididentity.jar"
+				}
+				local {
+					exps "${buildDir}/javacard/monoid.exp"
+					jar "${buildDir}/javacard/monoid.exp/monoid.jar"
+				}
+			}
+		}
 	}
 }

@@ -21,7 +21,7 @@ public class CommandExport extends Command {
 
     SafeItem item = MonoidApplet.safe.require(index);
 
-    byte[] key = item.getKey();
+    byte[] metadata = item.getMetadata();
     byte[] alias = item.getAlias();
     SafeDataSource data = item.exportData(recipientPublicKey);
 
@@ -29,12 +29,12 @@ public class CommandExport extends Command {
 
     short prefixLength = (short) (2 + Text.data.length);
 
-    if (key != null) {
+    if (metadata != null) {
       entries++;
       prefixLength += (short) (1 +
-        Text.key.length +
-        CBORWriter.metadataLength((short) key.length) +
-        key.length);
+        Text.metadata.length +
+        CBORWriter.metadataLength((short) metadata.length) +
+        metadata.length);
     }
 
     if (alias != null) {
@@ -49,9 +49,9 @@ public class CommandExport extends Command {
 
     writer.map(entries);
     {
-      if (key != null) {
-        writer.text(Text.key);
-        writer.bytes(key);
+      if (metadata != null) {
+        writer.text(Text.metadata);
+        writer.bytes(metadata);
       }
 
       if (alias != null) {

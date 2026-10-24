@@ -12,7 +12,7 @@ A JavaCard with Monoid applets installed is:
 
 - [x] A hardware crypto wallet.
 - [x] A FIDO2 authenticator.
-- [ ] A One-Time Password (OTP) generator.
+- [x] A One-Time Password (OTP) generator.
 - [ ] A Tesla key.
 
 The goal is to allow third-party Monoid applets to interact with _Monoid Applet_ `Shareable` interface for signing/verifying and data access, so that Monoid can manage those keys and data and make it easy for users to backup, restore or even synchronize securely with unified UX.
@@ -50,6 +50,7 @@ gp --install build/javacard/monoid.cap
 Keep Monoid Identity and the matching library installed when replacing Monoid. See [architecture](doc/architecture.md).
 
 For FIDO2, install and authorize [Security Key](doc/security-key.md).
+For TOTP, install and authorize [OTP](doc/otp.md).
 
 Build and install with PowerShell:
 
@@ -140,6 +141,10 @@ See [architecture](doc/architecture.md) and [security boundaries](doc/security.m
   - [x] `"ecdsa"`
 - `"ed25519"`
   - [x] `"ed25519"`
+- `"hmac"` (Shareable)
+  - [x] SHA-1
+  - [x] SHA-256
+  - [x] SHA-512
 
 See [Bitcoin signing](doc/bitcoin.md).
 
@@ -180,6 +185,8 @@ type Response = {
   id: byte[];
   /** Monoid Identity P-256 public key, 65-byte uncompressed SEC 1. */
   publicKey: byte[];
+  /** Authority service URL, or false when not configured. */
+  authority: string | false;
   /** SHA-256 of the Bundle key, or false when not enrolled. */
   bundle: byte[] | false;
   /** Tries remaining, or false when the PIN is not set. */
@@ -196,6 +203,8 @@ type Response = {
 type Request = {
   pin: string;
   secret?: true;
+  /** Optional client AID: one operation-start permission, consumed by that client. */
+  aid?: byte[];
 };
 ```
 
@@ -332,8 +341,9 @@ type Response = {
 ### `0x30` ~ `0x3F` Safe management
 
 ```ts
-type SafeItemKeyType = 'entropy' | 'seed' | 'secp256k1' | 'secp256r1' | 'ed25519';
-type SafeItemType = SafeItemKeyType | byte;
+type SafeItemKeyType = 'entropy' | 'seed' | 'secp256k1' | 'secp256r1' | 'ed25519' | 'hmac';
+/** Numeric types use signed 16-bit CBOR integers. */
+type SafeItemType = SafeItemKeyType | number;
 ```
 
 #### `0x30` List items
@@ -343,8 +353,8 @@ type SafeItemType = SafeItemKeyType | byte;
 ```ts
 type Request = {
   type?: SafeItemType;
-  /** Matches item key only; omitted or empty means no key filter. */
-  keyPrefix?: byte[];
+  /** Matches item metadata only; omitted or empty means no metadata filter. */
+  metadataPrefix?: byte[];
 };
 ```
 
@@ -353,7 +363,7 @@ type Response = {
   items: {
     index: byte[];
     type: SafeItemType;
-    key?: byte[];
+    metadata?: byte[];
     alias?: string;
     secret: boolean;
   }[];
@@ -372,7 +382,7 @@ type Request = {
 
 ```ts
 type Response = {
-  key?: byte[];
+  metadata?: byte[];
   alias?: string;
   secret: boolean;
 };
@@ -427,7 +437,7 @@ type Request = (
     }
 ) & {
   /** Set at creation; searchable and readable with access PIN. */
-  key?: byte[];
+  metadata?: byte[];
   alias?: string;
   data: byte[];
   /** Disables plaintext Get; defaults to false. */
@@ -471,9 +481,9 @@ type Request = {
 
 ```ts
 type Response = {
-  key?: byte[];
+  metadata?: byte[];
   alias?: string;
-  /** Encrypts item data and secret; authenticates index, key and alias. */
+  /** Encrypts item data and secret; authenticates index, metadata and alias. */
   data: byte[];
 };
 ```
@@ -489,9 +499,9 @@ type Request = {
   index: byte[];
   /** Required for asymmetric envelopes; not needed for Bundle envelopes. */
   senderPublicKey?: byte[];
-  key?: byte[];
+  metadata?: byte[];
   alias?: string;
-  /** Export response data; index, key and alias must match that export. */
+  /** Export response data; index, metadata and alias must match that export. */
   data: byte[];
 };
 ```
@@ -508,7 +518,7 @@ type Response = {};
 /** Always creates a secret item. */
 type Request = {
   type: SafeItemKeyType;
-  /** Required for entropy/seed, in bytes. */
+  /** Required for entropy/seed/hmac, in bytes; hmac: 1–255. */
   length?: number;
 };
 ```
@@ -574,7 +584,13 @@ type KeySECP256r1 = {
     }
 );
 
-type Key = KeySECP256k1 | KeySECP256r1 | KeyED25519;
+type KeyHMAC = {
+  index: byte[];
+  /** Stored shared secret, 1–255 bytes. */
+  type: 'hmac';
+};
+
+type Key = KeySECP256k1 | KeySECP256r1 | KeyED25519 | KeyHMAC;
 
 /** secp256k1 only; true/{} enables BIP86, false/omitted disables tweaking. */
 type Taproot = {
@@ -645,7 +661,7 @@ type AppletGrantOptions = {
   aid: byte[];
   /** Exact custom types, 0x1000–0xFFFE; encoded as signed 16-bit integers. */
   types?: [type: number, writable: boolean][];
-  /** Fixed Key descriptions; independent of types and seed. */
+  /** Fixed Key descriptions; HMAC authorizes computation, not plaintext access. */
   keys?: Key[];
   /** A stored 64-byte seed for domain-scoped Monoid-001 derivation. */
   seed?: {index: byte[]; domain: byte[]};
@@ -718,6 +734,9 @@ The first 2 bytes are the type of the item (`0x0000` to `0x0FFF` and `0xFFFF` ar
 - `0x04` Edwards key
   - `0x0401` `"ed25519"` Ed25519 key (32-byte private-key seed)
     - +8 bytes digest of key
+- `0x05` `"hmac"` HMAC key
+  - +1 byte key length (1–255)
+  - +8 bytes digest of key
 - `0x0FFF` Generic data (draft, not implemented yet)
   - +8 bytes unique identifier
 

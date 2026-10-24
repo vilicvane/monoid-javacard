@@ -5,13 +5,45 @@ param(
 	[string]$CardId,
 	[ValidatePattern('^04[0-9A-Fa-f]{128}$')]
 	[string]$AuthorityPublicKey,
+	[ValidateNotNullOrEmpty()]
+	[string]$AuthorityUrl,
 	[string[]]$RunCommands
 )
 
 $ErrorActionPreference = 'Stop';
 
-if ($Mode -ne 'Install' -and ($CardId -or $AuthorityPublicKey)) {
-	throw 'CardId and AuthorityPublicKey apply only when installing Monoid Identity.';
+if ($Mode -ne 'Install' -and ($CardId -or $AuthorityPublicKey -or $AuthorityUrl)) {
+	throw 'CardId, AuthorityPublicKey and AuthorityUrl apply only when installing Monoid Identity.';
+}
+
+if ([bool]$AuthorityPublicKey -ne [bool]$AuthorityUrl) {
+	throw 'AuthorityPublicKey and AuthorityUrl must be provided together.';
+}
+
+$identityInstallArguments = @('--install', 'build\javacard\monoididentity.cap');
+$flags = 0;
+
+if ($CardId) {
+	$flags = $flags -bor 0x01;
+}
+
+$authorityUrlHex = '';
+
+if ($AuthorityPublicKey) {
+	$flags = $flags -bor 0x02;
+	$authorityUrlBytes = [System.Text.Encoding]::UTF8.GetBytes($AuthorityUrl);
+	$authorityUrlHex = [System.BitConverter]::ToString($authorityUrlBytes).Replace('-', '');
+}
+
+if ($flags) {
+	$parameters = '{0:X2}{1}{2}{3}' -f $flags, $CardId, $AuthorityPublicKey, $authorityUrlHex;
+
+	# The install buffer includes the 9-byte instance AID and three length bytes.
+	if (12 + $parameters.Length / 2 -gt 255) {
+		throw 'Identity installation data exceeds the 255-byte install buffer.';
+	}
+
+	$identityInstallArguments += @('--params', $parameters);
 }
 
 function Invoke-GlobalPlatform {
@@ -30,22 +62,6 @@ if ($LASTEXITCODE -ne 0) {
 
 switch ($Mode) {
 	'Install' {
-		$identityInstallArguments = @('--install', 'build\javacard\monoididentity.cap');
-		$flags = 0;
-
-		if ($CardId) {
-			$flags = $flags -bor 0x01;
-		}
-
-		if ($AuthorityPublicKey) {
-			$flags = $flags -bor 0x02;
-		}
-
-		if ($flags) {
-			$parameters = '{0:X2}{1}{2}' -f $flags, $CardId, $AuthorityPublicKey;
-			$identityInstallArguments += @('--params', $parameters);
-		}
-
 		Invoke-GlobalPlatform @identityInstallArguments;
 		Invoke-GlobalPlatform --load build\javacard\monoidlib.cap;
 		Invoke-GlobalPlatform --install build\javacard\monoid.cap;

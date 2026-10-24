@@ -15,7 +15,13 @@ public class CommandCreateRandomKey extends Command {
     short type = Safe.type(reader.requireKey(Text.type).text());
 
     if (Safe.isKnownExplicitLengthType(type)) {
-      type |= reader.requireKey(Text.length).integer();
+      short length = reader.requireKey(Text.length).integer();
+
+      if (Safe.isTypeHmac(type) && (length < 1 || length > Safe.TYPE_METADATA_MASK)) {
+        MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+      }
+
+      type |= length;
     }
 
     byte[] index = safe.createKnownRandom(type).getIndex();

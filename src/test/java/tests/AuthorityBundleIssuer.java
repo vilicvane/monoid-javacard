@@ -32,7 +32,11 @@ final class AuthorityBundleIssuer {
   }
 
   byte[] installationParameters() {
-    return concat(new byte[] { 2 }, publicKey());
+    return installationParameters("https://authority.example/");
+  }
+
+  byte[] installationParameters(String url) {
+    return concat(new byte[] { 2 }, publicKey(), url.getBytes(StandardCharsets.UTF_8));
   }
 
   byte[] issue(byte[] recipient, byte[] root, boolean allowPeerExtension) throws Exception {

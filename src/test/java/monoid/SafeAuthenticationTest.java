@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import javacard.framework.AID;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
+import javacard.framework.Shareable;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import main.ShareableSimulatorRuntime;
@@ -39,13 +40,15 @@ public class SafeAuthenticationTest {
   private static final byte[] DATA = { (byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF };
 
   private CardSimulator simulator;
+  private IdentityRuntime runtime;
   private Safe safe;
   private SafeItem item;
 
   @BeforeEach
   public void initialize() {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
-    simulator = new CardSimulator(new ShareableSimulatorRuntime());
+    runtime = new IdentityRuntime();
+    simulator = new CardSimulator(runtime);
     simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
     simulator.installApplet(MONOID_AID, MonoidApplet.class);
     Assertions.assertTrue(simulator.selectApplet(MONOID_AID));
@@ -115,22 +118,16 @@ public class SafeAuthenticationTest {
   }
 
   @Test
-  public void storageReadsDoNotReenterIdentity() throws Exception {
+  public void storageReadsDoNotReenterIdentity() {
     initializeItem();
+    runtime.rejectIdentity = true;
 
-    for (String name : new String[] { "pinSetValidation", "pinBlockedValidation" }) {
-      Field field = field(name);
-      field.set(
-        safe,
-        (LibSecurity.Condition) () -> {
-          Assertions.fail("Storage callbacks must only use their local authorization.");
-          return false;
-        }
-      );
+    try {
+      Assertions.assertArrayEquals(DATA, read(item.getData()));
+      Assertions.assertEquals(1, safe.list((short) 0).getCount());
+    } finally {
+      runtime.rejectIdentity = false;
     }
-
-    Assertions.assertArrayEquals(DATA, read(item.getData()));
-    Assertions.assertEquals(1, safe.list((short) 0).getCount());
   }
 
   @Test
@@ -213,5 +210,19 @@ public class SafeAuthenticationTest {
   private void assertDenied(Executable operation) {
     ISOException exception = Assertions.assertThrows(ISOException.class, operation);
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
+  }
+
+  private static final class IdentityRuntime extends ShareableSimulatorRuntime {
+
+    private boolean rejectIdentity;
+
+    @Override
+    public Shareable getSharedObject(AID serverAID, byte parameter) {
+      if (rejectIdentity && IDENTITY_AID.equals(serverAID)) {
+        Assertions.fail("Storage callbacks must only use their local authorization.");
+      }
+
+      return super.getSharedObject(serverAID, parameter);
+    }
   }
 }

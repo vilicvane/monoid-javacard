@@ -12,12 +12,12 @@ public interface SafeItemIteratorShareable extends Shareable {
 
   /**
    * Advances once, copies the true 10-byte index and min(capacity, data length) bytes, and returns
-   * the total data length, or -1 at the end. expectedKey must match exactly, including null;
+   * the total data length, or -1 at the end. expectedMetadata must match exactly, including null;
    * a mismatch fails with 6985, not end-of-enumeration. Output regions must not overlap. Errors
    * after advancing abort this operation; use a new enumeration rather than retrying the item.
    */
   short nextData(
-    byte[] expectedKey,
+    byte[] expectedMetadata,
     byte[] indexDest,
     short indexOffset,
     byte[] dest,
@@ -25,11 +25,11 @@ public interface SafeItemIteratorShareable extends Shareable {
     short capacity
   );
 
-  /** Uses an exact key slice, consumed before either output range is written. */
+  /** Uses an exact metadata slice, consumed before either output range is written. */
   short nextData(
-    byte[] expectedKey,
-    short keyOffset,
-    short keyLength,
+    byte[] expectedMetadata,
+    short metadataOffset,
+    short metadataLength,
     byte[] indexDest,
     short indexOffset,
     byte[] dest,

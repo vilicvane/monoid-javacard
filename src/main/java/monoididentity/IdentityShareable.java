@@ -16,6 +16,16 @@ public interface IdentityShareable extends Shareable {
   /** SHA-256 of the installed Bundle key, or null when no Bundle is installed. */
   public byte[] getBundle();
 
+  /** The installed Authority service URL as global UTF-8 bytes, or null when not configured. */
+  public byte[] getAuthority();
+
+  /**
+   * Verifies version 1 time data against the installed Authority and caller-owned challenge.
+   * All inputs must be global arrays: data is 41 bytes, raw r || s is 64 bytes, and challenge is 32
+   * bytes. The caller owns challenge generation, freshness and one-use consumption.
+   */
+  public void verifyAuthorityTime(byte[] data, byte[] signature, byte[] challenge);
+
   /** Whether the persistent Secret PIN has been initialized. */
   public boolean isSecretPINSet();
 
@@ -53,7 +63,7 @@ public interface IdentityShareable extends Shareable {
   /** Encrypts for the same caller AID, using the Bundle when present or the recipient otherwise. */
   public CommunicationDataShareable encryptData(
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     short secret,
     byte[] recipientPublicKey,
@@ -63,7 +73,7 @@ public interface IdentityShareable extends Shareable {
   /** Returns secret (two bytes) || data after authenticating the envelope for this caller AID. */
   public CommunicationDataShareable decryptData(
     byte[] index,
-    byte[] key,
+    byte[] metadata,
     byte[] alias,
     byte[] senderPublicKey,
     CommunicationDataShareable data

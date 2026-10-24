@@ -159,15 +159,15 @@ public class MonoidSessionTest {
   @Test
   public void rangedDataSnapshotsOwnTheirBindingAndTrackLiveItemChanges() {
     try (Fixture fixture = new Fixture()) {
-      byte[] key = sequence(32, 13);
+      byte[] metadata = sequence(32, 13);
       byte[] stored = sequence(227, 41);
       byte[] storedIndex = index(0xF101, 1);
-      fixture.card.create(storedIndex, key, null, stored, false);
+      fixture.card.create(storedIndex, metadata, null, stored, false);
       fixture.grant(null);
       Monoid session = fixture.connectReusable(true);
       byte[] buffer = global(new byte[64]);
       System.arraycopy(storedIndex, 0, buffer, 7, 10);
-      System.arraycopy(key, 0, buffer, 20, 32);
+      System.arraycopy(metadata, 0, buffer, 20, 32);
       SafeDataShareable snapshot = session.getData(
         buffer,
         (short) 7,
@@ -190,20 +190,20 @@ public class MonoidSessionTest {
       SafeDataShareable replacement = session.getData(
         storedIndex,
         (short) 0,
-        global(key),
+        global(metadata),
         (short) 0,
         (short) 32
       );
       Assertions.assertArrayEquals(new byte[] { 3 }, read(replacement));
       item.remove();
-      session.create(storedIndex, global(key), null, new Data(4), false);
+      session.create(storedIndex, global(metadata), null, new Data(4), false);
       assertStatus(0x6985, replacement::getLength);
       assertStatus(0x6985, () -> replacement.read((short) 0, buffer, (short) 0, (short) 1));
     }
   }
 
   @Test
-  public void rangedDataSnapshotsRequireExactKeysReadableDataAndCurrentAuthorization() {
+  public void rangedDataSnapshotsRequireExactMetadataReadableDataAndCurrentAuthorization() {
     try (Fixture fixture = new Fixture()) {
       fixture.card.create(index(0xF101, 1), null, null, new byte[] { 1 }, false);
       fixture.card.create(index(0xF101, 2), new byte[] { 2 }, null, new byte[] { 2 }, true);
@@ -344,17 +344,17 @@ public class MonoidSessionTest {
   }
 
   @Test
-  public void rangedReadsConsumeIndexAndKeyBeforeOverlappingOutput() {
+  public void rangedReadsConsumeIndexAndMetadataBeforeOverlappingOutput() {
     try (Fixture fixture = new Fixture()) {
-      byte[] key = sequence(32, 13);
+      byte[] metadata = sequence(32, 13);
       byte[] stored = sequence(227, 41);
       byte[] storedIndex = index(0xF101, 1);
-      fixture.card.create(storedIndex, key, null, stored, false);
+      fixture.card.create(storedIndex, metadata, null, stored, false);
       fixture.grant(null);
       Monoid session = fixture.connectReusable(true);
       byte[] buffer = global(new byte[133]);
       System.arraycopy(storedIndex, 0, buffer, 7, 10);
-      System.arraycopy(key, 0, buffer, 20, 32);
+      System.arraycopy(metadata, 0, buffer, 20, 32);
       Assertions.assertEquals(
         227,
         session.readData(
@@ -371,7 +371,7 @@ public class MonoidSessionTest {
       Assertions.assertArrayEquals(Arrays.copyOf(stored, 133), buffer);
 
       System.arraycopy(storedIndex, 0, buffer, 7, 10);
-      System.arraycopy(key, 0, buffer, 20, 32);
+      System.arraycopy(metadata, 0, buffer, 20, 32);
       buffer[20] ^= 1;
       byte[] unchanged = buffer.clone();
       Assertions.assertEquals(
@@ -444,17 +444,17 @@ public class MonoidSessionTest {
   }
 
   @Test
-  public void rangedEnumerationConsumesKeyBeforeOutputsAndRejectsInvalidSlicesBeforeAdvancing() {
+  public void rangedEnumerationConsumesMetadataBeforeOutputsAndRejectsInvalidSlicesBeforeAdvancing() {
     try (Fixture fixture = new Fixture()) {
-      byte[] key = sequence(32, 13);
+      byte[] metadata = sequence(32, 13);
       byte[] stored = sequence(40, 51);
       byte[] storedIndex = index(0xF101, 1);
-      fixture.card.create(storedIndex, key, null, stored, false);
+      fixture.card.create(storedIndex, metadata, null, stored, false);
       fixture.grant(null);
       Monoid session = fixture.connect(true);
       SafeItemIteratorShareable iterator = session.list((short) 0xF101);
       byte[] buffer = global(new byte[133]);
-      System.arraycopy(key, 0, buffer, 10, 32);
+      System.arraycopy(metadata, 0, buffer, 10, 32);
       byte[] unchanged = buffer.clone();
       assertStatus(0x6A80, () ->
         iterator.nextData(
@@ -617,7 +617,7 @@ public class MonoidSessionTest {
       for (int length : new int[] { 227, 300 }) {
         byte[] stored = sequence(length, 41);
         byte[] storedIndex = index(0xF101, length);
-        byte[] key = global(new byte[] { 7 });
+        byte[] metadata = global(new byte[] { 7 });
         byte[] alias = global(new byte[] { 8 });
         int[] copied = { 0 };
         int[] callbacks = { 0 };
@@ -637,14 +637,14 @@ public class MonoidSessionTest {
               256 - (copied[0] % 256)
             );
             Assertions.assertEquals(Math.min(outerRemaining, buffer.length), count);
-            key[0] = 99;
+            metadata[0] = 99;
             alias[0] = 99;
             System.arraycopy(stored, offset, buffer, bufferOffset, count);
             copied[0] += count;
             callbacks[0]++;
           }
         };
-        SafeItemShareable item = session.create(storedIndex, key, alias, source, false);
+        SafeItemShareable item = session.create(storedIndex, metadata, alias, source, false);
         Assertions.assertEquals(length, copied[0]);
         int window = 256;
         int expectedCallbacks = 0;
@@ -653,7 +653,7 @@ public class MonoidSessionTest {
         }
         Assertions.assertEquals(expectedCallbacks, callbacks[0]);
         Arrays.fill(stored, (byte) 0x55);
-        Assertions.assertArrayEquals(new byte[] { 7 }, item.getKey());
+        Assertions.assertArrayEquals(new byte[] { 7 }, item.getMetadata());
         Assertions.assertArrayEquals(new byte[] { 8 }, item.getAlias());
         Assertions.assertArrayEquals(sequence(length, 41), read(item.getData()));
       }
@@ -685,7 +685,7 @@ public class MonoidSessionTest {
       };
       SafeItemShareable item = session.create(storedIndex, window, window, source, true);
       Assertions.assertArrayEquals(storedIndex, item.getIndex());
-      Assertions.assertArrayEquals(expected, item.getKey());
+      Assertions.assertArrayEquals(expected, item.getMetadata());
       Assertions.assertArrayEquals(expected, item.getAlias());
       Assertions.assertFalse(Arrays.equals(expected, window));
     }
@@ -1050,11 +1050,11 @@ public class MonoidSessionTest {
   }
 
   @Test
-  public void directReadsReturnTotalLengthAndMatchKeysExactlyWithoutChangingOtherBytes() {
+  public void directReadsReturnTotalLengthAndMatchMetadataExactlyWithoutChangingOtherBytes() {
     try (Fixture fixture = new Fixture()) {
       byte[] data = sequence(300, 17);
-      byte[] key = global(new byte[] { 4, 2 });
-      fixture.card.create(index(0xF102, 1), key, null, data, false);
+      byte[] metadata = global(new byte[] { 4, 2 });
+      fixture.card.create(index(0xF102, 1), metadata, null, data, false);
       fixture.card.create(index(0xF101, 2), null, null, new byte[0], false);
       fixture.card.create(index(0xF101, 3), new byte[0], null, new byte[] { 7 }, false);
       fixture.grant(null);
@@ -1064,18 +1064,18 @@ public class MonoidSessionTest {
       System.arraycopy(data, 0, expected, 5, 100);
       Assertions.assertEquals(
         300,
-        session.readData(index(0xF102, 1), key, output, (short) 5, (short) 100)
+        session.readData(index(0xF102, 1), metadata, output, (short) 5, (short) 100)
       );
       Assertions.assertArrayEquals(expected, output);
       Assertions.assertEquals(
         300,
-        session.readData(index(0xF102, 1), key, output, (short) output.length, (short) 0)
+        session.readData(index(0xF102, 1), metadata, output, (short) output.length, (short) 0)
       );
       Assertions.assertArrayEquals(expected, output);
       System.arraycopy(data, 0, expected, 5, data.length);
       Assertions.assertEquals(
         300,
-        session.readData(index(0xF102, 1), key, output, (short) 5, (short) 305)
+        session.readData(index(0xF102, 1), metadata, output, (short) 5, (short) 305)
       );
       Assertions.assertArrayEquals(expected, output);
 
@@ -1198,13 +1198,13 @@ public class MonoidSessionTest {
   @Test
   public void directEnumerationReturnsRealIndicesAndPrefixesAndDoesNotWriteAtEnd() {
     try (Fixture fixture = new Fixture()) {
-      byte[] key = global(new byte[] { 4, 2 });
-      fixture.card.create(index(0xF101, 1), key, null, sequence(300, 11), false);
-      fixture.card.create(index(0xF102, 2), key, null, new byte[0], false);
-      fixture.card.create(index(0xF103, 3), key, null, new byte[] { 9 }, false);
+      byte[] metadata = global(new byte[] { 4, 2 });
+      fixture.card.create(index(0xF101, 1), metadata, null, sequence(300, 11), false);
+      fixture.card.create(index(0xF102, 2), metadata, null, new byte[0], false);
+      fixture.card.create(index(0xF103, 3), metadata, null, new byte[] { 9 }, false);
       fixture.grant(null);
       Monoid session = fixture.connect(true);
-      SafeItemIteratorShareable iterator = session.list((short) 0xF100, key);
+      SafeItemIteratorShareable iterator = session.list((short) 0xF100, metadata);
       Assertions.assertEquals(2, iterator.getCount());
       byte[] output = global(sequence(24, 71));
       byte[] expected = output.clone();
@@ -1212,18 +1212,18 @@ public class MonoidSessionTest {
       System.arraycopy(sequence(300, 11), 0, expected, 13, 8);
       Assertions.assertEquals(
         300,
-        iterator.nextData(key, output, (short) 1, output, (short) 13, (short) 8)
+        iterator.nextData(metadata, output, (short) 1, output, (short) 13, (short) 8)
       );
       Assertions.assertArrayEquals(expected, output);
       System.arraycopy(index(0xF102, 2), 0, expected, 1, 10);
       Assertions.assertEquals(
         0,
-        iterator.nextData(key, output, (short) 1, output, (short) 24, (short) 0)
+        iterator.nextData(metadata, output, (short) 1, output, (short) 24, (short) 0)
       );
       Assertions.assertArrayEquals(expected, output);
       Assertions.assertEquals(
         -1,
-        iterator.nextData(key, output, (short) 1, output, (short) 13, (short) 8)
+        iterator.nextData(metadata, output, (short) 1, output, (short) 13, (short) 8)
       );
       Assertions.assertArrayEquals(expected, output);
     }
@@ -1232,20 +1232,20 @@ public class MonoidSessionTest {
   @Test
   public void directEnumerationRejectsMetadataMismatchAndSecretDataWithoutSkipping() {
     try (Fixture fixture = new Fixture()) {
-      byte[] key = global(new byte[] { 4, 2 });
+      byte[] metadata = global(new byte[] { 4, 2 });
       fixture.card.create(index(0xF101, 1), new byte[] { 4, 2, 3 }, null, new byte[] { 1 }, false);
-      fixture.card.create(index(0xF101, 2), key, null, new byte[] { 2 }, false);
+      fixture.card.create(index(0xF101, 2), metadata, null, new byte[] { 2 }, false);
       fixture.card.create(index(0xF102, 3), null, null, new byte[] { 3 }, true);
       fixture.grant(null);
       Monoid session = fixture.connect(true);
       byte[] output = global(sequence(12, 61));
       byte[] original = output.clone();
-      SafeItemIteratorShareable mismatched = session.list((short) 0xF101, key);
+      SafeItemIteratorShareable mismatched = session.list((short) 0xF101, metadata);
       assertStatus(0x6985, () ->
-        mismatched.nextData(key, output, (short) 0, output, (short) 11, (short) 1)
+        mismatched.nextData(metadata, output, (short) 0, output, (short) 11, (short) 1)
       );
       Assertions.assertArrayEquals(original, output);
-      SafeItemIteratorShareable nullMismatch = session.list((short) 0xF101, key);
+      SafeItemIteratorShareable nullMismatch = session.list((short) 0xF101, metadata);
       assertStatus(0x6985, () ->
         nullMismatch.nextData(null, output, (short) 0, output, (short) 11, (short) 1)
       );
@@ -1370,23 +1370,23 @@ public class MonoidSessionTest {
       Monoid session = fixture.connect(true);
       byte[] index = index(0xF101, 1);
       byte[] original = index.clone();
-      byte[] key = global(new byte[] { 4 });
+      byte[] metadata = global(new byte[] { 4 });
       byte[] alias = global(new byte[] { 5 });
       Data source = new Data(6);
       source.onLength = () -> {
         index[0] = 0;
-        key[0] = 9;
+        metadata[0] = 9;
         alias[0] = 9;
       };
-      SafeItemShareable item = session.create(index, key, alias, source, false);
+      SafeItemShareable item = session.create(index, metadata, alias, source, false);
       Assertions.assertArrayEquals(original, item.getIndex());
-      Assertions.assertArrayEquals(new byte[] { 4 }, item.getKey());
+      Assertions.assertArrayEquals(new byte[] { 4 }, item.getMetadata());
       Assertions.assertArrayEquals(new byte[] { 5 }, item.getAlias());
       item.getIndex()[0] = 0;
-      item.getKey()[0] = 0;
+      item.getMetadata()[0] = 0;
       item.getAlias()[0] = 0;
       Assertions.assertArrayEquals(original, item.getIndex());
-      Assertions.assertEquals(4, item.getKey()[0]);
+      Assertions.assertEquals(4, item.getMetadata()[0]);
       Assertions.assertEquals(5, item.getAlias()[0]);
       item.setAlias(null);
       Assertions.assertNull(item.getAlias());

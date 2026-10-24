@@ -6,13 +6,17 @@ import static monoid.Constants.SAFE_TRUE;
 import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import javacard.framework.AID;
 import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
+import javacard.framework.Shareable;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import main.ShareableSimulatorRuntime;
+import monoididentity.IdentityShareable;
 import monoididentity.MonoidIdentityApplet;
 import monoidlib.CBORBufferReader;
 import monoidlib.CBORBufferWriter;
@@ -39,13 +43,15 @@ public class CommandAuthenticationTest {
   private static final byte[] WRONG_PIN = "000000".getBytes(StandardCharsets.US_ASCII);
 
   private CardSimulator simulator;
+  private IdentityRuntime runtime;
 
   @BeforeEach
   public void initialize() {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
     resetAppletState();
 
-    simulator = new CardSimulator(new ShareableSimulatorRuntime());
+    runtime = new IdentityRuntime();
+    simulator = new CardSimulator(runtime);
     simulator.installApplet(MONOID_IDENTITY_AID, MonoidIdentityApplet.class);
     simulator.installApplet(MONOID_AID, MonoidApplet.class);
     selectMonoid();
@@ -414,39 +420,35 @@ public class CommandAuthenticationTest {
   }
 
   @Test
-  public void safeAccessChecksPINStateConservatively() throws Exception {
+  public void safeAccessChecksPINStateConservatively() {
     initializePINs();
     Safe safe = MonoidApplet.safe;
 
-    for (String name : new String[] { "pinSetValidation", "pinBlockedValidation" }) {
-      Field field = Safe.class.getDeclaredField(name);
-      field.setAccessible(true);
-      LibSecurity.Condition original = (LibSecurity.Condition) field.get(safe);
-      boolean blocked = name.equals("pinBlockedValidation");
+    for (String name : new String[] { "isSecretPINSet", "getSecretPINTriesRemaining" }) {
+      boolean blocked = name.equals("getSecretPINTriesRemaining");
 
-      for (int failedRead = 1; failedRead <= 3; failedRead++) {
+      for (int failedRead = 0; failedRead <= 3; failedRead++) {
         resetAndSelect();
         assertSuccess(authenticate(PIN, false));
-        final int failure = failedRead;
-        int[] calls = new int[1];
-        field.set(
-          safe,
-          (LibSecurity.Condition) () -> {
-            calls[0]++;
-            return calls[0] == failure ? blocked : original.check();
-          }
-        );
+        runtime.failingMethod = name;
+        runtime.failedRead = failedRead;
+        runtime.stateReads = 0;
 
         try {
-          assertException(
-            safe::checkAccess,
-            blocked
-              ? MonoidException.CODE_SECRET_PIN_BLOCKED
-              : MonoidException.CODE_SECRET_PIN_NOT_SET
-          );
-          Assertions.assertEquals(failedRead, calls[0]);
+          if (failedRead == 0) {
+            safe.checkAccess();
+          } else {
+            assertException(
+              safe::checkAccess,
+              blocked
+                ? MonoidException.CODE_SECRET_PIN_BLOCKED
+                : MonoidException.CODE_SECRET_PIN_NOT_SET
+            );
+          }
+
+          Assertions.assertEquals(failedRead == 0 ? 3 : failedRead, runtime.stateReads);
         } finally {
-          field.set(safe, original);
+          runtime.failingMethod = null;
         }
 
         Assertions.assertFalse(safe.isPINValidated());
@@ -634,5 +636,41 @@ public class CommandAuthenticationTest {
   private void assertException(Executable operation, byte[] code) {
     MonoidException exception = Assertions.assertThrows(MonoidException.class, operation);
     Assertions.assertArrayEquals(code, exception.code);
+  }
+
+  private static final class IdentityRuntime extends ShareableSimulatorRuntime {
+
+    private String failingMethod;
+    private int failedRead;
+    private int stateReads;
+
+    @Override
+    public Shareable getSharedObject(AID serverAID, byte parameter) {
+      Shareable identity = super.getSharedObject(serverAID, parameter);
+
+      if (!(identity instanceof IdentityShareable)) {
+        return identity;
+      }
+
+      return (Shareable) Proxy.newProxyInstance(
+        IdentityShareable.class.getClassLoader(),
+        new Class<?>[] { IdentityShareable.class },
+        (proxy, method, arguments) -> {
+          if (method.getName().equals(failingMethod) && ++stateReads == failedRead) {
+            if (method.getName().equals("isSecretPINSet")) {
+              return false;
+            }
+
+            return (short) 0;
+          }
+
+          try {
+            return method.invoke(identity, arguments);
+          } catch (InvocationTargetException exception) {
+            throw exception.getCause();
+          }
+        }
+      );
+    }
   }
 }

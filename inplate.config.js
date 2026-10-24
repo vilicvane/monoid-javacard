@@ -29,6 +29,7 @@ const MONOID_IDENTITY_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from
 const MONOID_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x02])]);
 const MONOID_SECURITY_KEY_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x03])]);
 const MONOID_LIB_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x04])]);
+const MONOID_OTP_PACKAGE_AID = Buffer.concat([MONOID_NAMESPACE, Buffer.from([0x05])]);
 
 const MONOID_IDENTITY_AID = Buffer.concat([MONOID_IDENTITY_PACKAGE_AID, Buffer.from([0x01])]);
 const MONOID_AID = Buffer.concat([MONOID_PACKAGE_AID, Buffer.from([0x01])]);
@@ -37,6 +38,7 @@ const MONOID_SECURITY_KEY_APPLET_AID = Buffer.concat([
   Buffer.from([0x01]),
 ]);
 const MONOID_SECURITY_KEY_AID = Buffer.from('a0000006472f0001', 'hex');
+const MONOID_OTP_AID = Buffer.concat([MONOID_OTP_PACKAGE_AID, Buffer.from([0x01])]);
 
 const data = {
   MONOID_VERSION,
@@ -49,11 +51,14 @@ const data = {
   MONOID_SECURITY_KEY_APPLET_AID,
   MONOID_SECURITY_KEY_AID,
   MONOID_LIB_PACKAGE_AID,
+  MONOID_OTP_PACKAGE_AID,
+  MONOID_OTP_AID,
 };
 
 export default {
   'README.md': {data},
   'doc/architecture.md': {data},
+  'doc/otp.md': {data},
   'build.gradle': {data},
   'scripts/uninstall.ps1': {data, commentStyles: ['#']},
   'src/main/java/*/Constants.java': {data},
