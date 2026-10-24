@@ -1,7 +1,12 @@
 package monoidsecuritykey;
 
+import static monoidsecuritykey.Constants.KEY_ID;
+import static monoidsecuritykey.Constants.KEY_PUBLIC_KEY;
+import static monoidsecuritykey.Constants.KEY_TYPE;
+
 import javacard.framework.APDU;
 import javacard.framework.ISOException;
+import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.MessageDigest;
 import javacard.security.RandomData;
@@ -14,7 +19,10 @@ final class Authenticator {
 
   // @formatter:off
   private static final byte[] SCOPE_LABEL = {'m','o','n','o','i','d',' ','f','i','d','o','2',' ','s','c','o','p','e',':',' '};
+  private static final byte[] ID_KEY_LABEL = {'m','o','n','o','i','d',' ','f','i','d','o','2',' ','i','d',':',' '};
   // @formatter:on
+
+  static final short ID_NONCE_LENGTH = 16;
 
   final CredentialStore credentials = new CredentialStore();
   final ClientPIN pin = new ClientPIN();
@@ -28,6 +36,12 @@ final class Authenticator {
     CTAP.LIMIT_EXCEEDED
   );
   private final byte[] pinAuth = new byte[16];
+  private final Object[] descriptorFields = { KEY_ID, KEY_TYPE };
+  private final CBORMap descriptor = new CBORMap(descriptorFields);
+  private final byte[] idKey = JCSystem.makeTransientByteArray(
+    (short) 32,
+    JCSystem.CLEAR_ON_DESELECT
+  );
 
   byte[] hash(byte[] value) {
     byte[] result = new byte[32];
@@ -47,8 +61,70 @@ final class Authenticator {
     Util.arrayFillNonAtomic(buffer, (short) 0, length, (byte) 0);
     Util.arrayCopyNonAtomic(SCOPE_LABEL, (short) 0, buffer, (short) 0, (short) SCOPE_LABEL.length);
     monoid.getMonoid001PublicKey(buffer, (short) 0, length, buffer, (short) 0);
+
+    // The scope point is never returned, so the ID key cannot be recovered from the public scope.
+    sha256.update(ID_KEY_LABEL, (short) 0, (short) ID_KEY_LABEL.length);
+    sha256.doFinal(buffer, (short) 0, (short) 65, idKey, (short) 0);
+
     sha256.doFinal(buffer, (short) 0, (short) 65, buffer, (short) 0);
     credentials.setScope(buffer, (short) 0);
+  }
+
+  /** Reads one credential descriptor; returns its ID offset, or -1 if this card cannot own it. */
+  short readDescriptor(CBORReader reader) {
+    descriptor.read(reader);
+    short next = reader.getOffset();
+
+    short idOffset = descriptor.requireKey(KEY_ID).bytesOffset();
+    short idLength = (short) (reader.getOffset() - idOffset);
+    boolean supported = descriptor.requireKey(KEY_TYPE).textMatches(KEY_PUBLIC_KEY);
+
+    reader.setOffset(next);
+    return supported && idLength == 32 ? idOffset : -1;
+  }
+
+  boolean owns(Monoid monoid, byte[] id, short offset, byte[] rpHash) {
+    return (
+      isStatelessId(rpHash, id, offset) || credentials.find(monoid, id, offset, rpHash) != null
+    );
+  }
+
+  /** Writes a non-resident ID that this scope and RP can verify without a stored record. */
+  void createStatelessId(byte[] rpHash, byte[] id) {
+    random.nextBytes(id, (short) 0, ID_NONCE_LENGTH);
+
+    byte[] block = writeIdTag(rpHash, id, (short) 0);
+    Util.arrayCopyNonAtomic(
+      block,
+      LibHMACSha256.BLOCK_LENGTH,
+      id,
+      ID_NONCE_LENGTH,
+      (short) (32 - ID_NONCE_LENGTH)
+    );
+  }
+
+  boolean isStatelessId(byte[] rpHash, byte[] id, short offset) {
+    byte[] block = writeIdTag(rpHash, id, offset);
+
+    byte difference = 0;
+    for (short index = 0; index < (short) (32 - ID_NONCE_LENGTH); index++) {
+      difference |= (byte) (block[(short) (LibHMACSha256.BLOCK_LENGTH + index)] ^
+        id[(short) (offset + ID_NONCE_LENGTH + index)]);
+    }
+
+    return difference == 0;
+  }
+
+  private byte[] writeIdTag(byte[] rpHash, byte[] id, short offset) {
+    // Requests are held in the reader's own buffer, leaving APDU scratch free here.
+    byte[] block = APDU.getCurrentAPDUBuffer();
+
+    LibHMACSha256.begin(sha256, block, idKey, (short) 0, (short) idKey.length);
+    sha256.update(rpHash, (short) 0, (short) 32);
+    sha256.doFinal(id, offset, ID_NONCE_LENGTH, block, LibHMACSha256.BLOCK_LENGTH);
+    LibHMACSha256.finish(sha256, block, block, LibHMACSha256.BLOCK_LENGTH);
+
+    return block;
   }
 
   void assertCredentialKey(Monoid monoid, Credential credential) {
@@ -62,9 +138,27 @@ final class Authenticator {
 
   short sign(Monoid monoid, Credential credential, short authDataLength, byte[] clientDataHash) {
     byte[] plain = APDU.getCurrentAPDUBuffer();
-    short contextLength = credential.writeContext(plain, (short) 0);
+    return sign(monoid, credential.writeContext(plain, (short) 0), authDataLength, clientDataHash);
+  }
+
+  short sign(Monoid monoid, byte[] id, byte[] rpHash, short authDataLength, byte[] clientDataHash) {
+    byte[] plain = APDU.getCurrentAPDUBuffer();
+    short contextLength = Credential.writeContext(id, rpHash, plain, (short) 0);
+
+    return sign(monoid, contextLength, authDataLength, clientDataHash);
+  }
+
+  private short sign(
+    Monoid monoid,
+    short contextLength,
+    short authDataLength,
+    byte[] clientDataHash
+  ) {
+    byte[] plain = APDU.getCurrentAPDUBuffer();
+
     sha256.update(authData, (short) 0, authDataLength);
     sha256.doFinal(clientDataHash, (short) 0, (short) 32, plain, contextLength);
+
     // The DER result owns its bytes before another SIO or response write reuses the APDU buffer.
     monoid.signMonoid001ECDSADigest(
       plain,
@@ -75,23 +169,32 @@ final class Authenticator {
       plain,
       (short) 0
     );
+
     return LibCOSE.signatureDER(plain, signature, (short) 0);
   }
 
-  short authData(Credential credential, boolean verified, boolean presence, boolean attested) {
-    short length = attested ? (short) 164 : (short) 37;
-    Util.arrayFillNonAtomic(authData, (short) 0, length, (byte) 0);
+  short authData(byte[] rpHash, boolean verified, boolean presence) {
+    Util.arrayFillNonAtomic(authData, (short) 0, (short) 37, (byte) 0);
+    Util.arrayCopyNonAtomic(rpHash, (short) 0, authData, (short) 0, (short) 32);
+    // No monotonic counter is advertised across restored or copied credentials.
+    authData[32] = (byte) ((presence ? 1 : 0) | (verified ? 4 : 0));
+
+    return 37;
+  }
+
+  short attestedAuthData(Credential credential, boolean verified) {
+    Util.arrayFillNonAtomic(authData, (short) 0, (short) 164, (byte) 0);
     credential.copyRPHash(authData, (short) 0);
-    authData[32] = (byte) ((presence ? 1 : 0) | (verified ? 4 : 0) | (attested ? 0x40 : 0));
-    // No monotonic counter is advertised across restored or copied credential records.
-    if (attested) {
-      // Self attestation has a zero AAGUID; no manufacturer identity is asserted.
-      Util.setShort(authData, (short) 53, (short) 32);
-      credential.copyId(authData, (short) 55);
-      publicKeyWriter.reset((short) 87);
-      credential.writePublicKey(publicKeyWriter);
-    }
-    return length;
+    authData[32] = (byte) (0x41 | (verified ? 4 : 0));
+
+    // Self attestation has a zero AAGUID; no manufacturer identity is asserted.
+    Util.setShort(authData, (short) 53, (short) 32);
+    credential.copyId(authData, (short) 55);
+
+    publicKeyWriter.reset((short) 87);
+    credential.writePublicKey(publicKeyWriter);
+
+    return 164;
   }
 
   boolean verifyPIN(

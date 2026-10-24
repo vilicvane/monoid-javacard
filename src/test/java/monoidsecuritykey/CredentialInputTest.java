@@ -31,22 +31,11 @@ public class CredentialInputTest {
       new byte[32],
       new byte[32],
       input,
-      true,
       new byte[65],
       null
     );
     byte[] expected = encoded(
-      new Credential(
-        new byte[32],
-        new byte[32],
-        new byte[32],
-        rp,
-        user,
-        name,
-        empty,
-        true,
-        new byte[65]
-      )
+      new Credential(new byte[32], new byte[32], new byte[32], rp, user, name, empty, new byte[65])
     );
     Assertions.assertArrayEquals(expected, encoded(actual));
     Arrays.fill(request, (byte) 0xcc);
@@ -104,14 +93,13 @@ public class CredentialInputTest {
       new byte[32],
       new byte[32],
       input,
-      true,
       new byte[65],
       null
     );
     read(input, buffer, rp, user, null, new byte[0]);
     Assertions.assertSame(
       record,
-      Credential.create(new byte[32], new byte[32], new byte[32], input, true, new byte[65], record)
+      Credential.create(new byte[32], new byte[32], new byte[32], input, new byte[65], record)
     );
     Credential expected = new Credential(
       new byte[32],
@@ -121,13 +109,12 @@ public class CredentialInputTest {
       user,
       null,
       new byte[0],
-      true,
       new byte[65]
     );
     Assertions.assertArrayEquals(encoded(expected), encoded(record));
     byte[] replacement = new byte[128];
     read(input, replacement, new byte[] { 's' }, new byte[] { 8 }, null, null);
-    Credential.create(new byte[32], new byte[32], new byte[32], input, false, new byte[65], record);
+    Credential.create(new byte[32], new byte[32], new byte[32], input, new byte[65], record);
     expected = new Credential(
       new byte[32],
       new byte[32],
@@ -136,7 +123,6 @@ public class CredentialInputTest {
       new byte[] { 8 },
       null,
       null,
-      false,
       new byte[65]
     );
     Assertions.assertArrayEquals(encoded(expected), encoded(record));

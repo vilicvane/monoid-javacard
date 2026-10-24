@@ -20,8 +20,8 @@ import monoidlib.Utils;
 final class Credential implements SafeDataShareable {
 
   static final short READ_BUFFER_LENGTH = 320;
-  private static final short REQUIRED_FIELDS = 0x039F;
-  private static final short STATE_LENGTH = 12;
+  private static final short REQUIRED_FIELDS = 0x031F;
+  private static final short STATE_LENGTH = 11;
   private static final short LENGTH = 0;
   private static final short ID = 1;
   private static final short RP_HASH = 2;
@@ -32,8 +32,7 @@ final class Credential implements SafeDataShareable {
   private static final short USER_DISPLAY_NAME = 7;
   private static final short USER_DISPLAY_NAME_LENGTH = 8;
   private static final short PUBLIC_KEY = 9;
-  private static final short RESIDENT = 10;
-  private static final short SCOPE = 11;
+  private static final short SCOPE = 10;
 
   // One private record owns every field. Neither APDU scratch nor a foreign array is retained.
   private final byte[] data;
@@ -66,7 +65,6 @@ final class Credential implements SafeDataShareable {
     byte[] userId,
     byte[] userName,
     byte[] userDisplayName,
-    boolean resident,
     byte[] publicKey
   ) {
     this(
@@ -74,7 +72,6 @@ final class Credential implements SafeDataShareable {
       rpHash,
       scope,
       new CredentialInput(rpId, userId, userName, userDisplayName),
-      resident,
       publicKey
     );
   }
@@ -84,11 +81,10 @@ final class Credential implements SafeDataShareable {
     byte[] rpHash,
     byte[] scope,
     CredentialInput input,
-    boolean resident,
     byte[] publicKey
   ) {
     this(encodedLength(id, rpHash, scope, input));
-    encode(id, rpHash, scope, input, resident, publicKey);
+    encode(id, rpHash, scope, input, publicKey);
   }
 
   static Credential create(
@@ -99,7 +95,6 @@ final class Credential implements SafeDataShareable {
     byte[] userId,
     byte[] userName,
     byte[] userDisplayName,
-    boolean resident,
     byte[] publicKey,
     Credential reusable
   ) {
@@ -108,7 +103,6 @@ final class Credential implements SafeDataShareable {
       rpHash,
       scope,
       new CredentialInput(rpId, userId, userName, userDisplayName),
-      resident,
       publicKey,
       reusable
     );
@@ -119,12 +113,11 @@ final class Credential implements SafeDataShareable {
     byte[] rpHash,
     byte[] scope,
     CredentialInput input,
-    boolean resident,
     byte[] publicKey,
     Credential reusable
   ) {
     Credential credential = workspace(encodedLength(id, rpHash, scope, input), reusable);
-    credential.encode(id, rpHash, scope, input, resident, publicKey);
+    credential.encode(id, rpHash, scope, input, publicKey);
     return credential;
   }
 
@@ -133,7 +126,6 @@ final class Credential implements SafeDataShareable {
     byte[] rpHash,
     byte[] scope,
     CredentialInput input,
-    boolean resident,
     byte[] publicKey
   ) {
     if (writer == null) {
@@ -141,52 +133,62 @@ final class Credential implements SafeDataShareable {
     } else {
       writer.reset((short) 0);
     }
+
     state[USER_NAME] = 0;
     state[USER_NAME_LENGTH] = 0;
     state[USER_DISPLAY_NAME] = 0;
     state[USER_DISPLAY_NAME_LENGTH] = 0;
+
     writer.map(
-      (short) (8 +
+      (short) (7 +
         (input.length(CredentialInput.USER_NAME) < 0 ? 0 : 1) +
         (input.length(CredentialInput.USER_DISPLAY_NAME) < 0 ? 0 : 1))
     );
-    writer.integer((short) 1);
-    writer.integer((short) 1);
-    writer.integer((short) 2);
-    writer.bytes(id);
-    state[ID] = (short) (writer.getLength() - id.length);
-    writer.integer((short) 3);
-    writer.bytes(rpHash);
-    state[RP_HASH] = (short) (writer.getLength() - rpHash.length);
-    writer.integer((short) 4);
-    input.write(writer, CredentialInput.RP_ID);
-    writer.integer((short) 5);
-    input.write(writer, CredentialInput.USER_ID);
-    state[USER_ID_LENGTH] = input.length(CredentialInput.USER_ID);
-    state[USER_ID] = (short) (writer.getLength() - state[USER_ID_LENGTH]);
-    if (input.length(CredentialInput.USER_NAME) >= 0) {
-      writer.integer((short) 6);
-      input.write(writer, CredentialInput.USER_NAME);
-      state[USER_NAME_LENGTH] = input.length(CredentialInput.USER_NAME);
-      state[USER_NAME] = (short) (writer.getLength() - state[USER_NAME_LENGTH]);
-    }
-    if (input.length(CredentialInput.USER_DISPLAY_NAME) >= 0) {
-      writer.integer((short) 7);
-      input.write(writer, CredentialInput.USER_DISPLAY_NAME);
-      state[USER_DISPLAY_NAME_LENGTH] = input.length(CredentialInput.USER_DISPLAY_NAME);
-      state[USER_DISPLAY_NAME] = (short) (writer.getLength() - state[USER_DISPLAY_NAME_LENGTH]);
-    }
-    writer.integer((short) 8);
-    writer.bool(resident);
-    state[RESIDENT] = resident ? Constants.SAFE_TRUE : Constants.SAFE_FALSE;
-    writer.integer((short) 9);
-    // A generated point may be in the larger APDU scratch buffer.
-    writer.bytes(publicKey, (short) 0, (short) 65);
-    state[PUBLIC_KEY] = (short) (writer.getLength() - 65);
+    {
+      writer.integer((short) 1);
+      writer.integer((short) 1);
 
-    writer.integer((short) 10);
-    writer.bytes(scope);
-    state[SCOPE] = (short) (writer.getLength() - scope.length);
+      writer.integer((short) 2);
+      writer.bytes(id);
+      state[ID] = (short) (writer.getLength() - id.length);
+
+      writer.integer((short) 3);
+      writer.bytes(rpHash);
+      state[RP_HASH] = (short) (writer.getLength() - rpHash.length);
+
+      writer.integer((short) 4);
+      input.write(writer, CredentialInput.RP_ID);
+
+      writer.integer((short) 5);
+      input.write(writer, CredentialInput.USER_ID);
+      state[USER_ID_LENGTH] = input.length(CredentialInput.USER_ID);
+      state[USER_ID] = (short) (writer.getLength() - state[USER_ID_LENGTH]);
+
+      if (input.length(CredentialInput.USER_NAME) >= 0) {
+        writer.integer((short) 6);
+        input.write(writer, CredentialInput.USER_NAME);
+        state[USER_NAME_LENGTH] = input.length(CredentialInput.USER_NAME);
+        state[USER_NAME] = (short) (writer.getLength() - state[USER_NAME_LENGTH]);
+      }
+
+      if (input.length(CredentialInput.USER_DISPLAY_NAME) >= 0) {
+        writer.integer((short) 7);
+        input.write(writer, CredentialInput.USER_DISPLAY_NAME);
+        state[USER_DISPLAY_NAME_LENGTH] = input.length(CredentialInput.USER_DISPLAY_NAME);
+        state[USER_DISPLAY_NAME] = (short) (writer.getLength() - state[USER_DISPLAY_NAME_LENGTH]);
+      }
+
+      // Field 8 was the former resident flag.
+      writer.integer((short) 9);
+      // A generated point may be in the larger APDU scratch buffer.
+      writer.bytes(publicKey, (short) 0, (short) 65);
+      state[PUBLIC_KEY] = (short) (writer.getLength() - 65);
+
+      writer.integer((short) 10);
+      writer.bytes(scope);
+      state[SCOPE] = (short) (writer.getLength() - scope.length);
+    }
+
     state[LENGTH] = writer.getLength();
     updateLabel();
   }
@@ -298,9 +300,6 @@ final class Credential implements SafeDataShareable {
           state[USER_DISPLAY_NAME] = reader.textOffset();
           state[USER_DISPLAY_NAME_LENGTH] = (short) (reader.getOffset() - state[USER_DISPLAY_NAME]);
           break;
-        case 8:
-          state[RESIDENT] = reader.bool() ? Constants.SAFE_TRUE : Constants.SAFE_FALSE;
-          break;
         case 9:
           state[PUBLIC_KEY] = fixedBytes(reader, (short) 65);
           break;
@@ -362,10 +361,6 @@ final class Credential implements SafeDataShareable {
       ISOException.throwIt(CTAP.INVALID_LENGTH);
     }
     return offset;
-  }
-
-  boolean resident() {
-    return state[RESIDENT] == Constants.SAFE_TRUE;
   }
 
   boolean matchesId(byte[] id, short offset) {
@@ -579,8 +574,8 @@ final class Credential implements SafeDataShareable {
     byte[] scope,
     CredentialInput input
   ) {
-    // Map, version, resident and the fixed 65-byte public key occupy 73 bytes.
-    short length = (short) (73 +
+    // Map, version and the fixed 65-byte public key occupy 71 bytes.
+    short length = (short) (71 +
       fieldLength((short) id.length) +
       fieldLength((short) rpHash.length) +
       fieldLength((short) scope.length));

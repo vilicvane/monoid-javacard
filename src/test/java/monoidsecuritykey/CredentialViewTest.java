@@ -62,7 +62,6 @@ public class CredentialViewTest {
         user,
         name,
         new byte[0],
-        true,
         point
       );
       Record record = new Record(original);
@@ -114,7 +113,7 @@ public class CredentialViewTest {
 
   @Test
   public void loadedViewsKeepLengthTextDuplicateAndMetadataValidation() {
-    Record valid = new Record(credential(1, null, true));
+    Record valid = new Record(credential(1, null));
     Record shortId = new Record(
       new Credential(
         filled(31, 1),
@@ -124,13 +123,12 @@ public class CredentialViewTest {
         new byte[] { 3 },
         null,
         null,
-        true,
         filled(65, 4)
       )
     );
     rejects(shortId, CTAP.INVALID_LENGTH);
 
-    Record shortPoint = new Record(credential(1, null, true));
+    Record shortPoint = new Record(credential(1, null));
     CBORReader pointReader = reader(shortPoint.bytes);
     pointReader.map();
     while (pointReader.integer() != 9) {
@@ -150,39 +148,38 @@ public class CredentialViewTest {
     shortPoint.bytes = shortened;
     rejects(shortPoint, CTAP.INVALID_LENGTH);
 
-    Record badText = new Record(credential(1, new byte[] { (byte) 0xc0 }, true));
+    Record badText = new Record(credential(1, new byte[] { (byte) 0xc0 }));
     rejects(badText, CTAP.INVALID_CBOR);
 
-    Record duplicate = new Record(credential(1, null, true));
+    Record duplicate = new Record(credential(1, null));
     duplicate.bytes = Arrays.copyOf(duplicate.bytes, duplicate.bytes.length + 2);
     duplicate.bytes[0]++;
-    duplicate.bytes[duplicate.bytes.length - 2] = 8;
+    duplicate.bytes[duplicate.bytes.length - 2] = 9;
     duplicate.bytes[duplicate.bytes.length - 1] = (byte) 0xf5;
     rejects(duplicate, CTAP.INVALID_CBOR);
 
-    Record missingVersion = new Record(credential(1, null, true));
+    Record missingVersion = new Record(credential(1, null));
     byte[] missing = new byte[missingVersion.bytes.length - 2];
     missing[0] = (byte) (missingVersion.bytes[0] - 1);
     System.arraycopy(missingVersion.bytes, 3, missing, 1, missing.length - 1);
     missingVersion.bytes = missing;
     rejects(missingVersion, CTAP.MISSING_PARAMETER);
 
-    Record badIndex = new Record(credential(1, null, true));
+    Record badIndex = new Record(credential(1, null));
     badIndex.index[2] ^= 1;
     rejects(badIndex, CTAP.OTHER);
-    Record badMetadata = new Record(credential(1, null, true));
+    Record badMetadata = new Record(credential(1, null));
     badMetadata.metadata[0] ^= 1;
     rejects(badMetadata, CTAP.OTHER);
     Credential loaded = Credential.read(valid.handle(), new byte[64]);
-    Assertions.assertTrue(loaded.resident());
   }
 
   @Test
   public void cachedShortRecordsKeepIndependentPersistentPayloadsAcrossLongReads()
     throws Exception {
-    Record named = store.add(credential(1, new byte[] { 'n' }, true));
-    Record plain = store.add(credential(2, null, false));
-    Record large = store.add(credential(3, filled(300, 'n'), true));
+    Record named = store.add(credential(1, new byte[] { 'n' }));
+    Record plain = store.add(credential(2, null));
+    Record large = store.add(credential(3, filled(300, 'n')));
     Credential[] views = new Credential[3];
     run(() -> {
       views[0] = find(named);
@@ -190,8 +187,6 @@ public class CredentialViewTest {
       Assertions.assertNotSame(views[0], views[1]);
       views[2] = find(plain);
       Assertions.assertNotSame(views[0], views[2]);
-      Assertions.assertTrue(views[0].resident());
-      Assertions.assertFalse(views[2].resident());
       Assertions.assertSame(views[0], find(named));
       Assertions.assertEquals(1, named.reads);
       Assertions.assertSame(views[1], find(large));
@@ -209,8 +204,8 @@ public class CredentialViewTest {
 
   @Test
   public void growingPersistentWorkspaceIsReusedForSmallerRecords() {
-    Record first = store.add(credential(1, filled(133, 'n'), true));
-    Record second = store.add(credential(2, filled(134, 'n'), true));
+    Record first = store.add(credential(1, filled(135, 'n')));
+    Record second = store.add(credential(2, filled(136, 'n')));
     Assertions.assertEquals(Credential.READ_BUFFER_LENGTH + 1, first.bytes.length);
     Assertions.assertEquals(Credential.READ_BUFFER_LENGTH + 2, second.bytes.length);
     run(() -> {
@@ -232,7 +227,6 @@ public class CredentialViewTest {
         filled(12, 3),
         new byte[] { 'n', 'a', 'm', 'e' },
         new byte[0],
-        true,
         filled(65, 4)
       )
     );
@@ -255,7 +249,7 @@ public class CredentialViewTest {
     Assertions.assertEquals(JCSystem.CLEAR_ON_DESELECT, JCSystem.isTransient(cachedState));
     Assertions.assertEquals(JCSystem.NOT_A_TRANSIENT_OBJECT, JCSystem.isTransient(snapshot));
     Assertions.assertTrue(simulator.selectApplet(AIDUtil.create(OTHER_APPLET)));
-    Assertions.assertArrayEquals(new short[12], cachedState);
+    Assertions.assertArrayEquals(new short[11], cachedState);
     Assertions.assertArrayEquals(saved, snapshot);
     Assertions.assertTrue(simulator.selectApplet(AIDUtil.create(APPLET)));
     run(() -> {
@@ -264,12 +258,11 @@ public class CredentialViewTest {
         encodedUser[0],
         write(writer -> cached[0].writeUser(writer, true))
       );
-      Assertions.assertTrue(cached[0].resident());
       Assertions.assertEquals(named.bytes.length, cached[0].getLength());
       Assertions.assertEquals(1, named.reads);
     });
     simulator.reset();
-    Assertions.assertArrayEquals(new short[12], cachedState);
+    Assertions.assertArrayEquals(new short[11], cachedState);
     Assertions.assertArrayEquals(saved, snapshot);
     store.newSession();
     Assertions.assertTrue(simulator.selectApplet(AIDUtil.create(APPLET)));
@@ -294,7 +287,7 @@ public class CredentialViewTest {
   public void reusedCacheSlotRestoresOnlyTheReplacementFieldsAfterReset() {
     Record named = store.add(registration(1, new byte[] { 'n' }, new byte[] { 'd' }, null));
     for (int index = 2; index <= CredentialStore.DISCOVERY_CAPACITY; index++) {
-      store.add(credential(index, null, true));
+      store.add(credential(index, null));
     }
     Credential[] slot = new Credential[1];
     run(() -> {
@@ -303,7 +296,7 @@ public class CredentialViewTest {
         find(store.records.get(index));
       }
     });
-    Record replacement = store.add(credential(9, null, false));
+    Record replacement = store.add(credential(9, null));
     run(() -> Assertions.assertSame(slot[0], find(replacement)));
     simulator.reset();
     store.newSession();
@@ -311,7 +304,6 @@ public class CredentialViewTest {
     run(() -> {
       Credential restored = find(replacement);
       Assertions.assertSame(slot[0], restored);
-      Assertions.assertFalse(restored.resident());
       Assertions.assertEquals(2, reader(write(writer -> restored.writeUser(writer, true))).map());
       Assertions.assertTrue(restored.matchesPublicKey(filled(65, 4)));
       Assertions.assertEquals(replacement.bytes.length, restored.getLength());
@@ -321,9 +313,9 @@ public class CredentialViewTest {
 
   @Test
   public void failedRefillCannotPublishStateBeforeSchemaAndMetadataValidation() throws Exception {
-    Record first = store.add(credential(1, new byte[] { 'n' }, true));
+    Record first = store.add(credential(1, new byte[] { 'n' }));
     for (int index = 2; index <= CredentialStore.DISCOVERY_CAPACITY; index++) {
-      store.add(credential(index, null, true));
+      store.add(credential(index, null));
     }
     Credential[] slot = new Credential[1];
     run(() -> {
@@ -334,15 +326,15 @@ public class CredentialViewTest {
     });
     byte[] snapshot = (byte[]) field(slot[0], "stateSnapshot");
     byte[] saved = snapshot.clone();
-    Record failing = store.add(credential(9, null, false));
+    Record failing = store.add(credential(9, null));
     byte[] valid = failing.bytes;
     failing.bytes = Arrays.copyOf(valid, valid.length + 2);
     failing.bytes[0]++;
-    failing.bytes[valid.length] = 8;
+    failing.bytes[valid.length] = 9;
     failing.bytes[valid.length + 1] = (byte) 0xf5;
     assertStatus(CTAP.INVALID_CBOR, () -> run(() -> find(failing)));
     Assertions.assertArrayEquals(saved, snapshot);
-    failing.bytes = new Record(credential(8, null, false)).bytes;
+    failing.bytes = new Record(credential(8, null)).bytes;
     assertStatus(CTAP.OTHER, () -> run(() -> find(failing)));
     Assertions.assertArrayEquals(saved, snapshot);
     simulator.reset();
@@ -355,23 +347,22 @@ public class CredentialViewTest {
     });
     failing.bytes = valid;
     run(() -> {
-      Assertions.assertFalse(find(failing).resident());
+      Assertions.assertTrue(find(failing).matchesId(failing.id, (short) 0));
       Assertions.assertEquals(3, failing.reads);
     });
   }
 
   @Test
   public void cacheReloadsSameLengthReplacementsAndSameIndexRecreation() {
-    Record record = store.add(credential(1, new byte[] { 'a' }, true));
+    Record record = store.add(credential(1, new byte[] { 'a' }));
     run(() -> find(record));
-    Record replacement = new Record(credential(1, new byte[] { 'b' }, false));
+    Record replacement = new Record(credential(1, new byte[] { 'b' }));
     Assertions.assertEquals(record.bytes.length, replacement.bytes.length);
     record.bytes = replacement.bytes;
     run(() -> {
       Credential current = find(record);
-      Assertions.assertFalse(current.resident());
       Assertions.assertArrayEquals(
-        write(writer -> credential(1, new byte[] { 'b' }, false).writeUser(writer, true)),
+        write(writer -> credential(1, new byte[] { 'b' }).writeUser(writer, true)),
         write(writer -> current.writeUser(writer, true))
       );
       Assertions.assertEquals(2, record.reads);
@@ -380,12 +371,11 @@ public class CredentialViewTest {
     run(() -> {
       Assertions.assertNull(find(record));
     });
-    Record recreated = store.add(credential(1, new byte[] { 'c' }, true));
+    Record recreated = store.add(credential(1, new byte[] { 'c' }));
     run(() -> {
       Credential current = find(recreated);
-      Assertions.assertTrue(current.resident());
       Assertions.assertArrayEquals(
-        write(writer -> credential(1, new byte[] { 'c' }, true).writeUser(writer, true)),
+        write(writer -> credential(1, new byte[] { 'c' }).writeUser(writer, true)),
         write(writer -> current.writeUser(writer, true))
       );
       Assertions.assertEquals(1, recreated.reads);
@@ -394,7 +384,7 @@ public class CredentialViewTest {
 
   @Test
   public void warmCacheCannotBypassPermissionOrSecretChanges() {
-    Record record = store.add(credential(1, null, true));
+    Record record = store.add(credential(1, null));
     run(() -> find(record));
     store.allowed = false;
     assertStatus((short) 0x6982, () -> run(() -> find(record)));
@@ -406,8 +396,8 @@ public class CredentialViewTest {
 
   @Test
   public void scopeChangeExcludesWarmRecordsAndSwitchingBackRestoresThem() {
-    Record original = store.add(credential(1, null, true));
-    Record other = store.add(credential(2, filled(32, 9), null, true));
+    Record original = store.add(credential(1, null));
+    Record other = store.add(credential(2, filled(32, 9), null));
 
     run(() -> {
       Assertions.assertNotNull(find(original));
@@ -438,7 +428,7 @@ public class CredentialViewTest {
 
   @Test
   public void selectingTheSameScopePreservesWarmCacheEntries() {
-    Record record = store.add(credential(1, null, true));
+    Record record = store.add(credential(1, null));
 
     run(() -> {
       Credential cached = find(record);
@@ -452,11 +442,11 @@ public class CredentialViewTest {
 
   @Test
   public void boundedAndFallbackDiscoveryEnumerateOnlyTheSelectedScope() {
-    Record first = store.add(credential(1, null, true));
-    Record second = store.add(credential(2, null, true));
+    Record first = store.add(credential(1, null));
+    Record second = store.add(credential(2, null));
 
     for (int index = 3; index < 3 + CredentialStore.DISCOVERY_CAPACITY + 1; index++) {
-      store.add(credential(index, filled(32, 9), null, true));
+      store.add(credential(index, filled(32, 9), null));
     }
 
     run(() -> {
@@ -495,7 +485,7 @@ public class CredentialViewTest {
   public void cacheEvictsBeyondCapacityAndExplicitClearReloads() {
     Record[] records = new Record[CredentialStore.DISCOVERY_CAPACITY + 1];
     for (int index = 0; index < records.length; index++) {
-      records[index] = store.add(credential(index + 1, null, true));
+      records[index] = store.add(credential(index + 1, null));
     }
     run(() -> {
       for (int index = 0; index < CredentialStore.DISCOVERY_CAPACITY; index++) {
@@ -518,12 +508,12 @@ public class CredentialViewTest {
 
   @Test
   public void failedRefillDoesNotPublishPartialOrMalformedCachedRecords() {
-    Record first = store.add(credential(1, null, true));
+    Record first = store.add(credential(1, null));
     for (int index = 2; index <= CredentialStore.DISCOVERY_CAPACITY; index++) {
-      store.add(credential(index, null, true));
+      store.add(credential(index, null));
     }
     run(() -> store.records.forEach(this::find));
-    Record failing = store.add(credential(9, null, true));
+    Record failing = store.add(credential(9, null));
     failing.onRead = () -> ISOException.throwIt(CTAP.OTHER);
     assertStatus(CTAP.OTHER, () -> run(() -> find(failing)));
     failing.onRead = null;
@@ -536,7 +526,7 @@ public class CredentialViewTest {
     byte[] valid = failing.bytes;
     failing.bytes = Arrays.copyOf(valid, valid.length + 2);
     failing.bytes[0]++;
-    failing.bytes[valid.length] = 8;
+    failing.bytes[valid.length] = 9;
     failing.bytes[valid.length + 1] = (byte) 0xf5;
     assertStatus(CTAP.INVALID_CBOR, () -> run(() -> find(failing)));
     failing.bytes = valid.clone();
@@ -549,7 +539,7 @@ public class CredentialViewTest {
   @Test
   public void registrationWorkspaceKeepsPayloadButRefillsStateAfterDeselectAndReset()
     throws Exception {
-    Record previous = store.add(credential(1, new byte[] { 'o', 'l', 'd' }, true));
+    Record previous = store.add(credential(1, new byte[] { 'o', 'l', 'd' }));
     Credential registration = registration(2, new byte[] { 'n', 'e', 'w' }, new byte[0], null);
     byte[] encoded = new Record(registration).bytes;
     byte[] shortBuffer = backing(registration);
@@ -613,9 +603,9 @@ public class CredentialViewTest {
 
   @Test
   public void discoveryRetainsIdsAndLaterReadsObserveChangesDeletionAndAccessFailure() {
-    Record first = store.add(credential(1, null, true));
-    Record second = store.add(credential(2, null, true));
-    Record third = store.add(credential(3, null, true));
+    Record first = store.add(credential(1, null));
+    Record second = store.add(credential(2, null));
+    Record third = store.add(credential(3, null));
     CredentialStore.Selection[] selections = new CredentialStore.Selection[1];
     run(() -> {
       selections[0] = credentials.discover(store.service, filled(32, 2));
@@ -625,7 +615,7 @@ public class CredentialViewTest {
       Assertions.assertEquals(3, first.reads + second.reads + third.reads);
     });
     CredentialStore.Selection selection = selections[0];
-    Record rewritten = new Record(credential(2, new byte[] { 'n', 'e', 'w' }, false));
+    Record rewritten = new Record(credential(2, new byte[] { 'n', 'e', 'w' }));
     second.bytes = rewritten.bytes;
     run(() -> {
       Credential next = credentials.find(
@@ -634,7 +624,6 @@ public class CredentialViewTest {
         selection.offset((short) 1),
         filled(32, 2)
       );
-      Assertions.assertFalse(next.resident());
       Assertions.assertEquals(2, reader(write(writer -> next.writeUser(writer, true))).map());
       Assertions.assertEquals(2, second.reads);
     });
@@ -652,23 +641,8 @@ public class CredentialViewTest {
   }
 
   @Test
-  public void discoveryReusesCachedLastMatchWhenTrailingRecordIsNonresident() {
-    Record first = store.add(credential(1, null, true));
-    Record last = store.add(credential(2, null, true));
-    Record nonresident = store.add(credential(3, null, false));
-    run(() -> {
-      CredentialStore.Selection selection = credentials.discover(store.service, filled(32, 2));
-      Assertions.assertEquals(2, selection.count());
-      Assertions.assertTrue(selection.takeFirst().matchesId(last.id, (short) 0));
-      Assertions.assertEquals(1, first.reads);
-      Assertions.assertEquals(1, last.reads);
-      Assertions.assertEquals(1, nonresident.reads);
-    });
-  }
-
-  @Test
   public void shortReadsStillBindTheFullIdAndStoredMetadata() {
-    Record record = store.add(credential(1, null, true));
+    Record record = store.add(credential(1, null));
     byte[] collision = filled(32, 1);
     collision[31] = 2;
     run(() -> {
@@ -685,14 +659,13 @@ public class CredentialViewTest {
         new byte[] { 3 },
         null,
         null,
-        true,
         filled(65, 4)
       )
     );
     record.bytes = changedId.bytes;
     run(() -> Assertions.assertNull(find(record)));
 
-    record.bytes = new Record(credential(2, null, true)).bytes;
+    record.bytes = new Record(credential(2, null)).bytes;
     ISOException wrongPrefix = Assertions.assertThrows(ISOException.class, () ->
       run(() -> find(record))
     );
@@ -707,7 +680,6 @@ public class CredentialViewTest {
         new byte[] { 3 },
         null,
         null,
-        true,
         filled(65, 4)
       )
     ).bytes;
@@ -722,7 +694,7 @@ public class CredentialViewTest {
   @Test
   public void boundedDiscoveryRetainsIdsButInvalidatesSelectionOnDeselectAndReset() {
     for (int index = 1; index <= CredentialStore.DISCOVERY_CAPACITY; index++) {
-      store.add(credential(index, null, true));
+      store.add(credential(index, null));
     }
     CredentialStore.Selection[] selected = new CredentialStore.Selection[1];
     run(() -> {
@@ -745,7 +717,7 @@ public class CredentialViewTest {
     Assertions.assertArrayEquals(ids, selected[0].ids);
     Assertions.assertTrue(simulator.selectApplet(AIDUtil.create(APPLET)));
     store.records.clear();
-    Record renewed = store.add(credential(9, null, true));
+    Record renewed = store.add(credential(9, null));
     run(() -> {
       CredentialStore.Selection again = credentials.discover(store.service, filled(32, 2));
       Assertions.assertSame(selected[0], again);
@@ -771,7 +743,7 @@ public class CredentialViewTest {
   @Test
   public void discoveryFallsBackBeyondCapacityAndForLongRecordsWithoutTruncation() {
     for (int index = 1; index <= CredentialStore.DISCOVERY_CAPACITY + 1; index++) {
-      store.add(credential(index, null, true));
+      store.add(credential(index, null));
     }
     run(() -> {
       CredentialStore.Selection all = credentials.discover(store.service, filled(32, 2));
@@ -786,7 +758,7 @@ public class CredentialViewTest {
       }
     });
     store.records.clear();
-    Record large = store.add(credential(7, filled(512, 'x'), true));
+    Record large = store.add(credential(7, filled(512, 'x')));
     run(() -> {
       CredentialStore.Selection bounded = credentials.discover(store.service, filled(32, 2));
       Assertions.assertEquals(1, bounded.count());
@@ -799,11 +771,11 @@ public class CredentialViewTest {
     return credentials.find(store.service, record.id, Arrays.copyOfRange(record.metadata, 32, 64));
   }
 
-  private static Credential credential(int id, byte[] name, boolean resident) {
-    return credential(id, new byte[32], name, resident);
+  private static Credential credential(int id, byte[] name) {
+    return credential(id, new byte[32], name);
   }
 
-  private static Credential credential(int id, byte[] scope, byte[] name, boolean resident) {
+  private static Credential credential(int id, byte[] scope, byte[] name) {
     return new Credential(
       filled(32, id),
       filled(32, 2),
@@ -812,7 +784,6 @@ public class CredentialViewTest {
       new byte[] { 3 },
       name,
       null,
-      resident,
       filled(65, 4)
     );
   }
@@ -831,7 +802,6 @@ public class CredentialViewTest {
       new byte[] { 3 },
       name,
       displayName,
-      true,
       filled(65, 4),
       reusable
     );

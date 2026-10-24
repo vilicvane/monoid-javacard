@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 
 public class CredentialParsingTest {
 
-  private static final int[] REQUIRED = { 1, 2, 3, 4, 5, 8, 9, 10 };
+  private static final int[] REQUIRED = { 1, 2, 3, 4, 5, 9, 10 };
   private final byte[] id = filled(32, 1);
   private final byte[] rpHash = filled(32, 2);
   private final byte[] publicKey = filled(65, 3);
@@ -36,7 +36,6 @@ public class CredentialParsingTest {
     Assertions.assertArrayEquals(scope, Arrays.copyOf(credential.metadata(), 32));
     Assertions.assertArrayEquals(rpHash, Arrays.copyOfRange(credential.metadata(), 32, 64));
     Assertions.assertTrue(credential.matchesPublicKey(publicKey));
-    Assertions.assertTrue(credential.resident());
     Assertions.assertEquals(encoded.length, credential.getLength());
   }
 
@@ -70,7 +69,7 @@ public class CredentialParsingTest {
 
   @Test
   public void verifiedNamesExposeTheStableIndexWithoutChangingStoredNames() {
-    byte[] encoded = record(new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, "账户");
+    byte[] encoded = record(new int[] { 1, 2, 3, 4, 5, 6, 7, 9, 10 }, "账户");
     Credential credential = read(encoded, null);
     CBORReader user = user(credential, true);
 
@@ -90,7 +89,7 @@ public class CredentialParsingTest {
 
   @Test
   public void namesAndIndexRemainHiddenWithoutUserVerification() {
-    for (int[] fields : new int[][] { REQUIRED, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 } }) {
+    for (int[] fields : new int[][] { REQUIRED, { 1, 2, 3, 4, 5, 6, 7, 9, 10 } }) {
       CBORReader user = user(read(record(fields, "name"), null), false);
 
       Assertions.assertEquals(1, user.map());
@@ -167,7 +166,7 @@ public class CredentialParsingTest {
 
   @Test
   public void missingOptionalFieldsDoNotRetainPreviousNames() {
-    Credential credential = read(record(new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, "name"), null);
+    Credential credential = read(record(new int[] { 1, 2, 3, 4, 5, 6, 7, 9, 10 }, "name"), null);
     Assertions.assertSame(credential, read(record(REQUIRED, null), credential));
     byte[] output = new byte[128];
     CBORBufferWriter writer = new CBORBufferWriter(output, (short) 0, CTAP.LIMIT_EXCEEDED);
@@ -255,9 +254,6 @@ public class CredentialParsingTest {
         case 6:
         case 7:
           writer.text(name.getBytes(StandardCharsets.UTF_8));
-          break;
-        case 8:
-          writer.bool(true);
           break;
         case 9:
           writer.bytes(publicKey);

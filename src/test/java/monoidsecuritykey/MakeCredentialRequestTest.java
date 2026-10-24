@@ -67,7 +67,7 @@ public class MakeCredentialRequestTest {
       byte[] data = encode(payload);
       request.read(reader(data));
       Legacy expected = legacy(data);
-      Assertions.assertArrayEquals(expected.record, record(request.input, request.resident()));
+      Assertions.assertArrayEquals(expected.record, record(request.input));
       Assertions.assertArrayEquals(expected.hash, request.clientDataHash);
       Assertions.assertEquals(expected.resident, request.resident());
       Assertions.assertEquals(expected.uv, request.requestedUV());
@@ -90,14 +90,14 @@ public class MakeCredentialRequestTest {
     payload.put(3, map("displayName", "", "name", name, "id", new byte[] { 7 }));
     byte[] data = encode(payload);
     request.read(reader(data));
-    Assertions.assertArrayEquals(legacy(data).record, record(request.input, request.resident()));
+    Assertions.assertArrayEquals(legacy(data).record, record(request.input));
     Assertions.assertEquals(63, request.input.length(CredentialInput.USER_NAME));
     Assertions.assertEquals(0, request.input.length(CredentialInput.USER_DISPLAY_NAME));
     payload.put(3, map("id", new byte[] { 8 }));
     payload.remove(7);
     data = encode(payload);
     request.read(reader(data));
-    Assertions.assertArrayEquals(legacy(data).record, record(request.input, request.resident()));
+    Assertions.assertArrayEquals(legacy(data).record, record(request.input));
     Assertions.assertEquals(-1, request.input.length(CredentialInput.USER_NAME));
     Assertions.assertEquals(-1, request.input.length(CredentialInput.USER_DISPLAY_NAME));
     Assertions.assertFalse(request.resident());
@@ -315,13 +315,12 @@ public class MakeCredentialRequestTest {
     return new CBORReader(data, (short) 0, (short) data.length);
   }
 
-  private static byte[] record(CredentialInput input, boolean resident) {
+  private static byte[] record(CredentialInput input) {
     Credential credential = Credential.create(
       new byte[32],
       new byte[32],
       new byte[32],
       input,
-      resident,
       new byte[65],
       null
     );
@@ -367,7 +366,7 @@ public class MakeCredentialRequestTest {
     short[] offsets = new short[3];
     short[] keys = { 5, 8, 9 };
     for (int i = 0; i < keys.length; i++) offsets[i] = fields.key(keys[i]) ? reader.getOffset() : 0;
-    return new Legacy(record(input, resident), hash, resident, uv, offsets);
+    return new Legacy(record(input), hash, resident, uv, offsets);
   }
 
   private static final class Legacy {

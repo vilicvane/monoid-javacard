@@ -26,8 +26,9 @@ Access PIN:
 }
 ```
 
-`seedIndex` refers to a 64-byte seed. Preserve the seed, domain and credential
-records together for recovery. Security Key reinstallation creates a new private
+`seedIndex` refers to a 64-byte seed. Preserve the seed, domain and resident
+credential records together for recovery; non-resident credentials need only the
+seed and domain. Security Key reinstallation creates a new private
 installation token; enroll it again rather than copying an old token hash.
 The FIDO PIN is independent of Access PIN and Secret PIN and is set by the FIDO client.
 
@@ -81,12 +82,15 @@ public-key checks remain. These SIO additions do not add CTAP commands.
 | `0x07` Reset            | Remove `0xF101` records, then clear the FIDO PIN            |
 | `0x08` GetNextAssertion | Continue the current resident lookup                        |
 
-Delete an individual credential using Monoid `0x35 Remove` on its item index.
-Its old credential ID then returns `NO_CREDENTIALS`. CTAP2.1 credential management,
+Delete an individual resident credential using Monoid `0x35 Remove` on its item
+index. Its old credential ID then returns `NO_CREDENTIALS`. Non-resident
+credentials have no record to remove; they stop working only when the granted
+seed contents or domain change. CTAP2.1 credential management,
 U2F and optional extensions are not advertised.
 
-Reset removes credentials from every seed/domain scope and commits their removal
-before clearing the FIDO PIN. If interrupted
+Reset removes credential records from every seed/domain scope and commits their
+removal before clearing the FIDO PIN. Non-resident credentials are derived from the
+seed and domain, so they remain valid after Reset. If interrupted
 between these steps, the records are gone and the PIN remains; retry Reset to
 finish. Other Monoid data, PINs and grants are unchanged.
 
@@ -100,16 +104,30 @@ This transport does not use Monoid's custom framing.
 
 ## Credentials and derivation
 
+Only resident registration stores a record; non-resident registration stores nothing.
 Credential records use Type `0xF101`, lookup `metadata = scope || SHA256(rpId)` and
 `secret = false`. Their versioned CBOR data contains the random 32-byte credential
-ID, RP hash/ID, user ID and optional names, resident flag, 65-byte public key and
-32-byte scope (integer field `10`).
+ID, RP hash/ID, user ID and optional names, 65-byte public key and 32-byte scope
+(integer field `10`). Field `8`, the former resident flag, is no longer written or
+read.
 The item index is `F101 || credentialId[0:8]`; collisions regenerate the ID.
 All 32 ID bytes, the scope and RP hash are checked on lookup. The scope identifies
 the granted seed contents and domain independently of card identity, installation
 token or local seed index. Switching either input hides the other scope's records
 without removing them; switching back makes them available again. Old records
 without a scope are not matched or automatically migrated.
+
+A non-resident credential ID is self-authenticating:
+
+```text
+idKey        = SHA256("monoid fido2 id: " || scopePoint)
+credentialId = nonce[16] || HMAC-SHA256(idKey, SHA256(rpId) || nonce)[0:16]
+```
+
+`scopePoint` is the 65-byte public key whose hash is `scope`; it is never returned,
+so `idKey` is not derivable from a stored scope. An allow or exclude list entry
+whose tag verifies for the current scope and RP is accepted without a lookup,
+and its key is derived as below. Otherwise the ID is looked up as a resident record.
 
 Resident registration collects all existing resident records for the same scope,
 RP and user. If duplicates exist, it first removes all but the first old record, then
@@ -135,8 +153,9 @@ again for each registration/assertion, including after an in-place seed update;
 `GetNextAssertion` rejects a scope change during an outstanding sequence.
 Monoid returns the public key as
 a 65-byte uncompressed point `04 || X || Y` and signatures as 64-byte `r || s`; Security Key encodes COSE and DER
-for CTAP. Credential metadata is needed for recovery; the seed alone cannot
-recreate random credential IDs or accounts.
+for CTAP. Resident credential records are needed for recovery; the seed alone cannot
+recreate their random IDs or accounts. Non-resident credentials recover from the
+seed and domain alone, because the RP returns their ID.
 
 After user verification, returned account names include ` [0123456789ABCDEF]`,
 using the first eight credential-ID bytes in uppercase hex. The fixed `F101`

@@ -108,9 +108,16 @@ public class MonoidSecurityKeyTest {
   }
 
   @Test
-  public void assertionChecksRPFullCredentialIdExclusionsAndDeletion() throws Exception {
+  public void nonResidentAssertionChecksRPFullCredentialIdAndExclusionsWithoutARecord()
+    throws Exception {
     try (Fixture fixture = new Fixture(true)) {
       Registration registration = fixture.register(RP, 1, false, null);
+      fixture.manage();
+      MonoidItemTransferTest.assertError(
+        fixture.card.transmit(0x31, fields("index", index(registration.id))),
+        "NOT_FOUND"
+      );
+      fixture.select();
       Map<Object, Object> request = assertion(RP, registration.id);
       Map<Object, Object> response = fixture.success(0x02, request);
       assertSignature(response, registration, 1);
@@ -125,6 +132,19 @@ public class MonoidSecurityKeyTest {
       fixture.error(CTAP.CREDENTIAL_EXCLUDED, 0x01, excluded);
       fixture.error(CTAP.NO_CREDENTIALS, 0x02, assertion(RP, null));
 
+      fixture.card.simulator.reset();
+      fixture.select();
+      assertSignature(fixture.success(0x02, request), registration, 1);
+    }
+  }
+
+  @Test
+  public void removingAStoredRecordRevokesItsCredentialId() throws Exception {
+    try (Fixture fixture = new Fixture(true)) {
+      Registration registration = fixture.register(RP, 1, true, null);
+      Map<Object, Object> request = assertion(RP, registration.id);
+      assertSignature(fixture.success(0x02, request), registration, 1);
+
       fixture.manage();
       fixture.card.success(0x35, fields("index", index(registration.id)));
       fixture.select();
@@ -136,7 +156,7 @@ public class MonoidSecurityKeyTest {
   public void allowListUsesTheFirstMatchButStillValidatesLaterDescriptors() throws Exception {
     try (Fixture fixture = new Fixture(true)) {
       Registration first = fixture.register(RP, 1, false, null);
-      Registration second = fixture.register(RP, 2, false, null);
+      Registration second = fixture.register(RP, 2, true, null);
       fixture.manage();
       fixture.card.success(0x33, fields("index", index(second.id), "data", new byte[] { 0 }));
       fixture.select();
@@ -153,7 +173,7 @@ public class MonoidSecurityKeyTest {
   @Test
   public void storedCredentialsMustMatchTheirIndexAndLookupKey() throws Exception {
     try (Fixture fixture = new Fixture(true)) {
-      Registration registration = fixture.register(RP, 1, false, null);
+      Registration registration = fixture.register(RP, 1, true, null);
       fixture.manage();
       byte[] data = fixture.card
         .success(0x32, fields("index", index(registration.id)))
@@ -367,6 +387,7 @@ public class MonoidSecurityKeyTest {
   public void revocationAndReplacingSeedInvalidateUseOfExistingRecords() throws Exception {
     try (Fixture fixture = new Fixture(true)) {
       Registration registration = fixture.register(RP, 1, true, null);
+      Registration nonResident = fixture.register(RP, 2, false, null);
       fixture.manage();
       MonoidAppletGrantTest.success(
         fixture.card,
@@ -383,6 +404,11 @@ public class MonoidSecurityKeyTest {
       fixture.card.success(0x33, fields("index", fixture.seedIndex, "data", changed));
       fixture.select();
       fixture.error(CTAP.NO_CREDENTIALS, 0x02, assertion(RP, registration.id));
+      fixture.error(CTAP.NO_CREDENTIALS, 0x02, assertion(RP, nonResident.id));
+      fixture.manage();
+      fixture.card.success(0x33, fields("index", fixture.seedIndex, "data", sequence(64)));
+      fixture.select();
+      assertSignature(fixture.success(0x02, assertion(RP, nonResident.id)), nonResident, 1);
     }
   }
 

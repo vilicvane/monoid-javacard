@@ -145,8 +145,11 @@ does not implement the client's FIDO PIN policy.
 Security Key owns its FIDO PIN and protocol-1 PIN token. Its normal CTAP requests
 need no Monoid APDU PIN login: Monoid trusts the installed authorized client's
 FIDO checks, while enforcing its own token, caller and grant boundary. Private
-derived keys remain in Monoid. Credential metadata is non-secret Type `0xF101`
-data, with RP binding and complete random credential-ID checks. Generic Monoid
+derived keys remain in Monoid. Resident credential metadata is non-secret Type
+`0xF101` data, with RP binding and complete random credential-ID checks.
+Non-resident credential IDs carry a 128-bit HMAC tag over the RP under a key derived
+from the seed/domain and are not stored; anyone with that seed/domain can mint them.
+FIDO Reset does not revoke them. Generic Monoid
 management and backup remain permitted; this is not FIDO certification isolation.
 Software UP is enabled; UV is set only after valid FIDO PIN-token authentication.
 The counter is zero, and self attestation does not establish manufacturer identity.

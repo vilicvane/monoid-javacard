@@ -39,7 +39,7 @@ public class CredentialStoreTest {
   @Test
   public void emptyReplacementSearchDoesNotCreateAnIteratorOrHandles() {
     store.failOnNext = true;
-    Credential next = credential(1, 1, 1, true);
+    Credential next = credential(1, 1, 1);
     save(next);
     Assertions.assertEquals(Arrays.asList(next), store.items);
     Assertions.assertEquals(1, store.directCreates);
@@ -52,9 +52,9 @@ public class CredentialStoreTest {
   @Test
   public void boundedReplacementSearchReadsAllAccountsWithoutCreatingUnneededHandles() {
     for (int index = 1; index <= 4; index++) {
-      store.add(credential(index, 1, index, true));
+      store.add(credential(index, 1, index));
     }
-    Credential next = credential(5, 1, 5, true);
+    Credential next = credential(5, 1, 5);
     save(next);
 
     Assertions.assertEquals(5, store.items.size());
@@ -66,37 +66,35 @@ public class CredentialStoreTest {
   }
 
   @Test
-  public void boundedReplacementSearchOnlyGetsMatchingResidentHandles() {
-    Credential previous = credential(1, 1, 1, true);
-    Credential otherAccount = credential(2, 1, 2, true);
-    Credential nonresident = credential(3, 1, 1, false);
-    Credential next = credential(4, 1, 1, true);
+  public void boundedReplacementSearchOnlyGetsMatchingAccountHandles() {
+    Credential previous = credential(1, 1, 1);
+    Credential otherAccount = credential(2, 1, 2);
+    Credential next = credential(4, 1, 1);
     store.add(previous);
     store.add(otherAccount);
-    store.add(nonresident);
     store.add(next);
     save(next);
 
-    Assertions.assertEquals(Arrays.asList(otherAccount, nonresident, next), store.items);
+    Assertions.assertEquals(Arrays.asList(otherAccount, next), store.items);
     Assertions.assertEquals(0, store.iterators);
-    Assertions.assertEquals(4, store.directReads);
+    Assertions.assertEquals(3, store.directReads);
     Assertions.assertEquals(1, store.itemGets);
   }
 
   @Test
   public void largerReplacementSearchRetainsIteratorAndInterruptedRetrySemantics() {
-    Credential previous = credential(1, 1, 1, true);
+    Credential previous = credential(1, 1, 1);
     store.add(previous);
     for (int index = 2; index <= 5; index++) {
-      store.add(credential(index, 1, index, true));
+      store.add(credential(index, 1, index));
     }
-    Credential interrupted = credential(6, 1, 1, true);
+    Credential interrupted = credential(6, 1, 1);
     store.failAfterCreate = true;
     Assertions.assertThrows(ISOException.class, () -> save(interrupted));
     Assertions.assertTrue(store.items.contains(previous));
     Assertions.assertTrue(store.items.contains(interrupted));
 
-    Credential retry = credential(7, 1, 1, true);
+    Credential retry = credential(7, 1, 1);
     save(retry);
     Assertions.assertEquals(5, store.items.size());
     Assertions.assertFalse(store.items.contains(previous));
@@ -111,13 +109,13 @@ public class CredentialStoreTest {
   @Test
   public void directCreateOwnsItsRecordAndMinimumWindowsKeepTheCallbackFallback() {
     store.copyCreated = true;
-    Credential shortRecord = credential(1, 1, 1, false);
+    Credential shortRecord = credential(1, 1, 1);
     save(shortRecord);
     Assertions.assertEquals(1, store.directCreates);
     Assertions.assertEquals(0, store.callbackCreates);
     Assertions.assertTrue(store.items.get(0).sameId(shortRecord));
 
-    Credential next = credential(2, 1, 1, false);
+    Credential next = credential(2, 1, 1);
     store.creating = next;
     Assertions.assertTrue(next.create(store.service, Utils.makeGlobalByteArray((short) 133)));
     Assertions.assertEquals(1, store.callbackCreates);
@@ -126,7 +124,7 @@ public class CredentialStoreTest {
 
   @Test
   public void directCreateReservesTheIndexAtTheExactWindowBoundary() {
-    for (int length : new int[] { 3, 4 }) {
+    for (int length : new int[] { 5, 6 }) {
       byte[] id = new byte[32];
       id[0] = (byte) length;
       Credential credential = new Credential(
@@ -137,10 +135,9 @@ public class CredentialStoreTest {
         new byte[] { 1 },
         null,
         null,
-        false,
         new byte[65]
       );
-      Assertions.assertEquals(length + 183, credential.getLength());
+      Assertions.assertEquals(length + 181, credential.getLength());
       store.creating = credential;
       Assertions.assertTrue(
         credential.create(store.service, Utils.makeGlobalByteArray((short) 260))
@@ -152,18 +149,18 @@ public class CredentialStoreTest {
 
   @Test
   public void creationFailurePreservesThePreviousCredential() {
-    Credential previous = credential(1, 1, 1, true);
+    Credential previous = credential(1, 1, 1);
     store.add(previous);
     store.failBeforeCreate = true;
 
-    Assertions.assertThrows(ISOException.class, () -> save(credential(2, 1, 1, true)));
+    Assertions.assertThrows(ISOException.class, () -> save(credential(2, 1, 1)));
     Assertions.assertEquals(Arrays.asList(previous), store.items);
   }
 
   @Test
   public void reusedRegistrationKeepsCommittedCopiesAcrossInterruptedReplacement() {
     store.copyCreated = true;
-    Credential previous = credential(1, 1, 1, true);
+    Credential previous = credential(1, 1, 1);
     store.add(previous);
     Credential staging = registration(2, null);
     store.failAfterCreate = true;
@@ -173,52 +170,50 @@ public class CredentialStoreTest {
     Assertions.assertSame(previous, store.items.get(0));
     Credential committed = store.items.get(1);
     Assertions.assertNotSame(staging, committed);
-    Assertions.assertTrue(committed.sameId(credential(2, 1, 1, true)));
+    Assertions.assertTrue(committed.sameId(credential(2, 1, 1)));
 
     Assertions.assertSame(staging, registration(3, staging));
-    Assertions.assertTrue(previous.sameId(credential(1, 1, 1, true)));
-    Assertions.assertTrue(committed.sameId(credential(2, 1, 1, true)));
+    Assertions.assertTrue(previous.sameId(credential(1, 1, 1)));
+    Assertions.assertTrue(committed.sameId(credential(2, 1, 1)));
     save(staging);
     Assertions.assertEquals(1, store.items.size());
     Assertions.assertNotSame(staging, store.items.get(0));
-    Assertions.assertTrue(store.items.get(0).sameId(credential(3, 1, 1, true)));
+    Assertions.assertTrue(store.items.get(0).sameId(credential(3, 1, 1)));
   }
 
   @Test
   public void retryRemovesAllRecordsLeftByInterruptedReplacement() {
-    Credential previous = credential(1, 1, 1, true);
-    Credential otherAccount = credential(2, 1, 2, true);
-    Credential otherRP = credential(3, 2, 1, true);
-    Credential nonresident = credential(4, 1, 1, false);
+    Credential previous = credential(1, 1, 1);
+    Credential otherAccount = credential(2, 1, 2);
+    Credential otherRP = credential(3, 2, 1);
     store.add(previous);
     store.add(otherAccount);
     store.add(otherRP);
-    store.add(nonresident);
-    Credential interrupted = credential(5, 1, 1, true);
+    Credential interrupted = credential(5, 1, 1);
     store.failAfterCreate = true;
 
     Assertions.assertThrows(ISOException.class, () -> save(interrupted));
     Assertions.assertTrue(store.items.contains(previous));
     Assertions.assertTrue(store.items.contains(interrupted));
 
-    Credential retry = credential(6, 1, 1, true);
+    Credential retry = credential(6, 1, 1);
     save(retry);
-    Assertions.assertEquals(Arrays.asList(otherAccount, otherRP, nonresident, retry), store.items);
+    Assertions.assertEquals(Arrays.asList(otherAccount, otherRP, retry), store.items);
   }
 
   @Test
   public void retryFinishesAfterDuplicateCleanupWasInterrupted() {
-    Credential first = credential(1, 1, 1, true);
-    Credential second = credential(2, 1, 1, true);
+    Credential first = credential(1, 1, 1);
+    Credential second = credential(2, 1, 1);
     store.add(first);
     store.add(second);
-    Credential interrupted = credential(3, 1, 1, true);
+    Credential interrupted = credential(3, 1, 1);
     store.failAfterRemoval = true;
 
     Assertions.assertThrows(ISOException.class, () -> save(interrupted));
     Assertions.assertEquals(Arrays.asList(first), store.items);
 
-    Credential retry = credential(4, 1, 1, true);
+    Credential retry = credential(4, 1, 1);
     save(retry);
     Assertions.assertEquals(Arrays.asList(retry), store.items);
     save(retry);
@@ -227,28 +222,28 @@ public class CredentialStoreTest {
 
   @Test
   public void retryReclaimsDuplicatesBeforeRequiringSpaceForAnotherRecord() {
-    Credential previous = credential(1, 1, 1, true);
+    Credential previous = credential(1, 1, 1);
     store.add(previous);
     store.capacity = 2;
     store.failAfterCreate = true;
-    Assertions.assertThrows(ISOException.class, () -> save(credential(2, 1, 1, true)));
+    Assertions.assertThrows(ISOException.class, () -> save(credential(2, 1, 1)));
     Assertions.assertEquals(2, store.items.size());
 
-    Credential retry = credential(3, 1, 1, true);
+    Credential retry = credential(3, 1, 1);
     save(retry);
     Assertions.assertEquals(Arrays.asList(retry), store.items);
   }
 
   @Test
   public void duplicateCleanupCanCommitBeforeSpaceBecomesAvailable() {
-    Credential previous = credential(1, 1, 1, true);
+    Credential previous = credential(1, 1, 1);
     store.add(previous);
-    store.add(credential(2, 1, 1, true));
+    store.add(credential(2, 1, 1));
     store.failBeforeCreate = true;
-    Assertions.assertThrows(ISOException.class, () -> save(credential(3, 1, 1, true)));
+    Assertions.assertThrows(ISOException.class, () -> save(credential(3, 1, 1)));
     Assertions.assertEquals(Arrays.asList(previous), store.items);
 
-    Credential retry = credential(4, 1, 1, true);
+    Credential retry = credential(4, 1, 1);
     save(retry);
     Assertions.assertEquals(Arrays.asList(retry), store.items);
   }
@@ -260,14 +255,14 @@ public class CredentialStoreTest {
 
     for (int count : new int[] { 3, 5 }) {
       store = new MemoryStore();
-      Credential inactive = credential(1, 1, 1, true);
+      Credential inactive = credential(1, 1, 1);
       store.add(inactive);
 
       for (int id = 2; id < count + 2; id++) {
-        store.add(credential(id, 1, 1, true, activeScope));
+        store.add(credential(id, 1, 1, activeScope));
       }
 
-      Credential replacement = credential(10, 1, 1, true, activeScope);
+      Credential replacement = credential(10, 1, 1, activeScope);
       credentials.setScope(activeScope, (short) 0);
       save(replacement);
 
@@ -275,17 +270,17 @@ public class CredentialStoreTest {
       Assertions.assertEquals(count > CredentialStore.DISCOVERY_CAPACITY ? 1 : 0, store.iterators);
 
       credentials.setScope(new byte[32], (short) 0);
-      Credential returned = credential(11, 1, 1, true);
+      Credential returned = credential(11, 1, 1);
       save(returned);
       Assertions.assertEquals(Arrays.asList(replacement, returned), store.items);
     }
   }
 
-  private static Credential credential(int id, int rp, int user, boolean resident) {
-    return credential(id, rp, user, resident, new byte[32]);
+  private static Credential credential(int id, int rp, int user) {
+    return credential(id, rp, user, new byte[32]);
   }
 
-  private static Credential credential(int id, int rp, int user, boolean resident, byte[] scope) {
+  private static Credential credential(int id, int rp, int user, byte[] scope) {
     byte[] credentialId = new byte[32];
     credentialId[0] = (byte) id;
     byte[] rpHash = new byte[32];
@@ -298,7 +293,6 @@ public class CredentialStoreTest {
       new byte[] { (byte) user },
       null,
       null,
-      resident,
       new byte[65]
     );
   }
@@ -316,7 +310,6 @@ public class CredentialStoreTest {
       new byte[] { 1 },
       null,
       null,
-      true,
       new byte[65],
       reusable
     );

@@ -397,3 +397,9 @@
 192. [user] 批准 Hello 返回 Authority URL，安装时成对传入 URL/公钥，OTP 未配置 Authority 时接受 APP 时间。[agent] Identity global getter、安装UTF-8尾部、Hello string|false、Prepare time8或原签名证明互斥；配置由卡内决定，禁止签名失败降级，原单次授权及三窗口保留。680测试/79套件、五CAP、脚本mock11项、JS6与模板通过；随后经193完成无Authority的双卡核心包部署，OTP新分支仍为本地验证，见 [Authority URL 与 OTP 时间](./192.md)。
 
 193. [user] 要求今后 Identity 更新且 APP 可能不兼容时，提供临时双卡更新脚本；确认Test2后续APP重装，并批准恢复四条记录。[agent] 本轮15阶段完成，Test1 7D643176/Test2 A6B79EFE升级并复位验证四条记录、PIN、原Bundle及allowPeerExtension；第三卡6A1590AE六条/两授权保留。17项离线测试及最终证据核对通过，next=15/pending=null，未改暂存区或提交；见 [双卡更新工作流](./193.md)。
+
+## daac970
+
+194. [user] 要求接受无记录的非驻留请求并在合适时不再保存其记录，不考虑向后兼容；要求重构两条命令。[agent] 非驻留ID=nonce16||HMAC(idKey,rpHash||nonce)前16B，idKey由scope派生点另行哈希，标签通过即直接派生签名；删除记录字段8，所有F101均为驻留。RAM仅增32B idKey，HMAC用APDU buffer。Reset不撤销非驻留凭证待决定。680测试/五CAP通过；临时测试架在55690320实卡43项通过并已清理、registry复原，未提交；见 [无记录非驻留凭证](./194.md)。
+
+195. [user] 要求更新读卡器上测试卡的 Security Key。[agent] ACR1552 上为 D321/51574920；Monoid Hello 含 authority URL（192 后构建），Card ID 现为 10DB2908、原 Bundle、两种 PIN 剩余 5 次，Identity/库/Monoid/OTP 源码与 HEAD 一致，故只替换 Security Key：删除实例 A0000006472F0001 与包 F06D6F6E6F696403，安装当前生产 CAP（sha256 2873af26…，导入库04/Monoid02 均为 0.0）到同一标准 FIDO AID。排序后 registry 与之前一致，Hello 不变；Windows 拒绝原始 PC/SC 访问 FIDO AID，未做 CTAP/WebAuthn 验证。新实例 FIDO PIN 未设置，安装 token 需用户在 APP 用 Access PIN 重新 0x51 授权；旧字段8非驻留记录若存在会被视为驻留，需用户清理。证据与 journal 在 `.research/security-key-update-51574920-20261025/`，未提交。

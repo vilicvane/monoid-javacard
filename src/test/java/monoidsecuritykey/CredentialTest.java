@@ -34,7 +34,7 @@ public class CredentialTest {
       String bytes = byteHeaders[boundary] + Hex.toHexString(value);
 
       for (int optional = 0; optional < 4; optional++) {
-        for (boolean resident : new boolean[] { false, true }) {
+        {
           // Four long fields exceed the record limit after adding the scope.
           if (lengths[boundary] >= 255 && optional == 3) {
             continue;
@@ -48,11 +48,10 @@ public class CredentialTest {
             value,
             (optional & 1) != 0 ? value : null,
             (optional & 2) != 0 ? value : null,
-            resident,
             filled(65, 4)
           );
           String expected =
-            Integer.toHexString(0xA8 + Integer.bitCount(optional)) +
+            Integer.toHexString(0xA7 + Integer.bitCount(optional)) +
             "0101025820" +
             Hex.toHexString(filled(32, 1)) +
             "035820" +
@@ -63,7 +62,6 @@ public class CredentialTest {
             bytes +
             ((optional & 1) != 0 ? "06" + text : "") +
             ((optional & 2) != 0 ? "07" + text : "") +
-            (resident ? "08f5" : "08f4") +
             "095841" +
             Hex.toHexString(filled(65, 4)) +
             "0a5820" +
@@ -87,7 +85,6 @@ public class CredentialTest {
             value,
             (optional & 1) != 0 ? value : null,
             (optional & 2) != 0 ? value : null,
-            resident,
             filled(65, 4),
             reusable
           );
@@ -104,7 +101,7 @@ public class CredentialTest {
 
   @Test
   public void preservesTheEncodedRecordLimit() {
-    for (int length : new int[] { 1015, 1016, 1201 }) {
+    for (int length : new int[] { 1017, 1018, 1201 }) {
       Supplier<Credential> create = () ->
         new Credential(
           filled(32, 1),
@@ -114,10 +111,9 @@ public class CredentialTest {
           new byte[] { 3 },
           null,
           null,
-          false,
           filled(65, 4)
         );
-      if (length == 1015) {
+      if (length == 1017) {
         Assertions.assertEquals(CTAP.MAX_MESSAGE_LENGTH, create.get().getLength());
       } else {
         ISOException exception = Assertions.assertThrows(ISOException.class, create::get);
@@ -137,7 +133,6 @@ public class CredentialTest {
         new byte[] { 3 },
         null,
         null,
-        true,
         filled(65, 4)
       );
       int encodedLength = original.getLength();

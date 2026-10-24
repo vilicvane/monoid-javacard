@@ -381,7 +381,6 @@ public class ApduTransportTest {
       new byte[64],
       new byte[64],
       new byte[64],
-      true,
       new byte[65]
     );
 

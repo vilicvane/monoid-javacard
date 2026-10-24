@@ -122,7 +122,7 @@ final class CredentialStore {
 
   void save(Monoid monoid, Credential credential) {
     clear();
-    SafeItemShareable[] previous = credential.resident() ? findPrevious(monoid, credential) : null;
+    SafeItemShareable[] previous = findPrevious(monoid, credential);
     if (previous != null) {
       // Reclaim interrupted replacements before allocating another record, keeping one usable key.
       for (short index = 1; index < previous.length && previous[index] != null; index++) {
@@ -160,9 +160,7 @@ final class CredentialStore {
     for (short index = 0; index < size; index++) {
       short offset = (short) (index * 10);
       Credential credential = readIndex(monoid, offset, metadata, window);
-      if (
-        credential.resident() && credential.sameUser(replacement) && !credential.sameId(replacement)
-      ) {
+      if (credential.sameUser(replacement) && !credential.sameId(replacement)) {
         if (previous == null) {
           previous = new SafeItemShareable[size];
           itemIndex = Utils.makeGlobalByteArray((short) 10);
@@ -189,9 +187,7 @@ final class CredentialStore {
     SafeItemShareable item;
     while ((item = iterator.next()) != null) {
       Credential credential = read(item);
-      if (
-        credential.resident() && credential.sameUser(replacement) && !credential.sameId(replacement)
-      ) {
+      if (credential.sameUser(replacement) && !credential.sameId(replacement)) {
         if (previous == null) {
           previous = new SafeItemShareable[size];
         }
@@ -223,7 +219,7 @@ final class CredentialStore {
       DISCOVERY_CAPACITY
     );
     if (size > DISCOVERY_CAPACITY) {
-      return discoverAll(monoid, rpHash);
+      return discoverAll(monoid);
     }
     Util.arrayCopyNonAtomic(
       window,
@@ -232,24 +228,20 @@ final class CredentialStore {
       (short) 0,
       (short) (size * 10)
     );
-    short count = 0;
-    Credential first = null;
+    // Every record is resident, and lookups already assert its metadata.
+    Credential last = null;
+
     for (short index = 0; index < size; index++) {
-      Credential credential = readCached(monoid, indices, (short) (index * 10), lookupMetadata);
-      if (credential == null) {
+      last = readCached(monoid, indices, (short) (index * 10), lookupMetadata);
+
+      if (last == null) {
         ISOException.throwIt(CTAP.OTHER);
       }
-      if (credential.resident() && credential.matchesMetadata(lookupMetadata)) {
-        credential.copyId(selection.ids, (short) (count++ * 32));
-        first = credential;
-      } else {
-        first = null;
-      }
+
+      last.copyId(selection.ids, (short) (index * 32));
     }
-    if (first == null && count != 0) {
-      first = find(monoid, selection.ids, (short) ((count - 1) * 32), rpHash);
-    }
-    selection.set(count, first);
+
+    selection.set(size, last);
     return selection;
   }
 
@@ -283,15 +275,17 @@ final class CredentialStore {
     return credential;
   }
 
-  private Selection discoverAll(Monoid monoid, byte[] rpHash) {
+  private Selection discoverAll(Monoid monoid) {
     byte[] metadata = Utils.duplicateAsGlobal(lookupMetadata);
     SafeItemIteratorShareable iterator = monoid.list(CREDENTIAL_TYPE, metadata);
     byte[] ids = new byte[(short) (iterator.getCount() * 32)];
     short count = 0;
-    Credential first = null;
+    Credential last = null;
+
     byte[] index = Utils.makeGlobalByteArray((short) 10);
     byte[] window = APDU.getCurrentAPDUBuffer();
     short length;
+
     while (
       (length = iterator.nextData(
           metadata,
@@ -303,23 +297,13 @@ final class CredentialStore {
         )) >=
       0
     ) {
-      Credential credential = length <= window.length
-        ? read(window, length)
-        : read(monoid.get(index));
-      credential.assertMetadata(index, (short) 0, metadata);
-      if (credential.resident() && credential.matchesMetadata(metadata)) {
-        credential.copyId(ids, (short) (count++ * 32));
-        first = credential;
-      } else {
-        // The workspace was overwritten, but the last matching ID remains in the selection.
-        first = null;
-      }
+      last = length <= window.length ? read(window, length) : read(monoid.get(index));
+      last.assertMetadata(index, (short) 0, metadata);
+      last.copyId(ids, (short) (count++ * 32));
     }
-    if (first == null && count != 0) {
-      first = find(monoid, ids, (short) ((count - 1) * 32), rpHash);
-    }
+
     Selection result = new Selection(ids);
-    result.set(count, first);
+    result.set(count, last);
     return result;
   }
 
