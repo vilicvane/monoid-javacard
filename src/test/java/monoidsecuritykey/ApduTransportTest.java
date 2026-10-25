@@ -48,6 +48,58 @@ public class ApduTransportTest {
   }
 
   @Test
+  public void forwardedSelectReturnsFileNotFoundEvenWhenCtapIsDisabled() throws Exception {
+    for (boolean disabled : new boolean[] { false, true }) {
+      if (disabled) {
+        Assertions.assertEquals(
+          0x9000,
+          simulator.transmitCommand(new CommandAPDU(0x80, 0x12, 1, 0)).getSW()
+        );
+      }
+
+      byte[] aid = { (byte) 0xF0, 1, 2, 3, 4 };
+      ResponseAPDU response = simulator.transmitCommand(new CommandAPDU(0, 0xA4, 4, 0, aid));
+      Assertions.assertEquals(0x6A82, response.getSW());
+      Assertions.assertEquals(0, response.getData().length);
+
+      inject(new TestCommand((short) 0));
+      if (disabled) {
+        Assertions.assertEquals(
+          0x6985,
+          simulator.transmitCommand(new CommandAPDU(0x80, 0x10, 0, 0, new byte[] { 1 })).getSW()
+        );
+      } else {
+        assertResponse((short) 0);
+      }
+    }
+  }
+
+  @Test
+  public void forwardedSelectDiscardsPendingRequestsAndResponses() throws Exception {
+    PayloadCommand command = new PayloadCommand(60, 256);
+    inject(command);
+
+    for (boolean request : new boolean[] { true, false }) {
+      ResponseAPDU pending = simulator.transmitCommand(
+        new CommandAPDU(request ? 0x90 : 0x80, 0x10, 0, 0, new byte[] { 1 }, 17)
+      );
+      Assertions.assertEquals(request ? 0x90 : 0x61, pending.getSW1());
+
+      Assertions.assertEquals(
+        0x6A82,
+        simulator
+          .transmitCommand(new CommandAPDU(0, 0xA4, 4, 0, new byte[] { (byte) 0xF0, 1, 2, 3, 4 }))
+          .getSW()
+      );
+      Assertions.assertEquals(
+        0x6985,
+        simulator.transmitCommand(new CommandAPDU(0, 0xC0, 0, 0, 256)).getSW()
+      );
+      Assertions.assertArrayEquals(command.expected(), response(256));
+    }
+  }
+
+  @Test
   public void preservesCTAPErrorsAndAcceptsTheNextCommand() throws Exception {
     assertFailureAndRetry(CTAP.PIN_AUTH_INVALID, CTAP.PIN_AUTH_INVALID);
   }

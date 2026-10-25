@@ -58,6 +58,22 @@ public class ApduTransportTest {
   }
 
   @Test
+  public void forwardedSelectReturnsFileNotFoundAndClearsTheChain() {
+    assertSuccess(transmit(0x90, 1, 0, new byte[] { 0x42, 1 }), new byte[0]);
+
+    ResponseAPDU response = simulator.transmitCommand(
+      new CommandAPDU(0, 0xA4, 4, 0, new byte[] { (byte) 0xF0, 1, 2, 3, 4 })
+    );
+
+    Assertions.assertEquals(0x6A82, response.getSW());
+    Assertions.assertEquals(0, response.getData().length);
+    Assertions.assertFalse(installed[0].isReceiving());
+    Assertions.assertEquals(0, installed[0].reader.getReceivedLength());
+    Assertions.assertEquals(0, installed[0].executions);
+    assertSuccess(transmit(0, 1, 0, new byte[] { 0x41, 3 }), new byte[] { 0x41, 3 });
+  }
+
+  @Test
   public void unsupportedInstructionIsRejectedBeforeReadingAndClearsTheChain() {
     assertSuccess(transmit(0x90, 1, 0, new byte[] { 0x42, 1 }), new byte[0]);
 
@@ -142,7 +158,12 @@ public class ApduTransportTest {
         return;
       }
 
-      transports[apdu.getBuffer()[ISO7816.OFFSET_P1]].process(apdu);
+      byte[] buffer = apdu.getBuffer();
+      // SELECT's P1 identifies selection by AID, not this fixture's transport slot.
+      int transport = buffer[ISO7816.OFFSET_INS] == ISO7816.INS_SELECT
+        ? 0
+        : buffer[ISO7816.OFFSET_P1];
+      transports[transport].process(apdu);
     }
   }
 }

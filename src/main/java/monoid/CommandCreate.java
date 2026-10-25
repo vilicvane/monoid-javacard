@@ -29,6 +29,10 @@ public class CommandCreate extends Command {
       item = MonoidApplet.safe.create(index, metadata, alias, data, secret);
     }
 
+    if (item == null) {
+      SafeException.throwIt(SafeException.REASON_EXISTS);
+    }
+
     writer.map((short) 1);
     {
       writer.text(Text.index);

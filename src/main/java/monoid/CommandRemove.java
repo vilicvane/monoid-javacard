@@ -12,8 +12,16 @@ public class CommandRemove extends Command {
 
     byte[] index = reader.requireKey(Text.index).bytes(Safe.INDEX_LENGTH);
 
-    MonoidApplet.safe.require(index).remove();
+    SafeItem item = MonoidApplet.safe.get(index);
 
-    sendEmptyMap();
+    if (item != null) {
+      item.remove();
+    }
+
+    writer.map((short) 1);
+    {
+      writer.text(Text.removed);
+      writer.bool(item != null);
+    }
   }
 }

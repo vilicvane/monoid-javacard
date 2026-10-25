@@ -176,7 +176,7 @@ public class MonoidHMACKeyTest {
 
         card.success(0x35, fields("index", index));
         card.success(0x37, request);
-        card.success(0x37, request);
+        assertError(card.transmit(0x37, request), "EXISTS");
 
         Assertions.assertEquals(
           secret,

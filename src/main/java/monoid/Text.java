@@ -48,6 +48,7 @@ public class Text {
   public static final byte[] publicKeys = {'p','u','b','l','i','c','K','e','y','s'};
   public static final byte[] reason = {'r','e','a','s','o','n'};
   public static final byte[] recipientPublicKey = {'r','e','c','i','p','i','e','n','t','P','u','b','l','i','c','K','e','y'};
+  public static final byte[] removed = {'r','e','m','o','v','e','d'};
   public static final byte[] reset = {'r','e','s','e','t'};
   public static final byte[] secret = {'s','e','c','r','e','t'};
   public static final byte[] seed = {'s','e','e','d'};

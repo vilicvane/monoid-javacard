@@ -303,8 +303,8 @@ new Identity; it cannot clear only the Bundle while retaining Monoid data. Bundl
 restricted to the exact Monoid AID, although other applets may use their own
 communication domains under the same shared root.
 
-Import is not a freshness protocol: identical records succeed unchanged and
-conflicting existing records are rejected, but an older artifact can be imported
+Import is not a freshness protocol: occupied indices return `EXISTS`, including
+identical records, but an older artifact can be imported
 after the corresponding item is removed. Each item commits independently.
 Encryption does not detect omitted records, prove a complete backup, prevent
 replay/rollback or provide an atomic multi-card operation. PINs, sessions and

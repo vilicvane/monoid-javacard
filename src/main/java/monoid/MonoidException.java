@@ -6,6 +6,7 @@ public class MonoidException extends CardRuntimeException {
 
   // @formatter:off
   public static final byte[] CODE_ACCESS_DENIED = {'A','C','C','E','S','S','_','D','E','N','I','E','D'};
+  public static final byte[] CODE_EXISTS = {'E','X','I','S','T','S'};
   public static final byte[] CODE_INVALID_PARAMETER = {'I','N','V','A','L','I','D','_','P','A','R','A','M','E','T','E','R'};
   public static final byte[] CODE_INVALID_PIN = {'I','N','V','A','L','I','D','_','P','I','N'};
   public static final byte[] CODE_NOT_FOUND = {'N','O','T','_','F','O','U','N','D'};

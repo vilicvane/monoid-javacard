@@ -506,9 +506,12 @@ public class MonoidBundleTest {
       );
       second.success(0x37, importItem(legacyIndex, null, null, null, promotedData));
       assertData(second, legacyIndex, sequence(64));
-      second.success(
-        0x37,
-        importItem(plainIndex, lookupMetadata, "large note", firstKey, asymmetricData)
+      assertError(
+        second.transmit(
+          0x37,
+          importItem(plainIndex, lookupMetadata, "large note", firstKey, asymmetricData)
+        ),
+        "EXISTS"
       );
 
       byte[] tamperedData = plainData.clone();

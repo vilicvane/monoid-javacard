@@ -186,8 +186,8 @@ or plaintext already delivered elsewhere. Ordinary card power resets and Monoid
 reinstallation preserve Identity, Secret PIN and its Bundle.
 
 Retrying an existing artifact does not re-encrypt it. Re-exporting generates a new
-communication key or Bundle salt, nonce and envelope. Import succeeds without
-mutation when the existing item
-has identical index, metadata, alias, secret and data; different contents conflict.
+communication key or Bundle salt, nonce and envelope. After authenticating the
+artifact, Import returns the CBOR error `EXISTS` if its index is already occupied,
+even when all item fields are identical. The existing item remains unchanged.
 Items commit independently. The format does not authenticate a complete batch or
 detect omitted items, and does not provide rollback or replay protection.

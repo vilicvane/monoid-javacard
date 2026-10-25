@@ -38,6 +38,14 @@ final class ApduTransport {
     byte[] buffer = apdu.getBuffer();
     byte cla = buffer[ISO7816.OFFSET_CLA];
     byte instruction = buffer[ISO7816.OFFSET_INS];
+    if (cla == 0 && instruction == ISO7816.INS_SELECT) {
+      short disabled = state[DISABLED];
+      clear();
+      Command.clear();
+      state[DISABLED] = disabled;
+      ISOException.throwIt(ISO7816.SW_FILE_NOT_FOUND);
+    }
+
     if (state[DISABLED] != 0) {
       ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
     }

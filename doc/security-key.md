@@ -15,6 +15,9 @@ FIDO NFC AID `A0000006472F0001`. No default-selection privilege is required by t
 applet. Removing Monoid's code package requires removing its dependent Security
 Key package first.
 
+A SELECT (`00 A4`) for an absent AID forwarded to Security Key returns ISO `6A82`
+(file not found), including while CTAP is deselected with NFCCTAP_CONTROL.
+
 Authorize the installed instance through Monoid `0x51 Set Applet Grant`, under
 Access PIN:
 

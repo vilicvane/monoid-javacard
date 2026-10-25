@@ -24,12 +24,16 @@ public class CommandCreateRandomKey extends Command {
       type |= length;
     }
 
-    byte[] index = safe.createKnownRandom(type).getIndex();
+    SafeItem item = safe.createKnownRandom(type);
+
+    if (item == null) {
+      SafeException.throwIt(SafeException.REASON_EXISTS);
+    }
 
     writer.map((short) 1);
     {
       writer.text(Text.index);
-      writer.bytes(index);
+      writer.bytes(item.getIndex());
     }
   }
 }

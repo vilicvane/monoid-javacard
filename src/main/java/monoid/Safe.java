@@ -701,33 +701,9 @@ public final class Safe {
     }
 
     short dataLength = (short) (plaintext.getLength() - ItemCipher.SECRET_LENGTH);
-    SafeItem item = getItem(index);
 
-    if (item != null) {
-      byte[] itemData = item.getStoredData();
-
-      if (
-        item.getSecretValue() != secret ||
-        !equal(item.metadata, metadata) ||
-        !equal(item.alias, alias) ||
-        itemData.length != dataLength
-      ) {
-        ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
-      }
-
-      for (short offset = 0; offset < dataLength; ) {
-        short length = Utils.min((short) (dataLength - offset), (short) buffer.length);
-        plaintext.read((short) (ItemCipher.SECRET_LENGTH + offset), buffer, (short) 0, length);
-        assertAccess();
-
-        if (Util.arrayCompare(itemData, offset, buffer, (short) 0, length) != 0) {
-          ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
-        }
-
-        offset += length;
-      }
-
-      return;
+    if (getItem(index) != null) {
+      SafeException.throwIt(SafeException.REASON_EXISTS);
     }
 
     checkStorage(getItemStorageLength(index, metadata, alias, dataLength));
@@ -745,16 +721,6 @@ public final class Safe {
 
     assertAccess();
     publishItem(index, metadata, alias, storedData, secret);
-  }
-
-  private static boolean equal(byte[] left, byte[] right) {
-    return (
-      left == right ||
-      (left != null &&
-        right != null &&
-        left.length == right.length &&
-        Util.arrayCompare(left, (short) 0, right, (short) 0, (short) left.length) == 0)
-    );
   }
 
   public void remove(SafeItem item) {

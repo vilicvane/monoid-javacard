@@ -270,7 +270,7 @@ public class MonoidItemTransferTest {
 
       // No sender-registration step exists; the caller supplies the expected full public key.
       for (Transfer transfer : transfers) {
-        Assertions.assertEquals(0, target.success(0x37, transfer.request(sender)).size());
+        assertError(target.transmit(0x37, transfer.request(sender)), "EXISTS");
       }
       Assertions.assertEquals(4, itemCount(target));
     }
@@ -296,7 +296,7 @@ public class MonoidItemTransferTest {
         boolean existingSecret = difference == 3;
         card.create(index, existingMetadata, existingAlias, existingData, existingSecret);
 
-        Assertions.assertEquals(0x6985, card.transmit(0x37, transfer.request(sender)).status);
+        assertError(card.transmit(0x37, transfer.request(sender)), "EXISTS");
         Assertions.assertEquals(1, itemCount(card));
         assertMetadata(card, index, existingMetadata, existingAlias, existingSecret);
         if (existingSecret) {
@@ -308,7 +308,7 @@ public class MonoidItemTransferTest {
       }
 
       card.success(0x37, transfer.request(sender));
-      card.success(0x37, transfer.request(sender));
+      assertError(card.transmit(0x37, transfer.request(sender)), "EXISTS");
       Assertions.assertEquals(1, itemCount(card));
       assertData(card, index, data);
     }
@@ -412,7 +412,7 @@ public class MonoidItemTransferTest {
 
         card.success(0x37, transfer.request(sender));
         assertMetadata(card, index, metadata, alias, false);
-        card.success(0x37, transfer.request(sender));
+        assertError(card.transmit(0x37, transfer.request(sender)), "EXISTS");
       }
 
       Assertions.assertEquals(2, itemCount(card));
@@ -549,7 +549,7 @@ public class MonoidItemTransferTest {
   }
 
   @Test
-  public void largeImportsVerifyEveryChunkBeforePublishingOrMatchingExistingData() {
+  public void largeImportsVerifyEveryChunkBeforePublishingOrRejectingExistingItems() {
     try (Card card = new Card(true)) {
       byte[] index = customIndex(61);
       byte[] metadata = sequence(16);
@@ -575,13 +575,13 @@ public class MonoidItemTransferTest {
       Assertions.assertTrue(imported.requestFrames > 1);
       assertData(card, index, data);
       assertMetadata(card, index, metadata, "large transfer", false);
-      card.success(0x37, transfer.request(sender));
+      assertError(card.transmit(0x37, transfer.request(sender)), "EXISTS");
       Assertions.assertEquals(1, itemCount(card));
 
       byte[] replacement = data.clone();
       replacement[replacement.length - 1] ^= 1;
       card.success(0x33, fields("index", index, "data", replacement));
-      Assertions.assertEquals(0x6985, card.transmit(0x37, transfer.request(sender)).status);
+      assertError(card.transmit(0x37, transfer.request(sender)), "EXISTS");
       assertData(card, index, replacement);
       assertMetadata(card, index, metadata, "large transfer", false);
     }

@@ -4,6 +4,7 @@ public class SafeException extends MonoidException {
 
   public static final short REASON_INVALID_PARAMETER = 1;
   public static final short REASON_NOT_FOUND = 2;
+  public static final short REASON_EXISTS = 3;
 
   // @formatter:off
   public static final byte[] CODE_INVALID_PARAMETER = {'I','N','V','A','L','I','D','_','P','A','R','A','M','E','T','E','R'};
@@ -15,7 +16,7 @@ public class SafeException extends MonoidException {
   private static SafeException instance;
 
   public static void init() {
-    codes = new Object[] { CODE_INVALID_PARAMETER, CODE_NOT_FOUND };
+    codes = new Object[] { CODE_INVALID_PARAMETER, CODE_NOT_FOUND, CODE_EXISTS };
 
     instance = new SafeException();
   }

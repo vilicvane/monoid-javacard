@@ -5,6 +5,11 @@ layer handles fragmentation and response assembly; callers use the complete
 [command definitions](../README.md#iso-7816-commands) regardless of message size.
 Extended APDUs are not supported.
 
+A SELECT (`00 A4`) forwarded to the selected applet because the requested AID is
+absent returns ISO `6A82` (file not found). This applies to Monoid and OTP's shared
+transport and to Security Key's separate CTAP transport. A normal SELECT of an
+installed applet keeps that applet's selection response.
+
 ## Requests
 
 Encode the complete request as CBOR, then split it into frames containing 1–255
@@ -85,6 +90,7 @@ transfers.
 | `6700` | Empty or oversized input, including a request exceeding 8192 bytes.                                |
 | `6883` | Middle/last frame without a matching active request, or GET RESPONSE during an unfinished request. |
 | `6985` | GET RESPONSE with no pending response.                                                             |
+| `6A82` | Forwarded SELECT for an absent AID.                                                                |
 | `6A84` | Safe rejected a write to preserve its 4KiB persistent-space reserve.                               |
 | `6A86` | GET RESPONSE with nonzero P1 or P2.                                                                |
 | `6D00` | Unsupported INS.                                                                                   |
@@ -99,3 +105,12 @@ an error status, discard the assembled partial response; retry the original comm
 
 Transport completion does not imply command success. Commands can return a CBOR
 `{error: {code: ...}}` response with `9000`; inspect the assembled response too.
+
+Create (`0x34`), Import (`0x37`) and Create random key (`0x38`) return the CBOR error
+`{error: {code: 'EXISTS'}}` when the resulting index is already occupied, including
+by an identical item. The stored item is unchanged. These are RPC failures, unlike
+SELECT or unsupported CLA/INS errors, and do not use an ISO error status.
+
+Remove (`0x35`) succeeds with `{removed: true}` when it deletes an item and
+`{removed: false}` when the index is absent. Both responses use `9000`; authorization
+and request validation still apply.

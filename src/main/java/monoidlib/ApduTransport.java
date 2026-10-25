@@ -96,6 +96,10 @@ public abstract class ApduTransport {
     boolean pending = false;
 
     try {
+      if (cla == CLA_SINGLE && ins == ISO7816.INS_SELECT) {
+        ISOException.throwIt(ISO7816.SW_FILE_NOT_FOUND);
+      }
+
       if (cla != CLA_SINGLE && cla != CLA_FIRST && cla != CLA_MORE && cla != CLA_LAST) {
         ISOException.throwIt(ISO7816.SW_CLA_NOT_SUPPORTED);
       }

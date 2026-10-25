@@ -197,7 +197,7 @@ public class SafeStorageTest {
   }
 
   @Test
-  public void importUsesTheSameGuardAndPreservesDuplicateImport() {
+  public void importUsesTheSameGuardAndRejectsDuplicateImportWithoutAStorageCheck() {
     SafeItem item = create(1);
     byte[] publicKey = safe.getPublicKey();
     SafeDataSource envelope = item.exportData(publicKey);
@@ -219,7 +219,10 @@ public class SafeStorageTest {
     Assertions.assertEquals(Constants.SAFE_FALSE, safe.get(index(1)).getSecretValue());
 
     runtime.report(0);
-    safe.importItem(index(1), null, new byte[] { 7 }, publicKey, envelope);
+    SafeException exception = Assertions.assertThrows(SafeException.class, () ->
+      safe.importItem(index(1), null, new byte[] { 7 }, publicKey, envelope)
+    );
+    Assertions.assertEquals(SafeException.REASON_EXISTS, exception.getReason());
     Assertions.assertEquals(0, runtime.memoryChecks);
     Assertions.assertEquals(1, safe.list((short) 0).getCount());
   }

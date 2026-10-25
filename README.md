@@ -428,6 +428,7 @@ type Response = {};
 > Requires authentication.
 
 ```ts
+/** Returns EXISTS if the index is occupied, even by an identical item. */
 type Request = (
   | {
       type: SafeItemType;
@@ -462,7 +463,10 @@ type Request = {
 ```
 
 ```ts
-type Response = {};
+type Response = {
+  /** False when the index was already absent. */
+  removed: boolean;
+};
 ```
 
 #### `0x36` Export item
@@ -493,7 +497,7 @@ type Response = {
 > Requires authentication with Secret PIN.
 
 ```ts
-/** Creates an item; identical existing items succeed unchanged, differing items conflict. */
+/** Creates an item; returns EXISTS if the index is occupied, even by an identical item. */
 type Request = {
   /** Original index used for Export. */
   index: byte[];
@@ -515,7 +519,7 @@ type Response = {};
 > Requires authentication.
 
 ```ts
-/** Always creates a secret item. */
+/** Always creates a secret item; returns EXISTS if its generated index is occupied. */
 type Request = {
   type: SafeItemKeyType;
   /** Required for entropy/seed/hmac, in bytes; hmac: 1–255. */
