@@ -44,6 +44,9 @@ public final class Safe {
   public static final short TYPE_GENERIC = 0x0FFF;
   public static final short TYPE_RESERVED_EXTENSION_MARK = (short) 0xFFFF;
 
+  // Pairs of exact custom item type and built-in key kind.
+  private static final short[] MAPPED_KEY_TYPES = { (short) 0xF201, TYPE_HMAC };
+
   // @formatter:off
   public static final byte[] TYPE_TEXT_ENTROPY = {'e','n','t','r','o','p','y'};
   public static final byte[] TYPE_TEXT_SEED = {'s','e','e','d'};
@@ -461,7 +464,7 @@ public final class Safe {
     return createItem(builtIndex, metadata, alias, data, secret ? SAFE_TRUE : SAFE_FALSE);
   }
 
-  private byte[] validateIndex(byte[] index, SafeDataSource data) {
+  byte[] validateIndex(byte[] index, SafeDataSource data) {
     short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     byte[] builtIndex;
@@ -720,6 +723,11 @@ public final class Safe {
     }
 
     assertAccess();
+
+    if (getMappedKeyType(Util.getShort(index, INDEX_TYPE_OFFSET)) != 0) {
+      validateIndex(index, new SafeData(storedData));
+    }
+
     publishItem(index, metadata, alias, storedData, secret);
   }
 
@@ -944,6 +952,16 @@ public final class Safe {
     return (type & TYPE_CATEGORY_MASK) == TYPE_HMAC;
   }
 
+  static short getMappedKeyType(short type) {
+    for (short offset = 0; offset < MAPPED_KEY_TYPES.length; offset += 2) {
+      if (MAPPED_KEY_TYPES[offset] == type) {
+        return MAPPED_KEY_TYPES[(short) (offset + 1)];
+      }
+    }
+
+    return 0;
+  }
+
   public static boolean isKnownExplicitLengthType(short type) {
     switch (type & TYPE_CATEGORY_MASK) {
       case TYPE_ENTROPY:
@@ -964,7 +982,7 @@ public final class Safe {
       case TYPE_HMAC:
         return true;
       default:
-        return false;
+        return getMappedKeyType(type) != 0;
     }
   }
 
@@ -1007,6 +1025,13 @@ public final class Safe {
   }
 
   private static short refineType(short type, SafeDataSource data) throws SafeException {
+    short mappedType = getMappedKeyType(type);
+
+    if (mappedType != 0) {
+      refineType(mappedType, data);
+      return type;
+    }
+
     short length = data.getLength();
 
     switch (type) {

@@ -1047,7 +1047,7 @@ public class MonoidItemTransferTest {
       Map<String, Object> request = fields(
         "data",
         data,
-        selector instanceof String ? "type" : "index",
+        selector instanceof byte[] ? "index" : "type",
         selector
       );
       if (metadata != null) {

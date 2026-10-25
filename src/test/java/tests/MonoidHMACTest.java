@@ -56,28 +56,41 @@ public class MonoidHMACTest {
     int[] keyLengths = { 1, 63, 64, 65, 127, 128, 129, 131, 255 };
     int[] messageLengths = { 0, 8, 63, 64, 129, 257 };
 
-    try (MonoidClientFixture fixture = new MonoidClientFixture()) {
-      byte[][] keys = new byte[keyLengths.length][];
-      byte[][] indices = new byte[keyLengths.length][];
-      List<Map<String, Object>> grants = new ArrayList<>();
+    for (boolean mapped : new boolean[] { false, true }) {
+      try (MonoidClientFixture fixture = new MonoidClientFixture()) {
+        byte[][] keys = new byte[keyLengths.length][];
+        byte[][] indices = new byte[keyLengths.length][];
+        List<Map<String, Object>> grants = new ArrayList<>();
 
-      for (int keyIndex = 0; keyIndex < keyLengths.length; keyIndex++) {
-        keys[keyIndex] = sequence(keyLengths[keyIndex]);
-        indices[keyIndex] = fixture.card.create("hmac", null, null, keys[keyIndex], true);
-        grants.add(hmacKey(indices[keyIndex]));
-      }
+        for (int keyIndex = 0; keyIndex < keyLengths.length; keyIndex++) {
+          keys[keyIndex] = sequence(keyLengths[keyIndex]);
+          indices[keyIndex] = fixture.card.create(
+            mapped ? (short) 0xF201 : "hmac",
+            null,
+            null,
+            keys[keyIndex],
+            true
+          );
+          grants.add(hmacKey(indices[keyIndex]));
+        }
 
-      fixture.grant(CLIENT, "keys", grants);
-      Monoid session = fixture.connect();
+        if (mapped) {
+          fixture.grant(CLIENT, "types", Arrays.asList(Arrays.asList((short) 0xF201, false)));
+        } else {
+          fixture.grant(CLIENT, "keys", grants);
+        }
 
-      for (byte algorithm = 1; algorithm <= 3; algorithm++) {
-        for (int keyIndex = 0; keyIndex < keys.length; keyIndex++) {
-          for (int messageLength : messageLengths) {
-            byte[] message = sequence(messageLength);
-            Assertions.assertArrayEquals(
-              expected(algorithm, keys[keyIndex], message),
-              calculate(session, algorithm, indices[keyIndex], message)
-            );
+        Monoid session = fixture.connect();
+
+        for (byte algorithm = 1; algorithm <= 3; algorithm++) {
+          for (int keyIndex = 0; keyIndex < keys.length; keyIndex++) {
+            for (int messageLength : messageLengths) {
+              byte[] message = sequence(messageLength);
+              Assertions.assertArrayEquals(
+                expected(algorithm, keys[keyIndex], message),
+                calculate(session, algorithm, indices[keyIndex], message)
+              );
+            }
           }
         }
       }
@@ -138,11 +151,13 @@ public class MonoidHMACTest {
       scalar[31] = 1;
       byte[] ec = fixture.card.create("secp256r1", null, null, scalar, true);
       byte[] custom = fixture.card.create(index(TYPE, 1), null, null, sequence(32), false);
+      byte[] mapped = fixture.card.create((short) 0xF201, null, null, sequence(32), false);
 
       fixture.grant(CLIENT, "keys", Arrays.asList(hmacKey(hmac)));
 
       assertInvalidGrant(fixture, hmacKey(ec));
       assertInvalidGrant(fixture, hmacKey(custom));
+      assertInvalidGrant(fixture, hmacKey(mapped));
       assertInvalidGrant(fixture, fields("index", hmac, "type", "secp256r1"));
       assertInvalidGrant(
         fixture,

@@ -28,7 +28,8 @@ public interface Monoid extends Shareable {
   void revokeUserAuthentication();
 
   /**
-   * Uses a built-in HMAC key explicitly authorized by its index in the current keys grant.
+   * Uses a built-in HMAC key authorized by its exact keys entry, or a custom item mapped to
+   * HMAC authorized by read access to its exact Type. Key entries never cover mapped items.
    * Writes 20, 32 or 64 bytes. Inputs may overlap output. Does not consume user authentication.
    */
   short hmac(

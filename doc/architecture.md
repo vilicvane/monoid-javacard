@@ -61,7 +61,8 @@ Replacing the library requires first removing its dependent OTP, Security Key an
 Identity can remain installed.
 
 [OTP](otp.md) owns TOTP configuration interpretation and batch state. Monoid
-computes HMAC with an explicitly granted built-in key without returning the shared secret;
+computes HMAC with an explicitly granted built-in key or a custom item mapped to
+HMAC and authorized by its exact type's read grant, without returning the shared secret;
 Identity verifies signed time against its installed Authority public key.
 HMAC reuses native SHA-1/256/512 digest engines and one 128-byte transient pad.
 Inputs and results use persistent storage; repeated pad writes stay in RAM.
@@ -133,6 +134,16 @@ Removing the former master type shifted the curve categories.
 Indices and exported items using the former master or curve types cannot be
 reused unchanged; in particular, the former secp256k1 type `0x0401` now denotes
 Ed25519. There is no automatic conversion of these former types.
+
+Safe also has a fixed table of custom types mapped to built-in key kinds. Its only
+entry is `0xF201` → HMAC (SHA-1/256/512). An OTP account is one secret item:
+data is the 1–255-byte HMAC secret, metadata is the five-byte account configuration,
+and alias is the label. Its index is `F2 01 || SHA-256(secret)[0:8]`, using the
+built-in HMAC digest-index path; supplied indices and replacement data must match.
+The same secret cannot create a second account. The secret flag cannot be cleared;
+Get/client reads fail and Export only returns the existing encrypted envelope.
+Read access to this exact custom type permits HMAC use; explicit HMAC `keys`
+grants do not cover it. See [OTP](otp.md) for configuration and authorization.
 
 Each item stores its data in one persistent byte array. The internal
 `SafeDataSource` abstract class provides a length, repeatable range reads into a
@@ -246,8 +257,10 @@ Applet grants are managed by `0x50` List, `0x51` Set and `0x52` Remove, all unde
 Access or Secret PIN authorization. Monoid owns the grant directory separately from Safe
 items; replacement is atomic and Reset clears it with the other Monoid state.
 The optional exact-Type permissions, fixed Key descriptors and single seed/domain
-are independent. Clients expose `monoid.MonoidClientShareable` to supply their
-installation-token hash. Public interfaces live in `monoid.cap`, so client CAPs
+are independent. Read permission for a custom type mapped to a key kind also
+permits use of that kind; it never exposes secret data. Clients expose
+`monoid.MonoidClientShareable` to supply their installation-token hash.
+Public interfaces live in `monoid.cap`, so client CAPs
 import that package and must be removed before replacing its code package.
 Authenticated `Monoid` sessions expose the granted seed's Monoid-001/P-256 public
 key and digest signature, plus Type-restricted item handles. Session authorization

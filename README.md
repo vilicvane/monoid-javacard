@@ -414,7 +414,7 @@ type Request = {
   index: byte[];
   alias?: string;
   data?: byte[];
-  /** Preserved when omitted; changing true to false requires replacement data. */
+  /** Preserved when omitted; changing true to false requires replacement data, except mapped keys remain secret. */
   secret?: boolean;
 };
 ```
@@ -441,7 +441,7 @@ type Request = (
   metadata?: byte[];
   alias?: string;
   data: byte[];
-  /** Disables plaintext Get; defaults to false. */
+  /** Disables plaintext Get; defaults to false, but mapped key types always force true. */
   secret?: boolean;
 };
 ```
@@ -663,9 +663,9 @@ type Response = {
 ```ts
 type AppletGrantOptions = {
   aid: byte[];
-  /** Exact custom types, 0x1000–0xFFFE; encoded as signed 16-bit integers. */
+  /** Exact custom types, 0x1000–0xFFFE; signed 16-bit integers. Read access also permits mapped key use. */
   types?: [type: number, writable: boolean][];
-  /** Fixed Key descriptions; HMAC authorizes computation, not plaintext access. */
+  /** Fixed built-in Key descriptions; HMAC authorizes computation, not plaintext access or mapped items. */
   keys?: Key[];
   /** A stored 64-byte seed for domain-scoped Monoid-001 derivation. */
   seed?: {index: byte[]; domain: byte[]};
@@ -743,6 +743,11 @@ The first 2 bytes are the type of the item (`0x0000` to `0x0FFF` and `0xFFFF` ar
   - +8 bytes digest of key
 - `0x0FFF` Generic data (draft, not implemented yet)
   - +8 bytes unique identifier
+- `0xF201` [OTP account](doc/otp.md), a custom type mapped to HMAC-SHA1/256/512
+  - +8 bytes `SHA-256(secret)[0:8]`; duplicate secrets return `EXISTS`
+  - Data: 1–255-byte HMAC secret, always secret; supplied indices and replacement data must match the digest
+  - Metadata: `01 || algorithm_u8 || digits_u8 || period_u16_BE`; alias: account label
+  - Read access through `types: [[-3583, false]]` permits HMAC use; no `keys` entry
 
 ## Credits
 

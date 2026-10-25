@@ -36,7 +36,7 @@ public class SafeItem {
     this.index = index;
     this.metadata = metadata;
     this.alias = alias;
-    this.state = new ItemState(data, secret);
+    this.state = createState(data, secret);
   }
 
   public boolean matches(byte[] index) {
@@ -153,23 +153,28 @@ public class SafeItem {
   }
 
   public void setData(SafeDataSource data) {
-    safe.assertAccess();
-    short length = data.getLength();
-    safe.assertAccess();
-    safe.checkStorage(length);
-    byte[] replacement = data.duplicateAsPersistent(length);
-    safe.assertAccess();
+    byte[] replacement = copyData(data);
     publish(replacement, state.secret);
   }
 
   public void setData(SafeDataSource data, boolean secret) {
+    byte[] replacement = copyData(data);
+    publish(replacement, secret ? Constants.SAFE_TRUE : Constants.SAFE_FALSE);
+  }
+
+  private byte[] copyData(SafeDataSource data) {
     safe.assertAccess();
     short length = data.getLength();
     safe.assertAccess();
     safe.checkStorage(length);
     byte[] replacement = data.duplicateAsPersistent(length);
     safe.assertAccess();
-    publish(replacement, secret ? Constants.SAFE_TRUE : Constants.SAFE_FALSE);
+
+    if (isMappedKey()) {
+      safe.validateIndex(index, new SafeData(replacement));
+    }
+
+    return replacement;
   }
 
   public void setSecret(boolean secret) {
@@ -208,8 +213,16 @@ public class SafeItem {
     return state.secret;
   }
 
+  private boolean isMappedKey() {
+    return Safe.getMappedKeyType(Util.getShort(index, Safe.INDEX_TYPE_OFFSET)) != 0;
+  }
+
+  private ItemState createState(byte[] data, short secret) {
+    return new ItemState(data, isMappedKey() ? Constants.SAFE_TRUE : secret);
+  }
+
   private void publish(byte[] data, short secret) {
-    ItemState replacement = new ItemState(data, secret);
+    ItemState replacement = createState(data, secret);
     boolean transaction = JCSystem.getTransactionDepth() == 0;
 
     if (transaction) {

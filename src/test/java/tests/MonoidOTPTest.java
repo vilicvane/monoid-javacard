@@ -90,8 +90,7 @@ public class MonoidOTPTest {
   }
 
   @Test
-  public void mixedPublicAndSecretKeysKeepAccountOrderAcrossFragmentedRequestsAndResponses()
-    throws Exception {
+  public void accountsKeepOrderAcrossFragmentedRequestsAndResponses() throws Exception {
     try (Fixture fixture = new Fixture(true)) {
       Account[] accounts = new Account[16];
       int[] periods = { 1, 30, 60, 32767 };
@@ -139,73 +138,35 @@ public class MonoidOTPTest {
   }
 
   @Test
-  public void accountsShareASecretKeyWithoutSharingTheirConfigurationOrExposingTheKey()
+  public void accountSecretsAreUnreadableAndDuplicateSecretsCannotCreateAnotherAccount()
     throws Exception {
     try (Fixture fixture = new Fixture(true)) {
       Account first = fixture.account(1, 6, 30, SECRETS[0], true);
-      Account second = fixture.account(1, 8, 60, first);
 
       fixture.select(MONOID_AID);
       fixture.card.authenticate(false);
 
-      Assertions.assertArrayEquals(
-        first.keyIndex,
-        fixture.card.success(0x32, fields("index", first.index)).bytes("data")
+      assertError(fixture.card.transmit(0x32, fields("index", first.index)), "ACCESS_DENIED");
+      assertError(
+        fixture.card.transmit(
+          0x34,
+          fields(
+            "type",
+            ACCOUNT_TYPE,
+            "metadata",
+            new byte[] { 1, 1, 8, 0, 60 },
+            "alias",
+            "another label",
+            "data",
+            SECRETS[0]
+          )
+        ),
+        "EXISTS"
       );
-      Assertions.assertArrayEquals(
-        first.keyIndex,
-        fixture.card.success(0x32, fields("index", second.index)).bytes("data")
-      );
-      assertError(fixture.card.transmit(0x32, fields("index", first.keyIndex)), "ACCESS_DENIED");
 
-      fixture.prepare(59, second, first);
+      fixture.prepare(59, first);
       fixture.authorize();
-      assertBatch(fixture.otp(0x23, fields()), 59, second, first);
-    }
-  }
-
-  @Test
-  public void changingAnAccountReferenceDoesNotGrantUseOfAnotherHmacKey() throws Exception {
-    try (Fixture fixture = new Fixture(true)) {
-      Account account = fixture.account(1, 6, 30, SECRETS[0], true);
-      byte[] ungranted = fixture.hmacKey(SECRETS[1], true, false);
-
-      fixture.card.success(0x33, fields("index", account.index, "data", ungranted));
-      fixture.prepare(59, account);
-      fixture.authorize();
-
-      Result result = fixture.otp(0x23, fields());
-
-      Assertions.assertEquals(0x6982, result.status);
-      Assertions.assertEquals(0, result.data.length);
-      Assertions.assertEquals(0x6985, fixture.otp(0x23, fields()).status);
-
-      fixture.select(MONOID_AID);
-      fixture.card.authenticate(false);
-      fixture.card.success(0x33, fields("index", account.index, "data", account.keyIndex));
-      fixture.prepare(59, account);
-      fixture.authorize();
-      assertBatch(fixture.otp(0x23, fields()), 59, account);
-    }
-  }
-
-  @Test
-  public void malformedAccountKeyReferencesDoNotYieldCodes() throws Exception {
-    try (Fixture fixture = new Fixture(true)) {
-      Account account = fixture.account(1, 6, 30, SECRETS[0], true);
-
-      for (int length : new int[] { 0, 9, 11 }) {
-        fixture.select(MONOID_AID);
-        fixture.card.authenticate(false);
-        fixture.card.success(0x33, fields("index", account.index, "data", new byte[length]));
-        fixture.prepare(59, account);
-        fixture.authorize();
-
-        Result result = fixture.otp(0x23, fields());
-
-        Assertions.assertEquals(0x6A80, result.status);
-        Assertions.assertEquals(0, result.data.length);
-      }
+      assertBatch(fixture.otp(0x23, fields()), 59, first);
     }
   }
 
@@ -520,10 +481,9 @@ public class MonoidOTPTest {
         { 1, 1, 6, 0, 0 },
         { 1, 1, 6, (byte) 0x80, 0 },
       };
-      byte[] keyIndex = fixture.hmacKey(SECRETS[0], true, true);
 
       for (byte[] configuration : configurations) {
-        Account account = fixture.account(configuration, keyIndex);
+        Account account = fixture.account(configuration, SECRETS[0], false);
         fixture.prepare(59, account);
         fixture.authorize();
 
@@ -532,9 +492,13 @@ public class MonoidOTPTest {
         Assertions.assertEquals(0x6A80, result.status);
         Assertions.assertEquals(0, result.data.length);
         Assertions.assertEquals(0x6985, fixture.otp(0x23, fields()).status);
+
+        fixture.select(MONOID_AID);
+        fixture.card.authenticate(false);
+        fixture.card.success(0x35, fields("index", account.index));
       }
 
-      Account missing = new Account(accountIndex(32000), null, 1, 6, 30, SECRETS[0]);
+      Account missing = new Account(accountIndex(32000), 1, 6, 30, SECRETS[0]);
       fixture.prepare(59, missing);
       fixture.authorize();
 
@@ -547,7 +511,7 @@ public class MonoidOTPTest {
   public void failureAfterAValidAccountClearsAllPendingResponseBytes() throws Exception {
     try (Fixture fixture = new Fixture(true)) {
       Account valid = fixture.account(1, 8, 30, SECRETS[0], true);
-      Account invalid = fixture.account(new byte[] { 1, 1, 7, 0, 30 }, valid.keyIndex);
+      Account invalid = fixture.account(new byte[] { 1, 1, 7, 0, 30 }, SECRETS[1], false);
       fixture.prepare(59, valid, invalid);
       fixture.authorize();
 
@@ -767,22 +731,13 @@ public class MonoidOTPTest {
   private static final class Account {
 
     private final byte[] index;
-    private final byte[] keyIndex;
     private final int algorithm;
     private final int digits;
     private final int period;
     private final byte[] secret;
 
-    private Account(
-      byte[] index,
-      byte[] keyIndex,
-      int algorithm,
-      int digits,
-      int period,
-      byte[] secret
-    ) {
+    private Account(byte[] index, int algorithm, int digits, int period, byte[] secret) {
       this.index = index;
-      this.keyIndex = keyIndex;
       this.algorithm = algorithm;
       this.digits = digits;
       this.period = period;
@@ -793,8 +748,6 @@ public class MonoidOTPTest {
   private static final class Fixture implements AutoCloseable {
 
     private final Card card;
-    private final List<Map<String, Object>> keys = new ArrayList<>();
-    private int nextAccount = 1;
 
     private Fixture(boolean authority) {
       byte[] url = ascii("https://authority.example/");
@@ -814,14 +767,7 @@ public class MonoidOTPTest {
       MonoidAppletGrantTest.success(
         card,
         0x51,
-        fields(
-          "aid",
-          aidBytes(OTP_AID),
-          "types",
-          Arrays.asList(Arrays.asList(ACCOUNT_TYPE, false)),
-          "keys",
-          keys
-        )
+        fields("aid", aidBytes(OTP_AID), "types", Arrays.asList(Arrays.asList(ACCOUNT_TYPE, false)))
       );
     }
 
@@ -841,57 +787,16 @@ public class MonoidOTPTest {
       };
       Account created = account(configuration, secret, protectedData);
 
-      return new Account(created.index, created.keyIndex, algorithm, digits, period, secret);
-    }
-
-    private Account account(int algorithm, int digits, int period, Account keyOwner) {
-      byte[] configuration = {
-        1,
-        (byte) algorithm,
-        (byte) digits,
-        (byte) (period >> 8),
-        (byte) period,
-      };
-      Account created = account(configuration, keyOwner.keyIndex);
-
-      return new Account(
-        created.index,
-        created.keyIndex,
-        algorithm,
-        digits,
-        period,
-        keyOwner.secret
-      );
+      return new Account(created.index, algorithm, digits, period, secret);
     }
 
     private Account account(byte[] configuration, byte[] secret, boolean protectedData) {
-      byte[] keyIndex = hmacKey(secret, protectedData, true);
-      Account created = account(configuration, keyIndex);
-
-      return new Account(created.index, keyIndex, 0, 0, 0, secret);
-    }
-
-    private byte[] hmacKey(byte[] secret, boolean protectedData, boolean granted) {
       select(MONOID_AID);
       card.authenticate(false);
 
-      byte[] index = card.create("hmac", null, null, secret, protectedData);
+      byte[] index = card.create(ACCOUNT_TYPE, configuration, "OTP account", secret, protectedData);
 
-      if (granted) {
-        keys.add(fields("index", index, "type", "hmac"));
-        grant();
-      }
-
-      return index;
-    }
-
-    private Account account(byte[] configuration, byte[] keyIndex) {
-      select(MONOID_AID);
-      card.authenticate(false);
-
-      byte[] index = card.create(accountIndex(nextAccount++), configuration, null, keyIndex, false);
-
-      return new Account(index, keyIndex, 0, 0, 0, null);
+      return new Account(index, 0, 0, 0, secret);
     }
 
     private void select(AID aid) {

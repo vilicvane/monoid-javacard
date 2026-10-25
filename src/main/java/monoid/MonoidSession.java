@@ -116,7 +116,11 @@ final class MonoidSession implements Monoid {
 
       short type = Util.getShort(index, (short) (indexOffset + Safe.INDEX_TYPE_OFFSET));
 
-      if (!Safe.isTypeHmac(type) || !grant.allowsKey(Safe.TYPE_HMAC, index, indexOffset)) {
+      boolean allowed = Safe.isTypeHmac(type)
+        ? grant.allowsKey(Safe.TYPE_HMAC, index, indexOffset)
+        : Safe.getMappedKeyType(type) == Safe.TYPE_HMAC && grant.allows(type, false);
+
+      if (!allowed) {
         ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
       }
 

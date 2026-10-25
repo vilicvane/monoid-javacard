@@ -70,7 +70,6 @@ final class OTPBatch {
 
   void calculate(Monoid monoid, CBORWriter writer) {
     byte[] index = Utils.makeGlobalByteArray(Constants.INDEX_LENGTH);
-    byte[] keyIndex = Utils.makeGlobalByteArray(Constants.INDEX_LENGTH);
     byte[] counter = Utils.makeGlobalByteArray((short) 8);
     byte[] hash = Utils.makeGlobalByteArray((short) 64);
     byte[] code = new byte[8];
@@ -110,13 +109,6 @@ final class OTPBatch {
         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
       }
 
-      if (
-        monoid.readData(index, configuration, keyIndex, (short) 0, Constants.INDEX_LENGTH) !=
-        Constants.INDEX_LENGTH
-      ) {
-        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
-      }
-
       LibTOTP.counter(time, period, counter, (short) 0);
 
       writer.map((short) 3);
@@ -130,7 +122,7 @@ final class OTPBatch {
       for (short window = 0; window < Constants.BATCH_SIZE; window++) {
         short length = monoid.hmac(
           algorithm,
-          keyIndex,
+          index,
           (short) 0,
           counter,
           (short) 0,

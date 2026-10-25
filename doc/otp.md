@@ -31,38 +31,28 @@ Authenticate to Monoid with Access PIN and use `0x51 Set applet grant`:
 ```ts
 {
   aid: otpAID,
-  types: [[-3583, false]], // 0xF201: read account metadata
-  keys: [{index: hmacIndex, type: 'hmac'}], // One entry per shared secret
+  types: [[-3583, false]], // 0xF201: read account metadata and use its HMAC secret
 }
 ```
 
 The grant binds the OTP installation token. Reinstalling OTP requires granting its
 new token again; existing account records remain in Monoid. No seed grant or OTP
 PIN is needed. The FIDO PIN and Security Key authorization are independent.
+Adding or removing accounts does not require replacing this grant.
 
 ## Account records
 
-Import the website's shared secret as an HMAC key through Monoid `0x34 Create`:
-
-```ts
-{
-  type: 'hmac',
-  data: byte[], // Base32-decoded website shared secret; 1..255 bytes
-  secret: true,
-}
-// Response: {index: hmacIndex}
-```
-
-Create the account metadata separately:
+Create one item per website shared secret through Monoid `0x34 Create`:
 
 ```ts
 {
   type: -3583, // 0xF201
   alias: 'Issuer: account',
   metadata: byte[5],
-  data: hmacIndex, // 10-byte index of the HMAC key
-  secret: false,
+  data: byte[], // Base32-decoded website shared secret; 1..255 bytes
+  secret: true, // Enforced for this type, even if omitted or false
 }
+// Response: {index: accountIndex}
 ```
 
 ```text
@@ -72,16 +62,23 @@ digits:    6 or 8
 period:    1..32767 seconds; normally 30
 ```
 
-The returned account index starts with `F201`; the HMAC key index starts with
-`05` followed by its byte length. The immutable account `metadata` holds public
-configuration, and its readable `data` references the HMAC key. Multiple accounts
-may reference the same key with different configuration. HMAC authorization does
-not expose secret key data.
+Safe's fixed custom-type mapping maps `0xF201` to HMAC, supporting all three
+algorithms above. The 10-byte index is `F2 01 || SHA-256(secret)[0:8]`, using
+the same digest-index path as built-in HMAC keys. Its low type byte is fixed,
+not a key length. An explicitly supplied index must match that digest. Creating
+another account with the same secret returns `EXISTS`, even with a different
+label or configuration.
 
-Account labels and configuration may be listed with Access PIN. Export/Import
-both the account and its referenced HMAC key when copying to another card;
-preserving both indices preserves the reference. The target OTP grant must
-authorize the imported HMAC key.
+The immutable five-byte `metadata` holds public configuration; `alias` holds the
+label. The account's data is always secret: Get and all client data-reading SIOs
+reject it. Set can change the alias, but replacement data must still match the
+index and cannot clear the secret flag. To change the secret, create a new item.
+To change configuration, remove and recreate the account with the same secret.
+
+Account labels and configuration may be listed with Access PIN. Export returns
+encrypted data only; use the existing Secret-PIN-protected Export/Import flow to
+copy this single item to another card. The target's `0xF201` type grant covers
+the imported account without a separate HMAC key grant.
 
 ## Commands
 
@@ -152,7 +149,7 @@ type Response = {
 Requires a prepared batch and a new Monoid user permission for this client. The
 permission is consumed before calculation; the batch is removed on the attempt,
 including failure. Each account yields counters `floor(time / period) + {0,1,2}`
-with `T0 = 0`. Configuration, key references and key data are read when calculating;
+with `T0 = 0`. Configuration and the account's secret are used when calculating;
 this is not a snapshot of item revisions. Failed calculations leave no partial response to
 retrieve. A successful fragmented response can be read to completion without
 another authentication.
@@ -193,9 +190,9 @@ sequenceDiagram
     App->>OTP: Calculate
     OTP->>Monoid: consumeUserAuthentication()
     loop Each selected account
-        OTP->>Monoid: get(accountIndex), read HMAC key reference
+        OTP->>Monoid: get(accountIndex), read configuration metadata
         loop Three time windows
-            OTP->>Monoid: hmac(algorithm, hmacIndex, counter)
+            OTP->>Monoid: hmac(algorithm, accountIndex, counter)
             Monoid-->>OTP: MAC
         end
     end
@@ -230,15 +227,22 @@ three-window batch. Without Authority, the APP's time is not authenticated and t
 host can select past or future windows. The same one-operation permission and
 three-window batch limit apply in both modes.
 
-HMAC is a general service authorized through exact `keys` entries. Read access to
-an account does not grant use of its referenced key; changing the reference to an
-ungranted key fails. HMAC does not consume user permissions itself or enforce
-TOTP's window policy. Granting another client a key permits that client to compute
-arbitrary messages with it. The installed OTP code enforces its own one-operation
-permission. This boundary assumes trusted installed applet code, as with Security Key.
+HMAC is a general service. Built-in `0x05LL` keys require exact `keys` entries.
+Mapped items require read access to their exact custom type; for `0xF201`, this
+also authorizes HMAC use, with no separate flag. A built-in HMAC key grant never
+covers an OTP account, even if both items contain the same secret and have the
+same digest suffix. Mapped indices are rejected in `keys` grants. Unmapped custom
+types cannot be used for HMAC.
+
+HMAC does not consume user permissions itself or enforce TOTP configuration or
+window policy. Granting another client read access to `0xF201` would let that
+client compute arbitrary HMAC messages with every OTP account, without exposing
+the secrets. Grant that type only to trusted OTP code, which enforces the account's
+algorithm, digits, period, one-operation permission and three-window batch. This
+boundary assumes trusted installed applet code, as with Security Key.
 
 Common errors: `6982` for missing permission, an unavailable required Authority or invalid proof,
 `6985` for an absent challenge, batch or Identity applet,
-`6A80` for malformed inputs or configuration, and
+`6A80` for malformed inputs or account configuration (version, algorithm, digits or period), and
 `6A83` for a missing account. Malformed transport headers follow the shared APDU
 protocol. Reconnect failures may report `6982` instead of `6985`.
