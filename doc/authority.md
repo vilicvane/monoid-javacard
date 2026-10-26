@@ -7,7 +7,8 @@ Identity public key; the host never needs the plaintext token.
 
 The Authority's service URL and P-256 public key are configured together at
 [Identity installation](identity.md#installation-parameters). Monoid Hello returns
-the URL as `authority`, or false when neither is configured. The APP can use a
+the URL as `authority`, or false when neither is configured; it deliberately does not
+return the installed Authority public key. The APP can use a
 user-selected service; it obtains the initial public key from that service before
 installation. Subsequent responses cannot replace the card's trusted key. Its corresponding
 private key authenticates issuance through HPKE Auth. This uses the existing key
@@ -90,6 +91,7 @@ The packet is exactly 182 bytes. `00 01` is the unsigned big-endian member count
 an Authority packet contains only its recipient. Unknown flag bits, other counts
 or a different recipient are rejected. Join's `publicKey` must equal the installed
 Authority key; Identity uses that installed key for HPKE authentication.
+Supplying a different Authority public key to Join returns `6985`.
 
 HPKE uses RFC 9180 Auth mode, DHKEM(P-256, HKDF-SHA256), HKDF-SHA256 and
 AES-128-GCM, with an empty PSK and PSK ID, empty additional data, message sequence
@@ -119,7 +121,7 @@ constrain a party that already knows the root.
 Issuance has no challenge, expiry or single-use property. A saved packet may be
 retried for its original Identity; it cannot be redirected to another public key.
 Monoid reinstallation retains Identity, the Bundle and Secret PIN. `0xFF Reset`
-preserves Card ID and Authority configuration but clears the Bundle and both PINs,
+preserves Card ID, card alias and Authority configuration but clears the Bundle and both PINs,
 and generates a new Identity key pair. Old enrollment packets no longer decrypt;
 the Authority may issue a fresh packet for the new key after its account checks.
 Restoring a Card ID alone does not restore a private key or enrollment eligibility.

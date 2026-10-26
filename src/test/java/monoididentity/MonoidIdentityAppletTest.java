@@ -1276,6 +1276,64 @@ public class MonoidIdentityAppletTest {
     return field.get(target);
   }
 
+  @Test
+  public void aliasSetterRequiresMonoidCallerAndItsSecretAuthorization() {
+    initializeManager();
+    acquire(IDENTITY_AID);
+    byte[] alias = { 1, 2, 3 };
+    assertDenied(transmit(IdentityCallerApplet.SET_ALIAS, alias));
+    initializeSecretPIN();
+    success(transmit(IdentityCallerApplet.SET_ALIAS, alias));
+
+    select(UNRELATED_AID);
+    acquire(IDENTITY_AID);
+    checkSecretPIN(PIN, true);
+    assertDenied(transmit(IdentityCallerApplet.SET_ALIAS, new byte[0]));
+    Assertions.assertArrayEquals(alias, success(transmit(IdentityCallerApplet.GET_ALIAS)));
+
+    select(MONOID_AID);
+    assertDenied(transmit(IdentityCallerApplet.SET_ALIAS, new byte[0]));
+    checkSecretPIN(PIN, true);
+    success(transmit(IdentityCallerApplet.SET_ALIAS, new byte[0]));
+    Assertions.assertEquals(0, success(transmit(IdentityCallerApplet.GET_ALIAS)).length);
+  }
+
+  @Test
+  public void aliasOwnsItsBytesAndRejectsOversizedShareableInput() {
+    initializeManager();
+    acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    byte[] alias = new byte[64];
+    Arrays.fill(alias, (byte) 0xFF);
+    success(transmit(IdentityCallerApplet.SET_ALIAS, alias));
+    success(transmit(IdentityCallerApplet.MUTATE_ALIAS_COPY));
+    Assertions.assertArrayEquals(alias, success(transmit(IdentityCallerApplet.GET_ALIAS)));
+    Assertions.assertEquals(0x6A80, transmit(IdentityCallerApplet.SET_ALIAS, new byte[65]).getSW());
+    Assertions.assertArrayEquals(alias, success(transmit(IdentityCallerApplet.GET_ALIAS)));
+  }
+
+  @Test
+  public void repeatedAliasUpdatesReuseStorageAndReturnExactlyTheLastValue() throws Exception {
+    initializeManager();
+    acquire(IDENTITY_AID);
+    initializeSecretPIN();
+
+    Object identity = runtime.lookupApplet(IDENTITY_AID).getApplet();
+    byte[] storage = (byte[]) privateField(identity, "alias");
+    Assertions.assertEquals(64, storage.length);
+
+    for (int cycle = 0; cycle < 16; cycle++) {
+      for (int length : new int[] { 64, 1, 0, 32, 0, 5 }) {
+        byte[] expected = new byte[length];
+        Arrays.fill(expected, (byte) (cycle + length));
+
+        success(transmit(IdentityCallerApplet.SET_ALIAS, expected));
+        Assertions.assertSame(storage, privateField(identity, "alias"));
+        Assertions.assertArrayEquals(expected, success(transmit(IdentityCallerApplet.GET_ALIAS)));
+      }
+    }
+  }
+
   private void initializeManager() {
     initializeManager(new byte[0]);
   }

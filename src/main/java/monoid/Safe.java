@@ -12,6 +12,7 @@ import javacard.framework.Util;
 import javacard.security.MessageDigest;
 import monoididentity.CommunicationDataShareable;
 import monoididentity.IdentityShareable;
+import monoididentity.MonoidIdentityApplet;
 import monoidlib.CBORReader;
 import monoidlib.LibSecurity;
 import monoidlib.Utils;
@@ -114,12 +115,31 @@ public final class Safe {
     return requireIdentity().getPublicKey();
   }
 
+  public byte[] getAlias() {
+    return requireIdentity().getAlias();
+  }
+
+  public void setAlias(byte[] alias) {
+    Command.requireAuth(Command.AUTH_SECRET);
+    checkAccess();
+
+    if (alias.length > MonoidIdentityApplet.MAX_ALIAS_LENGTH) {
+      MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+    }
+
+    requireIdentity().setAlias(Utils.duplicateAsGlobal(alias));
+  }
+
   public byte[] getAuthority() {
     return requireIdentity().getAuthority();
   }
 
   public byte[] getBundle() {
     return requireIdentity().getBundle();
+  }
+
+  public boolean getAllowPeerExtension() {
+    return requireIdentity().getAllowPeerExtension();
   }
 
   public SafeDataSource createBundle(byte[] publicKeys) {

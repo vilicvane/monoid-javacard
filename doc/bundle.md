@@ -9,6 +9,10 @@ Hello and Bundle management. It covers the key alone, not the policy, a protocol
 version or member list. An issuer must keep the policy fixed for every holder of
 the same root.
 
+Hello also returns the flat `allowPeerExtension` boolean, false when not enrolled.
+The card alias is separate Identity state and is never included in Bundle state,
+enrollment or item export/import; item aliases retain their existing transfer semantics.
+
 Bundle management uses Secret PIN and `0x23 Create Bundle`, `0x24 Join Bundle`,
 `0x25 Extend Bundle` and `0x26 Approve Bundle Extension`, defined in
 [README](../README.md#0x23-create-bundle).
@@ -50,10 +54,10 @@ local Bundle. A failed packet preparation leaves the card without a Bundle.
 
 Join commits the key, policy and enrollment snapshot together. Rejoining the same
 key and policy succeeds unchanged, retaining the local snapshot; a different key
-or policy conflicts. Interrupted recipient initialization can resume with the
-saved packets. Create cannot be replayed to
-recover lost packets once the Bundle exists. There is no atomic commit across all
-cards, and one unavailable member does not roll back other members.
+or policy returns `6985`. Join never replaces an existing Bundle. Interrupted
+recipient initialization can resume with the saved packets. Create cannot be
+replayed to recover lost packets once the Bundle exists. There is no atomic commit
+across all cards, and one unavailable member does not roll back other members.
 
 Authority-issued enrollment uses the same Join command, with the installed
 Authority's public key as `publicKey`. It targets one recipient and requires no
@@ -203,7 +207,7 @@ does not certify card hardware or installed applet code.
 
 `0xFF Reset` requires no PIN and returns Monoid to an uninitialized state. It clears
 all local items, the derivation cache, both PINs and their failed-attempt/blocked
-state, and the local Bundle. It preserves the Card ID and installed Authority key,
+state, and the local Bundle. It preserves the Card ID, card alias and installed Authority URL and key,
 generates a new Identity key pair and binding secret, clears the token cache and
 updates Monoid's binding. These persistent
 changes commit in one transaction; success clears current authorization and
@@ -236,8 +240,9 @@ Reset retains both installed applet instances and their code while replacing
 their identity and local data state. It does not perform a GP uninstall/reinstall.
 
 Recreating Monoid clears its items, Access PIN and derivation cache but retains
-Identity's Secret PIN, retries and Bundle. Recreating Identity as well clears the local Bundle and generates a new key
-pair and binding secret; the Card ID can be supplied again in installation parameters.
+Identity's card alias, Secret PIN, retries and Bundle. Recreating Identity as well clears
+the card alias and local Bundle and generates a new key pair and binding secret;
+the Card ID can be supplied again in installation parameters.
 Retaining the old Monoid across Identity replacement
 does not bypass its identity binding. Reinitialization does not affect other cards
 or revoke existing artifacts. The new Identity cannot decrypt old asymmetric

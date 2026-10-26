@@ -55,6 +55,9 @@ public class IdentityCallerApplet
   public static final byte EXTEND_BUNDLE = 38;
   public static final byte GET_AUTHORITY = 39;
   public static final byte MUTATE_AUTHORITY_COPY = 40;
+  public static final byte GET_ALIAS = 41;
+  public static final byte SET_ALIAS = 42;
+  public static final byte MUTATE_ALIAS_COPY = 43;
 
   private IdentityShareable identity;
   private CommunicationDataShareable result;
@@ -99,6 +102,21 @@ public class IdentityCallerApplet
         return;
       case GET_PUBLIC_KEY:
         send(apdu, identity.getPublicKey());
+        return;
+      case GET_ALIAS:
+        byte[] alias = identity.getAlias();
+        send(apdu, alias == null ? new byte[0] : alias);
+        return;
+      case SET_ALIAS:
+        identity.setAlias(buffer);
+        if (length != 0) {
+          buffer[0] ^= (byte) 0xFF;
+        }
+        return;
+      case MUTATE_ALIAS_COPY:
+        byte[] aliasCopy = identity.getAlias();
+        aliasCopy[0] ^= (byte) 0xFF;
+        send(apdu, aliasCopy);
         return;
       case GET_AUTHORITY:
         byte[] authority = identity.getAuthority();

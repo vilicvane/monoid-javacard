@@ -18,6 +18,7 @@ import javacard.security.RandomData;
 public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   public static final byte ID_LENGTH = 4;
+  public static final short MAX_ALIAS_LENGTH = 64;
 
   private static final byte INSTALL_ID = 0x01;
   private static final byte INSTALL_AUTHORITY = 0x02;
@@ -33,6 +34,8 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   // @formatter:on
 
   private final byte[] id = new byte[ID_LENGTH];
+  private final byte[] alias = new byte[MAX_ALIAS_LENGTH];
+  private short aliasLength;
 
   private final byte[] authority;
   private final ECPublicKey authorityPublicKey;
@@ -243,6 +246,44 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   }
 
   @Override
+  public byte[] getAlias() {
+    assertCaller();
+
+    if (aliasLength == 0) {
+      return null;
+    }
+
+    byte[] result = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, aliasLength);
+    Util.arrayCopyNonAtomic(alias, (short) 0, result, (short) 0, aliasLength);
+
+    return result;
+  }
+
+  @Override
+  public void setAlias(byte[] alias) {
+    assertMonoidCaller();
+    assertCommunicationAvailable();
+    assertSecretAuth();
+
+    if (alias.length > MAX_ALIAS_LENGTH) {
+      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+    }
+
+    JCSystem.beginTransaction();
+
+    try {
+      Util.arrayCopy(alias, (short) 0, this.alias, (short) 0, (short) alias.length);
+      aliasLength = (short) alias.length;
+
+      JCSystem.commitTransaction();
+    } finally {
+      if (JCSystem.getTransactionDepth() != 0) {
+        JCSystem.abortTransaction();
+      }
+    }
+  }
+
+  @Override
   public byte[] getPublicKey() {
     assertCaller();
 
@@ -260,6 +301,13 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     assertCaller();
 
     return bundle == null ? null : duplicateAsGlobal(bundle.hash);
+  }
+
+  @Override
+  public boolean getAllowPeerExtension() {
+    assertCaller();
+
+    return bundle != null && bundle.allowPeerExtension;
   }
 
   @Override

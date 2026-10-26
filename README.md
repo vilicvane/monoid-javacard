@@ -66,6 +66,11 @@ Build and install with PowerShell:
 
 The development workflow requires Node.js for source code housekeeping and some test case validation.
 
+The Authority interoperability JUnit tests also require the sibling `../monoid/workers/authority`
+checkout with its npm dependencies installed. They bundle its current `src/crypto.ts` in memory
+using its esbuild dependency and invoke `AuthorityCrypto.generateMaterial()` and `issueBundle()`;
+no Worker build, running service or saved key material is needed.
+
 ```sh
 npm install
 ```
@@ -152,6 +157,8 @@ See [Bitcoin signing](doc/bitcoin.md).
 
 See [APDU transport](doc/apdu.md).
 
+Card and item aliases are UTF-8 text; firmware stores their bytes without encoding validation.
+
 ### Command authentication
 
 The authentication is done within a session, using `0x21` command.
@@ -183,12 +190,16 @@ type Response = {
   version: number;
   /** Persistent 4-byte Card ID; preserved by Reset and configurable at Identity installation. */
   id: byte[];
+  /** Card alias, up to 64 UTF-8 bytes; false when empty. Preserved by Reset. */
+  alias: string | false;
   /** Monoid Identity P-256 public key, 65-byte uncompressed SEC 1. */
   publicKey: byte[];
   /** Authority service URL, or false when not configured. */
   authority: string | false;
   /** SHA-256 of the Bundle key, or false when not enrolled. */
   bundle: byte[] | false;
+  /** Bundle peer extension policy; false when not enrolled. */
+  allowPeerExtension: boolean;
   /** Tries remaining, or false when the PIN is not set. */
   pins: {
     access: number | false;
@@ -258,7 +269,7 @@ type Response = {
 
 ```ts
 type Request = {
-  /** The sending Identity's key, or the installed Authority key for Authority-issued data. */
+  /** The sending Identity's key, or the installed Authority key; an Authority mismatch returns 6985. */
   publicKey: byte[];
   data: byte[];
 };
@@ -266,7 +277,7 @@ type Request = {
 
 ```ts
 type Response = {
-  /** The same key and allowPeerExtension policy succeed unchanged; differences conflict. */
+  /** The same key and allowPeerExtension policy succeed unchanged; differences return 6985. Never replaces a Bundle. */
   bundle: byte[];
 };
 ```
@@ -307,6 +318,21 @@ type Response = {
   publicKey: byte[];
   data: byte[];
 };
+```
+
+#### `0x27` Set Alias
+
+> Requires authentication with Secret PIN.
+
+```ts
+type Request = {
+  /** Up to 64 UTF-8 bytes; empty clears it. Longer values return INVALID_PARAMETER. */
+  alias: string;
+};
+```
+
+```ts
+type Response = {};
 ```
 
 #### `0x2F` System information
@@ -708,7 +734,7 @@ type Response = {};
 
 ### `0xFF` Reset
 
-> No authentication required. Clears all items, applet grants, derivation cache, Bundle, both PINs and authorization; regenerates Identity keys and preserves the Card ID.
+> No authentication required. Clears all items, applet grants, derivation cache, Bundle, both PINs and authorization; regenerates Identity keys and preserves the Card ID, card alias and Authority configuration.
 
 ```ts
 type Request = {};

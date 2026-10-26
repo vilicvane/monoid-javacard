@@ -1,14 +1,14 @@
 # Monoid Identity
 
-Monoid Identity retains a P-256 key pair generated on installation or `0xFF Reset`
-and a four-byte Card ID preserved by Reset. Its private key has no export interface. Identity
+Monoid Identity retains a P-256 key pair generated on installation or `0xFF Reset`,
+plus a four-byte Card ID and card alias preserved by Reset. Its private key has no export interface. Identity
 also owns Secret PIN, its retry and caller authorization state, the optional Bundle
 key, extension policy and enrollment snapshot. It performs complete item encryption and decryption
 for applets in separate caller domains. Monoid owns Access PIN, Safe item storage
 and command authorization.
 
 Install Identity before Monoid. Monoid updates preserve its matching Identity.
-Deleting Identity removes its private key, binding secret, Secret PIN and local
+Deleting Identity removes its private key, binding secret, card alias, Secret PIN and local
 Bundle state.
 
 ## Installation parameters
@@ -30,7 +30,7 @@ of the application data, without another length prefix; a key-only configuration
 Card ID, Authority URL and Authority key are stored persistently and preserved by
 `0xFF Reset` and Monoid replacement.
 Identity reinstallation can restore a supplied Card ID, but generates a fresh card key pair
-and binding secret. No runtime setter is exposed.
+and binding secret. No runtime setter for Card ID or Authority configuration is exposed.
 
 The user selects the Authority service URL, and the installer obtains its public
 key before installing both. This initial choice establishes trust. The APP uses
@@ -61,6 +61,12 @@ public interface IdentityShareable extends Shareable {
 
   byte[] getId();
 
+  /** Card alias as global UTF-8 bytes, or null when empty. */
+  byte[] getAlias();
+
+  /** Monoid only, with Secret authentication: copies 0–64 bytes from a global array. */
+  void setAlias(byte[] alias);
+
   byte[] getPublicKey();
 
   /** Authority service URL as global UTF-8 bytes, or null when not configured. */
@@ -68,6 +74,9 @@ public interface IdentityShareable extends Shareable {
 
   /** SHA-256 of the Bundle key, or null when not enrolled. */
   byte[] getBundle();
+
+  /** Bundle peer extension policy, or false when not enrolled. */
+  boolean getAllowPeerExtension();
 
   /** Verifies signed time using the installed key and the caller's one-use challenge. */
   void verifyAuthorityTime(byte[] data, byte[] signature, byte[] challenge);
@@ -132,22 +141,24 @@ public interface CommunicationDataShareable extends Shareable {
 ```
 
 - ID: four bytes, supplied at Identity installation or randomly generated, and preserved by `0xFF Reset`.
+- Card alias: at most 64 UTF-8 bytes; empty means no alias. Only the byte length is validated.
 - Public keys: 65-byte SEC 1 uncompressed P-256 points (`04 || X || Y`).
 - Binding tokens: 32 bytes, distinct for each caller AID and current Identity secret.
 - Bundle keys and asymmetric item communication keys: 32 bytes, kept inside Identity.
 - Item fields: ten-byte index, optional byte-string metadata and optional UTF-8 alias.
-  Null and empty fields remain distinct.
+  Null and empty item fields remain distinct. Card and item aliases store the supplied bytes
+  unchanged, without UTF-8 validation.
 - Byte-array arguments and direct results: global arrays for card-local calls.
   Data sources use repeatable range reads through a bounded global buffer.
 - Completed data results are readable only by their original calling applet.
 - Admission: any registered applet can acquire the interface, read public information
   and get its own token. Encryption/decryption requires Secret PIN verification by
-  Identity for that caller. Creating, joining or extending a Bundle and changing Secret PIN also
-  require the exact Monoid instance AID. Preparing/publishing a reset requires that
+  Identity for that caller. Setting the card alias, creating, joining or extending a Bundle
+  and changing Secret PIN also require the exact Monoid instance AID. Preparing/publishing a reset requires that
   AID but deliberately does not require PIN authentication.
 - Direct APDUs: SELECT only. Monoid owns [item transfer](item-transfer.md) and
-  [Bundle management](bundle.md) commands; Hello exposes `id`, `publicKey`,
-  `authority` (URL or false) and `bundle` directly.
+  [Bundle management](bundle.md) commands; Hello exposes `id`, `alias` (text or false), `publicKey`,
+  `authority` (URL or false), `bundle` and `allowPeerExtension` directly.
 
 Identity derives authenticated contexts internally from the operation, full runtime
 caller AID and metadata. Callers cannot choose another AID, supply arbitrary HPKE contexts or retrieve decrypted
@@ -295,8 +306,8 @@ Monoid token in a global array. `reset` requires an active Monoid transaction an
 publishes that candidate while clearing the Bundle and references to the old
 communication key state. In the same transaction, Monoid replaces its binding,
 clears items/derivation cache and replaces Access PIN with unset state; Identity
-publishes the new unset Secret PIN in that transaction. The Card ID and installed
-Authority public key are preserved.
+publishes the new unset Secret PIN in that transaction. The Card ID, card alias and installed
+Authority URL and public key are preserved.
 A failed transaction retains the previous published identity and Monoid state;
 the candidate is discarded after the publication attempt or a card power reset.
 Successful Reset clears Monoid authorization. These methods implement `0xFF Reset`;
@@ -311,6 +322,19 @@ key pair and binding secret. Reinstalling Identity restores a supplied ID or gen
 The four-byte value
 is a display identifier, not a peer authentication fingerprint or a guarantee of
 uniqueness. It is independent of the public key.
+
+## Card alias
+
+`0x27 Set Alias {alias: string}` sets or clears the Identity-owned card alias after
+Secret PIN authentication. Identity applies the same Monoid caller and Secret PIN
+checks as Bundle management. Hello returns a CBOR text string, or false when empty.
+The 64-byte limit counts UTF-8 bytes, not characters; longer requests return
+`INVALID_PARAMETER`. No encoding validation or normalization is performed.
+
+The alias survives card power reset, `0xFF Reset` and Monoid replacement. Recreating
+Identity clears it; the APP sets it again through Set Alias. Installation parameters
+are unchanged. The card alias is independent of item aliases and never enters Bundle
+state, enrollment packets or item export/import.
 
 ## Card requirements
 

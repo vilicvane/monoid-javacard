@@ -9,13 +9,21 @@ public final class CommandHello extends Command {
   protected void run() {
     reader.map();
 
-    writer.map((short) 6);
+    writer.map((short) 8);
     {
       writer.text(Text.version);
       writer.integer(Constants.MONOID_VERSION);
 
       writer.text(Text.id);
       writer.bytes(MonoidApplet.safe.getId());
+
+      writer.text(Text.alias);
+      byte[] alias = MonoidApplet.safe.getAlias();
+      if (alias != null) {
+        writer.text(alias);
+      } else {
+        writer.bool(false);
+      }
 
       writer.text(Text.publicKey);
       writer.bytes(MonoidApplet.safe.getPublicKey());
@@ -35,6 +43,9 @@ public final class CommandHello extends Command {
       } else {
         writer.bool(false);
       }
+
+      writer.text(Text.allowPeerExtension);
+      writer.bool(MonoidApplet.safe.getAllowPeerExtension());
 
       writer.text(Text.pins);
       writer.map((short) 2);

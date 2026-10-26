@@ -407,3 +407,7 @@
 ## 86d716c
 
 196. [user] 在 APP 会话中与 Claude 敲定卡片 API 方案（Claude 文档 "Monoid card API and app refactor proposal"），并要求由 Codex 在 Claude 监督下实现、分步提交。[agent] A：共享 `monoidlib.ApduTransport` 与 Security Key 传输对被转发的 `00 A4` 返回 ISO `6A82`（Security Key 同时丢弃未完成的分片与 CTAP 状态）；仅非 RPC APDU 用 ISO 状态字，RPC 帧内失败仍为 CBOR 错误。B：Create、Import、CreateRandomKey 在索引已存在时返回 CBOR `EXISTS`，相同内容也不例外，Import 不再静默接受相同项。E：`0x35 Remove` 对不存在的索引也成功，响应 `{removed: true|false}`。G：`Safe` 固定映射表把自定义类型 `0xF201` 映射到 HMAC（SHA-1/256/512）；OTP 账户为单一 `0xF201` 项（秘密数据 1–255 字节、五字节配置为 metadata、标签为 alias），索引为 `F2 01 || SHA-256(secret)[0:8]`，重复秘密返回 `EXISTS`；映射项恒为秘密，Set/Import 数据须与索引一致；对精确类型的读授权即允许使用其密钥，`keys` 授权不覆盖映射项。C（变更计数）与 D（批量读取）暂缓，F（条件写入）放弃。仅模拟器验证：692 测试/81 套件、五个 CAP 零警告；未做实卡部署或测试。提交 5c4bb6e（A/B/E）与 e1ecabc（G）。卡片 API、OTP 映射类型。
+
+## b5c67aa
+
+197. [user] 批准 Identity 持久卡别名（UTF-8、0–64字节、仅验长度）、Secret PIN 授权的 Set Alias27、Hello 的 alias 与平铺 allowPeerExtension；Reset/Monoid替换保留别名，Identity重建清除，不加入安装参数、Bundle或条目传输。Join不覆盖既有Bundle、不加replace，Authority公钥不进Hello。Review要求固定64B缓冲区和持久长度，同一事务先写字节后写长度，避免setter反复分配。[agent] 沿用Bundle管理授权链，新增真实Worker代码到模拟器Join的互操作测试及96次复用存储/设置/清空断言；702测试/83套件、JS6、五CAP与格式/模板检查通过，未实卡；详见 [卡别名与Authority互操作](./197.md)。

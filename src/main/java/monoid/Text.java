@@ -6,6 +6,7 @@ public class Text {
   public static final byte[] access = {'a','c','c','e','s','s'};
   public static final byte[] aid = {'a','i','d'};
   public static final byte[] alias = {'a','l','i','a','s'};
+  public static final byte[] allowPeerExtension = {'a','l','l','o','w','P','e','e','r','E','x','t','e','n','s','i','o','n'};
   public static final byte[] auth = {'a','u','t','h'};
   public static final byte[] authority = {'a','u','t','h','o','r','i','t','y'};
   public static final byte[] available = {'a','v','a','i','l','a','b','l','e'};

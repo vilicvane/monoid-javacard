@@ -78,6 +78,10 @@ application {
 }
 
 test {
+	inputs.file 'src/test/js/authority-bundle-worker.mjs'
+	inputs.dir '../monoid/workers/authority/src'
+	inputs.file '../monoid/workers/authority/package-lock.json'
+
 	useJUnitPlatform {
 		excludeTags 'manual'
 	}

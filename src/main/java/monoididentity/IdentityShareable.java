@@ -10,11 +10,20 @@ public interface IdentityShareable extends Shareable {
   /** The persistent four-byte display ID selected at installation and retained by reset. */
   public byte[] getId();
 
+  /** Persistent UTF-8 alias as a global array, or null when empty; retained by reset. */
+  public byte[] getAlias();
+
+  /** Monoid only, with Secret authentication: copies up to 64 bytes from a global array. */
+  public void setAlias(byte[] alias);
+
   /** The stable P-256 public key, encoded as an uncompressed 65-byte SEC 1 point. */
   public byte[] getPublicKey();
 
   /** SHA-256 of the installed Bundle key, or null when no Bundle is installed. */
   public byte[] getBundle();
+
+  /** Whether the installed Bundle permits peer extension; false when not enrolled. */
+  public boolean getAllowPeerExtension();
 
   /** The installed Authority service URL as global UTF-8 bytes, or null when not configured. */
   public byte[] getAuthority();

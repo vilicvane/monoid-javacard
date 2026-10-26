@@ -1959,15 +1959,17 @@ public class MonoidAppletTest extends AppletTest {
 
   private void assertHello(ResponseAPDU response, boolean pinsSet) {
     CBORBufferReader reader = new CBORBufferReader(response.getBytes());
-    Assertions.assertEquals(6, reader.map());
+    Assertions.assertEquals(8, reader.map());
     reader.requireKey("version".getBytes()).integer();
     Assertions.assertEquals(4, reader.requireKey("id".getBytes()).bytes().length);
+    Assertions.assertFalse(reader.requireKey("alias".getBytes()).bool());
 
     byte[] publicKey = reader.requireKey("publicKey".getBytes()).bytes();
     Assertions.assertEquals(65, publicKey.length);
     Assertions.assertEquals(0x04, publicKey[0]);
     Assertions.assertFalse(reader.requireKey("authority".getBytes()).bool());
     Assertions.assertFalse(reader.requireKey("bundle".getBytes()).bool());
+    Assertions.assertFalse(reader.requireKey("allowPeerExtension".getBytes()).bool());
 
     Assertions.assertEquals(2, reader.requireKey("pins".getBytes()).map());
     for (String pin : new String[] { "access", "secret" }) {

@@ -18,8 +18,10 @@ public class MonoidHelloTest {
       card.installMonoid(false);
 
       Result response = card.success(0x20, fields());
-      Assertions.assertEquals(6, response.size());
+      Assertions.assertEquals(8, response.size());
       Assertions.assertFalse(response.reader().requireKey(bytes("authority")).bool());
+      Assertions.assertFalse(response.reader().requireKey(bytes("alias")).bool());
+      Assertions.assertFalse(response.reader().requireKey(bytes("allowPeerExtension")).bool());
 
       CBORBufferReader reader = response.reader();
       reader.requireKey(bytes("pins")).map();
@@ -85,7 +87,7 @@ public class MonoidHelloTest {
   }
 
   private static void assertAuthority(Result response, String url) {
-    Assertions.assertEquals(6, response.size());
+    Assertions.assertEquals(8, response.size());
     Assertions.assertArrayEquals(
       url.getBytes(StandardCharsets.UTF_8),
       response.reader().requireKey(bytes("authority")).text()

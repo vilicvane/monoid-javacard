@@ -41,6 +41,7 @@ public abstract class Command {
   public static Command joinBundle;
   public static Command extendBundle;
   public static Command approveBundleExtension;
+  public static Command setAlias;
   public static Command systemInformation;
 
   public static Command list;
@@ -104,6 +105,7 @@ public abstract class Command {
     joinBundle = new CommandJoinBundle();
     extendBundle = new CommandExtendBundle();
     approveBundleExtension = new CommandApproveBundleExtension();
+    setAlias = new CommandSetAlias();
     systemInformation = new CommandSystemInformation();
 
     list = new CommandList();
@@ -143,6 +145,7 @@ public abstract class Command {
     joinBundle = null;
     extendBundle = null;
     approveBundleExtension = null;
+    setAlias = null;
     systemInformation = null;
 
     list = null;
@@ -179,6 +182,8 @@ public abstract class Command {
         return extendBundle;
       case 0x26:
         return approveBundleExtension;
+      case 0x27:
+        return setAlias;
       case 0x2F:
         return systemInformation;
       case 0x30:
