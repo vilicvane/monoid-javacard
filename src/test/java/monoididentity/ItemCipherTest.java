@@ -73,6 +73,33 @@ public class ItemCipherTest {
   }
 
   @Test
+  public void invalidTransferAuthorizationCannotSelectAsymmetricDecryption() {
+    ItemCipher cipher = new ItemCipher(sharedCipher, sharedHmacBlock);
+
+    for (short valid : new short[] { Constants.SAFE_TRUE, Constants.SAFE_FALSE }) {
+      for (int bit = 0; bit < 16; bit++) {
+        short invalid = (short) (valid ^ (1 << bit));
+        ISOException exception = Assertions.assertThrows(ISOException.class, () ->
+          cipher.decrypt(
+            invalid,
+            null,
+            null,
+            CALLER_AID,
+            null,
+            INDEX,
+            KEY,
+            ALIAS,
+            null,
+            new TestData(new byte[] { 1 })
+          )
+        );
+
+        Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED, exception.getReason());
+      }
+    }
+  }
+
+  @Test
   public void exportMatchesIndependentHostKeyDerivationAndGcm() throws Exception {
     TestIdentity sender = new TestIdentity(1, sharedCipher, sharedHmacBlock);
     TestIdentity recipient = new TestIdentity(2, sharedCipher, sharedHmacBlock);
@@ -157,6 +184,7 @@ public class ItemCipherTest {
       changed[index] ^= 1;
       Assertions.assertThrows(CryptoException.class, () ->
         cipher.decrypt(
+          Constants.SAFE_FALSE,
           recipient.cipher,
           null,
           CALLER_AID,
@@ -172,6 +200,7 @@ public class ItemCipherTest {
 
     Assertions.assertThrows(CryptoException.class, () ->
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         recipient.cipher,
         null,
         CALLER_AID,
@@ -187,6 +216,7 @@ public class ItemCipherTest {
     for (int indexLength : new int[] { 0, 8, 9, 11 }) {
       Assertions.assertThrows(CryptoException.class, () ->
         cipher.decrypt(
+          Constants.SAFE_FALSE,
           recipient.cipher,
           null,
           CALLER_AID,
@@ -209,6 +239,7 @@ public class ItemCipherTest {
 
         Assertions.assertThrows(CryptoException.class, () ->
           cipher.decrypt(
+            Constants.SAFE_FALSE,
             recipient.cipher,
             null,
             CALLER_AID,
@@ -222,6 +253,7 @@ public class ItemCipherTest {
         );
         Assertions.assertThrows(CryptoException.class, () ->
           cipher.decrypt(
+            Constants.SAFE_FALSE,
             recipient.cipher,
             null,
             CALLER_AID,
@@ -262,6 +294,7 @@ public class ItemCipherTest {
       AID otherCaller = new AID(other, (short) 0, (byte) other.length);
       Assertions.assertThrows(CryptoException.class, () ->
         cipher.decrypt(
+          Constants.SAFE_FALSE,
           recipient.cipher,
           null,
           otherCaller,
@@ -278,6 +311,7 @@ public class ItemCipherTest {
     Assertions.assertArrayEquals(
       plaintext(item),
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         recipient.cipher,
         null,
         new AID(caller, (short) 0, (byte) caller.length),
@@ -494,6 +528,7 @@ public class ItemCipherTest {
     byte[] encrypted
   ) {
     return cipher.decrypt(
+      Constants.SAFE_FALSE,
       recipient.cipher,
       null,
       CALLER_AID,

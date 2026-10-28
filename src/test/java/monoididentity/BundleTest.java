@@ -219,6 +219,7 @@ public class BundleTest {
         Assertions.assertArrayEquals(
           plaintext,
           cipher.decrypt(
+            Constants.SAFE_FALSE,
             receiver,
             imported,
             CALLER_AID,
@@ -237,6 +238,7 @@ public class BundleTest {
         Assertions.assertArrayEquals(
           plaintext,
           cipher.decrypt(
+            Constants.SAFE_FALSE,
             receiver,
             imported,
             CALLER_AID,
@@ -275,6 +277,7 @@ public class BundleTest {
 
     Assertions.assertThrows(RuntimeException.class, () ->
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         receiver,
         null,
         CALLER_AID,
@@ -288,6 +291,7 @@ public class BundleTest {
     );
     Assertions.assertThrows(RuntimeException.class, () ->
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         receiver,
         different,
         CALLER_AID,
@@ -301,6 +305,7 @@ public class BundleTest {
     );
     Assertions.assertThrows(RuntimeException.class, () ->
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         receiver,
         bundle,
         CALLER_AID,
@@ -314,6 +319,7 @@ public class BundleTest {
     );
     Assertions.assertThrows(RuntimeException.class, () ->
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         receiver,
         bundle,
         CALLER_AID,
@@ -327,6 +333,7 @@ public class BundleTest {
     );
     Assertions.assertThrows(RuntimeException.class, () ->
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         receiver,
         bundle,
         CALLER_AID,
@@ -344,6 +351,7 @@ public class BundleTest {
       changed[offset] ^= 1;
       Assertions.assertThrows(RuntimeException.class, () ->
         cipher.decrypt(
+          Constants.SAFE_FALSE,
           receiver,
           bundle,
           CALLER_AID,
@@ -387,6 +395,7 @@ public class BundleTest {
       AID otherCaller = new AID(other, (short) 0, (byte) other.length);
       Assertions.assertThrows(CryptoException.class, () ->
         cipher.decrypt(
+          Constants.SAFE_FALSE,
           receiver,
           bundle,
           otherCaller,
@@ -403,6 +412,7 @@ public class BundleTest {
     Assertions.assertArrayEquals(
       concat(new byte[] { 0x5A, (byte) 0xFE }, data),
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         receiver,
         bundle,
         new AID(caller, (short) 0, (byte) caller.length),
@@ -439,6 +449,7 @@ public class BundleTest {
     Assertions.assertArrayEquals(
       concat(new byte[] { 0x5A, (byte) 0xFE }, bytes(32)),
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         receiver,
         bundle,
         CALLER_AID,
@@ -456,6 +467,7 @@ public class BundleTest {
     System.arraycopy(enrollment, 134, forgedItem, 1, 113);
     Assertions.assertThrows(RuntimeException.class, () ->
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         receiver,
         bundle,
         CALLER_AID,
@@ -485,6 +497,7 @@ public class BundleTest {
     Assertions.assertArrayEquals(
       concat(new byte[] { 0x5A, (byte) 0xFE }, bytes(32)),
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         sender,
         bundle,
         CALLER_AID,
@@ -499,6 +512,7 @@ public class BundleTest {
     Assertions.assertArrayEquals(
       concat(new byte[] { 0x5A, (byte) 0xFE }, bytes(32)),
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         receiver,
         imported,
         CALLER_AID,
@@ -547,6 +561,7 @@ public class BundleTest {
     Assertions.assertArrayEquals(
       concat(new byte[] { 0x5A, (byte) 0xFE }, bytes(32)),
       cipher.decrypt(
+        Constants.SAFE_FALSE,
         receiver,
         null,
         CALLER_AID,

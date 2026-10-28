@@ -32,6 +32,6 @@ public class CommandSet extends Command {
       item.setAlias(alias);
     }
 
-    sendEmptyMap();
+    writeEmptyMap();
   }
 }

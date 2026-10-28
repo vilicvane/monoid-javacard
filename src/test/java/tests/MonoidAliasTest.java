@@ -1,6 +1,7 @@
 package tests;
 
 import static tests.MonoidItemTransferTest.assertError;
+import static tests.MonoidItemTransferTest.assertISOError;
 import static tests.MonoidItemTransferTest.assertMetadata;
 import static tests.MonoidItemTransferTest.customIndex;
 import static tests.MonoidItemTransferTest.fields;
@@ -48,8 +49,8 @@ public class MonoidAliasTest {
       card.success(0x27, fields("alias", alias));
       assertAlias(card, alias);
       assertError(card.transmit(0x27, fields("alias", alias + "a")), "INVALID_PARAMETER");
-      Assertions.assertEquals(0x6A80, card.transmit(0x27, fields()).status);
-      Assertions.assertEquals(0x6A80, card.transmit(0x27, fields("alias", bytes("card"))).status);
+      assertISOError(card.transmit(0x27, fields()), 0x6A80);
+      assertISOError(card.transmit(0x27, fields("alias", bytes("card"))), 0x6A80);
       assertAlias(card, alias);
     }
   }

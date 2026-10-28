@@ -91,7 +91,8 @@ The packet is exactly 182 bytes. `00 01` is the unsigned big-endian member count
 an Authority packet contains only its recipient. Unknown flag bits, other counts
 or a different recipient are rejected. Join's `publicKey` must equal the installed
 Authority key; Identity uses that installed key for HPKE authentication.
-Supplying a different Authority public key to Join returns `6985`.
+Supplying a different Authority public key to Join returns the Monoid RPC error
+`INTERNAL`, exception `ISOException` and reason `27013` (`6985`).
 
 HPKE uses RFC 9180 Auth mode, DHKEM(P-256, HKDF-SHA256), HKDF-SHA256 and
 AES-128-GCM, with an empty PSK and PSK ID, empty additional data, message sequence

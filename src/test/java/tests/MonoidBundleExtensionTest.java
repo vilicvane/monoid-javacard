@@ -2,6 +2,7 @@ package tests;
 
 import static tests.MonoidItemTransferTest.assertData;
 import static tests.MonoidItemTransferTest.assertError;
+import static tests.MonoidItemTransferTest.assertISOError;
 import static tests.MonoidItemTransferTest.customIndex;
 import static tests.MonoidItemTransferTest.fields;
 import static tests.MonoidItemTransferTest.sequence;
@@ -44,10 +45,7 @@ public class MonoidBundleExtensionTest {
       card.authenticate(true);
 
       for (int index = 0; index < requests.size(); index++) {
-        Assertions.assertEquals(
-          0x6985,
-          card.transmit(instructions[index], requests.get(index)).status
-        );
+        assertISOError(card.transmit(instructions[index], requests.get(index)), 0x6985);
       }
 
       CBORBufferReader hello = card.success(0x20, fields()).reader();
@@ -67,11 +65,11 @@ public class MonoidBundleExtensionTest {
       );
 
       for (Map<String, Object> request : requests) {
-        Assertions.assertEquals(0x6A80, card.transmit(0x25, request).status);
+        assertISOError(card.transmit(0x25, request), 0x6A80);
       }
 
       for (Map<String, Object> request : Arrays.asList(fields(), fields("data", "not bytes"))) {
-        Assertions.assertEquals(0x6A80, card.transmit(0x26, request).status);
+        assertISOError(card.transmit(0x26, request), 0x6A80);
       }
     }
   }
@@ -107,7 +105,7 @@ public class MonoidBundleExtensionTest {
       Assertions.assertTrue(extended.responseFrames > 1);
       Map<String, Object> request = responseFields(extended);
 
-      Assertions.assertEquals(0x6985, first.transmit(0x26, request).status);
+      assertISOError(first.transmit(0x26, request), 0x6985);
       assertBundle(first, bundle);
       first.uninstallMonoid();
 

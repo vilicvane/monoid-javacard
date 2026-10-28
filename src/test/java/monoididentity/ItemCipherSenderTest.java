@@ -177,6 +177,7 @@ public class ItemCipherSenderTest {
       AID otherCaller = new AID(other, (short) 0, (byte) other.length);
       Assertions.assertThrows(CryptoException.class, () ->
         cipher.decrypt(
+          Constants.SAFE_FALSE,
           receiver.cipher,
           bundle,
           otherCaller,
@@ -257,6 +258,7 @@ public class ItemCipherSenderTest {
       Assertions.assertArrayEquals(
         plaintext(data),
         cipher.decrypt(
+          Constants.SAFE_FALSE,
           receiver.cipher,
           current,
           CALLER_AID,
@@ -318,6 +320,7 @@ public class ItemCipherSenderTest {
     Data encrypted
   ) {
     return cipher.decrypt(
+      Constants.SAFE_FALSE,
       receiver.cipher,
       bundle,
       CALLER_AID,

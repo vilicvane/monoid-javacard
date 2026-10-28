@@ -18,6 +18,6 @@ public class CommandAuthenticate extends Command {
       grants.grantUserAuthentication(grant);
     }
 
-    sendEmptyMap();
+    writeEmptyMap();
   }
 }

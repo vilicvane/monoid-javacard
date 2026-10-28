@@ -11,6 +11,8 @@ import javacard.framework.Applet;
 import javacard.framework.JCSystem;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
+import main.ShareableSimulatorRuntime;
+import monoididentity.MonoidIdentityApplet;
 import monoidlib.CBORApduReader;
 import monoidlib.CBORApduWriter;
 import monoidlib.CBORResponse;
@@ -21,6 +23,11 @@ import org.junit.jupiter.api.Test;
 
 public class CBORApduWriterStreamTest {
 
+  private static final AID IDENTITY_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
+    "f06d6f6e6f69640001"
+  );
+
   private static final String APPLET_AID = "f06d6f6e6f69647f03";
 
   private CardSimulator simulator;
@@ -29,7 +36,8 @@ public class CBORApduWriterStreamTest {
   public void initialize() {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
 
-    simulator = new CardSimulator();
+    simulator = new CardSimulator(new ShareableSimulatorRuntime());
+    simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
     AID aid = AIDUtil.create(APPLET_AID);
     simulator.installApplet(aid, StreamApplet.class);
     Assertions.assertTrue(simulator.selectApplet(aid));
@@ -337,6 +345,9 @@ public class CBORApduWriterStreamTest {
     private final ApduTransport transport = new ApduTransport(Command.reader, Command.writer);
 
     public static void install(byte[] parameters, short offset, byte length) {
+      MonoidApplet.safe = new Safe();
+      MonoidApplet.keystore = null;
+
       source = null;
       MonoidException.init();
       Command.reader = new CBORApduReader();

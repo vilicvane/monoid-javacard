@@ -45,24 +45,28 @@ Possession of an authorized session is sufficient to request supported signature
 Monoid owns Safe items, Access PIN, derivation and signing. Safe is an internal
 class in the same applet, not a separately replaceable security authority.
 Identity owns Secret PIN and its retry/authorization state, the long-term P-256
-private key, binding secret, Bundle key, extension policy and enrollment snapshot. None of those Identity
-secrets has a raw export interface.
+private key, binding secret, authorized Monoid installation-token hash, Bundle key,
+extension policy and enrollment snapshot. None of those Identity secrets has a
+raw export interface. Monoid owns its private installation token.
 
-| Operation                                                                           | Required authorization and scope                                                                                                                         |
-| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hello, System information                                                           | No PIN. Identity ID/public key, Bundle hash, versions, capabilities, memory and PIN status are not confidential.                                         |
-| First Secret PIN setup                                                              | No prior PIN when Secret PIN is unset; initializes Access PIN if it is unset. Initial provisioning must be trusted.                                      |
-| Change either PIN                                                                   | Secret authorization once Secret PIN is configured. Access authorization is insufficient.                                                                |
-| List, View, Get, Set, Create, Remove, Create random key, View Key, Sign             | Access or Secret authorization. Safe storage also requires Secret PIN to be set and unblocked. Get additionally checks `secret`.                         |
-| List, Set, Remove applet grants                                                     | Access or Secret authorization. Secret PIN must be set and unblocked; its verification is not required.                                                  |
-| Export, Import, Create Bundle, Join Bundle, Extend Bundle, Approve Bundle Extension | Secret authorization, independently checked inside Identity. Bundle management also requires the fixed Monoid caller AID.                                |
-| Reset                                                                               | No PIN. Verifies Identity binding and the fixed Monoid caller AID; clears items/cache/Bundle, both PINs and authorization, and generates a new Identity. |
-| GP deletion/recreation                                                              | Card-management authorization; not authorized or prevented by either PIN.                                                                                |
+| Operation                                                                                   | Required authorization and scope                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hello, System information                                                                   | No PIN. Identity ID/public key, Bundle hash, versions, capabilities, memory and PIN status are not confidential.                                                                                          |
+| First Secret PIN setup                                                                      | No prior PIN when Secret PIN is unset; initializes Access PIN if it is unset. Initial provisioning must be trusted.                                                                                       |
+| Change either PIN                                                                           | Secret authorization once Secret PIN is configured. Access authorization is insufficient.                                                                                                                 |
+| List, View, Get, Set, Create, Remove, Create random key, View Key, Sign                     | Access or Secret authorization. Safe storage also requires Secret PIN to be set and unblocked. Get additionally checks `secret`.                                                                          |
+| List, Set, Remove applet grants                                                             | Access or Secret authorization. Secret PIN must be set and unblocked; its verification is not required.                                                                                                   |
+| Bundle Export and Import                                                                    | Access authorization through a bound Monoid instance, or Secret authorization. Identity checks the installation token, local Bundle and envelope mode on the Access path. Self-import remains prohibited. |
+| Asymmetric Export and Import                                                                | Secret authorization, independently checked inside Identity, including asymmetric imports into a Bundle card.                                                                                             |
+| Bind a Monoid instance, Create Bundle, Join Bundle, Extend Bundle, Approve Bundle Extension | Secret authorization and the fixed Monoid caller AID, independently checked inside Identity.                                                                                                              |
+| Reset                                                                                       | No PIN. Verifies Identity binding and the fixed Monoid caller AID; clears items/cache/Bundle, both PINs and authorization, and generates a new Identity.                                                  |
+| GP deletion/recreation                                                                      | Card-management authorization; not authorized or prevented by either PIN.                                                                                                                                 |
 
 Access PIN is not a read-only permission: it permits signing and item mutations,
-including replacement and deletion, and delegation through applet grants. Secret PIN includes ordinary access and adds
-PIN management, encrypted export/import and Bundle management. See the commands for exact
-inputs and error behavior.
+including replacement and deletion, delegation through applet grants and Bundle
+synchronization through a bound Monoid instance. Secret PIN includes ordinary
+access and adds PIN management, Monoid-instance binding, asymmetric transfer and
+Bundle management. See the commands for exact inputs and error behavior.
 
 APDU authorization is scoped to Monoid selection and is cleared by deselection,
 card reset or successful `0xFF Reset`. It can cover multiple commands; it is not
@@ -201,10 +205,11 @@ another's artifacts; matching AIDs on different cards intentionally interoperate
 Forwarding a Shareable reference must not impersonate the original caller.
 Completed communication results are readable only by their original caller.
 Identity stores and verifies Secret PIN itself and checks that its current
-authorization belongs to the actual caller before encryption/decryption or Bundle
-management. A caller-supplied success flag, Access authorization or Monoid
-replacement cannot establish that validation. Only the fixed Monoid AID may
-initialize/change Secret PIN; an existing PIN must be authenticated to change it.
+authorization belongs to the actual caller on the Secret-authorized transfer,
+binding and Bundle-management paths. A caller-supplied success flag, Access
+authorization or Monoid replacement cannot establish that validation. Only the
+fixed Monoid AID may initialize/change Secret PIN; an existing PIN must be
+authenticated to change it.
 
 Monoid binds privately to Identity before creating PINs/items. Later checks reject
 a different token and do not automatically rebind retained data. Public-key/ID
@@ -218,6 +223,28 @@ reinstallation; it is not a per-installation client credential or code attestati
 Its cache changes performance, not these semantics. `0xFF Reset` replaces the
 Identity secret and explicitly updates Monoid's binding with removal of its
 protected data. Other applets' old tokens become invalid without automatic rebinding.
+
+The reverse binding uses a separate random 32-byte token generated and privately
+stored by each Monoid installation. Successful Secret Authenticate binds its
+SHA-256 hash inside Identity under the fixed Monoid AID. Monoid checks the existing
+Identity binding before passing its installation token to Identity. The token is
+not an item, an APDU response or part of an export, and cannot be inherited by
+restoring records into another Monoid instance.
+
+Identity accepts that private token only from the fixed Monoid caller and only
+for Bundle transfer. It checks the local Bundle and accepts only Bundle envelopes
+on this decryption path. Monoid separately requires Access or Secret APDU
+authorization. An absent or incorrect binding cannot fall back to retained Secret
+authorization, and the token cannot authorize asymmetric transfer or Bundle
+management. Other applets continue to use their own Secret-authorized caller
+domains. This is an installation binding, not code attestation or a substitute
+for the trusted initial provisioning assumption.
+
+Ordinary power resets preserve both bindings. Reinstalling Monoid loses its
+private installation token; the replacement must authenticate Secret PIN to bind
+its new token or use the Secret-authorized transfer path. Factory Reset clears
+the authorized hash and rotates the Monoid token together with the protected
+state. The previous instance cannot pass the reverse binding after that reset.
 
 Caller isolation does not provide resource quotas for other installed applets
 or protect availability against card-management operations.
@@ -249,8 +276,11 @@ sending identity internally; it rejects decryption of its own Bundle artifacts
 and mismatched caller domains. Sender-key derivation and tag verification prove
 access to the shared root; item transfer does not consult the enrollment snapshot.
 A supplied recipient key cannot
-switch Export to asymmetric mode. Incoming asymmetric artifacts from other
-identities are accepted; old self-addressed artifacts are rejected while bundled.
+switch Export to asymmetric mode. A bound Monoid instance may export and import
+these Bundle envelopes under Access authorization without verifying Secret PIN
+again. Incoming asymmetric artifacts from other identities require Secret
+authorization; old self-addressed artifacts are rejected while bundled. Neither
+authorization path permits importing the local Identity's own Bundle artifacts.
 
 The asymmetric primitives and shared root do not inherently enforce an
 encryption-only key. Trusted Identity code enforces the sender restriction. A
@@ -316,17 +346,22 @@ restore must track and verify its selected item set separately.
 For a card-created Bundle, the current interface permits the following, including
 for secret records:
 
-1. Obtain an encrypted export from a trusted source Bundle card using its Secret
-   PIN, or possess an export obtained earlier.
+1. Obtain an encrypted export from a trusted source Bundle card using its Access
+   PIN through a bound Monoid instance, or using its Secret PIN, or possess an
+   export obtained earlier.
 2. Preserve another member's Identity, Secret PIN and Bundle, then use GP authority
    to replace its Monoid with a recovery implementation under the same fixed AID.
 3. Authenticate that receiving Identity's Secret PIN and provide the artifact and
    metadata. The recovery implementation can ask Identity to decrypt and return
    plaintext because the sender is another member.
 
-A fresh complete export/decryption chain requires both cards and their respective
-Secret PIN authorizations; the PIN values may be different. Existing artifacts do
-not require a new source PIN check, and already released plaintext does not remain
+A fresh complete export/decryption chain through a replacement recovery applet
+requires the source card's Access authorization, the receiving card's Secret
+authorization and GP authority to replace the receiving Monoid. The source can
+also use Secret authorization; the two cards' PIN values may differ. Normal
+synchronization between bound trusted Monoid instances needs only Access
+authorization on each card and does not return plaintext to the host. Existing
+artifacts do not require a new source PIN check, and already released plaintext does not remain
 subject to either card's checks. An artifact produced through the second member
 can subsequently be recovered on the first. This is not a requirement for both
 cards to be physically present at the same time, nor proof of fresh source-card
@@ -338,10 +373,11 @@ may target software or the local Identity, so recovery requires Secret PIN rathe
 than a second card. Self-addressed asymmetric artifacts are no longer accepted
 once that Identity joins a Bundle.
 
-Replacing Monoid removes live items, Access PIN and caches; Identity retains
-Secret PIN, its retries, the keys and Bundle, but not an item database. Replacement
-Monoid code must authenticate the retained Secret PIN before using Identity
-cryptography. Replacing Identity too removes that PIN and Bundle and generates a
+Replacing Monoid removes live items, Access PIN, caches and its private installation
+token; Identity retains Secret PIN, its retries, the keys, Bundle and authorized
+token hash, but not an item database. Replacement Monoid code does not inherit
+the old token. It must authenticate the retained Secret PIN to bind its new token
+or use Secret-authorized Identity cryptography. Replacing Identity too removes that PIN and Bundle and generates a
 new identity key and binding secret, even if the Card ID is supplied again. Retained Monoid data never silently binds
 to this new Identity. Old asymmetric artifacts and enrollment packets do not
 become decryptable merely by using the same AID.
@@ -350,7 +386,8 @@ become decryptable merely by using the same AID.
 all local items, the derivation cache, both PINs and their failed-attempt/blocked
 state, current authorization and the Bundle. It preserves the Card ID and installed
 Authority key, generates a new Identity key pair and binding secret, clears its
-token cache and updates Monoid's binding.
+token cache, clears the authorized Monoid hash, rotates the Monoid installation
+token and updates Monoid's Identity binding.
 Hello returns the same ID, the new public key and both PINs and Bundle as `false`; ordinary
 protected operations require new PIN initialization.
 Anyone able to send Monoid APDUs can cause this data loss; availability against
@@ -402,7 +439,8 @@ earlier update committed. Initial Secret and Access PIN setup also uses separate
 updates in their respective applet contexts. These scopes differ from publishing a fully authenticated imported item
 or a completed Bundle. Reset prepares a new identity outside the transaction,
 then publishes item removal, derivation-cache clearing, both unset PINs, the new
-Identity key pair/token secret/cache, Bundle removal and Monoid's new binding
+Identity key pair/token secret/cache, Bundle removal, authorized Monoid hash
+removal, Monoid installation-token rotation and Monoid's new Identity binding
 in one transaction across both applet contexts. An aborted transaction preserves
 the previous published persistent state. Card ID and Authority configuration remain
 unchanged. Successful Reset clears current authorization and requests garbage

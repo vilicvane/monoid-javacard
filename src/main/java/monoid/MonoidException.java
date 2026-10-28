@@ -47,7 +47,7 @@ public class MonoidException extends CardRuntimeException {
     return reason;
   }
 
-  public void send() {
-    Command.sendError(code);
+  public void write() {
+    Command.writeError(code);
   }
 }

@@ -178,6 +178,7 @@ final class ItemCipher {
   }
 
   byte[] decrypt(
+    short bundleOnly,
     CommunicationCipher communication,
     Bundle bundle,
     AID caller,
@@ -203,6 +204,20 @@ final class ItemCipher {
 
     encryptedData.read((short) 0, buffer, (short) 0, (short) 1);
     byte version = buffer[0];
+
+    // Check the version actually consumed by this operation, not a separate caller read.
+    switch (bundleOnly) {
+      case Constants.SAFE_FALSE:
+        break;
+      case Constants.SAFE_TRUE:
+        if (version != VERSION_BUNDLE) {
+          ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+        }
+        break;
+      default:
+        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+
     short nonceOffset = nonceOffset(version);
     short dataOffset = (short) (nonceOffset + NONCE_LENGTH);
 

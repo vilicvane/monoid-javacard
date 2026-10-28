@@ -2,6 +2,7 @@ package tests;
 
 import static tests.MonoidItemTransferTest.assertData;
 import static tests.MonoidItemTransferTest.assertError;
+import static tests.MonoidItemTransferTest.assertISOError;
 import static tests.MonoidItemTransferTest.assertMetadata;
 import static tests.MonoidItemTransferTest.customIndex;
 import static tests.MonoidItemTransferTest.fields;
@@ -142,7 +143,7 @@ public class MonoidItemCommandsTest {
       assertError(card.transmit(0x35, fields("index", index)), "UNAUTHORIZED");
       assertError(card.transmit(0x35, fields("index", missing)), "UNAUTHORIZED");
       card.authenticate(false);
-      Assertions.assertEquals(0x6A80, card.transmit(0x35, fields("index", new byte[9])).status);
+      assertISOError(card.transmit(0x35, fields("index", new byte[9])), 0x6A80);
       assertMetadata(card, index, null, null, true);
 
       assertRemoved(card.success(0x35, fields("index", index)), true);

@@ -411,3 +411,9 @@
 ## b5c67aa
 
 197. [user] 批准 Identity 持久卡别名（UTF-8、0–64字节、仅验长度）、Secret PIN 授权的 Set Alias27、Hello 的 alias 与平铺 allowPeerExtension；Reset/Monoid替换保留别名，Identity重建清除，不加入安装参数、Bundle或条目传输。Join不覆盖既有Bundle、不加replace，Authority公钥不进Hello。Review要求固定64B缓冲区和持久长度，同一事务先写字节后写长度，避免setter反复分配。[agent] 沿用Bundle管理授权链，新增真实Worker代码到模拟器Join的互操作测试及96次复用存储/设置/清空断言；702测试/83套件、JS6、五CAP与格式/模板检查通过，未实卡；详见 [卡别名与Authority互操作](./197.md)。
+
+## 12eee65
+
+201. [user] 批准双向实例绑定、Bundle内Access同步、非Bundle仍Secret及禁止自导入，并要求实卡验证。[agent] Monoid安装随机token经Secret认证绑定摘要到Identity；加解密SIO新增token首参，Access只能走02封装且不借残留Secret降级，原forward绑定及sender限制保留，Reset同事务轮换。707测试/83套件及五CAP通过；D321/ACR1552一实卡加软件成员64条结果全部符合预期，包含同AID替换直接SIO拒绝/Secret重绑成功、Reset恢复及Identity替换拒绝。全部临时包已清理，原registry恢复，未正式部署或提交；详见 [双向实例绑定](./201.md)。
+
+202. [user] 要求修复双向绑定审查问题并将RPC范围内错误统一封装后提交。[agent] Safe改编码状态switch、Access资格失败明确ACCESS_DENIED；Command包含初始化/首窗生成，业务ISO映射CBOR、发送及续片错误保留传输语义；恢复Import回调前快照。711测试/83套、五CAP/JS6及格式模板通过；D321/ACR1552隔离45项检查与独立密码学oracle通过，107源哈希相符、临时包全清、registry复原。持久摘要缓冲不变，未改APP或OTP错误协议；见 [RPC错误与授权分支](./202.md)。

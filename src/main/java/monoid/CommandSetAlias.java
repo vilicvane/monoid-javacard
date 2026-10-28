@@ -10,6 +10,6 @@ public final class CommandSetAlias extends Command {
 
     MonoidApplet.safe.setAlias(reader.requireKey(Text.alias).text());
 
-    sendEmptyMap();
+    writeEmptyMap();
   }
 }

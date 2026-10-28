@@ -2,6 +2,7 @@ package tests;
 
 import static tests.MonoidClientFixture.*;
 import static tests.MonoidItemTransferTest.assertError;
+import static tests.MonoidItemTransferTest.assertISOError;
 import static tests.MonoidItemTransferTest.fields;
 import static tests.MonoidItemTransferTest.sequence;
 
@@ -120,10 +121,7 @@ public class MonoidMappedKeyTest {
         assertSecret(card, index);
       }
 
-      Assertions.assertEquals(
-        0x6985,
-        card.transmit(0x33, fields("index", index, "secret", false)).status
-      );
+      assertISOError(card.transmit(0x33, fields("index", index, "secret", false)), 0x6985);
       card.success(0x33, fields("index", index, "data", secret));
       assertSecret(card, index);
     }

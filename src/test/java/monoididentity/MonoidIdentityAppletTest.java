@@ -736,10 +736,10 @@ public class MonoidIdentityAppletTest {
     byte[] replacementId = success(transmit(IdentityCallerApplet.GET_IDENTITY_ID));
     Assertions.assertFalse(Arrays.equals(id, replacementId));
     select(MONOID_AID);
-    assertDenied(transmit(0x20, new byte[] { (byte) 0xA0 }));
+    assertCommandDenied(transmit(0x20, new byte[] { (byte) 0xA0 }));
     simulator.reset();
     select(MONOID_AID);
-    assertDenied(transmit(0x20, new byte[] { (byte) 0xA0 }));
+    assertCommandDenied(transmit(0x20, new byte[] { (byte) 0xA0 }));
 
     select(IDENTITY_AID);
     simulator.deleteApplet(MONOID_AID);
@@ -1334,6 +1334,197 @@ public class MonoidIdentityAppletTest {
     }
   }
 
+  @Test
+  public void monoidBindingRequiresSecretVerificationAndTheExactCaller() throws Exception {
+    initializeManager();
+    acquire(IDENTITY_AID);
+
+    byte[] token = new byte[32];
+    Arrays.fill(token, (byte) 0xA7);
+    byte[] hash = java.security.MessageDigest.getInstance("SHA-256").digest(token);
+    success(transmit(IdentityCallerApplet.SET_MONOID_TOKEN, token));
+    assertDenied(transmit(IdentityCallerApplet.BIND_MONOID, hash));
+
+    initializeSecretPIN();
+    success(transmit(IdentityCallerApplet.BIND_MONOID, hash));
+
+    // A valid binding never changes the authorization of an unbundled export.
+    byte[] request = payload(LibSECP256r1.G, CONTEXT, KEY);
+    Assertions.assertEquals(0x6985, transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, request).getSW());
+    success(transmit(IdentityCallerApplet.ENCRYPT_DATA, request));
+
+    success(transmit(IdentityCallerApplet.CREATE_BUNDLE, LibSECP256r1.G));
+    success(transmit(IdentityCallerApplet.CLEAR_SECRET_AUTH));
+    assertDenied(transmit(IdentityCallerApplet.BIND_MONOID, hash));
+    Assertions.assertEquals(2, success(transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, request))[0]);
+
+    byte[] changed = token.clone();
+    changed[0] ^= 1;
+
+    for (byte[] wrong : new byte[][] { changed, hash }) {
+      success(transmit(IdentityCallerApplet.SET_MONOID_TOKEN, wrong));
+      assertDenied(transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, request));
+    }
+
+    success(transmit(IdentityCallerApplet.SET_MONOID_TOKEN, token));
+    Assertions.assertEquals(2, success(transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, request))[0]);
+
+    select(MONOID_CALLER_AID);
+    acquire(IDENTITY_AID);
+    checkSecretPIN(PIN, true);
+    success(transmit(IdentityCallerApplet.SET_MONOID_TOKEN, token));
+    assertDenied(transmit(IdentityCallerApplet.BIND_MONOID, hash));
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, request));
+  }
+
+  @Test
+  public void boundTokensPermitBothBundleDirectionsButNeverAsymmetricOrSelfImport()
+    throws Exception {
+    initializeManager();
+    acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    bindMonoid(KEY);
+    byte[] firstKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+
+    simulator.installApplet(OTHER_IDENTITY_AID, MonoidIdentityApplet.class);
+    select(MONOID_AID);
+    acquire(OTHER_IDENTITY_AID);
+    initializeSecretPIN();
+    bindMonoid(KEY);
+    byte[] secondKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+
+    acquire(IDENTITY_AID);
+    byte[] asymmetric = success(
+      transmit(IdentityCallerApplet.ENCRYPT_DATA, payload(secondKey, CONTEXT, KEY))
+    );
+    byte[] enrollment = success(transmit(IdentityCallerApplet.CREATE_BUNDLE, secondKey));
+    success(transmit(IdentityCallerApplet.CLEAR_SECRET_AUTH));
+    byte[] encrypted = success(
+      transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, payload(secondKey, CONTEXT, KEY))
+    );
+    Assertions.assertEquals(
+      0x6985,
+      transmit(IdentityCallerApplet.DECRYPT_BUNDLE, payload(firstKey, CONTEXT, encrypted)).getSW()
+    );
+
+    acquire(OTHER_IDENTITY_AID);
+    success(transmit(IdentityCallerApplet.JOIN_BUNDLE, concat(firstKey, enrollment)));
+
+    // Join left the real Secret PIN validated. The explicit Bundle path must not fall back.
+    assertSecretValidation(true);
+    assertDenied(
+      transmit(IdentityCallerApplet.DECRYPT_BUNDLE, payload(firstKey, CONTEXT, asymmetric))
+    );
+    Assertions.assertArrayEquals(
+      KEY,
+      success(transmit(IdentityCallerApplet.DECRYPT_DATA, payload(firstKey, CONTEXT, asymmetric)))
+    );
+
+    success(transmit(IdentityCallerApplet.CLEAR_SECRET_AUTH));
+    Assertions.assertArrayEquals(
+      KEY,
+      success(transmit(IdentityCallerApplet.DECRYPT_BUNDLE, payload(firstKey, CONTEXT, encrypted)))
+    );
+    byte[] reply = success(
+      transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, payload(firstKey, CONTEXT, KEY))
+    );
+    Assertions.assertEquals(
+      0x6985,
+      transmit(IdentityCallerApplet.DECRYPT_BUNDLE, payload(secondKey, CONTEXT, reply)).getSW()
+    );
+
+    acquire(IDENTITY_AID);
+    Assertions.assertArrayEquals(
+      KEY,
+      success(transmit(IdentityCallerApplet.DECRYPT_BUNDLE, payload(secondKey, CONTEXT, reply)))
+    );
+  }
+
+  @Test
+  public void newMonoidInstanceNeedsSecretVerificationToReplaceItsBinding() throws Exception {
+    initializeManager();
+    acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    bindMonoid(KEY);
+    byte[] identityToken = success(transmit(IdentityCallerApplet.GET_TOKEN));
+    byte[] publicKey = success(transmit(IdentityCallerApplet.GET_PUBLIC_KEY));
+    success(transmit(IdentityCallerApplet.CREATE_BUNDLE, LibSECP256r1.G));
+    byte[] exported = success(
+      transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, payload(publicKey, CONTEXT, KEY))
+    );
+
+    select(IDENTITY_AID);
+    simulator.deleteApplet(MONOID_AID);
+    AID replacementAID = AIDUtil.create(AppletTest.aidBytes(MONOID_AID));
+    simulator.createApplet(replacementAID, new byte[0], (short) 0, (byte) 0);
+    select(replacementAID);
+    acquire(IDENTITY_AID);
+    Assertions.assertArrayEquals(identityToken, success(transmit(IdentityCallerApplet.GET_TOKEN)));
+
+    byte[] replacement = KEY.clone();
+    replacement[0] ^= 1;
+    byte[] hash = java.security.MessageDigest.getInstance("SHA-256").digest(replacement);
+    success(transmit(IdentityCallerApplet.SET_MONOID_TOKEN, replacement));
+    byte[] request = payload(publicKey, CONTEXT, KEY);
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, request));
+    assertDenied(transmit(IdentityCallerApplet.BIND_MONOID, hash));
+
+    checkSecretPIN(NEW_PIN, false);
+    assertDenied(transmit(IdentityCallerApplet.BIND_MONOID, hash));
+
+    checkSecretPIN(PIN, true);
+    success(transmit(IdentityCallerApplet.BIND_MONOID, hash));
+    success(transmit(IdentityCallerApplet.CLEAR_SECRET_AUTH));
+    Assertions.assertEquals(2, success(transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, request))[0]);
+    Assertions.assertEquals(
+      0x6985,
+      transmit(IdentityCallerApplet.DECRYPT_BUNDLE, payload(publicKey, CONTEXT, exported)).getSW()
+    );
+
+    success(transmit(IdentityCallerApplet.SET_MONOID_TOKEN, KEY));
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, request));
+  }
+
+  @Test
+  public void blockedSecretPINAndResetInvalidateBoundTransferAuthorization() throws Exception {
+    initializeManager();
+    acquire(IDENTITY_AID);
+    initializeSecretPIN();
+    bindMonoid(KEY);
+    success(transmit(IdentityCallerApplet.CREATE_BUNDLE, LibSECP256r1.G));
+    byte[] request = payload(LibSECP256r1.G, CONTEXT, KEY);
+
+    for (int attempt = 0; attempt < 5; attempt++) {
+      checkSecretPIN(NEW_PIN, false);
+    }
+
+    assertSecretPINTries(0);
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, request));
+    success(transmit(IdentityCallerApplet.PREPARE_RESET));
+    success(transmit(IdentityCallerApplet.RESET_IDENTITY));
+    Assertions.assertNull(
+      privateField(runtime.lookupApplet(IDENTITY_AID).getApplet(), "monoidTokenHash")
+    );
+
+    // Reinitializing the PIN and Bundle alone cannot revive the old token.
+    initializeSecretPIN();
+    success(transmit(IdentityCallerApplet.CREATE_BUNDLE, LibSECP256r1.G));
+    assertDenied(transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, request));
+    bindMonoid(KEY);
+    success(transmit(IdentityCallerApplet.CLEAR_SECRET_AUTH));
+    Assertions.assertEquals(2, success(transmit(IdentityCallerApplet.ENCRYPT_BUNDLE, request))[0]);
+  }
+
+  private void bindMonoid(byte[] token) throws Exception {
+    success(transmit(IdentityCallerApplet.SET_MONOID_TOKEN, token));
+    success(
+      transmit(
+        IdentityCallerApplet.BIND_MONOID,
+        java.security.MessageDigest.getInstance("SHA-256").digest(token)
+      )
+    );
+  }
+
   private void initializeManager() {
     initializeManager(new byte[0]);
   }
@@ -1464,6 +1655,24 @@ public class MonoidIdentityAppletTest {
   private void assertDenied(ResponseAPDU response) {
     Assertions.assertEquals(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED & 0xFFFF, response.getSW());
     Assertions.assertEquals(0, response.getData().length);
+  }
+
+  private void assertCommandDenied(ResponseAPDU response) {
+    CBORBufferReader reader = new CBORBufferReader(success(response));
+    reader.map();
+    reader.requireKey("error".getBytes(StandardCharsets.US_ASCII)).map();
+    Assertions.assertArrayEquals(
+      "INTERNAL".getBytes(StandardCharsets.US_ASCII),
+      reader.requireKey("code".getBytes(StandardCharsets.US_ASCII)).text()
+    );
+    Assertions.assertArrayEquals(
+      "ISOException".getBytes(StandardCharsets.US_ASCII),
+      reader.requireKey("exception".getBytes(StandardCharsets.US_ASCII)).text()
+    );
+    Assertions.assertEquals(
+      (short) 0x6982,
+      reader.requireKey("reason".getBytes(StandardCharsets.US_ASCII)).integer()
+    );
   }
 
   private byte[] payload(byte[] publicKey, byte[] context, byte[] data) {

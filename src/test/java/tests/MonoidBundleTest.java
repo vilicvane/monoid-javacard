@@ -3,6 +3,7 @@ package tests;
 import static tests.MonoidItemTransferTest.assertCryptoRejected;
 import static tests.MonoidItemTransferTest.assertData;
 import static tests.MonoidItemTransferTest.assertError;
+import static tests.MonoidItemTransferTest.assertISOError;
 import static tests.MonoidItemTransferTest.assertMetadata;
 import static tests.MonoidItemTransferTest.customIndex;
 import static tests.MonoidItemTransferTest.fields;
@@ -190,15 +191,20 @@ public class MonoidBundleTest {
               .bytes("bundle");
           }
 
-          Assertions.assertEquals(0x6A80, card.transmit(0x25, fields()).status);
+          assertISOError(card.transmit(0x25, fields()), 0x6A80);
 
           // A rejected Identity binding must leave both the items and Bundle unchanged.
           Field tokenField = Safe.class.getDeclaredField("identityToken");
           tokenField.setAccessible(true);
           byte[] token = (byte[]) tokenField.get(MonoidApplet.safe);
+
+          Field monoidTokenField = Safe.class.getDeclaredField("monoidToken");
+          monoidTokenField.setAccessible(true);
+          byte[] monoidToken = ((byte[]) monoidTokenField.get(MonoidApplet.safe)).clone();
+
           token[0] ^= 1;
           try {
-            Assertions.assertEquals(0x6982, card.transmit(0xFF, fields()).status);
+            assertISOError(card.transmit(0xFF, fields()), 0x6982);
           } finally {
             token[0] ^= 1;
           }
@@ -217,6 +223,9 @@ public class MonoidBundleTest {
             card.authenticate(false);
           }
           Assertions.assertEquals(0, card.success(0xFF, fields()).size());
+          Assertions.assertFalse(
+            Arrays.equals(monoidToken, (byte[]) monoidTokenField.get(MonoidApplet.safe))
+          );
           assertNoBundle(card);
           assertPINsUnset(card);
           assertError(card.transmit(0x30, fields()), "UNAUTHORIZED");
@@ -363,10 +372,7 @@ public class MonoidBundleTest {
       byte[] secretIndex = first.create("ed25519", null, "secret key", ED25519_KEY, true);
       first.authenticate(true);
 
-      Assertions.assertEquals(
-        0x6A80,
-        first.transmit(0x23, fields("publicKeys", new byte[0][])).status
-      );
+      assertISOError(first.transmit(0x23, fields("publicKeys", new byte[0][])), 0x6A80);
       assertNoBundle(first);
 
       assertCryptoRejected(
@@ -401,10 +407,7 @@ public class MonoidBundleTest {
       Assertions.assertTrue(created.requestFrames > 1);
       Assertions.assertTrue(created.responseFrames > 1);
       assertBundle(first, bundle);
-      Assertions.assertEquals(
-        0x6985,
-        first.transmit(0x23, fields("publicKeys", recipients)).status
-      );
+      assertISOError(first.transmit(0x23, fields("publicKeys", recipients)), 0x6985);
       assertBundle(first, bundle);
       assertData(first, plainIndex, payload);
       assertMetadata(first, secretIndex, null, "secret key", true);
@@ -415,22 +418,26 @@ public class MonoidBundleTest {
       assertMembers(secondEnrollment, members);
       assertMembers(thirdEnrollment, members);
 
+      first.authenticate(false);
+      assertError(
+        first.transmit(0x37, importItem(legacyIndex, null, null, outsiderKey, legacyData)),
+        "ACCESS_DENIED"
+      );
+      first.authenticate(true);
       first.success(0x37, importItem(legacyIndex, null, null, outsiderKey, legacyData));
       assertData(first, legacyIndex, sequence(64));
       byte[] promotedData = exportItem(first, legacyIndex, null).bytes("data");
       assertBundleEnvelope(promotedData, bundle);
 
+      first.authenticate(false);
       Result plainExport = exportItem(first, plainIndex, outsiderKey);
       Assertions.assertTrue(plainExport.responseFrames > 1);
       byte[] plainData = plainExport.bytes("data");
       assertBundleEnvelope(plainData, bundle);
       Assertions.assertArrayEquals(firstKey, Arrays.copyOfRange(plainData, 33, 98));
-      Assertions.assertEquals(
-        0x6985,
-        first.transmit(
-          0x37,
-          importItem(plainIndex, lookupMetadata, "large note", null, plainData)
-        ).status
+      assertISOError(
+        first.transmit(0x37, importItem(plainIndex, lookupMetadata, "large note", null, plainData)),
+        0x6985
       );
       byte[] secretData = exportItem(first, secretIndex, null).bytes("data");
       assertBundleEnvelope(secretData, bundle);
@@ -442,6 +449,7 @@ public class MonoidBundleTest {
       assertData(first, plainIndex, payload);
       assertMetadata(first, secretIndex, null, "secret key", true);
       assertBundle(first, bundle);
+      assertBundleEnvelope(exportItem(first, secretIndex, null).bytes("data"), bundle);
       first.uninstallMonoid();
 
       outsider.installMonoid();
@@ -473,24 +481,13 @@ public class MonoidBundleTest {
         second.success(0x24, fields("publicKey", firstKey, "data", secondEnrollment)),
         bundle
       );
-      Assertions.assertEquals(
-        0x6985,
-        second.transmit(
-          0x24,
-          fields("publicKey", outsiderKey, "data", conflictingEnrollment)
-        ).status
+      assertISOError(
+        second.transmit(0x24, fields("publicKey", outsiderKey, "data", conflictingEnrollment)),
+        0x6985
       );
       assertBundle(second, bundle);
 
       second.authenticate(false);
-      assertError(
-        second.transmit(
-          0x37,
-          importItem(plainIndex, lookupMetadata, "large note", null, plainData)
-        ),
-        "ACCESS_DENIED"
-      );
-      second.authenticate(true);
       Result plainImport = second.success(
         0x37,
         importItem(plainIndex, lookupMetadata, "large note", null, plainData)
@@ -511,8 +508,17 @@ public class MonoidBundleTest {
           0x37,
           importItem(plainIndex, lookupMetadata, "large note", firstKey, asymmetricData)
         ),
+        "ACCESS_DENIED"
+      );
+      second.authenticate(true);
+      assertError(
+        second.transmit(
+          0x37,
+          importItem(plainIndex, lookupMetadata, "large note", firstKey, asymmetricData)
+        ),
         "EXISTS"
       );
+      second.authenticate(false);
 
       byte[] tamperedData = plainData.clone();
       tamperedData[tamperedData.length - 1] ^= 1;
@@ -525,16 +531,16 @@ public class MonoidBundleTest {
       assertCryptoRejected(
         second.transmit(0x37, importItem(plainIndex, lookupMetadata, "changed", null, plainData))
       );
-      Assertions.assertEquals(
-        0x6985,
+      assertISOError(
         second.transmit(
           0x37,
           importItem(plainIndex, lookupMetadata, "large note", null, foreignData)
-        ).status
+        ),
+        0x6985
       );
       assertData(second, plainIndex, payload);
       assertMetadata(second, plainIndex, lookupMetadata, "large note", false);
-      second.authenticate(true);
+      second.authenticate(false);
       byte[] relayedData = exportItem(second, plainIndex, null).bytes("data");
       second.uninstallMonoid();
 
@@ -544,6 +550,7 @@ public class MonoidBundleTest {
         third.success(0x24, fields("publicKey", firstKey, "data", thirdEnrollment)),
         bundle
       );
+      third.authenticate(false);
       third.success(0x37, importItem(plainIndex, lookupMetadata, "large note", null, relayedData));
       assertData(third, plainIndex, payload);
       third.uninstallMonoid();
@@ -561,28 +568,25 @@ public class MonoidBundleTest {
       first.authenticate(true);
       first.success(0x37, importItem(plainIndex, lookupMetadata, "large note", null, relayedData));
       assertData(first, plainIndex, payload);
-      Assertions.assertEquals(
-        0x6985,
-        first.transmit(
-          0x37,
-          importItem(plainIndex, lookupMetadata, "large note", null, plainData)
-        ).status
+      assertISOError(
+        first.transmit(0x37, importItem(plainIndex, lookupMetadata, "large note", null, plainData)),
+        0x6985
       );
       first.uninstallMonoid();
 
       outsider.installMonoid();
       outsider.authenticate(true);
-      Assertions.assertEquals(
-        0x6985,
-        outsider.transmit(0x24, fields("publicKey", firstKey, "data", secondEnrollment)).status
+      assertISOError(
+        outsider.transmit(0x24, fields("publicKey", firstKey, "data", secondEnrollment)),
+        0x6985
       );
       assertBundle(outsider, otherBundle);
-      Assertions.assertEquals(
-        0x6985,
+      assertISOError(
         outsider.transmit(
           0x37,
           importItem(plainIndex, lookupMetadata, "large note", null, plainData)
-        ).status
+        ),
+        0x6985
       );
       assertError(outsider.transmit(0x31, fields("index", plainIndex)), "NOT_FOUND");
     }

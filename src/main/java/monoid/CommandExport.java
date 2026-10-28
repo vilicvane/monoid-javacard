@@ -8,7 +8,7 @@ public class CommandExport extends Command {
 
   @Override
   protected void run() {
-    requireAuth(AUTH_SECRET);
+    requireAuth();
 
     MonoidApplet.safe.checkAccess();
 

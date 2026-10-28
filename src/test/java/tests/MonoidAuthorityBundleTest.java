@@ -3,6 +3,7 @@ package tests;
 import static tests.MonoidItemTransferTest.assertCryptoRejected;
 import static tests.MonoidItemTransferTest.assertData;
 import static tests.MonoidItemTransferTest.assertError;
+import static tests.MonoidItemTransferTest.assertISOError;
 import static tests.MonoidItemTransferTest.customIndex;
 import static tests.MonoidItemTransferTest.fields;
 import static tests.MonoidItemTransferTest.sequence;
@@ -60,9 +61,9 @@ public class MonoidAuthorityBundleTest {
     try (Card card = new Card(true)) {
       card.authenticate(true);
 
-      Assertions.assertEquals(
-        0x6985,
-        card.transmit(0x24, enrollment(trusted, card.publicKey(), ROOT, false)).status
+      assertISOError(
+        card.transmit(0x24, enrollment(trusted, card.publicKey(), ROOT, false)),
+        0x6985
       );
       assertNoBundle(card);
     }
@@ -72,7 +73,7 @@ public class MonoidAuthorityBundleTest {
 
       Map<String, Object> untrusted = enrollment(other, card.publicKey(), ROOT, false);
 
-      Assertions.assertEquals(0x6985, card.transmit(0x24, untrusted).status);
+      assertISOError(card.transmit(0x24, untrusted), 0x6985);
 
       untrusted.put("publicKey", trusted.publicKey());
       assertCryptoRejected(card.transmit(0x24, untrusted));
@@ -123,9 +124,9 @@ public class MonoidAuthorityBundleTest {
         card.authenticate(true);
         byte[] data = issuer.issue(otherKey, ROOT, false);
 
-        Assertions.assertEquals(
-          0x6985,
-          card.transmit(0x24, fields("publicKey", issuer.publicKey(), "data", data)).status
+        assertISOError(
+          card.transmit(0x24, fields("publicKey", issuer.publicKey(), "data", data)),
+          0x6985
         );
 
         System.arraycopy(card.publicKey(), 0, data, 4, 65);
@@ -155,7 +156,7 @@ public class MonoidAuthorityBundleTest {
           enrollment(issuer, recipient, otherRoot, allowPeerExtension),
           enrollment(issuer, recipient, ROOT, !allowPeerExtension)
         )) {
-          Assertions.assertEquals(0x6985, card.transmit(0x24, conflicting).status);
+          assertISOError(card.transmit(0x24, conflicting), 0x6985);
           Assertions.assertArrayEquals(hash(ROOT), card.success(0x20, fields()).bytes("bundle"));
         }
 
@@ -190,8 +191,8 @@ public class MonoidAuthorityBundleTest {
       card.authenticate(true);
       card.success(0x24, enrollment(issuer, cardKey, ROOT, false));
 
-      Assertions.assertEquals(0x6985, card.transmit(0x25, fields("publicKey", targetKey)).status);
-      Assertions.assertEquals(0x6985, card.transmit(0x26, fields("data", extension)).status);
+      assertISOError(card.transmit(0x25, fields("publicKey", targetKey)), 0x6985);
+      assertISOError(card.transmit(0x26, fields("data", extension)), 0x6985);
       Assertions.assertArrayEquals(hash(ROOT), card.success(0x20, fields()).bytes("bundle"));
     }
   }
@@ -215,9 +216,9 @@ public class MonoidAuthorityBundleTest {
           .bytes("bundle");
 
         Assertions.assertFalse(Arrays.equals(hash(ROOT), bundle));
-        Assertions.assertEquals(
-          0x6985,
-          card.transmit(0x24, enrollment(issuer, card.publicKey(), ROOT, true)).status
+        assertISOError(
+          card.transmit(0x24, enrollment(issuer, card.publicKey(), ROOT, true)),
+          0x6985
         );
         Assertions.assertArrayEquals(bundle, card.success(0x20, fields()).bytes("bundle"));
         assertData(card, index, data);
@@ -255,7 +256,7 @@ public class MonoidAuthorityBundleTest {
       second.success(0x37, fields("index", index, "data", envelope));
 
       assertData(second, index, data);
-      Assertions.assertEquals(0x6985, second.transmit(0x25, fields("publicKey", firstKey)).status);
+      assertISOError(second.transmit(0x25, fields("publicKey", firstKey)), 0x6985);
     }
   }
 
@@ -360,7 +361,7 @@ public class MonoidAuthorityBundleTest {
       card.success(0x22, fields("pin", "888888", "secret", true));
       card.authenticate(true);
 
-      Assertions.assertEquals(0x6985, card.transmit(0x24, request).status);
+      assertISOError(card.transmit(0x24, request), 0x6985);
       assertNoBundle(card);
 
       card.success(0x24, enrollment(issuer, card.publicKey(), ROOT, false));

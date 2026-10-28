@@ -123,8 +123,6 @@ public class MonoidApplet extends Applet implements AppletEvent {
       return;
     }
 
-    ensureInitialization();
-
     transport.process(apdu);
   }
 
@@ -135,7 +133,7 @@ public class MonoidApplet extends Applet implements AppletEvent {
     transport.clear();
   }
 
-  private static void ensureInitialization() {
+  static void ensureInitialization() {
     safe.initializeIdentity();
 
     if (keystore == null) {

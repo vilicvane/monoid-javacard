@@ -28,12 +28,10 @@ public class PINException extends MonoidException {
   }
 
   @Override
-  public void send() {
+  public void write() {
     CBORApduWriter writer = Command.writeError(MonoidException.CODE_INVALID_PIN, (short) 1);
 
     writer.text(Text.tries);
     writer.integer(tries);
-
-    writer.send();
   }
 }

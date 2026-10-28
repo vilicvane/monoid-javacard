@@ -59,8 +59,15 @@ public class IdentityCallerApplet
   public static final byte SET_ALIAS = 42;
   public static final byte MUTATE_ALIAS_COPY = 43;
 
+  public static final byte BIND_MONOID = 44;
+  public static final byte SET_MONOID_TOKEN = 45;
+  public static final byte ENCRYPT_BUNDLE = 46;
+  public static final byte DECRYPT_BUNDLE = 47;
+
   private IdentityShareable identity;
   private CommunicationDataShareable result;
+
+  private byte[] monoidToken;
 
   public static void install(byte[] buffer, short offset, byte length) {
     new IdentityCallerApplet().register();
@@ -102,6 +109,12 @@ public class IdentityCallerApplet
         return;
       case GET_PUBLIC_KEY:
         send(apdu, identity.getPublicKey());
+        return;
+      case BIND_MONOID:
+        identity.bindMonoid(buffer);
+        return;
+      case SET_MONOID_TOKEN:
+        monoidToken = duplicate(buffer, (short) 0, length);
         return;
       case GET_ALIAS:
         byte[] alias = identity.getAlias();
@@ -184,6 +197,8 @@ public class IdentityCallerApplet
         return;
       case ENCRYPT_DATA:
       case DECRYPT_DATA:
+      case ENCRYPT_BUNDLE:
+      case DECRYPT_BUNDLE:
       case ENCRYPT_REENTRANT:
       case ENCRYPT_RESET_REENTRANT:
       case ENCRYPT_PREPARE_RESET_REENTRANT:
@@ -206,6 +221,7 @@ public class IdentityCallerApplet
         byte[] index = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) 10);
         boolean decrypt =
           instruction == DECRYPT_DATA ||
+          instruction == DECRYPT_BUNDLE ||
           instruction == DECRYPT_CHECK_SECRET_PIN_REENTRANT ||
           instruction == DECRYPT_UPDATE_SECRET_PIN_REENTRANT ||
           instruction == DECRYPT_CLEAR_SECRET_AUTH_REENTRANT;
@@ -258,9 +274,21 @@ public class IdentityCallerApplet
             }
           }
           : new Data(data);
+        byte[] transferToken = instruction == ENCRYPT_BUNDLE || instruction == DECRYPT_BUNDLE
+          ? monoidToken
+          : null;
+
         result = decrypt
-          ? identity.decryptData(index, null, context, publicKey, source)
-          : identity.encryptData(index, null, context, (short) 0x5AFE, publicKey, source);
+          ? identity.decryptData(transferToken, index, null, context, publicKey, source)
+          : identity.encryptData(
+            transferToken,
+            index,
+            null,
+            context,
+            (short) 0x5AFE,
+            publicKey,
+            source
+          );
         send(apdu, readResult(decrypt ? (short) 2 : (short) 0));
         return;
       case BORROW_IDENTITY:

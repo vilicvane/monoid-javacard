@@ -7,6 +7,9 @@ public interface IdentityShareable extends Shareable {
   /** A stable private 32-byte token derived for the runtime caller's complete AID. */
   public byte[] getToken();
 
+  /** Monoid only, with Secret authentication: binds the installation's private token hash. */
+  public void bindMonoid(byte[] tokenHash);
+
   /** The persistent four-byte display ID selected at installation and retained by reset. */
   public byte[] getId();
 
@@ -69,8 +72,9 @@ public interface IdentityShareable extends Shareable {
   /** Publishes the prepared identity within Monoid's transaction that also clears its state. */
   public void reset();
 
-  /** Encrypts for the same caller AID, using the Bundle when present or the recipient otherwise. */
+  /** A null token requires Secret authentication; an installation token permits only Bundle data. */
   public CommunicationDataShareable encryptData(
+    byte[] token,
     byte[] index,
     byte[] metadata,
     byte[] alias,
@@ -79,8 +83,9 @@ public interface IdentityShareable extends Shareable {
     CommunicationDataShareable data
   );
 
-  /** Returns secret (two bytes) || data after authenticating the envelope for this caller AID. */
+  /** Returns secret (two bytes) || data; a non-null token permits only Bundle envelopes. */
   public CommunicationDataShareable decryptData(
+    byte[] token,
     byte[] index,
     byte[] metadata,
     byte[] alias,

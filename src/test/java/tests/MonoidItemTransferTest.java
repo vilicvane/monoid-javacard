@@ -64,6 +64,20 @@ public class MonoidItemTransferTest {
   );
 
   @Test
+  public void malformedImportContainersAreRejectedBeforeAccessEligibility() {
+    try (Card card = new Card(true)) {
+      for (byte[] data : new byte[][] { new byte[0], new byte[] { 0 }, new byte[] { 3 } }) {
+        assertError(
+          card.transmit(0x37, fields("index", customIndex(250), "data", data)),
+          "INVALID_PARAMETER"
+        );
+      }
+
+      Assertions.assertEquals(0, itemCount(card));
+    }
+  }
+
+  @Test
   public void getAndSecretUpdatesUseOrdinaryAuthentication() {
     try (Card card = new Card(true)) {
       byte[] publicKey = card.publicKey();
@@ -94,7 +108,7 @@ public class MonoidItemTransferTest {
         0x33,
         fields("index", index, "alias", "changed", "secret", false)
       );
-      Assertions.assertEquals(0x6985, denied.status);
+      assertISOError(denied, 0x6985);
       assertMetadata(card, index, metadata, "plain", true);
 
       byte[] replacement = { 8, 9 };
@@ -364,7 +378,13 @@ public class MonoidItemTransferTest {
       invalidRequests.add(truncated);
 
       for (Map<String, Object> request : invalidRequests) {
-        assertCryptoRejected(card.transmit(0x37, request));
+        Result rejected = card.transmit(0x37, request);
+        if (((byte[]) request.get("data"))[0] == 0) {
+          assertError(rejected, "INVALID_PARAMETER");
+        } else {
+          assertCryptoRejected(rejected);
+        }
+
         assertAbsent(card, (byte[]) request.get("index"));
         Assertions.assertEquals(0, itemCount(card));
         card.success(0x37, transfer.request(sender));
@@ -762,6 +782,23 @@ public class MonoidItemTransferTest {
     CBORBufferReader reader = result.reader();
     reader.requireKey(bytes("error")).map();
     Assertions.assertArrayEquals(bytes(code), reader.requireKey(bytes("code")).text());
+  }
+
+  static void assertISOError(Result result, int reason) {
+    if (reason == 0x6A80 || reason == 0x6700) {
+      assertError(result, "INVALID_PARAMETER");
+      return;
+    }
+
+    assertError(result, "INTERNAL");
+
+    CBORBufferReader reader = result.reader();
+    reader.requireKey(bytes("error")).map();
+    Assertions.assertArrayEquals(
+      bytes("ISOException"),
+      reader.requireKey(bytes("exception")).text()
+    );
+    Assertions.assertEquals((short) reason, reader.requireKey(bytes("reason")).integer());
   }
 
   static void assertCryptoRejected(Result result) {

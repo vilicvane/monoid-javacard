@@ -294,6 +294,7 @@ public class BundleExtensionTest {
     Assertions.assertArrayEquals(
       concat(new byte[] { 0x5A, (byte) 0xFE }, data),
       recipient.items.decrypt(
+        Constants.SAFE_FALSE,
         recipient.communication,
         recipientBundle,
         CALLER_AID,
@@ -307,6 +308,7 @@ public class BundleExtensionTest {
     );
     Assertions.assertThrows(ISOException.class, () ->
       sender.items.decrypt(
+        Constants.SAFE_FALSE,
         sender.communication,
         senderBundle,
         CALLER_AID,

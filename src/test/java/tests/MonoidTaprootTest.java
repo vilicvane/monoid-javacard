@@ -330,20 +330,20 @@ public class MonoidTaprootTest extends AppletTest {
     byte[] index = create("secp256k1", Hex.decode(vector[2]));
 
     for (int length : new int[] { 0, 31, 33, 64 }) {
-      Assertions.assertEquals(
-        0x6A80,
-        transmit(0x41, keyRequest(index, null, "bip340", new byte[length], null)).getSW()
+      assertError(
+        transmit(0x41, keyRequest(index, null, "bip340", new byte[length], null)),
+        MonoidException.CODE_INVALID_PARAMETER
       );
     }
 
     for (int instruction : new int[] { 0x40, 0x41 }) {
       for (int length : new int[] { 1, 31, 33 }) {
-        Assertions.assertEquals(
-          0x6A80,
+        assertError(
           transmit(
             instruction,
             keyRequest(index, null, instruction == 0x41 ? "bip340" : null, DIGEST, new byte[length])
-          ).getSW()
+          ),
+          MonoidException.CODE_INVALID_PARAMETER
         );
       }
 
@@ -371,7 +371,10 @@ public class MonoidTaprootTest extends AppletTest {
           writer.bytes(DIGEST);
         }
 
-        Assertions.assertEquals(0x6A80, transmit(instruction, writer.getDataBuffer()).getSW());
+        assertError(
+          transmit(instruction, writer.getDataBuffer()),
+          MonoidException.CODE_INVALID_PARAMETER
+        );
       }
 
       for (int type : new int[] { 0xF6, 0xF7, 0x00, 0x40, 0x60, 0x80 }) {
@@ -383,7 +386,7 @@ public class MonoidTaprootTest extends AppletTest {
           false
         );
         request[request.length - 1] = (byte) type;
-        Assertions.assertEquals(0x6A80, transmit(instruction, request).getSW());
+        assertError(transmit(instruction, request), MonoidException.CODE_INVALID_PARAMETER);
       }
     }
 
@@ -397,7 +400,7 @@ public class MonoidTaprootTest extends AppletTest {
     writer.text("bip340".getBytes());
     writer.text("digest".getBytes());
     writer.text(DIGEST);
-    Assertions.assertEquals(0x6A80, transmit(0x41, writer.getDataBuffer()).getSW());
+    assertError(transmit(0x41, writer.getDataBuffer()), MonoidException.CODE_INVALID_PARAMETER);
 
     requireSignature(
       transmit(0x41, keyRequest(index, null, "bip340", DIGEST, new byte[0])),
@@ -507,11 +510,7 @@ public class MonoidTaprootTest extends AppletTest {
 
           ResponseAPDU response = transmit(instruction, writer.getDataBuffer());
 
-          if (type == null) {
-            Assertions.assertEquals(0x6A80, response.getSW());
-          } else {
-            assertError(response, MonoidException.CODE_INVALID_PARAMETER);
-          }
+          assertError(response, MonoidException.CODE_INVALID_PARAMETER);
         }
       }
     }
@@ -556,7 +555,10 @@ public class MonoidTaprootTest extends AppletTest {
           writer.bytes(DIGEST);
         }
 
-        Assertions.assertEquals(0x6A80, transmit(instruction, writer.getDataBuffer()).getSW());
+        assertError(
+          transmit(instruction, writer.getDataBuffer()),
+          MonoidException.CODE_INVALID_PARAMETER
+        );
       }
 
       for (String[] derivation : new String[][] {

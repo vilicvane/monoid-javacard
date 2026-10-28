@@ -84,6 +84,7 @@ sequenceDiagram
     else Secret PIN
         MonoidApplet ->> MonoidIdentityApplet: verify Secret PIN for Monoid caller
         MonoidIdentityApplet -->> MonoidApplet: validation result
+        MonoidApplet ->> MonoidIdentityApplet: bind installation token hash
     end
 
     note over MonoidApp, MonoidApplet: Safe Management
@@ -101,7 +102,11 @@ sequenceDiagram
     note over MonoidApplet, MonoidIdentityApplet: Item Transfer
 
     MonoidApp ->> MonoidApplet: export or import
-    MonoidApplet <<->> MonoidIdentityApplet: check Secret authorization and encrypt or decrypt
+    alt Bundle synchronization with Access PIN
+        MonoidApplet <<->> MonoidIdentityApplet: verify installation token and encrypt or decrypt Bundle data
+    else Secret PIN
+        MonoidApplet <<->> MonoidIdentityApplet: check Secret authorization and encrypt or decrypt
+    end
     MonoidApplet -->> MonoidApplet: store authenticated imported data
     MonoidApplet -->> MonoidApp: response
 ```
@@ -110,7 +115,8 @@ sequenceDiagram
 
 Safe checks the card's available persistent space before allocating a new
 item, replacement data or a non-null alias. Less than the estimated allocation
-plus 4096 bytes returns `6A84`. The reserve is defined by
+plus 4096 bytes raises `6A84`; Monoid RPC returns `INTERNAL` with exception
+`ISOException` and reason `27268`. The reserve is defined by
 `Safe.MIN_AVAILABLE_PERSISTENT_MEMORY`.
 
 The estimate includes the new byte arrays and, when required, the full replacement
@@ -201,9 +207,11 @@ Taproot operations still compute the public keys needed for their adjustments.
 Access PIN and Secret PIN retain separate command permissions. Commands validate
 authorization before opening internal Safe access; Secret PIN must be set and
 unblocked. Identity owns Secret PIN, retries and caller-bound authorization.
-Encryption, decryption and Bundle management verify that authorization inside
-Identity. An Access-authorized storage operation does not establish Secret
-authorization. Monoid does not retain a copy of Secret PIN.
+Asymmetric transfer, instance binding and Bundle management verify that authorization
+inside Identity. Bundle transfer also accepts the private token of a Monoid instance
+previously bound through Secret authentication; Monoid requires Access authorization
+for each transfer. This does not establish Secret authorization or permit asymmetric
+decryption. Monoid does not retain a copy of Secret PIN.
 
 Ordinary APDU authorization clears on deselection, card reset and successful
 `0xFF Reset`. Identity Secret authorization is caller-bound and reset-scoped, so

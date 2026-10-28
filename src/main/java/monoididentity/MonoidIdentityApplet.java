@@ -42,6 +42,9 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   private byte[] tokenSecret = new byte[TOKEN_LENGTH];
 
+  private byte[] monoidTokenHash;
+  private byte[] monoidTokenDigest;
+
   private TokenCacheEntry[] tokenCache = new TokenCacheEntry[TOKEN_CACHE_SIZE];
   private short nextTokenCacheIndex;
 
@@ -236,6 +239,27 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     }
 
     return duplicateAsGlobal(token);
+  }
+
+  @Override
+  public void bindMonoid(byte[] tokenHash) {
+    assertMonoidCaller();
+    assertCommunicationAvailable();
+    assertSecretAuth();
+
+    if (tokenHash == null || tokenHash.length != TOKEN_LENGTH) {
+      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+    }
+
+    if (
+      monoidTokenHash != null &&
+      LibSecurity.check(monoidTokenHash, tokenHash, Constants.SAFE_FALSE) == Constants.SAFE_TRUE
+    ) {
+      return;
+    }
+
+    // Publish an owned hash only after its complete copy is ready.
+    monoidTokenHash = CommunicationData.duplicateAsPrivate(tokenHash);
   }
 
   @Override
@@ -500,6 +524,8 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     tokenCache = state.tokenCache;
     nextTokenCacheIndex = 0;
 
+    monoidTokenHash = null;
+
     bundle = null;
 
     communicationCipher = null;
@@ -512,6 +538,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   @Override
   public CommunicationDataShareable encryptData(
+    byte[] token,
     byte[] index,
     byte[] metadata,
     byte[] alias,
@@ -521,7 +548,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   ) {
     assertCaller();
     assertCommunicationAvailable();
-    assertSecretAuth();
+    requireTransferAuthorization(token);
 
     AID caller = JCSystem.getPreviousContextAID();
     communicationOperation[0] = 1;
@@ -549,6 +576,7 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
 
   @Override
   public CommunicationDataShareable decryptData(
+    byte[] token,
     byte[] index,
     byte[] metadata,
     byte[] alias,
@@ -557,13 +585,14 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   ) {
     assertCaller();
     assertCommunicationAvailable();
-    assertSecretAuth();
+    short bundleOnly = requireTransferAuthorization(token);
 
     AID caller = JCSystem.getPreviousContextAID();
     communicationOperation[0] = 1;
 
     try {
       byte[] plaintext = requireItemCipher().decrypt(
+        bundleOnly,
         requireCommunicationCipher(),
         bundle,
         caller,
@@ -591,6 +620,42 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     if (secretPIN.getValidationResult() != Constants.SAFE_TRUE) {
       ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
     }
+  }
+
+  private short requireTransferAuthorization(byte[] token) {
+    if (token == null) {
+      assertSecretAuth();
+      return Constants.SAFE_FALSE;
+    }
+
+    assertMonoidCaller();
+    assertBundle();
+
+    if (
+      token.length != TOKEN_LENGTH ||
+      monoidTokenHash == null ||
+      !secretPIN.isSet() ||
+      secretPIN.getTriesRemaining() == 0
+    ) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+
+    if (monoidTokenDigest == null) {
+      monoidTokenDigest = new byte[TOKEN_LENGTH];
+    }
+
+    MessageDigest digest = requireTokenDigest();
+    digest.reset();
+    digest.doFinal(token, (short) 0, TOKEN_LENGTH, monoidTokenDigest, (short) 0);
+
+    if (
+      LibSecurity.check(monoidTokenHash, monoidTokenDigest, Constants.SAFE_FALSE) !=
+      Constants.SAFE_TRUE
+    ) {
+      ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+    }
+
+    return Constants.SAFE_TRUE;
   }
 
   private byte[] publicKey() {
@@ -683,10 +748,11 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
   }
 
   private byte createToken(byte[] secret, byte[] caller, byte[] token) {
-    if (tokenDigest == null) {
+    if (tokenHmacBlock == null) {
       tokenHmacBlock = new byte[LibHMACSha256.BLOCK_LENGTH];
-      tokenDigest = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, true);
     }
+
+    MessageDigest tokenDigest = requireTokenDigest();
 
     LibHMACSha256.begin(tokenDigest, tokenHmacBlock, secret, (short) 0, TOKEN_LENGTH);
     tokenDigest.update(TOKEN_CONTEXT, (short) 0, (short) TOKEN_CONTEXT.length);
@@ -702,6 +768,14 @@ public class MonoidIdentityApplet extends Applet implements IdentityShareable {
     LibHMACSha256.finish(tokenDigest, tokenHmacBlock, token, (short) 0);
 
     return callerLength;
+  }
+
+  private MessageDigest requireTokenDigest() {
+    if (tokenDigest == null) {
+      tokenDigest = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, true);
+    }
+
+    return tokenDigest;
   }
 
   private void assertCaller() {

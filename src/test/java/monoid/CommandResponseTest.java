@@ -9,6 +9,9 @@ import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
+import main.ShareableSimulatorRuntime;
+import monoididentity.MonoidIdentityApplet;
+import monoidlib.CBORApduWriter;
 import monoidlib.CBORBufferReader;
 import monoidlib.CBORResponse;
 import monoidlib.CBORWriter;
@@ -18,6 +21,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class CommandResponseTest {
+
+  private static final AID IDENTITY_AID = AIDUtil.create(
+    // @inplate-line "{{hex MONOID_IDENTITY_AID}}"
+    "f06d6f6e6f69640001"
+  );
 
   private static final AID RESPONSE_AID = AIDUtil.create("f06d6f6e6f69647f01");
   private static final AID OTHER_AID = AIDUtil.create("f06d6f6e6f69647f02");
@@ -29,7 +37,8 @@ public class CommandResponseTest {
   @BeforeEach
   public void initialize() {
     System.setProperty("com.licel.jcardsim.object_deletion_supported", "1");
-    simulator = new CardSimulator();
+    simulator = new CardSimulator(new ShareableSimulatorRuntime());
+    simulator.installApplet(IDENTITY_AID, MonoidIdentityApplet.class);
     simulator.installApplet(RESPONSE_AID, ResponseApplet.class);
     simulator.installApplet(OTHER_AID, EmptyApplet.class);
     Assertions.assertTrue(simulator.selectApplet(RESPONSE_AID));
@@ -55,6 +64,104 @@ public class CommandResponseTest {
       MonoidException.CODE_NOT_FOUND,
       reader.requireKey(Text.code).text()
     );
+    assertReleased();
+  }
+
+  @Test
+  public void missingIdentityFailsInsideRpcWhileInvalidFramingRemainsTransportOnly() {
+    simulator.deleteApplet(IDENTITY_AID);
+
+    for (int[] header : new int[][] {
+      { 0x80, 0x30, 0x6E00 },
+      { 0x00, 0x7F, 0x6D00 },
+      { 0xA0, 0x30, 0x6883 },
+    }) {
+      ResponseAPDU response = simulator.transmitCommand(
+        new CommandAPDU(header[0], header[1], 0, 0, new byte[] { 0 })
+      );
+
+      Assertions.assertEquals(header[2], response.getSW());
+      Assertions.assertEquals(0, response.getData().length);
+      Assertions.assertEquals(0, responseCommand.executions);
+    }
+
+    ResponseAPDU response = start(0);
+    Assertions.assertEquals(0x9000, response.getSW());
+    CBORBufferReader reader = new CBORBufferReader(response.getData());
+    reader.map();
+    reader.requireKey(Text.error).map();
+    Assertions.assertArrayEquals(Command.CODE_INTERNAL, reader.requireKey(Text.code).text());
+    Assertions.assertArrayEquals(
+      "ISOException".getBytes(),
+      reader.requireKey(Text.exception).text()
+    );
+    Assertions.assertEquals((short) 0x6985, reader.requireKey(Text.reason).integer());
+    Assertions.assertEquals(0, responseCommand.executions);
+    assertReleased();
+    Assertions.assertEquals(0x6985, next().getSW());
+  }
+
+  @Test
+  public void mapsCommandAndInitialResponseISOFailuresBeforeSendingAnyBytes() {
+    for (int mode : new int[] { 5, 6 }) {
+      for (short reason : new short[] {
+        (short) 0x6A80,
+        (short) 0x6700,
+        (short) 0x6982,
+        (short) 0x6985,
+        (short) 0x9000,
+        (short) 0x6101,
+      }) {
+        responseCommand.failure = reason;
+        ResponseAPDU response = start(mode);
+        Assertions.assertEquals(0x9000, response.getSW());
+
+        CBORBufferReader reader = new CBORBufferReader(response.getData());
+        Assertions.assertEquals(1, reader.map());
+        short fields = reader.requireKey(Text.error).map();
+
+        if (reason == (short) 0x6A80 || reason == (short) 0x6700) {
+          Assertions.assertEquals(1, fields);
+          Assertions.assertArrayEquals(
+            MonoidException.CODE_INVALID_PARAMETER,
+            reader.requireKey(Text.code).text()
+          );
+        } else {
+          Assertions.assertEquals(3, fields);
+          Assertions.assertArrayEquals(Command.CODE_INTERNAL, reader.requireKey(Text.code).text());
+          Assertions.assertArrayEquals(
+            "ISOException".getBytes(),
+            reader.requireKey(Text.exception).text()
+          );
+          Assertions.assertEquals(reason, reader.requireKey(Text.reason).integer());
+        }
+
+        assertReleased();
+        Assertions.assertEquals(0x6985, next().getSW());
+      }
+    }
+
+    Assertions.assertEquals(0x6100, start(0).getSW());
+    ResponseAPDU last = next();
+    Assertions.assertEquals(0x9000, last.getSW());
+    Assertions.assertArrayEquals(new byte[] { 4, 5, 6, 7 }, last.getData());
+    assertReleased();
+  }
+
+  @Test
+  public void doesNotEncodeOrRetryAnActualApduSendFailure() {
+    ResponseApplet.failSend = true;
+    ResponseAPDU response = start(0);
+
+    Assertions.assertEquals(0x6F00, response.getSW());
+    Assertions.assertEquals(0, response.getData().length);
+    Assertions.assertEquals(1, ResponseApplet.sendAttempts);
+    assertReleased();
+    Assertions.assertEquals(0x6985, next().getSW());
+
+    ResponseApplet.failSend = false;
+    Assertions.assertEquals(0x6100, start(0).getSW());
+    Assertions.assertEquals(0x9000, next().getSW());
     assertReleased();
   }
 
@@ -219,6 +326,7 @@ public class CommandResponseTest {
     private short position;
     private boolean active;
     private int executions;
+    private short failure;
 
     @Override
     protected void run() {
@@ -227,10 +335,18 @@ public class CommandResponseTest {
       writer.start(this, (short) 1);
       active = true;
       writer.array((short) 8);
+
+      if (mode == 5) {
+        ISOException.throwIt(failure);
+      }
     }
 
     @Override
     public boolean writeNext(CBORWriter writer) {
+      if (mode == 6 && position == 0) {
+        ISOException.throwIt(failure);
+      }
+
       if ((mode == 1 && position == 0) || (mode == 2 && position == 4)) {
         MonoidException.throwIt(MonoidException.CODE_NOT_FOUND);
       }
@@ -256,11 +372,32 @@ public class CommandResponseTest {
 
   public static class ResponseApplet extends Applet {
 
+    private static boolean failSend;
+    private static int sendAttempts;
+
     private final ApduTransport transport = new ApduTransport(Command.reader, Command.writer);
 
     public static void install(byte[] data, short offset, byte length) {
+      MonoidApplet.safe = new Safe();
+      MonoidApplet.keystore = null;
+
       MonoidException.init();
       Command.init();
+      failSend = false;
+      sendAttempts = 0;
+      Command.writer = new CBORApduWriter() {
+        @Override
+        public void send() {
+          sendAttempts++;
+
+          if (failSend) {
+            // Force the real writer to encounter an invalid outgoing APDU state.
+            APDU.getCurrentAPDU().setOutgoing();
+          }
+
+          super.send();
+        }
+      };
       responseCommand = new ResponseCommand();
       Command.list = responseCommand;
       Command.hello = new Command() {

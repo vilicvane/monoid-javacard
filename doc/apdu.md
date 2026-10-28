@@ -91,7 +91,6 @@ transfers.
 | `6883` | Middle/last frame without a matching active request, or GET RESPONSE during an unfinished request. |
 | `6985` | GET RESPONSE with no pending response.                                                             |
 | `6A82` | Forwarded SELECT for an absent AID.                                                                |
-| `6A84` | Safe rejected a write to preserve its 4KiB persistent-space reserve.                               |
 | `6A86` | GET RESPONSE with nonzero P1 or P2.                                                                |
 | `6D00` | Unsupported INS.                                                                                   |
 | `6E00` | Unsupported CLA; GET RESPONSE requires `00`.                                                       |
@@ -100,11 +99,38 @@ Request reception errors discard the unfinished request; retry with a single or
 first frame. GET RESPONSE header and state validation errors preserve pending
 transfers, so an unfinished request can still receive its next frame and an unread
 response can still be retrieved with a valid GET RESPONSE. A failure while generating
-or sending response data cancels the remaining response. If continuation returns
-an error status, discard the assembled partial response; retry the original command.
+or sending a response after output has begun cancels the remaining response and
+returns an ISO error status. It never appends a new CBOR error to the response
+prefix. If response generation or sending fails during continuation, discard the
+assembled partial response. The command may already have changed card state;
+check that state before retrying a command with side effects. A response failure
+does not roll back completed changes.
 
 Transport completion does not imply command success. Commands can return a CBOR
 `{error: {code: ...}}` response with `9000`; inspect the assembled response too.
+
+## Monoid RPC errors
+
+Monoid command parsing, execution and initial response generation return errors
+as CBOR before response output begins. ISO `6A80` or `6700` in that scope becomes
+`{error: {code: 'INVALID_PARAMETER'}}`. Other ISO exceptions become
+`{error: {code: 'INTERNAL', exception: 'ISOException', reason: number}}`.
+The response completes with `9000`; `reason` preserves the original Java signed
+short, for example `27010` for `6982` and `27268` for a `6A84` storage-reserve
+rejection. Existing command errors such as `UNAUTHORIZED`, `ACCESS_DENIED` and
+`INVALID_PIN` retain their CBOR codes.
+
+Framing, reception, SELECT, unsupported CLA/INS and GET RESPONSE errors remain
+ISO statuses. In particular, an empty APDU still returns transport `6700`; an
+invalid CBOR request in a valid APDU returns `INVALID_PARAMETER`. This RPC mapping
+applies to Monoid, not OTP or Security Key.
+
+Access-authorized Export/Import without a Bundle returns `ACCESS_DENIED`, as does
+Access-authorized Import of a recognized asymmetric (`01`) envelope. Empty or
+unknown-version envelopes return `INVALID_PARAMETER`. Other Identity failures
+retain their diagnostic reason; a generic `6982` reason must not be interpreted
+as an instruction to request Secret PIN. Replacing Identity invalidates Monoid's
+forward binding, which Secret authentication cannot repair.
 
 Create (`0x34`), Import (`0x37`) and Create random key (`0x38`) return the CBOR error
 `{error: {code: 'EXISTS'}}` when the resulting index is already occupied, including

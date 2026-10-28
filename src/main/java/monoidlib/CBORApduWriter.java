@@ -20,6 +20,7 @@ public class CBORApduWriter extends CBORBufferWriter {
   private CBORResponse response;
   private byte[] window;
   private boolean more;
+  private boolean prepared;
 
   protected short sentOffset;
 
@@ -56,6 +57,7 @@ public class CBORApduWriter extends CBORBufferWriter {
   @Override
   public void reset(short offset) {
     super.reset(offset);
+    prepared = false;
 
     if (pending != null) {
       for (short index = 0; index < pending.length; index++) {
@@ -295,18 +297,27 @@ public class CBORApduWriter extends CBORBufferWriter {
     }
   }
 
-  private short sendResponse(APDU apdu) {
-    if (window != null) {
-      // The previous send may retain its buffer until that APDU finishes.
-      state[OFFSET] -= sentOffset;
-      Util.arrayCopyNonAtomic(window, sentOffset, window, (short) 0, state[OFFSET]);
-      sentOffset = 0;
-
-      // Return to the runtime between batches so temporary item views can be reclaimed.
-      for (short unit = 0; unit < UNITS_PER_APDU && more && state[OFFSET] < CHUNK_LENGTH; unit++) {
-        more = response.writeNext(this);
-      }
+  /** Generates the next response window before entering the APDU outgoing phase. */
+  public void prepare() {
+    if (prepared || window == null) {
+      return;
     }
+
+    // The previous send may retain its buffer until that APDU finishes.
+    state[OFFSET] -= sentOffset;
+    Util.arrayCopyNonAtomic(window, sentOffset, window, (short) 0, state[OFFSET]);
+    sentOffset = 0;
+
+    // Return to the runtime between batches so temporary item views can be reclaimed.
+    for (short unit = 0; unit < UNITS_PER_APDU && more && state[OFFSET] < CHUNK_LENGTH; unit++) {
+      more = response.writeNext(this);
+    }
+
+    prepared = true;
+  }
+
+  private short sendResponse(APDU apdu) {
+    prepare();
 
     short offset = buffer != null ? pending[RESPONSE_OFFSET] : sentOffset;
     short remaining = (short) ((buffer != null ? pending[RESPONSE_LENGTH] : state[OFFSET]) -
@@ -356,6 +367,8 @@ public class CBORApduWriter extends CBORBufferWriter {
     } else {
       sentOffset += length;
     }
+
+    prepared = false;
 
     return hasPending()
       ? (short) (ISO7816.SW_BYTES_REMAINING_00 |

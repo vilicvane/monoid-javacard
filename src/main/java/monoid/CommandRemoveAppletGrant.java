@@ -15,6 +15,6 @@ public final class CommandRemoveAppletGrant extends Command {
     }
 
     grants.remove(aid);
-    sendEmptyMap();
+    writeEmptyMap();
   }
 }

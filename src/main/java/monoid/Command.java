@@ -3,6 +3,7 @@ package monoid;
 import static monoid.Constants.SAFE_FALSE;
 import static monoid.Constants.SAFE_TRUE;
 
+import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.security.CryptoException;
@@ -15,6 +16,7 @@ public abstract class Command {
   // @formatter:off
   public static final byte[] CODE_INTERNAL = {'I','N','T','E','R','N','A','L'};
 
+  public static final byte[] EXCEPTION_ISOException = {'I','S','O','E','x','c','e','p','t','i','o','n'};
   public static final byte[] EXCEPTION_CryptoException = {'C','r','y','p','t','o','E','x','c','e','p','t','i','o','n'};
   public static final byte[] EXCEPTION_SecurityException = {'S','e','c','u','r','i','t','y','E','x','c','e','p','t','i','o','n'};
   public static final byte[] EXCEPTION_IndexOutOfBoundsException = {'I','n','d','e','x','O','u','t','O','f','B','o','u','n','d','s','E','x','c','e','p','t','i','o','n'};
@@ -221,14 +223,13 @@ public abstract class Command {
     }
   }
 
-  protected static void sendEmptyMap() {
+  protected static void writeEmptyMap() {
     writer.reset();
     writer.map((short) 0);
-    writer.send();
   }
 
-  protected static void sendError(byte[] code) {
-    writeError(code, (short) 0).send();
+  protected static void writeError(byte[] code) {
+    writeError(code, (short) 0);
   }
 
   protected static CBORApduWriter writeError(byte[] code, short extra) {
@@ -251,12 +252,26 @@ public abstract class Command {
     writer.reset();
 
     try {
+      MonoidApplet.ensureInitialization();
       run();
-      writer.send();
+      writer.prepare();
     } catch (ISOException e) {
-      throw e;
+      short reason = e.getReason();
+
+      if (reason == ISO7816.SW_WRONG_DATA || reason == ISO7816.SW_WRONG_LENGTH) {
+        writeError(MonoidException.CODE_INVALID_PARAMETER);
+      } else {
+        writeError(CODE_INTERNAL, (short) 2);
+        {
+          writer.text(Text.exception);
+          writer.text(EXCEPTION_ISOException);
+
+          writer.text(Text.reason);
+          writer.integer(reason);
+        }
+      }
     } catch (MonoidException e) {
-      e.send();
+      e.write();
     } catch (CryptoException e) {
       writeError(CODE_INTERNAL, (short) 2);
       {
@@ -266,24 +281,24 @@ public abstract class Command {
         writer.text(Text.reason);
         writer.integer(e.getReason());
       }
-      writer.send();
     } catch (SecurityException e) {
       writeError(CODE_INTERNAL, (short) 1);
       {
         writer.text(Text.exception);
         writer.text(EXCEPTION_SecurityException);
       }
-      writer.send();
     } catch (IndexOutOfBoundsException e) {
       writeError(CODE_INTERNAL, (short) 1);
       {
         writer.text(Text.exception);
         writer.text(EXCEPTION_IndexOutOfBoundsException);
       }
-      writer.send();
     } catch (Exception e) {
-      sendError(CODE_INTERNAL);
+      writeError(CODE_INTERNAL);
     }
+
+    // Outgoing APDU failures cannot be replaced with a new RPC response.
+    writer.send();
   }
 
   protected abstract void run() throws MonoidException;

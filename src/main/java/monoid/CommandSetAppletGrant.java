@@ -104,7 +104,7 @@ public final class CommandSetAppletGrant extends Command {
     }
 
     grants.set(aid, types, writable, keys, seed);
-    sendEmptyMap();
+    writeEmptyMap();
   }
 
   private AppletGrant.Key readKey(CBORMap key) {

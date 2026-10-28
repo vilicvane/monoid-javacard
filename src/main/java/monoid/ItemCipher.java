@@ -17,12 +17,14 @@ public class ItemCipher {
 
   public SafeDataSource encrypt(
     IdentityShareable identity,
+    byte[] token,
     SafeItem item,
     byte[] recipientPublicKey
   ) {
     return new SafeIdentityData(
       safe,
       identity.encryptData(
+        global(token),
         global(item.index),
         global(item.metadata),
         global(item.alias),
@@ -35,6 +37,7 @@ public class ItemCipher {
 
   public CommunicationDataShareable decrypt(
     IdentityShareable identity,
+    byte[] token,
     byte[] index,
     byte[] metadata,
     byte[] alias,
@@ -42,6 +45,7 @@ public class ItemCipher {
     SafeDataSource encryptedData
   ) {
     return identity.decryptData(
+      global(token),
       global(index),
       global(metadata),
       global(alias),

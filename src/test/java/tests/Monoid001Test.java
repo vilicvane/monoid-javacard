@@ -278,7 +278,10 @@ public class Monoid001Test extends AppletTest {
           writeSigning(writer, "ecdsa");
         }
 
-        Assertions.assertEquals(0x6A80, transmit(instruction, writer.getDataBuffer()).getSW());
+        assertError(
+          transmit(instruction, writer.getDataBuffer()),
+          MonoidException.CODE_INVALID_PARAMETER
+        );
       }
 
       for (int mode = 0; mode < 3; mode++) {

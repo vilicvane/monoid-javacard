@@ -16,7 +16,8 @@ enrollment or item export/import; item aliases retain their existing transfer se
 Bundle management uses Secret PIN and `0x23 Create Bundle`, `0x24 Join Bundle`,
 `0x25 Extend Bundle` and `0x26 Approve Bundle Extension`, defined in
 [README](../README.md#0x23-create-bundle).
-Access PIN and item data remain in Monoid; Secret PIN, its retry state, the Bundle
+Access PIN, the installation token and item data remain in Monoid; Secret PIN,
+its retry state, the authorized Monoid token hash, the Bundle
 key, policy and enrollment snapshot remain in Identity across Monoid reinstallation.
 Identity restricts Bundle creation, joining, extension and clearing
 to Monoid's exact fixed AID.
@@ -54,7 +55,8 @@ local Bundle. A failed packet preparation leaves the card without a Bundle.
 
 Join commits the key, policy and enrollment snapshot together. Rejoining the same
 key and policy succeeds unchanged, retaining the local snapshot; a different key
-or policy returns `6985`. Join never replaces an existing Bundle. Interrupted
+or policy is rejected with the Monoid RPC error `INTERNAL`, exception
+`ISOException` and reason `27013` (`6985`). Join never replaces an existing Bundle. Interrupted
 recipient initialization can resume with the saved packets. Create cannot be
 replayed to recover lost packets once the Bundle exists. There is no atomic commit
 across all cards, and one unavailable member does not roll back other members.
@@ -182,13 +184,14 @@ version `01` envelope. Once enrolled, every Export uses the Bundle version `02`
 envelope; a supplied recipient public key is ignored. Identity writes its actual
 public key into the artifact and derives a sending key from the Bundle root,
 complete runtime caller AID and that public key. The same applet AID on another
-member can import the artifact after Secret authentication. The sender key is
+member can import the artifact after Secret authentication. Bound Monoid instances
+can instead export/import Bundle artifacts after Access authentication. The sender key is
 inside the envelope, so Import needs no separate sender public key.
 
 Identity rejects its own Bundle artifacts and artifacts from another caller
 domain. Other senders are authenticated by the shared root and derived sender
 key, independently of the local enrollment snapshot. An enrolled card can still import
-asymmetric artifacts from another Identity, but cannot recover its own earlier
+asymmetric artifacts from another Identity with Secret authentication, but cannot recover its own earlier
 self-addressed asymmetric artifacts. The host cannot choose another sending
 identity for Export. These restrictions are enforced by trusted Identity code;
 symmetric keys themselves are not encryption-only keys.
@@ -196,6 +199,13 @@ symmetric keys themselves are not encryption-only keys.
 Other applets can exchange records between cards in their own caller domains
 without gaining access to Monoid's encrypted records. The root key and public
 Bundle hash are shared; the derived sender keys remain inside Identity.
+
+Successful Secret PIN authentication binds the current Monoid installation's
+private random token to Identity. Later Access-authenticated synchronization checks
+both Identity's existing binding token and Monoid's installation token. The latter
+authorizes only Bundle transfer, not asymmetric transfer or Bundle/PIN management.
+Replacing Monoid loses it and requires Secret PIN again; the same AID alone is
+insufficient. See [mutual binding](identity.md#mutual-binding).
 
 See [item transfer](item-transfer.md) for both formats and key derivation.
 
@@ -207,9 +217,9 @@ does not certify card hardware or installed applet code.
 
 `0xFF Reset` requires no PIN and returns Monoid to an uninitialized state. It clears
 all local items, the derivation cache, both PINs and their failed-attempt/blocked
-state, and the local Bundle. It preserves the Card ID, card alias and installed Authority URL and key,
-generates a new Identity key pair and binding secret, clears the token cache and
-updates Monoid's binding. These persistent
+state, the authorized Monoid token hash and the local Bundle. It preserves the Card ID, card alias and installed Authority URL and key,
+generates a new Identity key pair, binding secret and Monoid installation token,
+clears the token cache and updates Monoid's Identity binding. These persistent
 changes commit in one transaction; success clears current authorization and
 requests garbage collection. A failed transaction retains the previous persistent
 state. It is not a hardware-erasure guarantee.
@@ -239,8 +249,10 @@ them or be deleted first.
 Reset retains both installed applet instances and their code while replacing
 their identity and local data state. It does not perform a GP uninstall/reinstall.
 
-Recreating Monoid clears its items, Access PIN and derivation cache but retains
-Identity's card alias, Secret PIN, retries and Bundle. Recreating Identity as well clears
+Recreating Monoid clears its items, Access PIN, installation token and derivation
+cache but retains Identity's card alias, Secret PIN, retries, old token hash and
+Bundle. The new instance must authenticate Secret PIN before transfer or rebinding.
+Recreating Identity as well clears
 the card alias and local Bundle and generates a new key pair and binding secret;
 the Card ID can be supplied again in installation parameters.
 Retaining the old Monoid across Identity replacement
@@ -254,10 +266,11 @@ the new public key before creating a new Bundle.
 For a Bundle created on a card, the current interface permits using two members
 to recover plaintext. An Authority-issued root additionally trusts its issuer;
 see [Authority's trust boundary](authority.md#trust-and-lifecycle).
-For a fresh export and recovery, use both cards and authenticate each card's
-Secret PIN independently:
+For a fresh export and recovery, use the source card's Access or Secret PIN and
+the receiving card's Secret PIN:
 
-1. Export the selected source records after Secret PIN authentication.
+1. Export the selected source records after Access authentication in a bound Monoid
+   instance, or after Secret authentication.
 2. Keep the other card's Identity and Bundle, and replace its Monoid applet with
    a recovery implementation registered under the same fixed Monoid AID.
 3. Authenticate the receiving card's retained Secret PIN and give the records
@@ -265,8 +278,9 @@ Secret PIN independently:
    sender is another Bundle member; the recovery code can return the plaintext.
 
 Installing the recovery implementation requires the card's management authority.
-Replacing the recipient's Monoid deletes its previous items and Access PIN; its
-Secret PIN remains in Identity and is still required. Members may use different
+Replacing the recipient's Monoid deletes its previous items, Access PIN and
+installation token; its Secret PIN remains in Identity and is still required.
+The old token cannot be reacquired by the new instance. Members may use different
 Secret PINs. Previously exported artifacts can be reused without a new source PIN
 check; this boundary does not require the source card or its PIN to be presented
 again each time the recipient decrypts an existing artifact.

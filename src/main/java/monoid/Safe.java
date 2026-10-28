@@ -59,6 +59,8 @@ public final class Safe {
 
   private static final short AUTH_ACCESS = (short) 0x5AFE;
 
+  private static final short TOKEN_LENGTH = 32;
+
   private static final short ITEM_LENGTH_EXTENSION = 8;
   private static final short MIN_AVAILABLE_PERSISTENT_MEMORY = 4096;
 
@@ -100,6 +102,14 @@ public final class Safe {
   private MessageDigest indexDigest;
   private ItemCipher itemCipher;
   private byte[] identityToken;
+  private byte[] monoidToken = createToken();
+
+  private static byte[] createToken() {
+    byte[] token = new byte[TOKEN_LENGTH];
+    OneShot.random(token, (short) 0, TOKEN_LENGTH);
+
+    return token;
+  }
 
   void initializeIdentity() {
     if (identityToken == null) {
@@ -181,6 +191,7 @@ public final class Safe {
     SafeItem[] emptyItems = new SafeItem[ITEM_LENGTH_EXTENSION];
     OwnerPIN accessPIN = new OwnerPIN(MonoidApplet.PIN_TRY_LIMIT, MonoidApplet.MAX_PIN_LENGTH);
     byte[] token = Utils.duplicateAsPersistent(identity.prepareReset());
+    byte[] replacementToken = createToken();
     JCSystem.beginTransaction();
 
     try {
@@ -191,6 +202,7 @@ public final class Safe {
       KeyDerivation.clearCache();
       identity.reset();
       identityToken = token;
+      monoidToken = replacementToken;
       JCSystem.commitTransaction();
     } finally {
       if (JCSystem.getTransactionDepth() != 0) {
@@ -273,7 +285,29 @@ public final class Safe {
 
   public boolean checkPIN(byte[] pin) {
     clearAuth();
-    return requireIdentity().checkSecretPIN(Utils.duplicateAsGlobal(pin));
+
+    IdentityShareable identity = requireIdentity();
+
+    if (!identity.checkSecretPIN(Utils.duplicateAsGlobal(pin))) {
+      return false;
+    }
+
+    if (identity.getSecretPINValidationResult() != SAFE_TRUE) {
+      MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
+    }
+
+    byte[] hash = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, TOKEN_LENGTH);
+    OneShot.digest(
+      MessageDigest.ALG_SHA_256,
+      monoidToken,
+      (short) 0,
+      TOKEN_LENGTH,
+      hash,
+      (short) 0
+    );
+    identity.bindMonoid(hash);
+
+    return true;
   }
 
   public void updatePIN(byte[] pin) {
@@ -683,9 +717,28 @@ public final class Safe {
     return item;
   }
 
+  private byte[] requireTransferToken(IdentityShareable identity) {
+    switch (Command.requireAuth()) {
+      case Command.AUTH_ACCESS:
+        if (identity.getBundle() == null) {
+          MonoidException.throwIt(MonoidException.CODE_ACCESS_DENIED);
+        }
+
+        return monoidToken;
+      case Command.AUTH_SECRET:
+        return null;
+      default:
+        MonoidException.throwIt(MonoidException.CODE_UNAUTHORIZED);
+        return null;
+    }
+  }
+
   public SafeDataSource exportItem(SafeItem item, byte[] recipientPublicKey) {
     assertAccess();
-    SafeDataSource data = requireItemCipher().encrypt(requireIdentity(), item, recipientPublicKey);
+
+    IdentityShareable identity = requireIdentity();
+    byte[] token = requireTransferToken(identity);
+    SafeDataSource data = requireItemCipher().encrypt(identity, token, item, recipientPublicKey);
     assertAccess();
     return data;
   }
@@ -699,6 +752,8 @@ public final class Safe {
   ) {
     assertAccess();
 
+    IdentityShareable identity = requireIdentity();
+
     // Reserve the cross-applet read buffer.
     byte[] buffer = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, (short) 64);
 
@@ -707,8 +762,27 @@ public final class Safe {
     alias = alias != null ? Utils.duplicateAsPersistent(alias) : null;
     senderPublicKey = senderPublicKey != null ? Utils.duplicateAsPersistent(senderPublicKey) : null;
 
+    if (data.getLength() == 0) {
+      MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+    }
+
+    data.read((short) 0, buffer, (short) 0, (short) 1);
+    byte version = buffer[0];
+
+    if (version != 1 && version != 2) {
+      MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+    }
+
+    byte[] token = requireTransferToken(identity);
+
+    // Select the RPC error only; Identity checks the version it actually decrypts.
+    if (token != null && version != 2) {
+      MonoidException.throwIt(MonoidException.CODE_ACCESS_DENIED);
+    }
+
     CommunicationDataShareable plaintext = requireItemCipher().decrypt(
-      requireIdentity(),
+      identity,
+      token,
       index,
       metadata,
       alias,

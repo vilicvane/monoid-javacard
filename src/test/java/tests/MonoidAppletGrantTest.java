@@ -1,6 +1,7 @@
 package tests;
 
 import static tests.MonoidItemTransferTest.assertError;
+import static tests.MonoidItemTransferTest.assertISOError;
 import static tests.MonoidItemTransferTest.customIndex;
 import static tests.MonoidItemTransferTest.fields;
 import static tests.MonoidItemTransferTest.sequence;
@@ -291,9 +292,9 @@ public class MonoidAppletGrantTest {
         assertValueEquals(original, grants(card).get(0));
       }
 
-      Assertions.assertEquals(
-        0x6A80,
-        transmit(card, 0x51, grant("keys", Arrays.asList(key(seedIndex, "seed")))).status
+      assertISOError(
+        transmit(card, 0x51, grant("keys", Arrays.asList(key(seedIndex, "seed")))),
+        0x6A80
       );
       assertValueEquals(original, grants(card).get(0));
 
@@ -334,10 +335,7 @@ public class MonoidAppletGrantTest {
       Map<String, Object> original = grants(card).get(0);
 
       client.onHash = () -> ISOException.throwIt((short) 0x6985);
-      Assertions.assertEquals(
-        0x6985,
-        transmit(card, 0x51, grant("types", types(0x1001, true))).status
-      );
+      assertISOError(transmit(card, 0x51, grant("types", types(0x1001, true))), 0x6985);
       assertValueEquals(original, grants(card).get(0));
       client.onHash = null;
 

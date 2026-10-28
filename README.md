@@ -159,6 +159,19 @@ See [APDU transport](doc/apdu.md).
 
 Card and item aliases are UTF-8 text; firmware stores their bytes without encoding validation.
 
+```ts
+type ErrorResponse = {
+  error: {
+    code: string;
+    exception?: string;
+    /** Original Java signed-short exception reason. */
+    reason?: number;
+    /** Remaining attempts for INVALID_PIN. */
+    tries?: number;
+  };
+};
+```
+
 ### Command authentication
 
 The authentication is done within a session, using `0x21` command.
@@ -213,6 +226,7 @@ type Response = {
 ```ts
 type Request = {
   pin: string;
+  /** Successful Secret authentication also binds this Monoid instance for Bundle synchronization. */
   secret?: true;
   /** Optional client AID: one operation-start permission, consumed by that client. */
   aid?: byte[];
@@ -269,7 +283,7 @@ type Response = {
 
 ```ts
 type Request = {
-  /** The sending Identity's key, or the installed Authority key; an Authority mismatch returns 6985. */
+  /** The sending Identity's key, or the installed Authority key; an Authority mismatch is rejected. */
   publicKey: byte[];
   data: byte[];
 };
@@ -277,7 +291,7 @@ type Request = {
 
 ```ts
 type Response = {
-  /** The same key and allowPeerExtension policy succeed unchanged; differences return 6985. Never replaces a Bundle. */
+  /** The same key and allowPeerExtension policy succeed unchanged; differences are rejected. Never replaces a Bundle. */
   bundle: byte[];
 };
 ```
@@ -499,7 +513,7 @@ type Response = {
 
 [Encrypted payload format](doc/item-transfer.md).
 
-> Requires authentication with Secret PIN.
+> Requires authentication; Access PIN requires a Bundle and an authorized Monoid instance. Otherwise Secret PIN is required.
 
 ```ts
 type Request = {
@@ -520,7 +534,7 @@ type Response = {
 
 #### `0x37` Import item
 
-> Requires authentication with Secret PIN.
+> Requires authentication; Access PIN requires a Bundle envelope and an authorized Monoid instance. Asymmetric envelopes require Secret PIN.
 
 ```ts
 /** Creates an item; returns EXISTS if the index is occupied, even by an identical item. */
@@ -531,7 +545,7 @@ type Request = {
   senderPublicKey?: byte[];
   metadata?: byte[];
   alias?: string;
-  /** Export response data; index, metadata and alias must match that export. */
+  /** Export response data; empty or unknown-version envelopes return INVALID_PARAMETER. Public fields must match that export. */
   data: byte[];
 };
 ```

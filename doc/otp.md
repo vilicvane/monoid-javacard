@@ -76,8 +76,9 @@ index and cannot clear the secret flag. To change the secret, create a new item.
 To change configuration, remove and recreate the account with the same secret.
 
 Account labels and configuration may be listed with Access PIN. Export returns
-encrypted data only; use the existing Secret-PIN-protected Export/Import flow to
-copy this single item to another card. The target's `0xF201` type grant covers
+encrypted data only; use [Export/Import](item-transfer.md) to copy this single item
+to another card. Bound Monoid instances use Access PIN for Bundle synchronization;
+asymmetric transfer requires Secret PIN. The target's `0xF201` type grant covers
 the imported account without a separate HMAC key grant.
 
 ## Commands

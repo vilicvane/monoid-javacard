@@ -2,7 +2,13 @@
 
 Export and Import transfer one authenticated Safe item. The commands and their
 authorization requirements are defined in [README](../README.md#iso-7816-commands).
-Both operations require the executing card's Secret PIN, verified by Identity.
+Bundle synchronization accepts Access PIN for a Monoid installation previously
+bound through Secret PIN authentication. Asymmetric transfers require Secret PIN,
+including asymmetric Import on an enrolled card. Identity independently enforces
+the selected authorization path; see [mutual binding](identity.md#mutual-binding).
+Access requests without a Bundle, or importing a recognized asymmetric envelope,
+return `ACCESS_DENIED`. Empty or unknown-version envelopes return
+`INVALID_PARAMETER`; other exceptions follow [Monoid RPC errors](apdu.md#monoid-rpc-errors).
 The `data` field carries the binary envelope below; `index`, `metadata` and `alias`
 remain public and are authenticated with it. Keep the Export request's original
 index with its response for Import.
@@ -160,7 +166,8 @@ physical card. The four-byte display ID is not a cryptographic identity fingerpr
 An asymmetric artifact targets one Identity; a different recipient requires a
 new Export. Self-addressed asymmetric artifacts decrypt only while the recipient
 has no Bundle. A Bundle artifact can be imported by the same applet AID on another
-member, after that member's Secret PIN is verified. The sending Identity cannot
+member, using its bound Monoid instance after Access authentication or using Secret
+authentication. The sending Identity cannot
 decrypt its own Bundle artifact. This policy is enforced by trusted Identity code;
 a symmetric key has no inherent encryption-only property. A software holder of
 the root could derive every member key, so peer trust remains necessary. An
@@ -173,12 +180,14 @@ existing members need no member-list update. Extension requests use a separate
 root-HMAC and Identity-signature domain that ordinary item transfer cannot select.
 
 Retaining Identity, Secret PIN and Bundle permits recovery of other members'
-artifacts after Monoid replacement. Previously exported artifacts need no new
-source PIN check; decryption still requires the receiving Identity's Secret PIN.
+artifacts after Monoid replacement. The replacement loses its installation token
+and must authenticate the receiving Identity's Secret PIN before transfer or
+rebinding. Previously exported artifacts need no new source PIN check.
 
-`0xFF Reset` clears local items, both PINs, authorization and the Bundle together,
+`0xFF Reset` clears local items, both PINs, authorization, the Monoid token binding
+and the Bundle together,
 preserves the Card ID and installed Authority key, and generates a new Identity key
-pair and binding secret. Old asymmetric
+pair, binding secret and Monoid installation token. Old asymmetric
 artifacts and enrollment packets no longer decrypt on the reset Identity, and
 its old Bundle key is gone. Initialize new PINs and use the new public key for
 subsequent transfers or enrollment. Reset does not revoke copies on other cards

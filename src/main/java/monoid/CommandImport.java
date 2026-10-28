@@ -8,7 +8,7 @@ public class CommandImport extends Command {
 
   @Override
   protected void run() {
-    requireAuth(AUTH_SECRET);
+    requireAuth();
 
     MonoidApplet.safe.checkAccess();
 
@@ -25,7 +25,7 @@ public class CommandImport extends Command {
 
     MonoidApplet.safe.importItem(index, metadata, alias, senderPublicKey, data);
 
-    sendEmptyMap();
+    writeEmptyMap();
   }
 
   private byte[] readBytes(short expectedLength) {

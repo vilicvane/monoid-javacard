@@ -227,9 +227,9 @@ public class IdentityTransferBoundaryTest {
         CommunicationDataShareable result;
         IdentityCallerApplet.Data source = new IdentityCallerApplet.Data(data);
         if (buffer[ISO7816.OFFSET_INS] == 1) {
-          result = identity.encryptData(index, key, alias, (short) 0x5AFE, null, source);
+          result = identity.encryptData(null, index, key, alias, (short) 0x5AFE, null, source);
         } else {
-          result = identity.decryptData(index, key, alias, null, source);
+          result = identity.decryptData(null, index, key, alias, null, source);
         }
         short resultLength = result.getLength();
         byte[] output = (byte[]) JCSystem.makeGlobalArray(JCSystem.ARRAY_TYPE_BYTE, resultLength);

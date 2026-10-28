@@ -269,14 +269,20 @@ public class SafeTest {
     byte[] encrypted = read(item.exportData(publicKey));
     item.remove();
 
-    TestData source = new TestData(encrypted) {
+    SafeDataSource source = new SafeDataSource() {
       @Override
       public short getLength() {
         Arrays.fill(index, (byte) 0);
         Arrays.fill(metadata, (byte) 0);
         Arrays.fill(alias, (byte) 0);
         Arrays.fill(publicKey, (byte) 0);
-        return super.getLength();
+        return (short) encrypted.length;
+      }
+
+      @Override
+      public void read(short dataOffset, byte[] buffer, short offset, short length) {
+        Assertions.assertTrue(length <= 256);
+        System.arraycopy(encrypted, dataOffset, buffer, offset, length);
       }
     };
     safe.importItem(index, metadata, alias, publicKey, source);

@@ -1,5 +1,6 @@
 package tests;
 
+import static tests.MonoidItemTransferTest.assertISOError;
 import static tests.MonoidItemTransferTest.fields;
 
 import com.licel.jcardsim.bouncycastle.util.encoders.Hex;
@@ -38,18 +39,12 @@ public class MonoidAuthorityWorkerTest {
           if (allowPeerExtension) {
             card.success(0x25, fields("publicKey", peerKey));
           } else {
-            Assertions.assertEquals(
-              0x6985,
-              card.transmit(0x25, fields("publicKey", peerKey)).status
-            );
-            Assertions.assertEquals(
-              0x6985,
-              card.transmit(0x26, fields("data", new byte[0])).status
-            );
+            assertISOError(card.transmit(0x25, fields("publicKey", peerKey)), 0x6985);
+            assertISOError(card.transmit(0x26, fields("data", new byte[0])), 0x6985);
           }
 
           Packet conflict = worker.issue(card.publicKey(), allowPeerExtension, "other-group");
-          Assertions.assertEquals(0x6985, card.transmit(0x24, conflict.request()).status);
+          assertISOError(card.transmit(0x24, conflict.request()), 0x6985);
           Assertions.assertArrayEquals(packet.bundle, card.success(0x20, fields()).bytes("bundle"));
 
           card.reset();
@@ -77,10 +72,10 @@ public class MonoidAuthorityWorkerTest {
         Map<String, Object> wrongAuthority = packet.request();
         wrongAuthority.put("publicKey", peerKey);
 
-        Assertions.assertEquals(0x6985, card.transmit(0x24, wrongAuthority).status);
-        Assertions.assertEquals(
-          0x6985,
-          card.transmit(0x24, worker.issue(peerKey, false, "group").request()).status
+        assertISOError(card.transmit(0x24, wrongAuthority), 0x6985);
+        assertISOError(
+          card.transmit(0x24, worker.issue(peerKey, false, "group").request()),
+          0x6985
         );
         Assertions.assertFalse(
           card.success(0x20, fields()).reader().requireKey(bytes("bundle")).bool()

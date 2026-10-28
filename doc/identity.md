@@ -2,8 +2,8 @@
 
 Monoid Identity retains a P-256 key pair generated on installation or `0xFF Reset`,
 plus a four-byte Card ID and card alias preserved by Reset. Its private key has no export interface. Identity
-also owns Secret PIN, its retry and caller authorization state, the optional Bundle
-key, extension policy and enrollment snapshot. It performs complete item encryption and decryption
+also owns Secret PIN, its retry and caller authorization state, the authorized
+Monoid instance's token hash, the optional Bundle key, extension policy and enrollment snapshot. It performs complete item encryption and decryption
 for applets in separate caller domains. Monoid owns Access PIN, Safe item storage
 and command authorization.
 
@@ -58,6 +58,9 @@ a Card ID. The limit counts bytes, not characters.
 public interface IdentityShareable extends Shareable {
   /** Stable private binding token for the runtime caller's complete AID. */
   byte[] getToken();
+
+  /** Monoid only, with Secret authentication: binds this installation's 32-byte token hash. */
+  void bindMonoid(byte[] tokenHash);
 
   byte[] getId();
 
@@ -114,7 +117,9 @@ public interface IdentityShareable extends Shareable {
   /** Monoid only: publishes the prepared identity within Monoid's reset transaction. */
   void reset();
 
+  /** Null token requires Secret authentication; an installation token permits only Bundle transfer. */
   CommunicationDataShareable encryptData(
+    byte[] token,
     byte[] index,
     byte[] metadata,
     byte[] alias,
@@ -125,6 +130,7 @@ public interface IdentityShareable extends Shareable {
 
   /** Returns secret (two bytes) || data after authenticating the complete envelope. */
   CommunicationDataShareable decryptData(
+    byte[] token,
     byte[] index,
     byte[] metadata,
     byte[] alias,
@@ -144,6 +150,7 @@ public interface CommunicationDataShareable extends Shareable {
 - Card alias: at most 64 UTF-8 bytes; empty means no alias. Only the byte length is validated.
 - Public keys: 65-byte SEC 1 uncompressed P-256 points (`04 || X || Y`).
 - Binding tokens: 32 bytes, distinct for each caller AID and current Identity secret.
+- Monoid installation token: 32 private random bytes; Identity stores its SHA-256 hash.
 - Bundle keys and asymmetric item communication keys: 32 bytes, kept inside Identity.
 - Item fields: ten-byte index, optional byte-string metadata and optional UTF-8 alias.
   Null and empty item fields remain distinct. Card and item aliases store the supplied bytes
@@ -152,8 +159,10 @@ public interface CommunicationDataShareable extends Shareable {
   Data sources use repeatable range reads through a bounded global buffer.
 - Completed data results are readable only by their original calling applet.
 - Admission: any registered applet can acquire the interface, read public information
-  and get its own token. Encryption/decryption requires Secret PIN verification by
-  Identity for that caller. Setting the card alias, creating, joining or extending a Bundle
+  and get its own token. Encryption/decryption with a null token requires Secret PIN
+  verification by Identity for that caller. A non-null token requires the fixed Monoid AID,
+  its authorized installation token and a local Bundle; decryption accepts only version `02`.
+  Setting the card alias, creating, joining or extending a Bundle
   and changing Secret PIN also require the exact Monoid instance AID. Preparing/publishing a reset requires that
   AID but deliberately does not require PIN authentication.
 - Direct APDUs: SELECT only. Monoid owns [item transfer](item-transfer.md) and
@@ -181,22 +190,31 @@ The root key and its public hash remain common to all members. See
 
 Identity owns the persistent Secret PIN, five-attempt counter and validation state.
 A successful verification authorizes the actual runtime caller AID; a caller cannot
-supply a success flag or borrow another caller's authorization. Access PIN does
-not authorize Identity cryptography. Registered callers may verify Secret PIN for
+supply a success flag or borrow another caller's authorization. Access PIN is verified
+by Monoid, whose separately bound installation token permits only Bundle transfer.
+Registered callers may verify Secret PIN for
 their own communication domain; only Monoid may initialize or change it.
 Identity authorization is reset-scoped and bound to that caller, so it survives
 ordinary SELECT switches without authorizing other callers. A new Secret PIN
 check, PIN update, explicit authorization clearing or card power reset invalidates
 the previous validation. Monoid APDU authorization has its separate deselect scope.
 
-Encryption, decryption, Create Bundle, Join Bundle, Extend Bundle and Approve Bundle
-Extension require current Secret
-authorization inside Identity. Changing an existing PIN requires the same
+Asymmetric encryption/decryption, Create Bundle, Join Bundle, Extend Bundle and
+Approve Bundle Extension require current Secret authorization inside Identity.
+Bundle transfer also accepts the authorized Monoid installation token while Secret
+PIN is initialized and unblocked; it does not establish Secret authorization.
+Changing an existing PIN requires Secret
 validation and clears authorization. Monoid reinstallation preserves Secret PIN
 and retries. Unauthenticated `0xFF Reset` may clear it only while replacing the
 Identity keys and binding secret and deleting local protected data and Bundle.
 
-## Identity binding
+## Mutual binding
+
+Monoid checks the Identity binding token before supplying its own installation
+token. The two credentials have separate lifetimes and are never included in APDU
+responses, item exports or Bundle enrollment packets.
+
+### Identity token
 
 Identity generates an independent random 32-byte secret at installation or `0xFF Reset`:
 
@@ -228,11 +246,30 @@ rejected and never causes automatic rebinding. The authorized lifecycle operatio
 data/PIN removal and Identity replacement. Other applets' old binding tokens
 become invalid; they are not automatically rebound. Monoid retains no Identity object reference.
 
-Deleting Monoid deletes its data, Access PIN and binding; Identity retains its
-Secret PIN and retries. A new instance can bind to the retained Identity, but must
-authenticate that Secret PIN to recover permitted previously exported items. This assumes trusted
-initial applets and the Java Card firewall; it does not authenticate installed code
-or prevent the [same-AID recovery workflow](bundle.md#recovery-and-data-migration).
+### Monoid installation token
+
+Monoid generates a private random 32-byte token on installation. Successful Secret
+PIN authentication binds its SHA-256 hash through `bindMonoid`; Identity requires
+the fixed Monoid AID and its own caller-bound Secret validation for that operation.
+Ordinary Access authentication cannot create or replace this binding.
+
+After Access authentication, Monoid verifies its saved Identity token before
+passing the installation token to item encryption/decryption. Identity verifies
+the runtime caller, token hash and local Bundle. This path only accepts Bundle
+envelopes and does not fall back to Secret authorization or asymmetric transfer.
+Bundle sender checks, caller-domain isolation and tag verification still apply.
+The installation token does not enter any Bundle or item-key derivation.
+
+Ordinary card resets preserve both bindings. Deleting Monoid deletes its data,
+Access PIN and installation token; Identity retains Secret PIN, retries and the
+old token hash. A replacement Monoid cannot recover the old token or inherit its
+synchronization permission. It must authenticate Secret PIN to bind its new token
+or use Secret-authorized transfer. `0xFF Reset` clears the authorized hash and
+replaces the Monoid installation token along with the existing identity/data reset.
+
+Binding assumes trusted initial applets and the Java Card firewall; it identifies
+an authorized installation, not its code provenance. Secret-authorized rebinding
+does not prevent the [same-AID recovery workflow](bundle.md#recovery-and-data-migration).
 
 ## HPKE profile
 
