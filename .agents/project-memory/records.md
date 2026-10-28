@@ -414,6 +414,18 @@
 
 ## 12eee65
 
+198. [user] 要求三卡Bundle中的两张更新最新固件并配置默认Authority，保留数据，最后一张自行处理。[agent] Test1 7D643176／Test2 A6B79EFE已更新Identity/lib/Monoid，恢复七条并集、原ID/PIN/Bundle及peer extension；第三卡10DB2908七条/两授权保留。生产Authority签名在双实卡接受，篡改及错误challenge拒绝，E6临时探针全清；702本地测试/五CAP及17迁移测试通过。新临时journal next12/pendingnull，保留密文证据，不复用旧完成状态；第三卡需含Identity的Fresh Install，Reset不能升级或更换Authority。详见 [默认Authority双卡迁移](./198.md)。
+
+199. [user] 要求非接触实卡通用性能基线，不按主观慢点筛选。[agent] D321/ACR1552同卡五CAP隔离对照daac970→12eee65，各372样本/104项，全部密码学与数据校验通过；Hello稳定+58.15ms，其余签名/OTP未见整体回退，ECDSA双峰不可只看5次中位数。建立scripts/benchmark与使用文档，原始证据忽略保存，全部临时包清理、registry复原；未改生产源码或提交。见[性能基线](./199.md)。[blog] 随机ECDSA双峰与小样本中位数误判。
+
+200. [user] 要求将图片对应卡片的 GP 管理密钥恢复默认。[agent] ACR1552 上确认新卡 D600/28767921，使用用户二维码提供的三把密钥认证，单次 PUT KEY 设置 ENC/MAC/DEK 为公共默认值 404142434445464748494A4B4C4D4E4F、KVN01。独立新会话默认认证成功，完整密钥模板仅有01的IDs1/2/3，原FF已消失；registry与OP_READY生命周期保持一致，未安装、卸载或重置任何Applet。脱敏日志及完成状态保存在忽略目录 `.research/gp-default-key-20261027/`，不保存原密钥；与记录177的28767821是不同实体卡。
+
 201. [user] 批准双向实例绑定、Bundle内Access同步、非Bundle仍Secret及禁止自导入，并要求实卡验证。[agent] Monoid安装随机token经Secret认证绑定摘要到Identity；加解密SIO新增token首参，Access只能走02封装且不借残留Secret降级，原forward绑定及sender限制保留，Reset同事务轮换。707测试/83套件及五CAP通过；D321/ACR1552一实卡加软件成员64条结果全部符合预期，包含同AID替换直接SIO拒绝/Secret重绑成功、Reset恢复及Identity替换拒绝。全部临时包已清理，原registry恢复，未正式部署或提交；详见 [双向实例绑定](./201.md)。
 
 202. [user] 要求修复双向绑定审查问题并将RPC范围内错误统一封装后提交。[agent] Safe改编码状态switch、Access资格失败明确ACCESS_DENIED；Command包含初始化/首窗生成，业务ISO映射CBOR、发送及续片错误保留传输语义；恢复Import回调前快照。711测试/83套、五CAP/JS6及格式模板通过；D321/ACR1552隔离45项检查与独立密码学oracle通过，107源哈希相符、临时包全清、registry复原。持久摘要缓冲不变，未改APP或OTP错误协议；见 [RPC错误与授权分支](./202.md)。
+
+## c05cce2
+
+203. [user] 要求两组三卡 Bundle 保留数据升级，批准第一组 Test 0 重装时清除 FIDO PIN，随后决定第二组暂不升级。[agent] 按每卡自己的清单与授权恢复，不取并集；逐组备份、冻结 CAP，再用两位成员批准新身份。第一组三卡已完成，8/7/7条与2/0/0授权、PIN、原ID/别名/Authority/Bundle及无关程序核验通过，next12/pendingnull；Test0 OTP实时Authority流程通过，FIDO受Windows PC/SC阻断，需用户重设FIDO PIN。第二组未读取或修改；验证边界见 [两组三卡升级](./203.md)。
+
+204. [user] 要求 PIN 长度上限改为32。[agent] Monoid Access／Identity Secret 两处 OwnerPIN 最大容量由16改32字节，README Authenticate／Set PIN注明UTF-8字节上限；独立FIDO PIN规则不变。36项认证测试与五CAP转换验证通过，覆盖32字节初始化、更新、复位认证及末字节不匹配，原MAX+1测试覆盖33字节更新拒绝。未实卡或部署；记录203刚升级的三卡仍为16字节容量，需更新Monoid及Identity才生效。

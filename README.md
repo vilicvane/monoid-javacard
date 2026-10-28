@@ -225,6 +225,7 @@ type Response = {
 
 ```ts
 type Request = {
+  /** At most 32 UTF-8 bytes. */
   pin: string;
   /** Successful Secret authentication also binds this Monoid instance for Bundle synchronization. */
   secret?: true;
@@ -243,6 +244,7 @@ type Response = {};
 
 ```ts
 type Request = {
+  /** At most 32 UTF-8 bytes. */
   pin: string;
   /** Sets the Secret PIN instead of the Access PIN. */
   secret?: true;

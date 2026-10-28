@@ -12,7 +12,7 @@ import javacard.framework.OwnerPIN;
 public final class SecretPIN {
 
   public static final byte PIN_TRY_LIMIT = 5;
-  public static final byte MAX_PIN_LENGTH = 16;
+  public static final byte MAX_PIN_LENGTH = 32;
 
   private static final short PIN_UNSET = (short) 0xA501;
   private static final short PIN_SET = (short) 0x5AFE;

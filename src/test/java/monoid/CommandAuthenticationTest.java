@@ -81,6 +81,30 @@ public class CommandAuthenticationTest {
   }
 
   @Test
+  public void supports32BytePINsThroughInitializationUpdatesAndReset() {
+    byte[] longPIN = "01234567890123456789012345678901".getBytes(StandardCharsets.US_ASCII);
+    byte[] wrongPIN = longPIN.clone();
+    wrongPIN[31] ^= 1;
+
+    assertSuccess(setPIN(longPIN, true));
+    assertPINs(longPIN, longPIN);
+
+    for (boolean secretPIN : new boolean[] { false, true }) {
+      resetAndSelect();
+      requireError(authenticate(wrongPIN, secretPIN), MonoidException.CODE_INVALID_PIN);
+      assertSuccess(authenticate(longPIN, secretPIN));
+    }
+
+    assertSuccess(setPIN(NEW_PIN, false));
+    assertSuccess(setPIN(NEW_PIN, true));
+    assertPINs(NEW_PIN, NEW_PIN);
+
+    assertSuccess(setPIN(longPIN, false));
+    assertSuccess(setPIN(longPIN, true));
+    assertPINs(longPIN, longPIN);
+  }
+
+  @Test
   public void accessAuthorizationCannotChangeEitherPIN() {
     initializePINs();
     assertSuccess(authenticate(PIN, false));
