@@ -19,8 +19,13 @@ jobs:
         with:
           java-version: '11'
           distribution: 'temurin'
-      - run: npm install
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
       - run: npx prettier --check .
       - run: npx inplate --assert
+      - run: node --test scripts/benchmark/*.test.mjs
       - run: ./gradlew check --info
       - run: ./gradlew buildJavaCard --info

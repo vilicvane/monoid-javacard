@@ -12,10 +12,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import tests.MonoidItemTransferTest.Card;
 import tests.MonoidItemTransferTest.Result;
 
+@Tag("authority")
 public class MonoidAuthorityWorkerTest {
 
   @Test

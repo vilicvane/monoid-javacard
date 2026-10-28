@@ -66,11 +66,6 @@ Build and install with PowerShell:
 
 The development workflow requires Node.js for source code housekeeping and some test case validation.
 
-The Authority interoperability JUnit tests also require the sibling `../monoid/workers/authority`
-checkout with its npm dependencies installed. They bundle its current `src/crypto.ts` in memory
-using its esbuild dependency and invoke `AuthorityCrypto.generateMaterial()` and `issueBundle()`;
-no Worker build, running service or saved key material is needed.
-
 ```sh
 npm install
 ```
@@ -80,6 +75,18 @@ Run tests with simulator:
 ```sh
 ./gradlew test --info --rerun-tasks
 ```
+
+Run Authority interoperability tests with the private `monoid` repository checked out alongside
+this repository:
+
+```sh
+npm ci --prefix ../monoid/workers/authority
+./gradlew authorityTests --info
+```
+
+These tests bundle the Worker's current `src/crypto.ts` in memory using its esbuild dependency;
+no running service or saved key material is needed. Public CI runs the standalone `check` task
+and CAP build; `authorityTests` requires the separate checkout and is invoked explicitly.
 
 Run tests on physical cards:
 

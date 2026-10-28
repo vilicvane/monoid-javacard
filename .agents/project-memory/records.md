@@ -429,3 +429,7 @@
 203. [user] 要求两组三卡 Bundle 保留数据升级，批准第一组 Test 0 重装时清除 FIDO PIN，随后决定第二组暂不升级。[agent] 按每卡自己的清单与授权恢复，不取并集；逐组备份、冻结 CAP，再用两位成员批准新身份。第一组三卡已完成，8/7/7条与2/0/0授权、PIN、原ID/别名/Authority/Bundle及无关程序核验通过，next12/pendingnull；Test0 OTP实时Authority流程通过，FIDO受Windows PC/SC阻断，需用户重设FIDO PIN。第二组未读取或修改；验证边界见 [两组三卡升级](./203.md)。
 
 204. [user] 要求 PIN 长度上限改为32。[agent] Monoid Access／Identity Secret 两处 OwnerPIN 最大容量由16改32字节，README Authenticate／Set PIN注明UTF-8字节上限；独立FIDO PIN规则不变。36项认证测试与五CAP转换验证通过，覆盖32字节初始化、更新、复位认证及末字节不匹配，原MAX+1测试覆盖33字节更新拒绝。未实卡或部署；记录203刚升级的三卡仍为16字节容量，需更新Monoid及Identity才生效。
+
+## 53ce881
+
+205. [user] 要求提交本轮工作、修复CI后推送。[agent] CI40690282351在Gradle test输入验证失败：公共runner缺少私有兄弟仓库的Authority源码及lockfile。将两项真实Worker互操作测试标为authority并保留显式authorityTests任务，独立test/check不依赖私有仓库；新任务继承相同模拟器类路径和安全随机属性，不用静默skip。CI固定Node22、npm ci并加入20项benchmark主机测试。README说明额外checkout及运行方式；本地710项独立测试、2项Authority互操作测试与五CAP验证通过，不改变固件协议或部署卡片。

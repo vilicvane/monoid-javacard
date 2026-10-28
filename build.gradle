@@ -78,12 +78,8 @@ application {
 }
 
 test {
-	inputs.file 'src/test/js/authority-bundle-worker.mjs'
-	inputs.dir '../monoid/workers/authority/src'
-	inputs.file '../monoid/workers/authority/package-lock.json'
-
 	useJUnitPlatform {
-		excludeTags 'manual'
+		excludeTags 'manual', 'authority'
 	}
 
 	task manualTests(type: Test) {
@@ -109,6 +105,23 @@ compileJava {
 test {
 	dependsOn compileSimulatorMath
 	classpath = files(compileSimulatorMath.destinationDir) + classpath
+}
+
+task authorityTests(type: Test) {
+	dependsOn testClasses, compileSimulatorMath
+	shouldRunAfter test
+	testClassesDirs = test.testClassesDirs
+	classpath = test.classpath
+	systemProperties = test.systemProperties
+
+	inputs.file 'src/test/js/authority-bundle-worker.mjs'
+	inputs.dir '../monoid/workers/authority/src'
+	inputs.file '../monoid/workers/authority/package.json'
+	inputs.file '../monoid/workers/authority/package-lock.json'
+
+	useJUnitPlatform {
+		includeTags 'authority'
+	}
 }
 
 run {
