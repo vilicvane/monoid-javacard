@@ -116,7 +116,7 @@ public class Monoid001Test extends AppletTest {
     byte[] master = hmac(SALT, SEED);
     byte[] expectedKey = privateKey(master, context);
     byte[] expectedPublicKey = publicKey(master, context);
-    Monoid001Derivation derivation = new Monoid001Derivation();
+    Monoid001Derivation derivation = new Monoid001Derivation(WeierstrassCurve.SECP256r1);
     DerivedKey derived = derivation.deriveFromSeed(SEED, context);
     byte[][] workingKeys = { derived.getKey(), derived.getKey() };
     byte[][] workingPublicKeys = {
@@ -218,7 +218,7 @@ public class Monoid001Test extends AppletTest {
   }
 
   @Test
-  public void rejectCurveAndPathOverridesAndLegacyName() throws Exception {
+  public void rejectUnsupportedCurvesAndPathOverridesAndLegacyName() throws Exception {
     byte[] index = create("seed", SEED);
 
     for (int instruction : new int[] { 0x40, 0x41 }) {
@@ -237,7 +237,7 @@ public class Monoid001Test extends AppletTest {
 
         if (invalid.equals("curve")) {
           writer.text("curve".getBytes());
-          writer.text("secp256r1".getBytes());
+          writer.text("secp256k1".getBytes());
         } else if (invalid.equals("path")) {
           writer.text("path".getBytes());
           writer.bytes(new byte[0]);

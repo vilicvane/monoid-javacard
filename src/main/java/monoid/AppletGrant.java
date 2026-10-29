@@ -136,12 +136,14 @@ final class AppletGrant {
     final byte[] index;
     final short type;
     final byte[] derivation;
+    final byte[] curveName;
     final byte[] input;
 
-    Key(byte[] index, short type, byte[] derivation, byte[] input) {
+    Key(byte[] index, short type, byte[] derivation, byte[] curveName, byte[] input) {
       this.index = index;
       this.type = type;
       this.derivation = derivation;
+      this.curveName = curveName;
       this.input = input;
     }
 
@@ -158,13 +160,13 @@ final class AppletGrant {
 
       if (derivation != null) {
         writer.text(Text.derivation);
-        writer.map(derivation == SLIP10Ed25519Derivation.NAME ? (short) 3 : 2);
+        writer.map(curveName == null ? (short) 2 : 3);
         writer.text(Text.type);
         writer.text(derivation);
 
-        if (derivation == SLIP10Ed25519Derivation.NAME) {
+        if (curveName != null) {
           writer.text(Text.curve);
-          writer.text(EdwardsCurve.ED25519);
+          writer.text(curveName);
         }
 
         writer.text(derivation == Monoid001Derivation.NAME ? Text.context : Text.path);

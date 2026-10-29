@@ -18,9 +18,12 @@ public final class Keystore {
 
   private BIP32Derivation bip32;
   private SLIP10Ed25519Derivation slip10Ed25519;
-  private Monoid001Derivation monoid001;
+  private Monoid001Derivation monoid001Secp256r1;
+  private Monoid001Derivation monoid001Ed25519;
+
   private Signature monoid001Signer;
   private byte[] monoid001Signature;
+
   private HMAC hmac;
 
   public Keystore(Safe safe) {
@@ -28,7 +31,8 @@ public final class Keystore {
 
     bip32 = new BIP32Derivation();
     slip10Ed25519 = new SLIP10Ed25519Derivation();
-    monoid001 = new Monoid001Derivation();
+    monoid001Secp256r1 = new Monoid001Derivation(WeierstrassCurve.SECP256r1);
+    monoid001Ed25519 = new Monoid001Derivation(EdwardsCurve.ED25519);
   }
 
   HMAC getHmac() {
@@ -91,13 +95,25 @@ public final class Keystore {
     return getSLIP10Ed25519PublicKeyAndChainCode(curve, derived);
   }
 
-  public byte[] getMonoid001PublicKeyFromSeed(byte[] index, byte[] context) {
-    return getMonoid001DerivedKeyFromSeed(index, context).getPublicKey(WeierstrassCurve.secp256r1);
+  public byte[] getMonoid001PublicKeyFromSeed(
+    byte[] index,
+    WeierstrassCurve curve,
+    byte[] context
+  ) {
+    DerivedKey derived = getMonoid001DerivedKeyFromSeed(index, monoid001Secp256r1, context);
+
+    return derived.getPublicKey(curve);
+  }
+
+  public byte[] getMonoid001PublicKeyFromSeed(byte[] index, EdwardsCurve curve, byte[] context) {
+    DerivedKey derived = getMonoid001DerivedKeyFromSeed(index, monoid001Ed25519, context);
+
+    return derived.getPublicKey(curve);
   }
 
   // The session holds authorization while these methods read its validated seed snapshot.
   DerivedKey deriveMonoid001Key(byte[] seed, byte[] context) {
-    return monoid001.deriveFromSeed(seed, context);
+    return monoid001Secp256r1.deriveFromSeed(seed, context);
   }
 
   byte[] getMonoid001UncompressedPublicKey(byte[] seed, byte[] context) {
@@ -152,7 +168,11 @@ public final class Keystore {
     return monoid001Signature;
   }
 
-  private DerivedKey getMonoid001DerivedKeyFromSeed(byte[] index, byte[] context) {
+  private DerivedKey getMonoid001DerivedKeyFromSeed(
+    byte[] index,
+    Monoid001Derivation derivation,
+    byte[] context
+  ) {
     short type = Util.getShort(index, Safe.INDEX_TYPE_OFFSET);
 
     if (!Safe.isTypeSeed(type)) {
@@ -161,7 +181,8 @@ public final class Keystore {
     }
 
     byte[] seed = requireKey(index);
-    return monoid001.deriveFromSeed(seed, context);
+
+    return derivation.deriveFromSeed(seed, context);
   }
 
   public byte[] getWeierstrassKeyPublicKey(byte[] index) {
@@ -237,7 +258,7 @@ public final class Keystore {
       curve = WeierstrassCurve.requireSharedCurve(curveName);
       DerivedKey derived = context == null
         ? bip32.deriveFromSeed(curve, key, path)
-        : monoid001.deriveFromSeed(key, context);
+        : monoid001Secp256r1.deriveFromSeed(key, context);
 
       key = derived.getKey();
       type = Safe.TYPE_WEIERSTRASS;
@@ -275,6 +296,7 @@ public final class Keystore {
     byte[] index,
     byte[] curveName,
     byte[] path,
+    byte[] context,
     ByteSource message,
     short messageOffset,
     short messageLength
@@ -289,7 +311,9 @@ public final class Keystore {
     if (Safe.isTypeSeed(type)) {
       curve = EdwardsCurve.requireSharedCurve(curveName);
 
-      DerivedKey derived = slip10Ed25519.deriveFromSeed(key, path);
+      DerivedKey derived = context == null
+        ? slip10Ed25519.deriveFromSeed(key, path)
+        : monoid001Ed25519.deriveFromSeed(key, context);
       privateKey = curve.getSharedPrivateKey(derived);
     } else if (type == Safe.TYPE_EDWARDS_ED25519 && key.length == CurveED25519.KEY_LENGTH) {
       curve = EdwardsCurve.ed25519;

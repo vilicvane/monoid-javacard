@@ -39,6 +39,16 @@ public final class DerivedKey {
     return Utils.duplicateAsPersistent(publicKey);
   }
 
+  public byte[] getPublicKey(EdwardsCurve curve) {
+    ED25519Key privateKey = curve.getSharedPrivateKey(this);
+
+    try {
+      return curve.derivePublicKey(privateKey);
+    } finally {
+      privateKey.clear();
+    }
+  }
+
   byte[] getUncompressedPublicKey(CurveSECP256r1 curve) {
     if (uncompressedPublicKey == null) {
       byte[] result = new byte[65];

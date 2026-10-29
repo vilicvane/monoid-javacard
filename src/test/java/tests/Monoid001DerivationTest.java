@@ -15,9 +15,12 @@ import javacard.security.Signature;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import monoid.CurveSECP256r1;
+import monoid.DerivedKey;
+import monoid.EdwardsCurve;
 import monoid.KeyDerivation;
 import monoid.LibHMACSha512;
 import monoid.Monoid001Derivation;
+import monoid.WeierstrassCurve;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +42,7 @@ public class Monoid001DerivationTest {
     simulator = new CardSimulator();
     LibHMACSha512.init();
     KeyDerivation.init();
-    derivation = new Monoid001Derivation();
+    derivation = new Monoid001Derivation(WeierstrassCurve.SECP256r1);
   }
 
   @AfterEach
@@ -63,6 +66,83 @@ public class Monoid001DerivationTest {
     digest.setAccessible(true);
     digest.set(null, MessageDigest.getInstance(MessageDigest.ALG_SHA_512, false));
     checkVectors();
+  }
+
+  @Test
+  public void selectedBackendMatchesEd25519SeedsAndKeepsCurvesSeparate() throws Exception {
+    checkEd25519Vectors();
+  }
+
+  @Test
+  public void softwareBackendMatchesEd25519SeedsAndKeepsCurvesSeparate() throws Exception {
+    LibHMACSha512.dispose();
+    Field digest = LibHMACSha512.class.getDeclaredField("sharedDigest");
+    digest.setAccessible(true);
+    digest.set(null, MessageDigest.getInstance(MessageDigest.ALG_SHA_512, false));
+    checkEd25519Vectors();
+  }
+
+  private void checkEd25519Vectors() throws Exception {
+    Monoid001Derivation ed25519 = new Monoid001Derivation(EdwardsCurve.ED25519.clone());
+    byte[] seed = new byte[64];
+
+    for (int i = 0; i < seed.length; i++) {
+      seed[i] = (byte) i;
+    }
+
+    byte[] originalSeed = seed.clone();
+    String[][] vectors = {
+      { "", "3ca45f0809035fdfc7820573d8c3d0829939945aef1361517f0f44f4ecdeabc8" },
+      { "00010200ff", "83e8916442da94f6b66e13836b0f065c60825eaf87955d876044e01fe1be9b39" },
+    };
+
+    // Generated independently with Node crypto.hkdfSync('sha512', seed, salt, info, 32).
+    for (String[] vector : vectors) {
+      byte[] context = Hex.decode(vector[0]);
+      byte[] originalContext = context.clone();
+      byte[] expected = Hex.decode(vector[1]);
+      DerivedKey p256 = derivation.deriveFromSeed(seed, context);
+      DerivedKey ed = ed25519.deriveFromSeed(seed, context);
+
+      Assertions.assertArrayEquals(expected, ed.getKey());
+      Assertions.assertFalse(Arrays.equals(p256.getKey(), ed.getKey()));
+      Assertions.assertSame(p256, derivation.deriveFromSeed(seed, context));
+      Assertions.assertSame(ed, ed25519.deriveFromSeed(seed, context));
+
+      simulator.reset();
+      Assertions.assertSame(ed, ed25519.deriveFromSeed(seed, context));
+      Assertions.assertSame(p256, derivation.deriveFromSeed(seed, context));
+
+      for (int i = 0; i < 33; i++) {
+        ed25519.deriveFromSeed(seed, new byte[] { (byte) i });
+      }
+
+      Assertions.assertNotSame(ed, ed25519.deriveFromSeed(seed, context));
+      Assertions.assertArrayEquals(expected, ed25519.deriveFromSeed(seed, context).getKey());
+      Assertions.assertArrayEquals(
+        p256.getKey(),
+        derivation.deriveFromSeed(seed, context).getKey()
+      );
+      Assertions.assertArrayEquals(originalSeed, seed);
+      Assertions.assertArrayEquals(originalContext, context);
+    }
+  }
+
+  @Test
+  public void ed25519AcceptsAllSeedBytesWithoutScalarRejection() throws Exception {
+    byte[] largest = new byte[32];
+    Arrays.fill(largest, (byte) 0xFF);
+
+    for (byte[] seed : new byte[][] { new byte[32], CurveSECP256r1.R.clone(), largest }) {
+      CandidateSignature signature = new CandidateSignature(new byte[][] { seed }, (byte) 1);
+      Field field = LibHMACSha512.class.getDeclaredField("sharedSignature");
+      field.setAccessible(true);
+      field.set(null, signature);
+      Monoid001Derivation ed25519 = new Monoid001Derivation(EdwardsCurve.ED25519);
+
+      Assertions.assertArrayEquals(seed, ed25519.derive(MASTER, CONTEXT).getKey());
+      Assertions.assertEquals(1, signature.calls);
+    }
   }
 
   @Test
@@ -264,12 +344,18 @@ public class Monoid001DerivationTest {
   private static class CandidateSignature extends SymmetricSignatureImpl {
 
     private final byte[][] candidates;
+    private final byte domain;
     private final ByteArrayOutputStream input = new ByteArrayOutputStream();
     private int calls;
 
     CandidateSignature(byte[][] candidates) {
+      this(candidates, (byte) 0);
+    }
+
+    CandidateSignature(byte[][] candidates, byte domain) {
       super(Signature.ALG_HMAC_SHA_512);
       this.candidates = candidates;
+      this.domain = domain;
     }
 
     @Override
@@ -281,6 +367,7 @@ public class Monoid001DerivationTest {
     public short sign(byte[] in, short inOffset, short inLength, byte[] out, short outOffset) {
       Assertions.assertTrue(calls < candidates.length, "Candidate counter wrapped or overran");
       byte[] expected = Hex.decode("4d6f6e6f69642d30303100007f80ff00010001");
+      expected[10] = domain;
       expected[expected.length - 2] = (byte) calls;
       input.write(in, inOffset, inLength);
       Assertions.assertArrayEquals(expected, input.toByteArray());

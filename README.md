@@ -611,13 +611,20 @@ type KeyED25519 = {
     }
   | {
       type: 'seed';
-      derivation: {
-        /** Uses "ed25519 seed" for seed-to-master generation. */
-        type: 'slip10';
-        curve: 'ed25519';
-        /** 4-byte big-endian hardened indices; empty selects master. */
-        path: byte[];
-      };
+      derivation:
+        | {
+            /** Uses "ed25519 seed" for seed-to-master generation. */
+            type: 'slip10';
+            curve: 'ed25519';
+            /** 4-byte big-endian hardened indices; empty selects master. */
+            path: byte[];
+          }
+        | {
+            type: 'monoid-001';
+            curve: 'ed25519';
+            /** Opaque bytes; empty context is valid. */
+            context: byte[];
+          };
     }
 );
 
@@ -631,6 +638,8 @@ type KeySECP256r1 = {
       type: 'seed';
       derivation: {
         type: 'monoid-001';
+        /** Defaults to secp256r1. */
+        curve?: 'secp256r1';
         /** Opaque bytes; empty context is valid. */
         context: byte[];
       };

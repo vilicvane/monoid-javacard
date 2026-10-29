@@ -40,7 +40,7 @@ public class SeedMasterCacheTest {
     KeyDerivation[] derivations = {
       new BIP32Derivation(),
       new SLIP10Ed25519Derivation(),
-      new Monoid001Derivation(),
+      new Monoid001Derivation(WeierstrassCurve.SECP256r1),
     };
     String[] labels = { "Bitcoin seed", "ed25519 seed", "Monoid-001" };
     byte[] seed = new byte[64];

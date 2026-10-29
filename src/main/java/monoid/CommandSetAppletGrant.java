@@ -130,7 +130,7 @@ public final class CommandSetAppletGrant extends Command {
       }
 
       assertSourceLength(index, (short) (type & Safe.TYPE_METADATA_MASK));
-      return new AppletGrant.Key(index, declaredType, null, null);
+      return new AppletGrant.Key(index, declaredType, null, null, null);
     }
 
     if (!Safe.isTypeSeed(type)) {
@@ -144,18 +144,30 @@ public final class CommandSetAppletGrant extends Command {
       }
 
       assertSourceLength(index, (short) 32);
-      return new AppletGrant.Key(index, declaredType, null, null);
+      return new AppletGrant.Key(index, declaredType, null, null, null);
     }
 
     assertSourceLength(index, Keystore.SEED_512_LENGTH);
     CBORMap derivation = key.requireKey(Text.derivation).map(derivationFields);
     byte[] name = derivation.requireKey(Text.type).text();
     byte[] algorithm;
+    byte[] curveName = null;
     byte[] input;
 
     if (Utils.isEqual(Monoid001Derivation.NAME, name)) {
-      if (derivation.key(Text.curve) || derivation.key(Text.path)) {
+      if (derivation.key(Text.path)) {
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+      }
+
+      if (derivation.key(Text.curve)) {
+        curveName = reader.text();
+
+        if (
+          !Utils.isEqual(WeierstrassCurve.SECP256r1, curveName) &&
+          !Utils.isEqual(EdwardsCurve.ED25519, curveName)
+        ) {
+          MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
+        }
       }
 
       algorithm = Monoid001Derivation.NAME;
@@ -174,6 +186,7 @@ public final class CommandSetAppletGrant extends Command {
         }
 
         algorithm = SLIP10Ed25519Derivation.NAME;
+        curveName = EdwardsCurve.ED25519;
       } else {
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
         return null;
@@ -199,7 +212,7 @@ public final class CommandSetAppletGrant extends Command {
       }
     }
 
-    return new AppletGrant.Key(index, declaredType, algorithm, input);
+    return new AppletGrant.Key(index, declaredType, algorithm, curveName, input);
   }
 
   private void assertSourceLength(byte[] index, short length) {

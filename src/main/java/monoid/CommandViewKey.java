@@ -98,14 +98,28 @@ public final class CommandViewKey extends Command {
         return;
       }
     } else if (Utils.isEqual(Monoid001Derivation.NAME, derivation)) {
-      if (hasTaproot || derivationRequest.key(Text.curve) || derivationRequest.key(Text.path)) {
+      curveName = derivationRequest.key(Text.curve) ? reader.text() : WeierstrassCurve.SECP256r1;
+
+      if (
+        hasTaproot ||
+        (!Utils.isEqual(WeierstrassCurve.SECP256r1, curveName) &&
+          !Utils.isEqual(EdwardsCurve.ED25519, curveName)) ||
+        derivationRequest.key(Text.path)
+      ) {
         MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
         return;
       }
 
       byte[] context = derivationRequest.requireKey(Text.context).bytes();
 
-      byte[] publicKey = keystore.getMonoid001PublicKeyFromSeed(index, context);
+      WeierstrassCurve weierstrassCurve = WeierstrassCurve.getSharedCurve(curveName);
+      EdwardsCurve edwardsCurve = weierstrassCurve == null
+        ? EdwardsCurve.requireSharedCurve(curveName)
+        : null;
+
+      byte[] publicKey = weierstrassCurve != null
+        ? keystore.getMonoid001PublicKeyFromSeed(index, weierstrassCurve, context)
+        : keystore.getMonoid001PublicKeyFromSeed(index, edwardsCurve, context);
 
       writer.map((short) 1);
       {

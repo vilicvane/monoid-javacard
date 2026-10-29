@@ -433,3 +433,7 @@
 ## 53ce881
 
 205. [user] 要求提交本轮工作、修复CI后推送。[agent] CI40690282351在Gradle test输入验证失败：公共runner缺少私有兄弟仓库的Authority源码及lockfile。将两项真实Worker互操作测试标为authority并保留显式authorityTests任务，独立test/check不依赖私有仓库；新任务继承相同模拟器类路径和安全随机属性，不用静默skip。CI固定Node22、npm ci并加入20项benchmark主机测试。README说明额外checkout及运行方式；本地710项独立测试、2项Authority互操作测试与五CAP验证通过，不改变固件协议或部署卡片。
+
+## fb8b1e6
+
+206. [user] 要求 Monoid-001 支持 Ed25519。[agent] 新增 derivation.curve=ed25519 的 seed/context 公钥与消息签名，省略或显式secp256r1保留原P-256结果；HKDF info固定域00/01隔离曲线，Ed输出32B seed不做标量拒绝采样。各曲线固定派生实例隔离共享缓存，复用Ed展开密钥；授权描述符同步往返，SIO仍P-256。实现与验证见 [Monoid-001 Ed25519](./206.md)。

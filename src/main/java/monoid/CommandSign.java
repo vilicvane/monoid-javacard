@@ -35,7 +35,7 @@ public class CommandSign extends Command {
 
     byte[] index = request.requireKey(Text.index).bytes(Safe.INDEX_LENGTH);
 
-    byte[] curve = null;
+    byte[] curveName = null;
     byte[] path = null;
     byte[] context = null;
 
@@ -64,21 +64,28 @@ public class CommandSign extends Command {
             return;
           }
 
-          curve = WeierstrassCurve.SECP256k1;
+          curveName = WeierstrassCurve.SECP256k1;
         } else if (Utils.isEqual(SLIP10Ed25519Derivation.NAME, derivation)) {
-          curve = derivationRequest.requireKey(Text.curve).text();
+          curveName = derivationRequest.requireKey(Text.curve).text();
 
-          if (!Utils.isEqual(EdwardsCurve.ED25519, curve)) {
+          if (!Utils.isEqual(EdwardsCurve.ED25519, curveName)) {
             MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
             return;
           }
         } else if (Utils.isEqual(Monoid001Derivation.NAME, derivation)) {
-          if (derivationRequest.key(Text.curve) || derivationRequest.key(Text.path)) {
+          curveName = derivationRequest.key(Text.curve)
+            ? reader.text()
+            : WeierstrassCurve.SECP256r1;
+
+          if (
+            (!Utils.isEqual(WeierstrassCurve.SECP256r1, curveName) &&
+              !Utils.isEqual(EdwardsCurve.ED25519, curveName)) ||
+            derivationRequest.key(Text.path)
+          ) {
             MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
             return;
           }
 
-          curve = WeierstrassCurve.SECP256r1;
           context = derivationRequest.requireKey(Text.context).bytes();
         } else {
           MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
@@ -110,7 +117,13 @@ public class CommandSign extends Command {
 
     if (
       (hasTaproot && !Utils.isEqual(Signer.CIPHER_BIP340, cipher)) ||
-      (context != null && !Utils.isEqual(Signer.CIPHER_ECDSA, cipher))
+      (context != null &&
+        !Utils.isEqual(
+          Utils.isEqual(EdwardsCurve.ED25519, curveName)
+            ? Signer.CIPHER_ED25519
+            : Signer.CIPHER_ECDSA,
+          cipher
+        ))
     ) {
       MonoidException.throwIt(MonoidException.CODE_INVALID_PARAMETER);
       return;
@@ -126,14 +139,15 @@ public class CommandSign extends Command {
         return;
       }
 
-      signature = keystore.signECDSADigest(index, curve, path, context, digest);
+      signature = keystore.signECDSADigest(index, curveName, path, context, digest);
     } else if (Utils.isEqual(Signer.CIPHER_ED25519, cipher)) {
       short messageLength = request.requireKey(Text.message).bytesLength();
 
       signature = keystore.signED25519Message(
         index,
-        curve,
+        curveName,
         path,
+        context,
         reader,
         reader.getOffset(),
         messageLength
@@ -156,7 +170,7 @@ public class CommandSign extends Command {
         }
       }
 
-      signature = keystore.signBIP340Digest(index, curve, path, digest, merkleRoot);
+      signature = keystore.signBIP340Digest(index, curveName, path, digest, merkleRoot);
     } else {
       SignerException.throwIt(SignerException.REASON_UNSUPPORTED_CIPHER);
       return;

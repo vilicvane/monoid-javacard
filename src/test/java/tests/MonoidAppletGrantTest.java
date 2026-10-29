@@ -197,7 +197,15 @@ public class MonoidAppletGrantTest {
           seedIndex,
           fields("type", "slip10", "curve", "ed25519", "path", new byte[] { (byte) 0x80, 0, 0, 1 })
         ),
-        derived(seedIndex, fields("type", "monoid-001", "context", bytes("fixed key")))
+        derived(seedIndex, fields("type", "monoid-001", "context", bytes("fixed key"))),
+        derived(
+          seedIndex,
+          fields("type", "monoid-001", "curve", "secp256r1", "context", bytes("fixed key"))
+        ),
+        derived(
+          seedIndex,
+          fields("type", "monoid-001", "curve", "ed25519", "context", bytes("fixed key"))
+        )
       );
       Map<String, Object> seed = fields("index", seedIndex, "domain", bytes("passkey"));
       List<Object> permissions = types(0xF001, true);
@@ -217,6 +225,50 @@ public class MonoidAppletGrantTest {
             assertValueEquals(requested.get(field), stored.get(field));
           }
         }
+      }
+    }
+  }
+
+  @Test
+  public void monoid001CurvesSurviveResetAndRejectInvalidReplacements() {
+    try (Card card = new Card(true)) {
+      installClient(card, CLIENT_AID);
+      byte[] seedIndex = card.create("seed", null, null, sequence(64), true);
+      List<Object> keys = Arrays.asList(
+        derived(seedIndex, fields("type", "monoid-001", "context", new byte[0])),
+        derived(
+          seedIndex,
+          fields("type", "monoid-001", "curve", "secp256r1", "context", new byte[0])
+        ),
+        derived(seedIndex, fields("type", "monoid-001", "curve", "ed25519", "context", new byte[0]))
+      );
+      card.authenticate(false);
+      success(card, 0x51, grant("keys", keys));
+
+      card.reset();
+      card.authenticate(false);
+      Map<String, Object> original = grants(card).get(0);
+      assertValueEquals(keys, original.get("keys"));
+
+      for (Map<String, Object> invalid : Arrays.asList(
+        fields("type", "monoid-001", "curve", "secp256k1", "context", new byte[0]),
+        fields("type", "monoid-001", "curve", "unknown", "context", new byte[0]),
+        fields(
+          "type",
+          "monoid-001",
+          "curve",
+          "ed25519",
+          "path",
+          new byte[0],
+          "context",
+          new byte[0]
+        )
+      )) {
+        assertError(
+          transmit(card, 0x51, grant("keys", Arrays.asList(derived(seedIndex, invalid)))),
+          "INVALID_PARAMETER"
+        );
+        assertValueEquals(original, grants(card).get(0));
       }
     }
   }
