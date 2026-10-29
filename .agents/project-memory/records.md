@@ -437,3 +437,7 @@
 ## fb8b1e6
 
 206. [user] 要求 Monoid-001 支持 Ed25519。[agent] 新增 derivation.curve=ed25519 的 seed/context 公钥与消息签名，省略或显式secp256r1保留原P-256结果；HKDF info固定域00/01隔离曲线，Ed输出32B seed不做标量拒绝采样。各曲线固定派生实例隔离共享缓存，复用Ed展开密钥；授权描述符同步往返，SIO仍P-256。实现与验证见 [Monoid-001 Ed25519](./206.md)。
+
+## c7df852
+
+207. [user] README 的典型用途统一放在顶部 is 列表，不重复列 typical use cases；Cryptography 专门列实际可传的 curve/cipher 组合，派生在下方 API 已有定义，不另列 Key derivation。[agent] 移除新增的冗余功能清单；HMAC Shareable 不属于该组合树，保留在 Key 类型及 OTP 文档中。

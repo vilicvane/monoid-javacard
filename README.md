@@ -11,8 +11,9 @@
 A JavaCard with Monoid applets installed is:
 
 - [x] A hardware crypto wallet.
-- [x] A FIDO2 authenticator.
-- [x] A One-Time Password (OTP) generator.
+- [x] A [FIDO2 security key](doc/security-key.md).
+- [x] A hardware signer for standard SSH keys (Ed25519 and ECDSA).
+- [x] A [time-based one-time password (TOTP) generator](doc/otp.md).
 - [ ] A Tesla key.
 
 The goal is to allow third-party Monoid applets to interact with _Monoid Applet_ `Shareable` interface for signing/verifying and data access, so that Monoid can manage those keys and data and make it easy for users to backup, restore or even synchronize securely with unified UX.
@@ -138,12 +139,6 @@ See [architecture](doc/architecture.md) and [security boundaries](doc/security.m
 - [ ] Keys and data sync
 - [ ] Applet gallery
 
-### Applets for typical use cases
-
-- [x] FIDO2
-- [ ] One-time password (OTP)
-- [ ] Tesla key
-
 ### Cryptography
 
 - `"secp256k1"`
@@ -153,10 +148,6 @@ See [architecture](doc/architecture.md) and [security boundaries](doc/security.m
   - [x] `"ecdsa"`
 - `"ed25519"`
   - [x] `"ed25519"`
-- `"hmac"` (Shareable)
-  - [x] SHA-1
-  - [x] SHA-256
-  - [x] SHA-512
 
 See [Bitcoin signing](doc/bitcoin.md).
 

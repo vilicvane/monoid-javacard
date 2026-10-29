@@ -5,6 +5,8 @@ description: Monoid Java Card API approval rules, project scope, and transparent
 
 # Monoid Java Card API decisions
 
+- Record207 keeps README use cases only in the opening "is" list. Cryptography is specifically the supported curve/cipher parameter combinations, not a general algorithm inventory; exclude HMAC Shareable and Taproot operations from that tree. Do not duplicate the later API definitions with a Key derivation checklist. RECORDS.md remains authoritative.
+
 - Record206 extends Monoid-001 APDU Key descriptors with `curve: 'ed25519'`; omitted or explicit `secp256r1` retains P-256. Ed25519 ViewKey returns32B without chainCode; Sign takes `cipher: 'ed25519'` and raw message. Both reject path/taproot. Grant Key descriptors retain the selected curve. Existing Shareable Monoid-001 methods remain P-256. See206 and RECORDS.md for the authoritative derivation and validation scope.
 
 - Record205 separates private-Worker interoperability from standalone firmware validation. Run `./gradlew check authorityTests buildJavaCard` with the sibling `../monoid/workers/authority` checkout and its npm dependencies for full local validation. Public CI runs standalone `check`, five CAP builds and benchmark host tests without private repository access. The two authority-tagged tests remain mandatory when invoking `authorityTests`; they are not silently skipped, and they share the regular test task's simulator classpath and secure-random setting.
